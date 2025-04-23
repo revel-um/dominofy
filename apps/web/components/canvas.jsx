@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -8,8 +8,9 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import PrintDomino from "../dominos/print";
 import { DominoContext } from "../contexts/dominoContext";
-import { runDominos } from "../helpers/runDominos";
 import DetailsPanel from "./detailsPanel";
+import axios from "axios"; // ✅ for backend call
+import buildPipeline from "../helpers/buildPipeline"; // ✅ utility function to build pipeline
 
 const nodeTypes = {
   print: PrintDomino,
@@ -24,6 +25,13 @@ export default function Canvas({
   onEdgesChange
 }) {
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const [pipeline, setPipeline] = useState([]); // ✅ pipeline state
+
+  // ✅ Update pipeline whenever nodes or edges change
+  useEffect(() => {
+    const newPipeline = buildPipeline(nodes, edges);
+    setPipeline(newPipeline);
+  }, [nodes, edges]);
 
   const handleDrop = useCallback(
     (event) => {
@@ -79,8 +87,18 @@ export default function Canvas({
     [setEdges]
   );
 
+  // ✅ Function to run flow from backend
+  const runDominosFlow = async () => {
+    try {
+      const response = await axios.post("/api/run-flow", { pipeline });
+      console.log("Execution Logs:", response.data.logs);
+    } catch (err) {
+      console.error("Error running dominos:", err);
+    }
+  };
+
   return (
-    <DominoContext.Provider value={{ runDominosFlow: () => runDominos(nodes, edges) }}>
+    <DominoContext.Provider value={{ runDominosFlow }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
