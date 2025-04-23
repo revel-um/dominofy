@@ -15,5 +15,9 @@
   },
   "devDependencies": {
     "turbo": "^2.5.0"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.6.0",
+    "react-icons": "^5.5.0"
   }
 }
