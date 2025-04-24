@@ -1,7 +1,6 @@
-export type PipelineStep = {
-    id: string;
-    type: string; // "print", "math", etc.
-    data: Record<string, any>;
-    next: string[]; // IDs of next nodes
-  };
-  
+export interface PipelineStep {
+  id: string;
+  type: string;
+  data: Record<string, any>;
+  next: string[];
+}

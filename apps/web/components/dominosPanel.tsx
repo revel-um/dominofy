@@ -14,7 +14,7 @@ export default function DominosPanel() {
         document.addEventListener('mouseup', handleMouseUp);
     };
 
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (e: { clientX: number; }) => {
         if (!isDragging.current) return;
         const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX));
         setWidth(newWidth);

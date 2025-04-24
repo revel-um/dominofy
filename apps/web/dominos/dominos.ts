@@ -1,10 +1,14 @@
-import { FiPrinter } from 'react-icons/fi';
+import { FiPrinter, FiGlobe } from 'react-icons/fi'; // ✅ import icon for API Call
 
 export default [
   {
     id: 'print',
     label: 'Print',
     icon: FiPrinter,
-  }
-  // Add more dominos here
+  },
+  {
+    id: 'apicall',
+    label: 'API Call',
+    icon: FiGlobe,
+  },
 ];
