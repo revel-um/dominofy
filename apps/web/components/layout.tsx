@@ -16,6 +16,7 @@ export default function DominofyLayout() {
     }, [nodes, edges]);
 
     const contextValue = useMemo(() => ({ runDominosFlow }), [runDominosFlow]);
+    const selectedNode = nodes.find((node) => node.data?.selected);
 
     return (
         <DominoContext.Provider value={contextValue}>
@@ -31,7 +32,7 @@ export default function DominofyLayout() {
                     />
                 </ReactFlowProvider>
                 <DominosPanel />
-                <DetailsPanel />
+                <DetailsPanel selectedNode={selectedNode}/>
             </div>
         </DominoContext.Provider>
     );

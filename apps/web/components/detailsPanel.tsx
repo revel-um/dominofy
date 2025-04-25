@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { FiSettings, FiPlay } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
+import { Node } from 'reactflow';
 
 
-export default function DetailsPanel() {
+export default function DetailsPanel({selectedNode}: { selectedNode: Node | undefined }) {
     const { runDominosFlow } = useDomino();
 
     const MIN_WIDTH = 240;
