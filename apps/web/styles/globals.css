@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+.selected-border {
+  @apply border-2 border-black;
+}
+
+.dark .selected-border {
+  @apply border-blue-500;
+}
+
+.unselected-border {
+  border: 2px solid transparent;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

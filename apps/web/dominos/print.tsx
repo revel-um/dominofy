@@ -36,7 +36,7 @@ export default function PrintDomino({ data, id }: NodeProps) {
 <div
       className={
         `transition-all duration-150
-        ${isSelected? 'rounded-md border-4 w-56 overflow-hidden shadow-sm border-blue-500': 'rounded-md border-2 w-56 overflow-hidden shadow-sm border-gray-400 dark:border-gray-600'}
+        ${isSelected? 'rounded-md border-4 w-56 overflow-hidden shadow-sm selected-border': 'rounded-md w-56 overflow-hidden shadow-sm unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`
       }
     >
