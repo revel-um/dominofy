@@ -1,23 +1,48 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
+import { useEffect } from 'react';
 
-export default function PrintDomino({ data, id }: NodeProps) {
+export default function PrintDomino({ data, id, selected }: NodeProps) {
     const isValueConnected = data?.valueConnected ?? false;
-    const isSelected = data?.selected ?? false;
+    const isSelected = selected;
+
+    useEffect(() => {
+        if (!data.details && data.setNodes) {
+          data.setNodes((prevNodes: { id: string; data: any; }[]) => {
+            return prevNodes.map((node) =>
+              node.id === id
+                ? {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      details: {
+                        label: 'Print',
+                        description: 'This node prints a given value.',
+                        category: 'Basic',
+                        inputs: ['value_in'],
+                        outputs: ['exec_out'],
+                      },
+                    },
+                  }
+                : node
+            );
+          });
+        }
+      }, [data, id]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newValue = e.target.value;
 
         if (data.setNodes) {
-            data.setNodes((prevNodes: any[]) => {
+            data.setNodes((prevNodes: { id: string; data: any; }[]) => {
                 const updatedNodes = prevNodes.map((node) =>
                     node.id === id
                         ? {
                             ...node,
                             data: {
                                 ...node.data,
-                                value: newValue,
+                                value: newValue
                             },
                         }
                         : node
