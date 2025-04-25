@@ -65,6 +65,12 @@ export default function DetailsPanel({selectedNode}: { selectedNode: Node | unde
             </div>
 
             {/* Resize Handle */}
+            <div>
+                        <p className="text-xs text-gray-500">Data</p>
+                        <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">
+                            {JSON.stringify(selectedNode?.data, null, 2)}
+                        </pre>
+                    </div>
             <div
                 onMouseDown={handleMouseDown}
                 className="absolute top-0 left-0 h-full w-1.5 cursor-ew-resize bg-transparent"

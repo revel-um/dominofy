@@ -71,7 +71,6 @@ export default function Canvas({
         position,
         data: {
           label: `${type} node`,
-          connected: false,
           value: "",
           setNodes,
           updatePipeline
@@ -310,11 +309,11 @@ export default function Canvas({
         selectionKeyCode={null} // Optional: disable multi-select with Shift/Ctrl
         >
         <Background />
-        <MiniMap />
+        {/* <MiniMap /> */}
         <Controls />
       </ReactFlow>
 
-      <DetailsPanel />
+      <DetailsPanel selectedNode={nodes.find((n) => n.data?.selected)} />
     </DominoContext.Provider>
   );
 }

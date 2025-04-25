@@ -32,8 +32,8 @@ export default function DominofyLayout() {
                     />
                 </ReactFlowProvider>
                 <DominosPanel />
-                <DetailsPanel selectedNode={selectedNode}/>
-            </div>
+                {/* <DetailsPanel selectedNode={nodes.find((n) => n.data?.selected)} /> */}
+                </div>
         </DominoContext.Provider>
     );
 }
