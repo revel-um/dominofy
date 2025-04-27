@@ -3,7 +3,7 @@ import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 
-export default function ApiCallDomino({ data, id }: NodeProps) {
+export default function ApiCallDomino({ data, id, selected }: NodeProps) {
     const handleChange = (field: string, value: string) => {
         if (data.setNodes) {
             data.setNodes((prevNodes: any[]) => {
@@ -14,7 +14,6 @@ export default function ApiCallDomino({ data, id }: NodeProps) {
                             data: {
                                 ...node.data,
                                 [field]: value,
-                                selected: node.data?.selected ?? false,
                             },
                         }
                         : node
@@ -32,7 +31,11 @@ export default function ApiCallDomino({ data, id }: NodeProps) {
 
 
     return (
-        <div className="rounded-md border border-gray-400 dark:border-gray-600 bg-dominofy-light-panel dark:bg-dominofy-dark-panel w-64 shadow-sm overflow-hidden">
+        <div className={`rounded-md border border-gray-400
+        dark:border-gray-600 bg-dominofy-light-panel
+        dark:bg-dominofy-dark-panel w-64 shadow-sm overflow-hidden
+        ${selected ? 'rounded-md border-4 w-56 overflow-hidden shadow-sm selected-border' : 'rounded-md w-56 overflow-hidden shadow-sm unselected-border dark:border-gray-600'}
+        `}>
             <div
                 className="px-3 py-2 text-sm font-semibold text-white border-b"
                 style={{
@@ -76,7 +79,7 @@ export default function ApiCallDomino({ data, id }: NodeProps) {
                     value={data.body ?? ''}
                     onChange={(e) => handleChange('body', e.target.value)}
                     className="w-full px-2 py-1 border rounded resize-none bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-                    // rows={3}
+                // rows={3}
                 />
             </div>
 

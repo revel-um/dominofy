@@ -2,9 +2,10 @@ import React, { useState, useRef } from 'react';
 import { FiSettings, FiPlay } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
 import { Node } from 'reactflow';
+import { DominoField, fieldWidgetMap } from '../types/dominoFieldTypes';
 
 
-export default function DetailsPanel({selectedNode}: { selectedNode: Node | undefined }) {
+export default function DetailsPanel({ selectedNode }: { selectedNode: Node | undefined }) {
     const { runDominosFlow } = useDomino();
 
     const MIN_WIDTH = 240;
@@ -54,23 +55,58 @@ export default function DetailsPanel({selectedNode}: { selectedNode: Node | unde
                         </button>
                     </div>
                 </div>
-                <div className="p-3 rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface mb-4">
-                    <p className="text-sm">Details about selected node...</p>
-                </div>
+                {selectedNode?.data?.details && (
+                    <div className="p-4 space-y-6">
+                        {/* Heading */}
+                        <h2 className="text-2xl font-bold">{selectedNode.data.details.type}</h2>
+
+                        {/* Description */}
+                        <p className="text-gray-600">{selectedNode.data.details.description}</p>
+
+                        {/* Fields */}
+                        <div className="space-y-4">
+                            {selectedNode.data.details.fields.map((field: DominoField, idx: React.Key | null | undefined) => {
+                                const Widget = fieldWidgetMap[field.type as keyof typeof fieldWidgetMap];
+                                if (!Widget) {
+                                    return <div key={idx}>Unsupported widget: {field.type}</div>;
+                                }
+
+                                return (
+                                    <div key={idx} className="flex flex-col">
+                                        {field.heading && (
+                                            <label className="mb-1 font-medium">{field.heading}</label>
+                                        )}
+                                        <Widget
+                                            value={field.value}
+                                            options={field.options}
+                                            placeholder={field.placeholder}
+                                            required={field.required}
+                                            onChange={(val: any) => {
+                                                // You can later implement onChange update logic here
+                                            }}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
             </div>
 
+
+
             {/* Bottom right floating settings icon */}
-            <div className="flex justify-end">
+            {/* <div className="flex justify-end">
                 <FiSettings className="text-2xl cursor-pointer text-dominofy-light-text dark:text-dominofy-dark-text" />
-            </div>
+            </div> */}
 
             {/* Resize Handle */}
             <div>
-                        <p className="text-xs text-gray-500">Data</p>
-                        <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">
-                            {JSON.stringify(selectedNode?.data, null, 2)}
-                        </pre>
-                    </div>
+                <p className="text-xs text-gray-500">Data</p>
+                <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">
+                    {JSON.stringify(selectedNode?.data, null, 2)}
+                </pre>
+            </div>
             <div
                 onMouseDown={handleMouseDown}
                 className="absolute top-0 left-0 h-full w-1.5 cursor-ew-resize bg-transparent"

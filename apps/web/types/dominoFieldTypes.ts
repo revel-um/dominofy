@@ -1,11 +1,20 @@
-export type DominoFieldType =
+import { FileInput } from "lucide-react";
+import { Checkbox } from "../components/widgets/checkbox";
+import { CodeInput } from "../components/widgets/codeInput";
+import { DateInput } from "../components/widgets/dateInput";
+import { Dropdown } from "../components/widgets/dropdown";
+import { JsonInput } from "../components/widgets/jsonInput";
+import { MultiSelect } from "../components/widgets/multiselect";
+import { TextWidget } from "../components/widgets/textWidget";
+import { TextInput } from "../components/widgets/textInput";
+
+export type WidgetType =
   | 'text'
-  | 'number'
-  | 'boolean'
+  | 'checkbox'
   | 'dropdown'
-  | 'multi-select'
+  | 'multiSelect'
   | 'code'
-  | 'textarea'
+  | 'textInput'
   | 'json'
   | 'date'
   | 'file';
@@ -16,21 +25,31 @@ export interface DominoFieldOption {
 }
 
 export interface DominoField {
-  key: string; // e.g., "username"
-  label: string; // e.g., "User Name"
-  type: DominoFieldType;
+  type: WidgetType;
   value: any;
   options?: DominoFieldOption[]; // For dropdown and multi-select
   placeholder?: string;
   required?: boolean;
-  helperText?: string;
+  heading?: string;
 }
 
-interface DominoNodeData {
+export interface DominoNodeData {
   type: string; // e.g., "Print", "HTTP Request", etc.
+  description?: string; // e.g., "Print a document", "Make an HTTP request", etc.
   fields: DominoField[];
   setNodes?: (updater: any) => void;
   updatePipeline?: (nodes: any[]) => void;
-  selected?: boolean;
   [key: string]: any; // Extra props if needed
 }
+
+export const fieldWidgetMap = {
+  text: TextWidget,
+  boolean: Checkbox,
+  dropdown: Dropdown,
+  'multi-select': MultiSelect,
+  code: CodeInput,
+  textInput: TextInput,
+  json: JsonInput,
+  date: DateInput,
+  file: FileInput,
+};
