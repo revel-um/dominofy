@@ -6,7 +6,7 @@ export function TextInput({ value = '', placeholder = '', onChange }: any) {
             value={value}
             placeholder={placeholder}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full border rounded p-2"
+            className="w-full border rounded p-2 text-black"
         />
     );
 }

@@ -1,11 +1,12 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect } from 'react';
-import { DominoNodeData } from '../types/dominoFieldTypes';
+import { useEffect, useState } from 'react';
+import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 
 export default function PrintDomino({ data, id, selected }: NodeProps) {
   const isValueConnected = data?.valueConnected ?? false;
+  const [value, setValue] = useState("")
 
   // useEffect(() => {
   //   if (!data.details && data.setNodes) {
@@ -48,43 +49,45 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
         return prevNodes.map((node) => {
           if (node.id === id) {
             const setFieldValue = (heading: string, newValue: any) => {
+              setValue(newValue)
+
               data.setNodes?.((nodes: any[]) =>
                 nodes.map((n: { id: string; data: { value: any; details: { fields: any[]; }; }; }) =>
                   n.id === id
                     ? {
-                        ...n,
-                        data: {
-                          ...n.data,
-                          value: heading === 'Text' ? newValue : n.data.value,
-                          details: {
-                            ...n.data.details,
-                            fields: n.data.details.fields.map((field: { heading: string; }) =>
-                              field.heading === heading
-                                ? { ...field, value: newValue }
-                                : field
-                            ),
-                          },
+                      ...n,
+                      data: {
+                        ...n.data,
+                        value: heading === 'Text' ? newValue : n.data.value,
+                        details: {
+                          ...n.data.details,
+                          fields: n.data.details.fields.map((field: { heading: string; }) =>
+                            field.heading === heading
+                              ? { ...field, value: newValue }
+                              : field
+                          ),
                         },
-                      }
+                      },
+                    }
                     : n
                 )
               );
             };
-  
+
             const details: DominoNodeData = {
               type: 'Print',
               description: 'This domino prints a given value.',
               fields: [
                 {
                   type: 'textInput',
-                  placeholder: 'What to print...',
-                  value: data.value ?? '',
+                  placeholder: 'What to print ...',
+                  value: data.value,
                   required: true,
                   heading: 'Text',
                 },
               ],
             };
-  
+
             return {
               ...node,
               data: {
@@ -100,15 +103,20 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
       });
     }
   }, [data, id]);
-  
-  
+
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
+    setValue(newValue)
 
     if (data.setNodes) {
       data.setNodes((prevNodes: { id: string; data: any; }[]) => {
-        const updatedNodes = prevNodes.map((node) =>
-          node.id === id
+        const updatedNodes = prevNodes.map((node) => {
+          node.data.details.fields.map((field: DominoField) => {
+            field.value = newValue
+          })
+
+          return node.id === id
             ? {
               ...node,
               data: {
@@ -117,6 +125,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
               },
             }
             : node
+        }
         );
 
         if (data.updatePipeline) {
@@ -126,6 +135,8 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
         return updatedNodes;
       });
     }
+
+    return newValue
   };
 
   return (
@@ -149,7 +160,8 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
           <input
             type="text"
             placeholder="What to print..."
-            value={data?.value ?? ''}
+            // value={data?.value ?? ''}
+            value={value ?? ''}
             onChange={handleChange}
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
           />
