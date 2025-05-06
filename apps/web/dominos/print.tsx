@@ -8,47 +8,12 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
   const isValueConnected = data?.valueConnected ?? false;
   const [value, setValue] = useState("")
 
-  // useEffect(() => {
-  //   if (!data.details && data.setNodes) {
-  //     data.setNodes((prevNodes: { id: string; data: any; }[]) => {
-  //       return prevNodes.map((node) => {
-  //         if (node.id === id) {
-  //           const details: DominoNodeData = {
-  //             type: 'Print',
-  //             description: 'This domino prints a given value.',
-  //             fields: [
-  //               {
-  //                 type: 'textInput',
-  //                 placeholder: 'What to print...',
-  //                 value: data.value ?? '',
-  //                 required: true,
-  //                 heading: 'Text',
-  //               }
-  //             ],
-  //           }
-  //           return {
-  //             ...node,
-  //             data: {
-  //               ...node.data,
-  //               details
-  //             },
-  //           };
-  //         } else {
-  //           return node;
-  //         }
-  //       }
-  //       );
-  //     });
-  //   }
-  // }, [data, id]);
-
-
   useEffect(() => {
     if (!data.details && data.setNodes) {
       data.setNodes((prevNodes: { id: string; data: any; }[]) => {
         return prevNodes.map((node) => {
           if (node.id === id) {
-            const setFieldValue = (heading: string, newValue: any) => {
+            const setFieldValue = (heading: string, newValue: any) => { 
               setValue(newValue)
 
               data.setNodes?.((nodes: any[]) =>

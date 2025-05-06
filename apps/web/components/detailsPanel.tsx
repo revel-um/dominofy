@@ -55,63 +55,62 @@ export default function DetailsPanel({ selectedNode }: { selectedNode: Node | un
                         </button>
                     </div>
                 </div>
-                {selectedNode?.data?.details && (
-                    <div className="p-4 space-y-6">
-                        {/* Heading */}
-                        <h2 className="text-2xl font-bold">{selectedNode.data.details.type}</h2>
+                <div className="p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-160px)]">
+                    {selectedNode?.data?.details && (
+                        <div>
+                            {/* Heading */}
+                            <h2 className="text-2xl font-bold">{selectedNode.data.details.type}</h2>
 
-                        {/* Description */}
-                        <p className="text-gray-600">{selectedNode.data.details.description}</p>
+                            {/* Description */}
+                            <p className="text-gray-600">{selectedNode.data.details.description}</p>
 
-                        {/* Fields */}
-                        <div className="space-y-4">
-                            {selectedNode.data.details.fields.map((field: DominoField, idx: React.Key | null | undefined) => {
-                                const Widget = fieldWidgetMap[field.type as keyof typeof fieldWidgetMap];
-                                if (!Widget) {
-                                    return <div key={idx}>Unsupported widget: {field.type}</div>;
-                                }
+                            {/* Fields */}
+                            <div className="space-y-4">
+                                {selectedNode.data.details.fields.map((field: DominoField, idx: React.Key | null | undefined) => {
+                                    const Widget = fieldWidgetMap[field.type as keyof typeof fieldWidgetMap];
+                                    if (!Widget) {
+                                        return <div key={idx}>Unsupported widget: {field.type}</div>;
+                                    }
 
-                                return (
-                                    <div key={idx} className="flex flex-col">
-                                        {field.heading && (
-                                            <label className="mb-1 font-medium">{field.heading}</label>
-                                        )}
-                                        <Widget
-                                            value={field.value}
-                                            options={field.options}
-                                            placeholder={field.placeholder}
-                                            required={field.required}
-                                            onChange={(val: any) => {
-                                                selectedNode.data.setFieldValue('Text', val);
-                                                // You can later implement onChange update logic here
-                                            }}
-                                        />
-                                    </div>
-                                );
-                            })}
+                                    return (
+                                        <div key={idx} className="flex flex-col">
+                                            {field.heading && (
+                                                <label className="mb-1 font-medium">{field.heading}</label>
+                                            )}
+                                            <Widget
+                                                value={field.value}
+                                                options={field.options}
+                                                placeholder={field.placeholder}
+                                                required={field.required}
+                                                onChange={(val: any) => {
+                                                    selectedNode.data.setFieldValue('Text', val);
+                                                    // You can later implement onChange update logic here
+                                                }}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
+                    )}
+                    {/* Bottom right floating settings icon */}
+                    {/* <div className="flex justify-end">
+                        <FiSettings className="text-2xl cursor-pointer text-dominofy-light-text dark:text-dominofy-dark-text" />
+                        </div> */}
+
+                    {/* Resize Handle */}
+                    <div>
+                        <p className="text-xs text-gray-500">Data</p>
+                        <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">
+                            {JSON.stringify(selectedNode?.data, null, 2)}
+                        </pre>
                     </div>
-                )}
+                    <div
+                        onMouseDown={handleMouseDown}
+                        className="absolute top-0 left-0 h-full w-1.5 cursor-ew-resize bg-transparent"
+                    />
+                </div>
             </div>
-
-
-
-            {/* Bottom right floating settings icon */}
-            {/* <div className="flex justify-end">
-                <FiSettings className="text-2xl cursor-pointer text-dominofy-light-text dark:text-dominofy-dark-text" />
-            </div> */}
-
-            {/* Resize Handle */}
-            <div>
-                <p className="text-xs text-gray-500">Data</p>
-                <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">
-                    {JSON.stringify(selectedNode?.data, null, 2)}
-                </pre>
-            </div>
-            <div
-                onMouseDown={handleMouseDown}
-                className="absolute top-0 left-0 h-full w-1.5 cursor-ew-resize bg-transparent"
-            />
         </div>
     );
 }
