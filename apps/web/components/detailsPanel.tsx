@@ -82,6 +82,7 @@ export default function DetailsPanel({ selectedNode }: { selectedNode: Node | un
                                             placeholder={field.placeholder}
                                             required={field.required}
                                             onChange={(val: any) => {
+                                                selectedNode.data.setFieldValue('Text', val);
                                                 // You can later implement onChange update logic here
                                             }}
                                         />

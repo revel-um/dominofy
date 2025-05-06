@@ -7,11 +7,70 @@ import { DominoNodeData } from '../types/dominoFieldTypes';
 export default function PrintDomino({ data, id, selected }: NodeProps) {
   const isValueConnected = data?.valueConnected ?? false;
 
+  // useEffect(() => {
+  //   if (!data.details && data.setNodes) {
+  //     data.setNodes((prevNodes: { id: string; data: any; }[]) => {
+  //       return prevNodes.map((node) => {
+  //         if (node.id === id) {
+  //           const details: DominoNodeData = {
+  //             type: 'Print',
+  //             description: 'This domino prints a given value.',
+  //             fields: [
+  //               {
+  //                 type: 'textInput',
+  //                 placeholder: 'What to print...',
+  //                 value: data.value ?? '',
+  //                 required: true,
+  //                 heading: 'Text',
+  //               }
+  //             ],
+  //           }
+  //           return {
+  //             ...node,
+  //             data: {
+  //               ...node.data,
+  //               details
+  //             },
+  //           };
+  //         } else {
+  //           return node;
+  //         }
+  //       }
+  //       );
+  //     });
+  //   }
+  // }, [data, id]);
+
+
   useEffect(() => {
     if (!data.details && data.setNodes) {
       data.setNodes((prevNodes: { id: string; data: any; }[]) => {
         return prevNodes.map((node) => {
           if (node.id === id) {
+            const setFieldValue = (heading: string, newValue: any) => {
+              data.setNodes?.((nodes: any[]) =>
+                nodes.map((n: { id: string; data: { value: any; details: { fields: any[]; }; }; }) =>
+                  n.id === id
+                    ? {
+                        ...n,
+                        data: {
+                          ...n.data,
+                          value: heading === 'Text' ? newValue : n.data.value,
+                          details: {
+                            ...n.data.details,
+                            fields: n.data.details.fields.map((field: { heading: string; }) =>
+                              field.heading === heading
+                                ? { ...field, value: newValue }
+                                : field
+                            ),
+                          },
+                        },
+                      }
+                    : n
+                )
+              );
+            };
+  
             const details: DominoNodeData = {
               type: 'Print',
               description: 'This domino prints a given value.',
@@ -22,25 +81,27 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
                   value: data.value ?? '',
                   required: true,
                   heading: 'Text',
-                }
+                },
               ],
-            }
+            };
+  
             return {
               ...node,
               data: {
                 ...node.data,
-                details
+                details,
+                setFieldValue, // ✅ Attach function here
               },
             };
           } else {
             return node;
           }
-        }
-        );
+        });
       });
     }
   }, [data, id]);
-
+  
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
 
