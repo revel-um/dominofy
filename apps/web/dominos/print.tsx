@@ -11,9 +11,10 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
   useEffect(() => {
     if (!data.details && data.setNodes) {
       data.setNodes((prevNodes: { id: string; data: any; }[]) => {
+
         return prevNodes.map((node) => {
           if (node.id === id) {
-            const setFieldValue = (heading: string, newValue: any) => { 
+            const setFieldValue = (heading: string, newValue: any) => {
               setValue(newValue)
 
               data.setNodes?.((nodes: any[]) =>
@@ -23,7 +24,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
                       ...n,
                       data: {
                         ...n.data,
-                        value: heading === 'Text' ? newValue : n.data.value,
+                        // value: heading === 'Text' ? newValue : n.data.value,
                         details: {
                           ...n.data.details,
                           fields: n.data.details.fields.map((field: { heading: string; }) =>
@@ -46,7 +47,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
                 {
                   type: 'textInput',
                   placeholder: 'What to print ...',
-                  value: data.value,
+                  value: value,
                   required: true,
                   heading: 'Text',
                 },
@@ -61,13 +62,13 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
                 setFieldValue, // ✅ Attach function here
               },
             };
-          } else {
-            return node;
           }
+
+          return node;
         });
       });
     }
-  }, [data, id]);
+  }, [data, id, value]);
 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,22 +77,17 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
 
     if (data.setNodes) {
       data.setNodes((prevNodes: { id: string; data: any; }[]) => {
+        console.log("handlechange set nodes called");
         const updatedNodes = prevNodes.map((node) => {
-          node.data.details.fields.map((field: DominoField) => {
-            field.value = newValue
-          })
 
-          return node.id === id
-            ? {
-              ...node,
-              data: {
-                ...node.data,
-                value: newValue
-              },
-            }
-            : node
-        }
-        );
+          if (node.id == id) {
+            node.data.details.fields.map((field: DominoField) => {
+              field.value = newValue
+            })
+          }
+  
+          return node
+        });
 
         if (data.updatePipeline) {
           setTimeout(() => data.updatePipeline(updatedNodes), 0);
