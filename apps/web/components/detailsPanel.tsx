@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { FiSettings, FiPlay } from 'react-icons/fi';
+import { FiPlay } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
 import { Node } from 'reactflow';
 import { DominoField, fieldWidgetMap } from '../types/dominoFieldTypes';

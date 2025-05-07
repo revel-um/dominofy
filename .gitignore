@@ -49,12 +49,6 @@ apps/**/.env.*.local
 *.swp
 *.swo
 
-# Docker
-**/Dockerfile
-**/docker-compose.yml
-docker-compose.override.yml
-.docker/
-
 # Turbo
 .turbo/
 

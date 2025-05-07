@@ -22,7 +22,7 @@ import PrintDomino from "../dominos/print";
 import ApiCallDomino from "../dominos/apiCall";
 import buildPipeline from "../helpers/buildPipeline";
 import { DominoContext } from "../contexts/dominoContext";
-import { PipelineStep } from "../types/pipelineStepType";
+import { PipelineStep } from "../../../shared/types/pipelineStepType";
 
 const nodeTypes = {
   print: PrintDomino,

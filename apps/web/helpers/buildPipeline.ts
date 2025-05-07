@@ -1,4 +1,4 @@
-import { PipelineStep } from "../types/pipelineStepType";
+import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { Node, Edge } from 'reactflow';
 
 export default function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {

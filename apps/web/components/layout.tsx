@@ -11,7 +11,6 @@ export default function DominofyLayout() {
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const runDominosFlow = useCallback(() => {
-        console.log("▶️ Running from top-level with nodes and edges");
         runDominos(nodes, edges);
     }, [nodes, edges]);
 

@@ -6,7 +6,7 @@ export function Dropdown({ value = '', options = [], onChange }: any) {
         onChange={(e) => onChange(e.target.value)}
         className="w-full border rounded p-2 text-black"
       >
-        {options.map((opt: string) => (
+        {options.map((opt: {label: string; value: string}) => (
           <option key={"widget"+opt.value} value={opt.value}>
             {opt.label}
           </option>

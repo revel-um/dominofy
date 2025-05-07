@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: dominofy-db
+    restart: always
+    environment:
+      POSTGRES_USER: dominofy
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: dominofy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: dominofy-backend
+    restart: always
+    depends_on:
+      - postgres
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgres://dominofy:secret@postgres:5432/dominofy
+    command: npm run start:prod
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: dominofy-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    command: npm run build && npm run start
+
+volumes:
+  postgres_data:
