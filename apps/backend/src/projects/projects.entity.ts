@@ -1,0 +1,16 @@
+// src/project/entities/project.entity.ts
+import { Entity, Column, ManyToOne } from 'typeorm';
+import { BaseEntity } from 'src/common/base.entity';
+import { User } from 'src/user/user.entity';
+
+@Entity('projects')
+export class Project extends BaseEntity {
+  @Column()
+  name: string;
+
+  @Column({ nullable: true })
+  description: string;
+
+  @ManyToOne(() => User, (user) => user.projects, { onDelete: 'CASCADE' })
+  user: User;
+}
