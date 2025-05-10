@@ -48,7 +48,7 @@ export const fieldWidgetMap = {
   text: TextWidget,
   boolean: Checkbox,
   dropdown: Dropdown,
-  'multi-select': MultiSelect,
+  multiSelect: MultiSelect,
   code: CodeInput,
   textInput: TextInput,
   json: JsonInput,
