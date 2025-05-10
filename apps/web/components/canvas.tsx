@@ -23,10 +23,12 @@ import ApiCallDomino from "../dominos/apiCall";
 import buildPipeline from "../helpers/buildPipeline";
 import { DominoContext } from "../contexts/dominoContext";
 import { PipelineStep } from "../../../shared/types/pipelineStepType";
+import ApiTriggerDomino from "../dominos/apiTrigger";
 
 const nodeTypes = {
   print: PrintDomino,
   apicall: ApiCallDomino,
+  apitrigger: ApiTriggerDomino
 };
 
 interface CanvasProps {

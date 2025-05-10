@@ -11,4 +11,9 @@ export default [
     label: 'API Call',
     icon: FiGlobe,
   },
+  {
+    id: 'apitrigger',
+    label: 'API Trigger',
+    icon: FiGlobe,
+  }
 ];

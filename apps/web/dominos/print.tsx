@@ -130,8 +130,8 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
       )}
 
       <DominoPin id="exec_in" pinType={PinType.EXEC_IN} />
-      <DominoPin id="value_in" pinType={PinType.VALUE_IN} />
       <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} />
+      <DominoPin id="value_in" pinType={PinType.VALUE_IN} />
     </div>
   );
 }

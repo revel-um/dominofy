@@ -47,8 +47,7 @@ export function JsonInput({
       onChange={handleChange}
       spellCheck={false}
       className={classNames(
-        'w-full rounded p-2 font-mono text-sm transition-all duration-150',
-        'bg-gray-100 dark:bg-gray-800 text-black dark:text-white',
+        'w-full rounded p-2 font-mono text-sm transition-all duration-150 text-black',
         'focus:outline-none focus:ring-2',
         isValid
           ? 'border border-gray-300 focus:ring-blue-500'

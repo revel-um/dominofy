@@ -16,32 +16,6 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
                 prev.map((node: { id: string; data: any; }) => {
                     if (node.id !== id) return node;
 
-                    /* --- called from DetailsPanel widget --- */
-                    //   const setFieldValue = (heading: string, newValue: any) => {
-                    //     setUrl(newValue);                                 // keep local state
-                    //     data.setNodes?.((nodes: any[]) =>
-                    //       nodes.map((n: { id: string; data: { url: any; details: { fields: any[]; }; }; }) =>
-                    //         n.id === id
-                    //           ? {
-                    //               ...n,
-                    //               data: {
-                    //                 ...n.data,
-                    //                 url: heading === 'URL' ? newValue : n.data.url,
-                    //                 details: {
-                    //                   ...n.data.details,
-                    //                   fields: n.data.details.fields.map((field: { heading: string; }) =>
-                    //                     field.heading === heading
-                    //                       ? { ...field, value: newValue }
-                    //                       : field
-                    //                   ),
-                    //                 },
-                    //               },
-                    //             }
-                    //           : n
-                    //       )
-                    //     );
-                    //   };
-
                     /* ApiCallDomino – inside useEffect */
                     const setFieldValue = (heading: string, newValue: any) => {
                         // 👉 update local state only for the matching heading
@@ -191,6 +165,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
 
             <DominoPin id="exec_in" pinType={PinType.EXEC_IN} />
             <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} />
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
         </div>
     );
 }

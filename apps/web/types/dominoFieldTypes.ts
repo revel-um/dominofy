@@ -7,6 +7,7 @@ import { JsonInput } from "../components/widgets/jsonInput";
 import { MultiSelect } from "../components/widgets/multiselect";
 import { TextWidget } from "../components/widgets/textWidget";
 import { TextInput } from "../components/widgets/textInput";
+import { CopyWidget } from "../components/widgets/copyWidget";
 
 export type WidgetType =
   | 'text'
@@ -17,7 +18,8 @@ export type WidgetType =
   | 'textInput'
   | 'json'
   | 'date'
-  | 'file';
+  | 'file'
+  | 'copy';
 
 export interface DominoFieldOption {
   label: string;
@@ -52,4 +54,5 @@ export const fieldWidgetMap = {
   json: JsonInput,
   date: DateInput,
   file: FileInput,
+  copy: CopyWidget
 };
