@@ -1,7 +1,8 @@
 // src/project/entities/project.entity.ts
-import { Entity, Column, ManyToOne } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToMany } from 'typeorm';
 import { BaseEntity } from 'src/common/base.entity';
 import { User } from 'src/user/user.entity';
+import { Workflow } from 'src/workflow/workflow.entity';
 
 @Entity('projects')
 export class Project extends BaseEntity {
@@ -11,6 +12,12 @@ export class Project extends BaseEntity {
   @Column({ nullable: true })
   description: string;
 
-  @ManyToOne(() => User, (user) => user.projects, { onDelete: 'CASCADE', nullable: false })
+  @ManyToOne(() => User, (user) => user.projects, {
+    onDelete: 'CASCADE',
+    nullable: false,
+  })
   user: User;
+
+  @OneToMany(() => Workflow, (workflow) => workflow.project)
+  workflows: Workflow[];
 }
