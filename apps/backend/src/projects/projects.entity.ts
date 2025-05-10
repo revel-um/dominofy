@@ -11,6 +11,6 @@ export class Project extends BaseEntity {
   @Column({ nullable: true })
   description: string;
 
-  @ManyToOne(() => User, (user) => user.projects, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.projects, { onDelete: 'CASCADE', nullable: false })
   user: User;
 }
