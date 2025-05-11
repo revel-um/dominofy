@@ -54,12 +54,15 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
               ],
             };
 
+            const exportFields = ['Text'];
+
             return {
               ...node,
               data: {
                 ...node.data,
                 details,
-                setFieldValue, // ✅ Attach function here
+                setFieldValue,
+                exportFields
               },
             };
           }
@@ -85,7 +88,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
               field.value = newValue
             })
           }
-  
+
           return node
         });
 

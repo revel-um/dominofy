@@ -85,12 +85,14 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
                         ],
                     };
 
+                    const exportFields = ['URL', 'Method', 'Headers', 'Body'];
                     return {
                         ...node,
                         data: {
                             ...node.data,
                             details,
                             setFieldValue,
+                            exportFields
                         },
                     };
                 })

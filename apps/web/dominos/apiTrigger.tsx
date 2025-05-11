@@ -67,12 +67,15 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
                             ],
                         };
 
+                        const exportFields = ['Function'];
+
                         return {
                             ...node,
                             data: {
                                 ...node.data,
                                 details,
-                                setFieldValue, // ✅ inject correctly
+                                setFieldValue,
+                                exportFields
                             },
                         };
                     }
