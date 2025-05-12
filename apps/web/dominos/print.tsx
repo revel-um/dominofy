@@ -3,8 +3,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useEffect, useState } from 'react';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
-import { FiAlertCircle } from 'react-icons/fi';
-import { useDomino } from '../contexts/dominoContext'; // ✅ Import useDomino
+import { useDomino } from '../contexts/dominoContext';
 
 export default function PrintDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
@@ -12,62 +11,71 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
   const isValueConnected = data?.valueConnected ?? false;
   const [value, setValue] = useState("");
 
+  // Sync value from existing details field on mount or update
   useEffect(() => {
-    if (!data.details && data.setNodes) {
-      data.setNodes((prevNodes: { id: string; data: any; }[]) => {
-        return prevNodes.map((node) => {
-          if (node.id === id) {
-            const setFieldValue = (heading: string, newValue: any) => {
-              setValue(newValue);
-              data.setNodes?.((nodes: any[]) =>
-                nodes.map((n) =>
-                  n.id === id
-                    ? {
-                        ...n,
-                        data: {
-                          ...n.data,
-                          details: {
-                            ...n.data.details,
-                            fields: n.data.details.fields.map((field: { heading: string }) =>
-                              field.heading === heading ? { ...field, value: newValue } : field
-                            ),
-                          },
-                        },
-                      }
-                    : n
-                )
-              );
-            };
+    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text');
+    if (field && field.value !== value) {
+      setValue(field.value);
+    }
+  }, [data?.details?.fields]);
 
-            const details: DominoNodeData = {
+  // Always ensure setFieldValue is available
+  useEffect(() => {
+    if ((!data.setFieldValue || !data.details) && data.setNodes) {
+      const setFieldValue = (heading: string, newValue: any) => {
+        setValue(newValue);
+        data.setNodes?.((nodes: any[]) =>
+          nodes.map((n) =>
+            n.id === id
+              ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  details: {
+                    ...n.data.details,
+                    fields: n.data.details.fields.map((field: DominoField) =>
+                      field.heading === heading ? { ...field, value: newValue } : field
+                    ),
+                  },
+                },
+              }
+              : n
+          )
+        );
+      };
+
+      data.setNodes((prevNodes: any[]) =>
+        prevNodes.map((node: any) => {
+          if (node.id !== id) return node;
+
+          const newDetails: DominoNodeData =
+            node.data.details ?? {
               type: 'Print',
               description: 'This domino prints a given value.',
               fields: [
                 {
                   type: 'textInput',
                   placeholder: 'What to print ...',
-                  value: value,
+                  value,
                   required: true,
                   heading: 'Text',
                 },
               ],
             };
 
-            const exportFields = ['Text'];
+          const exportFields = ['Text'];
 
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                details,
-                setFieldValue,
-                exportFields,
-              },
-            };
-          }
-          return node;
-        });
-      });
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              details: newDetails,
+              exportFields,
+              setFieldValue, // ✅ attach no matter what
+            },
+          };
+        })
+      );
     }
   }, [data, id, value]);
 
@@ -75,23 +83,8 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
     const newValue = e.target.value;
     setValue(newValue);
 
-    if (data.setNodes) {
-      data.setNodes((prevNodes: { id: string; data: any }[]) => {
-        const updatedNodes = prevNodes.map((node) => {
-          if (node.id === id) {
-            node.data.details.fields.forEach((field: DominoField) => {
-              field.value = newValue;
-            });
-          }
-          return node;
-        });
-
-        if (data.updatePipeline) {
-          setTimeout(() => data.updatePipeline(updatedNodes), 0);
-        }
-
-        return updatedNodes;
-      });
+    if (data.setFieldValue) {
+      data.setFieldValue('Text', newValue);
     }
 
     return newValue;
@@ -108,15 +101,10 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
         style={{ backgroundColor: '#6366f1', borderBottomColor: '#4f46e5' }}
       >
         Print
-        {hasError && (
-          <div className="absolute right-2 top-2 text-red-300" title="Missing execution input">
-            <FiAlertCircle className="w-4 h-4" />
-          </div>
-        )}
       </div>
 
-      {!isValueConnected && (
-        <div className="px-3 py-2">
+      <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
+        {!isValueConnected && (
           <input
             type="text"
             placeholder="What to print..."
@@ -124,13 +112,14 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
             onChange={handleChange}
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
           />
-          {hasError && (
-            <p className="mt-1 text-xs text-red-500">
-              ⚠️ Value input pin is connected but execution pin is missing.
-            </p>
-          )}
-        </div>
-      )}
+        )}
+
+        {hasError && (
+          <p className="mt-1 text-xs text-red-500">
+            ⚠️ Value input pin is connected but execution pin is missing.
+          </p>
+        )}
+      </div>
 
       <DominoPin id="exec_in" pinType={PinType.EXEC_IN} />
       <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} />

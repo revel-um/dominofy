@@ -25,11 +25,13 @@ import buildPipeline from "../helpers/buildPipeline";
 import { DominoContext } from "../contexts/dominoContext";
 import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { validateNodeConnections } from "../helpers/errorDetector";
+import ReadFileDomino from "../dominos/readFile";
 
 const nodeTypes = {
   print: PrintDomino,
   apicall: ApiCallDomino,
-  apitrigger: ApiTriggerDomino
+  apitrigger: ApiTriggerDomino,
+  readfile: ReadFileDomino
 };
 
 interface CanvasProps {
@@ -168,6 +170,23 @@ export default function Canvas({
       if (isDuplicate) return;
 
       if (isValidConnection(params)) {
+        // ✅ update valueConnected flag if targetHandle is value_in
+        if (params.targetHandle === 'value_in') {
+          setNodes((prev) =>
+            prev.map((node) =>
+              node.id === params.target
+                ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    valueConnected: true,
+                  },
+                }
+                : node
+            )
+          );
+        }
+
         setEdges((eds) => {
           const updated = addEdge(params, eds);
           updatePipeline(nodes, updated);
@@ -175,8 +194,9 @@ export default function Canvas({
         });
       }
     },
-    [edges, nodes, setEdges]
+    [edges, nodes, setEdges, setNodes]
   );
+
 
   const onNodesChangeHandler: OnNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -207,14 +227,43 @@ export default function Canvas({
 
   const onEdgesChangeHandler: OnEdgesChange = useCallback(
     (changes) => {
+      let affectedValueInTargets: string[] = [];
+
+      // Only process removed edges
+      const removedEdgeIds = changes
+        .filter((c) => c.type === 'remove')
+        .map((c) => c.id);
+
+      if (removedEdgeIds.length) {
+        // Find the actual edge data by ID
+        affectedValueInTargets = edges
+          .filter((edge) => removedEdgeIds.includes(edge.id) && edge.targetHandle === 'value_in')
+          .map((edge) => edge.target);
+
+        if (affectedValueInTargets.length) {
+          setNodes((prev) =>
+            prev.map((node) =>
+              affectedValueInTargets.includes(node.id)
+                ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    valueConnected: false,
+                  },
+                }
+                : node
+            )
+          );
+        }
+      }
+
       setEdges((eds) => {
-        const deleted = changes.some((c) => c.type === "remove");
         const updated = applyEdgeChanges(changes, eds);
-        if (deleted) setTimeout(() => updatePipeline(nodes, updated), 0);
+        if (removedEdgeIds.length) setTimeout(() => updatePipeline(nodes, updated), 0);
         return updated;
       });
     },
-    [nodes]
+    [edges, nodes, setNodes, setEdges]
   );
 
   const runDominosFlow = async () => {

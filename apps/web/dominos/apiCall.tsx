@@ -2,95 +2,112 @@ import React, { useEffect, useState } from 'react';
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { DominoNodeData } from '../types/dominoFieldTypes';
+import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { FiAlertCircle } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
 
 export default function ApiCallDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const [url, setUrl] = useState(data.url ?? '');
 
+  const getInitialUrl = () => {
+    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'URL');
+    return typeof field?.value === 'string' ? field.value : (data.url ?? '');
+  };
+
+  const [url, setUrl] = useState(getInitialUrl());
+
+  // 🔁 Sync URL from details.fields if workflow is imported
   useEffect(() => {
-    if (!data.details && data.setNodes) {
+    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'URL');
+    if (field && field.value !== url) {
+      setUrl(field.value);
+    }
+  }, [data?.details?.fields]);
+
+  // 🔧 Always ensure setFieldValue exists
+  useEffect(() => {
+    if ((!data.setFieldValue || !data.details) && data.setNodes) {
+      const setFieldValue = (heading: string, newValue: any) => {
+        if (heading === 'URL') setUrl(newValue);
+
+        data.setNodes?.((nodes: any[]) =>
+          nodes.map((n) =>
+            n.id === id
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    url: heading === 'URL' ? newValue : n.data.url,
+                    method: heading === 'Method' ? newValue : n.data.method,
+                    headers: heading === 'Headers' ? newValue : n.data.headers,
+                    body: heading === 'Body' ? newValue : n.data.body,
+                    details: {
+                      ...n.data.details,
+                      fields: n.data.details.fields.map((f: DominoField) =>
+                        f.heading === heading ? { ...f, value: newValue } : f
+                      ),
+                    },
+                  },
+                }
+              : n
+          )
+        );
+      };
+
       data.setNodes((prev: any[]) =>
         prev.map((node) => {
           if (node.id !== id) return node;
 
-          const setFieldValue = (heading: string, newValue: any) => {
-            if (heading === 'URL') setUrl(newValue);
-
-            data.setNodes?.((nodes: any[]) =>
-              nodes.map((n) =>
-                n.id === id
-                  ? {
-                      ...n,
-                      data: {
-                        ...n.data,
-                        url: heading === 'URL' ? newValue : n.data.url,
-                        method: heading === 'Method' ? newValue : n.data.method,
-                        headers: heading === 'Headers' ? newValue : n.data.headers,
-                        body: heading === 'Body' ? newValue : n.data.body,
-                        details: {
-                          ...n.data.details,
-                          fields: n.data.details.fields.map((f: { heading: string; }) =>
-                            f.heading === heading ? { ...f, value: newValue } : f
-                          ),
-                        },
-                      },
-                    }
-                  : n
-              )
-            );
-          };
-
-          const details: DominoNodeData = {
-            type: 'ApiCall',
-            description:
-              'This domino sends an HTTP request to a specified URL with optional headers and body.',
-            fields: [
-              {
-                type: 'textInput',
-                heading: 'URL',
-                placeholder: 'https://api.example.com',
-                value: url,
-                required: true,
-              },
-              {
-                type: 'dropdown',
-                heading: 'Method',
-                value: data.method ?? 'GET',
-                required: true,
-                options: [
-                  { label: 'GET', value: 'GET' },
-                  { label: 'POST', value: 'POST' },
-                  { label: 'PUT', value: 'PUT' },
-                  { label: 'DELETE', value: 'DELETE' },
-                ],
-              },
-              {
-                type: 'json',
-                heading: 'Headers',
-                placeholder: '{"Authorization": "Bearer xyz"}',
-                value: data.headers ?? {},
-              },
-              {
-                type: 'json',
-                heading: 'Body',
-                placeholder: '{"key": "value"}',
-                value: data.body ?? {},
-              },
-            ],
-          };
+          const details: DominoNodeData =
+            node.data.details ?? {
+              type: 'ApiCall',
+              description:
+                'This domino sends an HTTP request to a specified URL with optional headers and body.',
+              fields: [
+                {
+                  type: 'textInput',
+                  heading: 'URL',
+                  placeholder: 'https://api.example.com',
+                  value: url,
+                  required: true,
+                },
+                {
+                  type: 'dropdown',
+                  heading: 'Method',
+                  value: data.method ?? 'GET',
+                  required: true,
+                  options: [
+                    { label: 'GET', value: 'GET' },
+                    { label: 'POST', value: 'POST' },
+                    { label: 'PUT', value: 'PUT' },
+                    { label: 'DELETE', value: 'DELETE' },
+                  ],
+                },
+                {
+                  type: 'json',
+                  heading: 'Headers',
+                  placeholder: '{"Authorization": "Bearer xyz"}',
+                  value: data.headers ?? {},
+                },
+                {
+                  type: 'json',
+                  heading: 'Body',
+                  placeholder: '{"key": "value"}',
+                  value: data.body ?? {},
+                },
+              ],
+            };
 
           const exportFields = ['URL', 'Method', 'Headers', 'Body'];
+
           return {
             ...node,
             data: {
               ...node.data,
-              details,
               setFieldValue,
               exportFields,
+              details,
             },
           };
         })
@@ -102,30 +119,11 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
     const newUrl = e.target.value;
     setUrl(newUrl);
 
-    if (data.setNodes) {
-      data.setNodes((prevNodes: any[]) => {
-        const updatedNodes = prevNodes.map((node) =>
-          node.id === id
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  url: newUrl,
-                  details: {
-                    ...node.data.details,
-                    fields: node.data.details.fields.map((field: { heading: string; }) =>
-                      field.heading === 'URL' ? { ...field, value: newUrl } : field
-                    ),
-                  },
-                },
-              }
-            : node
-        );
-
-        data.updatePipeline && setTimeout(() => data.updatePipeline(updatedNodes), 0);
-        return updatedNodes;
-      });
+    if (data.setFieldValue) {
+      data.setFieldValue('URL', newUrl);
     }
+
+    return newUrl;
   };
 
   return (

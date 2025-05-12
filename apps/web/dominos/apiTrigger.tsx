@@ -10,48 +10,65 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
   const isValueConnected = data?.valueConnected ?? false;
-  const [value, setValue] = useState('');
 
+  const getInitialFunctionValue = (): string => {
+    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Function');
+    return typeof field?.value === 'string' ? field.value : '';
+  };
+
+  const [value, setValue] = useState(getInitialFunctionValue());
+
+  // 🔁 Sync value from details.fields when loaded or updated
   useEffect(() => {
-    if (!data.details && data.setNodes) {
-      data.setNodes((prevNodes: { id: string; data: any }[]) => {
-        return prevNodes.map((node) => {
-          if (node.id === id) {
-            const setFieldValue = (heading: string, newValue: any) => {
-              setValue(newValue);
+    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Function');
+    if (field && field.value !== value) {
+      setValue(field.value);
+    }
+  }, [data?.details?.fields]);
 
-              data.setNodes?.((nodes: any[]) =>
-                nodes.map((n) => {
-                  if (n.id !== id) return n;
+  // ✅ Always ensure setFieldValue is available, even if details exist
+  useEffect(() => {
+    if ((!data.setFieldValue || !data.details) && data.setNodes) {
+      const setFieldValue = (heading: string, newValue: any) => {
+        setValue(newValue);
 
-                  const updatedFields = n.data.details.fields.map((field: DominoField) => {
-                    if (field.heading === heading) {
-                      return { ...field, value: newValue };
-                    }
-                    if (field.heading === 'Api Url') {
-                      return {
-                        ...field,
-                        value: 'https://api.dominofy.com/trigger/' + newValue,
-                      };
-                    }
-                    return field;
-                  });
+        data.setNodes?.((nodes: any[]) =>
+          nodes.map((n) => {
+            if (n.id !== id) return n;
 
-                  return {
-                    ...n,
-                    data: {
-                      ...n.data,
-                      details: {
-                        ...n.data.details,
-                        fields: updatedFields,
-                      },
-                    },
-                  };
-                })
-              );
+            const updatedFields = n.data.details.fields.map((field: DominoField) => {
+              if (field.heading === heading) {
+                return { ...field, value: newValue };
+              }
+              if (field.heading === 'Api Url') {
+                return {
+                  ...field,
+                  value: 'https://api.dominofy.com/trigger/' + newValue,
+                };
+              }
+              return field;
+            });
+
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                details: {
+                  ...n.data.details,
+                  fields: updatedFields,
+                },
+              },
             };
+          })
+        );
+      };
 
-            const details: DominoNodeData = {
+      data.setNodes((prevNodes: any[]) =>
+        prevNodes.map((node) => {
+          if (node.id !== id) return node;
+
+          const details: DominoNodeData =
+            node.data.details ?? {
               type: 'ApiTrigger',
               description: 'This domino triggers execution via a unique API.',
               fields: [
@@ -63,7 +80,7 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
                 },
                 {
                   type: 'textInput',
-                  placeholder: 'Enter function name...',
+                  placeholder: 'Enter trigger name...',
                   value: value,
                   required: true,
                   heading: 'Function',
@@ -71,22 +88,19 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
               ],
             };
 
-            const exportFields = ['Function'];
+          const exportFields = ['Function'];
 
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                details,
-                setFieldValue,
-                exportFields,
-              },
-            };
-          }
-
-          return node;
-        });
-      });
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              details,
+              exportFields,
+              setFieldValue, // ✅ always inject
+            },
+          };
+        })
+      );
     }
   }, [data, id, value]);
 
@@ -123,8 +137,8 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         <div className="px-3 py-2">
           <input
             type="text"
-            placeholder="Enter function name..."
-            value={value ?? ''}
+            placeholder="Enter trigger name..."
+            value={value}
             onChange={handleChange}
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
           />
