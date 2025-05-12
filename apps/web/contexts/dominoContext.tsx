@@ -1,4 +1,13 @@
 import { createContext, useContext } from 'react';
 
-export const DominoContext = createContext({ runDominosFlow: () => {} });
+interface DominoContextType {
+  runDominosFlow: () => void;
+  erroredNodes: string[];
+}
+
+export const DominoContext = createContext<DominoContextType>({
+  runDominosFlow: () => {},
+  erroredNodes: [],
+});
+
 export const useDomino = () => useContext(DominoContext);
