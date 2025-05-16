@@ -1,7 +1,6 @@
 // src/workflow/entities/workflow.entity.ts
 import { Entity, Column, ManyToOne, OneToMany } from 'typeorm';
 import { BaseEntity } from 'src/common/base.entity';
-import { Pipeline } from '../pipeline/pipeline.entity';
 import { Project } from '../projects/projects.entity';
 
 @Entity('workflows')
@@ -18,8 +17,9 @@ export class Workflow extends BaseEntity {
   })
   project: Project;
 
-  @OneToMany(() => Pipeline, (pipeline) => pipeline.workflow, {
-    cascade: true,
-  })
-  nodes: Pipeline[];
+  @Column({ type: 'jsonb' })
+  visualJson: any; // stores the full { nodes, edges }
+
+  @Column({ default: false })
+  isPublished: boolean;
 }

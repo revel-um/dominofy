@@ -60,7 +60,6 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
 
     const onRun = () => {
         const pipeline = buildPipeline(getNodes(), getEdges());
-        console.table(pipeline);
     }
 
     return (

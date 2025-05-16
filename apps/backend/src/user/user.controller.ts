@@ -1,34 +1,30 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+// user/user.controller.ts
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { BaseController } from '../common/base.controller';
 import { UserService } from './user.service';
-import { CreateUserDto } from './user.dto';
+import { User } from './user.entity';
+import { CreateUserDto, SigninUserDto } from './user.dto';
 
 @Controller('user')
-export class UserController {
-    constructor(private readonly userService: UserService) {}
+export class UserController extends BaseController<
+  User,                  // Entity type returned by the service
+  Partial<CreateUserDto>,// DTO accepted on POST /
+  Partial<CreateUserDto>,// DTO accepted on POST /:id (can omit, defaults to Partial<Create>)
+  string,                // ID type
+  UserService            // concrete service to inject
+> {
+  constructor(private readonly userService: UserService) {
+    super(userService, CreateUserDto);  // BaseController needs the service instance
+  }
+  
+  @Post('login')
+  @HttpCode(HttpStatus.OK)  // returns 200 instead of 201
+  login(@Body() { email, password }: SigninUserDto) {
+    return this.userService.login(email!, password!);
+  }
 
-    @Get()
-    findAll() {
-      return this.userService.findAll();
-    }
-
-    @Get(':id')
-    findOne(@Param('id') id: string) {
-      return this.userService.findOne(id);
-    }
-    
-    @Post()
-    async create(@Body() user: Partial<CreateUserDto>) {
-      const data = await CreateUserDto.toEncryptedPasswordUser(user);
-      return this.userService.create(data);
-    }
-    
-    @Post(':id')
-    update(@Param('id') id: string, @Body() user: Partial<CreateUserDto>) {
-      return this.userService.update(id, user);
-    }
-    
-    @Delete(':id')
-    remove(@Param('id') id: string) {
-      return this.userService.remove(id);
-    }
+  /** encrypt password before persisting */
+  protected async beforeCreate(dto: Partial<CreateUserDto>) {
+    return CreateUserDto.toEncryptedPasswordUser(dto);
+  }
 }

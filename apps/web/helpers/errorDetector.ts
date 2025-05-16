@@ -3,8 +3,6 @@ import { Node, Edge } from 'reactflow';
 export function validateNodeConnections(nodes: Node[], edges: Edge[]): string[] {
   const execInMap = new Map<string, boolean>();
   const valueInMap = new Map<string, boolean>();
-  console.log('Validating node connections...');
-  console.log(nodes)
 
   // Check all incoming edges and classify them
   edges.forEach(edge => {

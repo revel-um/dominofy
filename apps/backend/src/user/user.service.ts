@@ -3,13 +3,23 @@ import { BaseService } from 'src/common/base.service';
 import { User } from './user.entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { decryptPassword } from 'src/helper/encryption';
 
 @Injectable()
-export class UserService extends BaseService<User>{
-    constructor(
-      @InjectRepository(User)
-        private readonly userRepository: Repository<User>,
-      ) {
-        super(userRepository);
-      }
+export class UserService extends BaseService<User> {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {
+    super(userRepository);
+  }
+
+  async login(email: string, password: string): Promise<User | void> {
+    // Check if email exists and password matches with the encrypted password
+    const user = await this.userRepository.findOne({ where: { email } });
+    if (user && await decryptPassword(user.password) == password) {
+      return user;
+    }
+    throw new Error('Invalid email or password');
+  }
 }

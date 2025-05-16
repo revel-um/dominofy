@@ -150,8 +150,8 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         </div>
       )}
 
-      <DominoPin id="exec_in" pinType={PinType.EXEC_IN} />
       <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} />
+      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
     </div>
   );
 }

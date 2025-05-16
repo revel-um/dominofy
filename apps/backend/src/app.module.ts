@@ -6,9 +6,6 @@ import { AppService } from './app.service';
 import { ProjectsModule } from './projects/projects.module';
 import { UserModule } from './user/user.module';
 import { WorkflowModule } from './workflow/workflow.module';
-import { PipelineService } from './pipeline/pipeline.service';
-import { PipelineModule } from './pipeline/pipeline.module';
-
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
@@ -30,7 +27,6 @@ import { PipelineModule } from './pipeline/pipeline.module';
     ProjectsModule,
     UserModule,
     WorkflowModule,
-    PipelineModule,
   ],
   controllers: [AppController],
   providers: [AppService],

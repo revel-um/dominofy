@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
-import Canvas from "./canvas";
-import DominosPanel from "./dominosPanel";
-import DetailsPanel from "./detailsPanel";
+import Canvas from "../components/canvas";
+import DominosPanel from "../components/dominosPanel";
+import DetailsPanel from "../components/detailsPanel";
 import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow';
 import { runDominos } from '../helpers/runDominos';
 import { DominoContext } from "../contexts/dominoContext";
