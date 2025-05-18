@@ -6,11 +6,6 @@ import { IBaseEntity } from './base.interfaces';
 @Injectable()
 export class BaseService<T extends IBaseEntity> {
   constructor(protected readonly repository: Repository<T>) {}
-
-  async findAll(): Promise<T[]> {
-    return this.repository.find();
-  }
-
   async findOne(id: string): Promise<T | null> {
     return this.repository.findOne({ where: { id } as FindOptionsWhere<T> });
   }

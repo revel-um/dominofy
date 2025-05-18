@@ -36,11 +36,12 @@ const nodeTypes = {
 
 interface CanvasProps {
   nodes: Node[];
-  setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
-  onNodesChange: OnNodesChange;
+  setNodes?: React.Dispatch<React.SetStateAction<Node[]>>;
+  onNodesChange?: OnNodesChange;
   edges: Edge[];
-  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
-  onEdgesChange: OnEdgesChange;
+  setEdges?: React.Dispatch<React.SetStateAction<Edge[]>>;
+  onEdgesChange?: OnEdgesChange;
+  readonly?: boolean;
 }
 
 export default function Canvas({
@@ -48,6 +49,7 @@ export default function Canvas({
   setNodes,
   edges,
   setEdges,
+  readonly = false,
 }: CanvasProps) {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
@@ -89,7 +91,7 @@ export default function Canvas({
         selected: true
       };
 
-      setNodes((nds) => {
+      setNodes!((nds) => {
         const updated = nds.map((node) => ({
           ...node,
           selected: false,
@@ -172,7 +174,7 @@ export default function Canvas({
       if (isValidConnection(params)) {
         // ✅ update valueConnected flag if targetHandle is value_in
         if (params.targetHandle === 'value_in') {
-          setNodes((prev) =>
+          setNodes!((prev) =>
             prev.map((node) =>
               node.id === params.target
                 ? {
@@ -187,7 +189,7 @@ export default function Canvas({
           );
         }
 
-        setEdges((eds) => {
+        setEdges!((eds) => {
           const updated = addEdge(params, eds);
           updatePipeline(nodes, updated);
           return updated;
@@ -207,7 +209,7 @@ export default function Canvas({
 
       const newSelectedId = selectEvents.find((e) => e.selected)?.id ?? addEvents[0]?.item.id ?? null;
 
-      setNodes((prev) => {
+      setNodes!((prev) => {
         let next = applyNodeChanges(changes, prev);
         if (newSelectedId) {
           next = next.map((n) => ({
@@ -241,7 +243,7 @@ export default function Canvas({
           .map((edge) => edge.target);
 
         if (affectedValueInTargets.length) {
-          setNodes((prev) =>
+          setNodes!((prev) =>
             prev.map((node) =>
               affectedValueInTargets.includes(node.id)
                 ? {
@@ -257,7 +259,7 @@ export default function Canvas({
         }
       }
 
-      setEdges((eds) => {
+      setEdges!((eds) => {
         const updated = applyEdgeChanges(changes, eds);
         if (removedEdgeIds.length) setTimeout(() => updatePipeline(nodes, updated), 0);
         return updated;
@@ -288,15 +290,19 @@ export default function Canvas({
         isValidConnection={isValidConnection}
         onInit={setReactFlowInstance}
         fitView
-        nodesDraggable
         className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
         nodeTypes={nodeTypes}
         onNodeClick={(_, node) => { console.log(node); return setSelectedNode(node); }}
         selectionKeyCode={null}
         proOptions={{ hideAttribution: true }}
+        nodesDraggable={!readonly}
+        nodesConnectable={!readonly}
+        elementsSelectable={!readonly}
+        panOnDrag={readonly}
+        zoomOnScroll={!readonly}
       >
         <Background />
-        <Controls />
+        {/* <Controls /> */}
       </ReactFlow>
     </DominoContext.Provider>
   );

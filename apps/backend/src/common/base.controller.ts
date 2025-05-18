@@ -1,4 +1,3 @@
-// common/base.controller.ts
 import {
   Body,
   Post,
@@ -6,6 +5,8 @@ import {
   Get,
   Param,
   BadRequestException,
+  Req,
+  Request,
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -13,7 +14,7 @@ import { IBaseService } from './base.interfaces';
 
 export abstract class BaseController<
   Entity,
-  Create extends object,                 // ← add “extends object” here
+  Create extends object,
   Update extends Partial<Create> = Partial<Create>,
   Id = string,
   Service extends IBaseService<Entity, Create, Update, Id> = IBaseService<
@@ -26,12 +27,7 @@ export abstract class BaseController<
   constructor(
     protected readonly service: Service,
     private readonly createDto: new () => Create,
-  ) {}
-
-  @Get()
-  findAll() {
-    return this.service.findAll();
-  }
+  ) { }
 
   @Get(':id')
   findOne(@Param('id') id: Id) {
@@ -39,11 +35,9 @@ export abstract class BaseController<
   }
 
   @Post()
-  async create(@Body() dto: Create) {
-    // 1) transform to DTO instance
+  async create(@Body() dto: Create, @Req() req: Request) {
     const instance = plainToInstance(this.createDto, dto);
 
-    // 2) now `instance` is known to be an object, so `validate` will accept it
     const errors = await validate(instance, {
       whitelist: true,
       forbidNonWhitelisted: true,
@@ -53,8 +47,9 @@ export abstract class BaseController<
       throw new BadRequestException(errors);
     }
 
-    // 3) your existing hook
-    const processed = (await this.beforeCreate(instance as any)) ?? instance;
+    // now pass req to beforeCreate
+    const processed = (await this.beforeCreate(instance as any, req)) ?? instance;
+    console.log('processed', processed);
     return this.service.create(processed as unknown as Create);
   }
 
@@ -68,5 +63,6 @@ export abstract class BaseController<
     return this.service.remove(id);
   }
 
-  protected beforeCreate(dto: Create): Promise<Create | void> | Create | void {}
+  protected beforeCreate(dto: Create, req: Request): Promise<Create | void> | Create | void {
+  }
 }

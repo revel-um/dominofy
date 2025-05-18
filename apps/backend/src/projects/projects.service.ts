@@ -12,4 +12,13 @@ export class ProjectsService extends BaseService<Project>{
       ) {
         super(projectRepository);
       }
+
+      async findAll(userId: string, limit = 10, offset = 0) {
+        return this.projectRepository.find({
+          where: { user: { id: userId } },
+          skip: offset,
+          take: limit,
+          order: { updatedAt: 'DESC' },
+        });
+      }
 }

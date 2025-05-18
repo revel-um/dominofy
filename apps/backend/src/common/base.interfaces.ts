@@ -4,7 +4,6 @@ export interface IBaseService<
   Update = Partial<Create>,
   Id = string,
 > {
-  findAll(): Promise<Entity[]>;
   /** allow null when nothing is found */
   findOne(id: Id): Promise<Entity | null>;
   create(dto: Create): Promise<Entity>;

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import DominofyLayout from './dominofy';
+import DominofyDashboard from './dashboard';   // ⬅️ import the new dashboard
 
 export default function HomePage() {
   const router = useRouter();
@@ -9,12 +9,15 @@ export default function HomePage() {
     const token = localStorage.getItem('token');
     if (!token) {
       // not logged in → send to auth page
-      router.replace('/auth');
+      router.push('/auth');
+    } else {
+      // logged in → send to dashboard
+      router.push('/dashboard');
     }
   }, [router]);
 
-  // You can optionally show a loader while the redirect is in flight
+  // If you want a loader while redirecting, uncomment below:
   // if (!localStorage.getItem('token')) return <p>Loading...</p>;
 
-  return <DominofyLayout />;
+  return <DominofyDashboard />;
 }

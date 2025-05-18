@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { ProjectsModule } from './projects/projects.module';
 import { UserModule } from './user/user.module';
 import { WorkflowModule } from './workflow/workflow.module';
+import { VerifyTokenMiddleware } from './middlewares/auth.middleware';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
@@ -29,6 +30,6 @@ import { WorkflowModule } from './workflow/workflow.module';
     WorkflowModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, VerifyTokenMiddleware],
 })
 export class AppModule {}
