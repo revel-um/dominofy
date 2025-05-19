@@ -1,7 +1,11 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { FiSearch, FiUser } from "react-icons/fi";
 import Canvas from "../components/canvas"; // adjust the path if needed
 import type { Node, Edge } from "reactflow";
+import { ProjectsApi } from "../apis/projects.apis";
+import { ToastContainer } from "react-toastify";
+import { useRouter } from "next/router";
+import CreateProjectModal from "../components/modals/createProjectModal";
 
 interface Project {
     id: string;
@@ -9,41 +13,66 @@ interface Project {
     lastEdited: string;
 }
 
-const mockProjects: Project[] = [
-    { id: "p1", name: "Marketing Automation", lastEdited: "5 min ago" },
-    { id: "p2", name: "Salesforce Sync", lastEdited: "Yesterday" },
-    { id: "p3", name: "Email Parser", lastEdited: "2 days ago" },
-    { id: "p4", name: "Support Ticketing", lastEdited: "1 week ago" },
-    { id: "p5", name: "Weekly Reports", lastEdited: "1 month ago" },
-];
-
 export default function DominofyDashboard() {
-    /* replace these with the most‑recent workflow pulled from API / localStorage */
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
     const workflowNodes: Node[] = [];
     const workflowEdges: Edge[] = [];
 
+    const router = useRouter();
+    useEffect(() => {
+        const fetchProjects = async () => {
+            const token = localStorage.getItem("token"); // or sessionStorage.getItem("token")
+            if (!token) return router.push("/auth")
+
+            try {
+                const response = await ProjectsApi.getProjects(token, router);
+                console.log("response", response);
+                if (!response?.ok) return;
+
+                const data = (await response.json() as any).data;
+
+                // You may need to adjust this transformation based on actual API response
+                console.log("data", data);
+                const formatted = data.map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    lastEdited: timeSince(p.updatedAt), // Utility to make it "5 min ago", etc.
+                }));
+
+                setProjects(formatted);
+            } catch (err) {
+                console.error("Error fetching projects:", err);
+            }
+        };
+
+        fetchProjects();
+    }, []);
+
+    async function createProject(name: string, description?: string) {
+        const token = localStorage.getItem("token");
+        if (!token) return router.push("/auth")
+
+        ProjectsApi.createProject(token, router, { name, description })
+    }
+
     return (
         <div className="flex h-screen w-full bg-gray-50">
-            {/* ─────────────────────── Left/Main column ─────────────────────── */}
             <div className="flex-1 p-6 flex flex-col gap-6 overflow-hidden">
-                {/* Greeting row */}
                 <div className="flex items-center justify-between shrink-0">
                     <h1 className="text-2xl font-semibold text-gray-900">Welcome</h1>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm whitespace-nowrap">
+                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm whitespace-nowrap" onClick={() => setIsModalOpen(true)}>
                         Create new project
                     </button>
                 </div>
 
-                {/* Top statistics */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
-                    {/* Profile card */}
                     <div className="relative rounded-2xl bg-white p-6 shadow-md flex flex-col items-center text-center">
                         <div className="w-24 h-24 rounded-full bg-gray-200 mb-4" />
                         <p className="text-lg font-medium">Kristin Watson</p>
                         <p className="text-sm text-gray-500">Design Manager</p>
                     </div>
-
-                    {/* Prioritized tasks */}
                     <div className="rounded-2xl bg-gradient-to-br from-pink-200 via-purple-200 to-purple-100 p-6 shadow-md flex flex-col justify-between">
                         <div>
                             <p className="text-sm font-medium text-gray-700">Prioritized tasks</p>
@@ -52,8 +81,6 @@ export default function DominofyDashboard() {
                         </div>
                         <button className="self-end mt-4 text-xs bg-white/30 px-3 py-1 rounded-full">Recent projects</button>
                     </div>
-
-                    {/* Additional tasks */}
                     <div className="rounded-2xl bg-gradient-to-br from-cyan-200 via-blue-200 to-blue-100 p-6 shadow-md flex flex-col justify-between">
                         <div>
                             <p className="text-sm font-medium text-gray-700">Additional tasks</p>
@@ -64,27 +91,18 @@ export default function DominofyDashboard() {
                     </div>
                 </div>
 
-                {/* Preview section */}
                 <section className="flex-1 flex flex-col overflow-hidden">
                     <header className="shrink-0 mb-2">
                         <h2 className="text-lg font-semibold text-gray-900">Preview</h2>
                         <p className="text-xs text-gray-500">Snapshot of your current workflow</p>
                     </header>
-
-                    {/* Full‑height Canvas card */}
                     <div className="flex-1 rounded-2xl bg-white shadow-md overflow-hidden">
-                        <Canvas
-                            nodes={workflowNodes}
-                            edges={workflowEdges}
-                            readonly={true}
-                        />
+                        <Canvas nodes={workflowNodes} edges={workflowEdges} readonly={true} />
                     </div>
                 </section>
             </div>
 
-            {/* ─────────────────────── Right sidebar ─────────────────────── */}
             <aside className="w-[352px] border-l border-gray-200 bg-white h-full flex flex-col">
-                {/* Search bar & profile */}
                 <div className="flex items-center gap-3 p-4">
                     <div className="flex items-center flex-1 bg-gray-100 rounded-full px-3 py-2">
                         <FiSearch className="text-gray-400 mr-2" />
@@ -99,11 +117,10 @@ export default function DominofyDashboard() {
                     </button>
                 </div>
 
-                {/* Project list */}
                 <div className="flex-1 overflow-y-auto">
                     <h3 className="px-4 pt-2 pb-1 text-sm font-semibold text-gray-600">Projects</h3>
                     <ul className="space-y-1 px-2">
-                        {mockProjects.map((project) => (
+                        {projects.map((project) => (
                             <li
                                 key={project.id}
                                 className="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-50 cursor-pointer group">
@@ -113,12 +130,8 @@ export default function DominofyDashboard() {
                                     </p>
                                     <p className="text-xs text-gray-400 truncate">Edited {project.lastEdited}</p>
                                 </div>
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    strokeWidth={1.5}
-                                    stroke="currentColor"
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none"
+                                    viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"
                                     className="w-4 h-4 text-gray-300 group-hover:text-dominofy-primary">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                                 </svg>
@@ -127,6 +140,46 @@ export default function DominofyDashboard() {
                     </ul>
                 </div>
             </aside>
+            {/* <ToastContainer position="top-right" autoClose={5000} hideProgressBar /> */}
+            <CreateProjectModal
+                open={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSubmit={(name, description) => {
+                    // call your create-project API here
+                    console.log("New project:", { name, description });
+                    createProject(name, description);
+                    // then refresh list or redirect as needed
+                }}
+            />
+
         </div>
     );
+}
+
+// Utility: converts ISO date to relative time
+function timeSince(dateString: string) {
+    const now = new Date();
+    const updated = new Date(dateString);
+    const seconds = Math.floor((now.getTime() - updated.getTime()) / 1000);
+
+    const intervals: [number, string][] = [
+        [60, "seconds"],
+        [60, "minutes"],
+        [24, "hours"],
+        [7, "days"],
+        [4.35, "weeks"],
+        [12, "months"],
+        [Infinity, "years"],
+    ];
+
+    let duration = seconds;
+    let unit = "seconds";
+
+    for (const [divisor, name] of intervals) {
+        if (duration < divisor) break;
+        duration /= divisor;
+        unit = name;
+    }
+
+    return `${Math.floor(duration)} ${unit} ago`;
 }

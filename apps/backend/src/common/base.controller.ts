@@ -49,7 +49,6 @@ export abstract class BaseController<
 
     // now pass req to beforeCreate
     const processed = (await this.beforeCreate(instance as any, req)) ?? instance;
-    console.log('processed', processed);
     return this.service.create(processed as unknown as Create);
   }
 

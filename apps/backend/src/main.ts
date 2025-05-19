@@ -12,7 +12,7 @@ async function bootstrap() {
     transform: true,            // auto-transform payloads to your DTO classes
     validationError: { target: false },
     exceptionFactory: (errors) => {
-      console.log(errors);
+      console.error(errors);
       throw new BadRequestException(errors);
     },
   }));

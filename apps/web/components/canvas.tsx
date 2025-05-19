@@ -292,7 +292,7 @@ export default function Canvas({
         fitView
         className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
         nodeTypes={nodeTypes}
-        onNodeClick={(_, node) => { console.log(node); return setSelectedNode(node); }}
+        onNodeClick={(_, node) => setSelectedNode(node)}
         selectionKeyCode={null}
         proOptions={{ hideAttribution: true }}
         nodesDraggable={!readonly}
