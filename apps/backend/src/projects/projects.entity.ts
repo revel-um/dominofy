@@ -20,4 +20,7 @@ export class Project extends BaseEntity {
 
   @OneToMany(() => Workflow, (workflow) => workflow.project)
   workflows: Workflow[];
+
+  @Column({ default: false })
+  isDefault: boolean;
 }
