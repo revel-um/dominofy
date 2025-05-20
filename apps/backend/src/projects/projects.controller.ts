@@ -19,16 +19,16 @@ export class ProjectsController extends BaseController<
     }
 
     @Get()
-    async findAllProjects(@Query('limit') limit: number, @Query('offset') offset: number, @Req() req: Request) {
+    async findAllProjects(@Req() req: Request, @Query('query') query?: string, @Query('limit') limit?: number, @Query('offset') offset?: number) {
         const id = (req as any).user.id;
-        const [data, count] = await this.projectsService.findAll(id, limit ?? 10, offset ?? 0);
+        const [data, count] = await this.projectsService.findAll(id, limit ?? 10, offset ?? 0, query);
         return {
             data,
             count,
         }
     }
 
-    protected async beforeCreate(dto: CreateProjectDto & {user: string}, req: Request) {
+    protected async beforeCreate(dto: CreateProjectDto & { user: string }, req: Request) {
         dto.user = (req as any).user.id;
         return dto;
     }

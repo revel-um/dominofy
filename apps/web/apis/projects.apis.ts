@@ -2,9 +2,10 @@ import { NextRouter } from "next/router";
 import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
 
 export class ProjectsApi {
-    static async getProjects(token: string, router: NextRouter) {
+    static async getProjects(token: string, router: NextRouter, limit=10, offset=0, query?: string) {
+        console.log(limit, offset);
         try {
-            const response = await fetch("http://localhost:3001/api/v1/projects", {
+            const response = await fetch(`http://localhost:3001/api/v1/projects?limit=${limit}&offset=${offset}&query=${query}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
