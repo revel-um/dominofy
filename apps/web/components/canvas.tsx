@@ -164,6 +164,8 @@ export default function Canvas({
 
   const onConnect = useCallback(
     (params: Connection) => {
+      if (!setNodes || !setEdges) return;
+
       const isDuplicate = edges.some(
         (edge) =>
           edge.source === params.source &&
@@ -171,36 +173,41 @@ export default function Canvas({
           edge.sourceHandle === params.sourceHandle &&
           edge.targetHandle === params.targetHandle
       );
-      if (isDuplicate) return;
+      if (isDuplicate || !isValidConnection(params)) return;
 
-      if (isValidConnection(params)) {
-        // ✅ update valueConnected flag if targetHandle is value_in
-        if (params.targetHandle === 'value_in') {
-          setNodes!((prev) =>
-            prev.map((node) =>
-              node.id === params.target
-                ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    valueConnected: true,
-                  },
-                }
-                : node
-            )
+      if (params.targetHandle === "value_in") {
+        setNodes((prevNodes) => {
+          const updatedNodes = prevNodes.map((node) =>
+            node.id === params.target
+              ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  valueConnected: true,
+                },
+              }
+              : node
           );
-        }
 
-        setEdges!((eds) => {
-          const updated = addEdge(params, eds);
-          updatePipeline(nodes, updated);
-          return updated;
+          // only update pipeline AFTER state update
+          setEdges((eds) => {
+            const updatedEdges = addEdge(params, eds);
+            updatePipeline(updatedNodes, updatedEdges);
+            return updatedEdges;
+          });
+
+          return updatedNodes;
+        });
+      } else {
+        setEdges((eds) => {
+          const updatedEdges = addEdge(params, eds);
+          updatePipeline(nodes, updatedEdges); // nodes are still valid if no state change
+          return updatedEdges;
         });
       }
     },
-    [edges, nodes, setEdges, setNodes]
+    [edges, nodes, setEdges, setNodes, updatePipeline]
   );
-
 
   const onNodesChangeHandler: OnNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -301,7 +308,7 @@ export default function Canvas({
         nodesDraggable={!readonly}
         nodesConnectable={!readonly}
         elementsSelectable={!readonly}
-        panOnDrag={!readonly}
+        panOnDrag={true}
         zoomOnScroll={!readonly}
       >
         <Background />
