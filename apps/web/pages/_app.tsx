@@ -3,6 +3,10 @@ import { useEffect } from 'react';
 import '../styles/globals.css';
 
 import type { AppProps } from 'next/app';
+import Layout from './layout';
+import { NextRouter, useRouter } from 'next/router';
+
+const EXCLUDED_ROUTES = ['/auth', '/dominofy'];
 
 function MyApp({ Component, pageProps }: AppProps) {
   useEffect(() => {
@@ -13,8 +17,16 @@ function MyApp({ Component, pageProps }: AppProps) {
       localStorage.setItem('theme', 'dark');
     }
   }, []);
+  const router = useRouter();
+  const isExcluded = EXCLUDED_ROUTES.includes(router.pathname);
 
-  return <Component {...pageProps} />;
+  return isExcluded ? (
+    <Component {...pageProps} />
+  ) : (
+    <Layout>
+      <Component {...pageProps} />
+    </Layout>
+  );
 }
 
 export default MyApp;

@@ -37,6 +37,7 @@ export default function DominofyLayout() {
             <div className="w-screen h-screen relative bg-dominofy-light-background dark:bg-dominofy-dark-background text-dominofy-light-text dark:text-dominofy-dark-text">
                 <ReactFlowProvider>
                     <Canvas
+                        id="dominofy"
                         nodes={nodes}
                         setNodes={setNodes}
                         onNodesChange={onNodesChange}

@@ -21,23 +21,14 @@ export class WorkflowService extends BaseService<Workflow> {
 
     async getRecentWorkflows(userId: string) {
         const user = await this.userService.findOne(userId);
-        if(!user) return;
+        if (!user) return;
 
         const [workflows, count] = await this.workflowRepository.findAndCount({
             where: { user: { id: userId } },
             order: { updatedAt: 'DESC' },
-            take: 3,
+            take: 1
         });
 
-        if (workflows.length > 0) {
-            return { workflows, count, user };
-        }
-
-        // fallback: fetch default workflow(s)
-        const defaultWorkflow = await this.workflowRepository.find({
-            where: { isDefault: true },
-            take: 1,
-        });
-        return { workflows: defaultWorkflow, count: 1, user }
+        return { workflows, count, user };
     }
 }

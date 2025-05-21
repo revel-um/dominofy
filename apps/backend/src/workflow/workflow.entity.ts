@@ -18,8 +18,8 @@ export class Workflow extends BaseEntity {
   })
   project: Project;
 
-  @Column({ type: 'jsonb' })
-  visualJson: any; // stores the full { nodes, edges }
+  @Column({ type: 'jsonb', default: { nodes: [], edges: [] } })
+  visualJson: { nodes: any[], edges: any[] };
 
   @Column({ default: false })
   isPublished: boolean;

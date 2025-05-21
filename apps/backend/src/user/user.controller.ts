@@ -23,14 +23,20 @@ export class UserController extends BaseController<
     return this.userService.login(email!, password!);
   }
 
+  @Post()
+  async setupUser(@Body() data: CreateUserDto) {
+    const user = await CreateUserDto.toEncryptedPasswordUser(data);
+    return this.userService.setupUser(user);
+  }
+
   @Get()
   find(@Req() req: Request) {
     const id = (req as any).user.id;
     return this.service.findOne(id);
   }
-  
+
   /** encrypt password before persisting */
-  protected async beforeCreate(dto: Partial<CreateUserDto>) {
+  protected async beforeCreate(dto: CreateUserDto) {
     return CreateUserDto.toEncryptedPasswordUser(dto);
   }
 }

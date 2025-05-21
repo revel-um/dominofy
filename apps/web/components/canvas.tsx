@@ -35,6 +35,7 @@ const nodeTypes = {
 };
 
 interface CanvasProps {
+  id: string;
   nodes: Node[];
   setNodes?: React.Dispatch<React.SetStateAction<Node[]>>;
   onNodesChange?: OnNodesChange;
@@ -45,6 +46,7 @@ interface CanvasProps {
 }
 
 export default function Canvas({
+  id,
   nodes,
   setNodes,
   edges,
@@ -280,6 +282,7 @@ export default function Canvas({
   return (
     <DominoContext.Provider value={{ runDominosFlow, erroredNodes }}>
       <ReactFlow
+        id={id}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChangeHandler}
@@ -298,7 +301,7 @@ export default function Canvas({
         nodesDraggable={!readonly}
         nodesConnectable={!readonly}
         elementsSelectable={!readonly}
-        panOnDrag={readonly}
+        panOnDrag={!readonly}
         zoomOnScroll={!readonly}
       >
         <Background />

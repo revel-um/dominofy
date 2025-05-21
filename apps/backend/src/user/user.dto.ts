@@ -15,7 +15,7 @@ export class CreateUserDto {
     @IsNotEmpty()
     password: string;
 
-    static async toEncryptedPasswordUser(user: Partial<CreateUserDto>): Promise<Partial<CreateUserDto>> {
+    static async toEncryptedPasswordUser(user: CreateUserDto) {
         if (!user.password) return user;
         user.password = await encryptPassword(user.password);
         return user;

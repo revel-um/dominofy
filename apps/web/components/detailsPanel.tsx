@@ -128,12 +128,12 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
                     </div>
                 )}
 
-                <div>
+                {selectedNode?.data && (<div>
                     <p className="text-xs text-gray-500 mb-1">Raw Data</p>
                     <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-x-auto">
                         {JSON.stringify(selectedNode?.data, null, 2)}
                     </pre>
-                </div>
+                </div>)}
             </div>
 
             <div
