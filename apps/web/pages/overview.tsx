@@ -22,10 +22,14 @@ const mockProjects: Project[] = [
     { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
     { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
     { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 }, { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 }, { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 }, { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 }, { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
+    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
+    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
+    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
+    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
+    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
+    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
+    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
+    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
     { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
 ];
 
@@ -57,6 +61,7 @@ function getPaginationRange(
     range.push(total); // last page
     return range;
 }
+
 const ROW_H = "calc(100% / 10)"; // one-tenth of the list panel
 
 export default function OverviewPage({ view = "project" }: { view?: "project" | "workflow" }) {
