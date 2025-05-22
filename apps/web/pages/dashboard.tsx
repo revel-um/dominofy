@@ -14,9 +14,8 @@ import {
     FiClock,
     FiCheck,
     FiSearch,
-    FiUser,
     FiChevronRight,
-    FiLayers,
+    FiPlus,
 } from "react-icons/fi";
 import TemplatesCanvas from "../components/templateCarousel";
 
@@ -88,243 +87,243 @@ export default function DominofyDashboard() {
 
         try {
             setTemplates([
+                {
+                    "nodes": [
                         {
-                            "nodes": [
-                                {
-                                    "id": "apicall-1747853297703",
-                                    "type": "apicall",
-                                    "position": {
-                                        "x": 657.9512122441635,
-                                        "y": 387.5031132874231
-                                    },
-                                    "data": {
-                                        "label": "apicall node",
-                                        "value": "",
-                                        "exportFields": [
-                                            "URL",
-                                            "Method",
-                                            "Headers",
-                                            "Body"
-                                        ],
-                                        "details": {
-                                            "type": "ApiCall",
-                                            "description": "This domino sends an HTTP request to a specified URL with optional headers and body.",
-                                            "fields": [
+                            "id": "apicall-1747853297703",
+                            "type": "apicall",
+                            "position": {
+                                "x": 657.9512122441635,
+                                "y": 387.5031132874231
+                            },
+                            "data": {
+                                "label": "apicall node",
+                                "value": "",
+                                "exportFields": [
+                                    "URL",
+                                    "Method",
+                                    "Headers",
+                                    "Body"
+                                ],
+                                "details": {
+                                    "type": "ApiCall",
+                                    "description": "This domino sends an HTTP request to a specified URL with optional headers and body.",
+                                    "fields": [
+                                        {
+                                            "type": "textInput",
+                                            "heading": "URL",
+                                            "placeholder": "https://api.example.com",
+                                            "value": "",
+                                            "required": true
+                                        },
+                                        {
+                                            "type": "dropdown",
+                                            "heading": "Method",
+                                            "value": "GET",
+                                            "required": true,
+                                            "options": [
                                                 {
-                                                    "type": "textInput",
-                                                    "heading": "URL",
-                                                    "placeholder": "https://api.example.com",
-                                                    "value": "",
-                                                    "required": true
+                                                    "label": "GET",
+                                                    "value": "GET"
                                                 },
                                                 {
-                                                    "type": "dropdown",
-                                                    "heading": "Method",
-                                                    "value": "GET",
-                                                    "required": true,
-                                                    "options": [
-                                                        {
-                                                            "label": "GET",
-                                                            "value": "GET"
-                                                        },
-                                                        {
-                                                            "label": "POST",
-                                                            "value": "POST"
-                                                        },
-                                                        {
-                                                            "label": "PUT",
-                                                            "value": "PUT"
-                                                        },
-                                                        {
-                                                            "label": "DELETE",
-                                                            "value": "DELETE"
-                                                        }
-                                                    ]
+                                                    "label": "POST",
+                                                    "value": "POST"
                                                 },
                                                 {
-                                                    "type": "json",
-                                                    "heading": "Headers",
-                                                    "placeholder": "{\"Authorization\": \"Bearer xyz\"}",
-                                                    "value": {}
+                                                    "label": "PUT",
+                                                    "value": "PUT"
                                                 },
                                                 {
-                                                    "type": "json",
-                                                    "heading": "Body",
-                                                    "placeholder": "{\"key\": \"value\"}",
-                                                    "value": {}
+                                                    "label": "DELETE",
+                                                    "value": "DELETE"
                                                 }
                                             ]
                                         },
-                                        "selected": true
-                                    }
-                                },
-                                {
-                                    "id": "print-1747853302476",
-                                    "type": "print",
-                                    "position": {
-                                        "x": 897.4005565158732,
-                                        "y": 404.7849790551566
-                                    },
-                                    "data": {
-                                        "label": "print node",
-                                        "value": "",
-                                        "details": {
-                                            "type": "Print",
-                                            "description": "This domino prints a given value.",
-                                            "fields": [
-                                                {
-                                                    "type": "textInput",
-                                                    "placeholder": "What to print ...",
-                                                    "value": "",
-                                                    "required": true,
-                                                    "heading": "Text"
-                                                }
-                                            ]
+                                        {
+                                            "type": "json",
+                                            "heading": "Headers",
+                                            "placeholder": "{\"Authorization\": \"Bearer xyz\"}",
+                                            "value": {}
                                         },
-                                        "exportFields": [
-                                            "Text"
-                                        ],
-                                        "valueConnected": true,
-                                        "selected": false
-                                    }
-                                }
-                            ],
-                            "edges": [
-                                {
-                                    "id": "reactflow__edge-apicall-1747853297703exec_out-print-1747853302476exec_in",
-                                    "source": "apicall-1747853297703",
-                                    "target": "print-1747853302476",
-                                    "sourceHandle": "exec_out",
-                                    "targetHandle": "exec_in"
+                                        {
+                                            "type": "json",
+                                            "heading": "Body",
+                                            "placeholder": "{\"key\": \"value\"}",
+                                            "value": {}
+                                        }
+                                    ]
                                 },
-                                {
-                                    "id": "reactflow__edge-apicall-1747853297703value_out-print-1747853302476value_in",
-                                    "source": "apicall-1747853297703",
-                                    "target": "print-1747853302476",
-                                    "sourceHandle": "value_out",
-                                    "targetHandle": "value_in"
-                                }
-                            ]
+                                "selected": true
+                            }
                         },
                         {
-                            "nodes": [
-                                {
-                                    "id": "apicall-1747853297703",
-                                    "type": "apicall",
-                                    "position": {
-                                        "x": 657.9512122441635,
-                                        "y": 387.5031132874231
-                                    },
-                                    "data": {
-                                        "label": "apicall node",
-                                        "value": "",
-                                        "exportFields": [
-                                            "URL",
-                                            "Method",
-                                            "Headers",
-                                            "Body"
-                                        ],
-                                        "details": {
-                                            "type": "ApiCall",
-                                            "description": "This domino sends an HTTP request to a specified URL with optional headers and body.",
-                                            "fields": [
-                                                {
-                                                    "type": "textInput",
-                                                    "heading": "URL",
-                                                    "placeholder": "https://api.example.com",
-                                                    "value": "",
-                                                    "required": true
-                                                },
-                                                {
-                                                    "type": "dropdown",
-                                                    "heading": "Method",
-                                                    "value": "GET",
-                                                    "required": true,
-                                                    "options": [
-                                                        {
-                                                            "label": "GET",
-                                                            "value": "GET"
-                                                        },
-                                                        {
-                                                            "label": "POST",
-                                                            "value": "POST"
-                                                        },
-                                                        {
-                                                            "label": "PUT",
-                                                            "value": "PUT"
-                                                        },
-                                                        {
-                                                            "label": "DELETE",
-                                                            "value": "DELETE"
-                                                        }
-                                                    ]
-                                                },
-                                                {
-                                                    "type": "json",
-                                                    "heading": "Headers",
-                                                    "placeholder": "{\"Authorization\": \"Bearer xyz\"}",
-                                                    "value": {}
-                                                },
-                                                {
-                                                    "type": "json",
-                                                    "heading": "Body",
-                                                    "placeholder": "{\"key\": \"value\"}",
-                                                    "value": {}
-                                                }
-                                            ]
-                                        },
-                                        "selected": true
-                                    }
+                            "id": "print-1747853302476",
+                            "type": "print",
+                            "position": {
+                                "x": 897.4005565158732,
+                                "y": 404.7849790551566
+                            },
+                            "data": {
+                                "label": "print node",
+                                "value": "",
+                                "details": {
+                                    "type": "Print",
+                                    "description": "This domino prints a given value.",
+                                    "fields": [
+                                        {
+                                            "type": "textInput",
+                                            "placeholder": "What to print ...",
+                                            "value": "",
+                                            "required": true,
+                                            "heading": "Text"
+                                        }
+                                    ]
                                 },
-                                {
-                                    "id": "print-1747853302476",
-                                    "type": "print",
-                                    "position": {
-                                        "x": 897.4005565158732,
-                                        "y": 404.7849790551566
-                                    },
-                                    "data": {
-                                        "label": "print node",
-                                        "value": "",
-                                        "details": {
-                                            "type": "Print",
-                                            "description": "This domino prints a given value.",
-                                            "fields": [
-                                                {
-                                                    "type": "textInput",
-                                                    "placeholder": "What to print ...",
-                                                    "value": "",
-                                                    "required": true,
-                                                    "heading": "Text"
-                                                }
-                                            ]
-                                        },
-                                        "exportFields": [
-                                            "Text"
-                                        ],
-                                        "valueConnected": true,
-                                        "selected": false
-                                    }
-                                }
-                            ],
-                            "edges": [
-                                {
-                                    "id": "reactflow__edge-apicall-1747853297703exec_out-print-1747853302476exec_in",
-                                    "source": "apicall-1747853297703",
-                                    "target": "print-1747853302476",
-                                    "sourceHandle": "exec_out",
-                                    "targetHandle": "exec_in"
-                                },
-                                {
-                                    "id": "reactflow__edge-apicall-1747853297703value_out-print-1747853302476value_in",
-                                    "source": "apicall-1747853297703",
-                                    "target": "print-1747853302476",
-                                    "sourceHandle": "value_out",
-                                    "targetHandle": "value_in"
-                                }
-                            ]
+                                "exportFields": [
+                                    "Text"
+                                ],
+                                "valueConnected": true,
+                                "selected": false
+                            }
                         }
-                    ])
+                    ],
+                    "edges": [
+                        {
+                            "id": "reactflow__edge-apicall-1747853297703exec_out-print-1747853302476exec_in",
+                            "source": "apicall-1747853297703",
+                            "target": "print-1747853302476",
+                            "sourceHandle": "exec_out",
+                            "targetHandle": "exec_in"
+                        },
+                        {
+                            "id": "reactflow__edge-apicall-1747853297703value_out-print-1747853302476value_in",
+                            "source": "apicall-1747853297703",
+                            "target": "print-1747853302476",
+                            "sourceHandle": "value_out",
+                            "targetHandle": "value_in"
+                        }
+                    ]
+                },
+                {
+                    "nodes": [
+                        {
+                            "id": "apicall-1747853297703",
+                            "type": "apicall",
+                            "position": {
+                                "x": 657.9512122441635,
+                                "y": 387.5031132874231
+                            },
+                            "data": {
+                                "label": "apicall node",
+                                "value": "",
+                                "exportFields": [
+                                    "URL",
+                                    "Method",
+                                    "Headers",
+                                    "Body"
+                                ],
+                                "details": {
+                                    "type": "ApiCall",
+                                    "description": "This domino sends an HTTP request to a specified URL with optional headers and body.",
+                                    "fields": [
+                                        {
+                                            "type": "textInput",
+                                            "heading": "URL",
+                                            "placeholder": "https://api.example.com",
+                                            "value": "",
+                                            "required": true
+                                        },
+                                        {
+                                            "type": "dropdown",
+                                            "heading": "Method",
+                                            "value": "GET",
+                                            "required": true,
+                                            "options": [
+                                                {
+                                                    "label": "GET",
+                                                    "value": "GET"
+                                                },
+                                                {
+                                                    "label": "POST",
+                                                    "value": "POST"
+                                                },
+                                                {
+                                                    "label": "PUT",
+                                                    "value": "PUT"
+                                                },
+                                                {
+                                                    "label": "DELETE",
+                                                    "value": "DELETE"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "json",
+                                            "heading": "Headers",
+                                            "placeholder": "{\"Authorization\": \"Bearer xyz\"}",
+                                            "value": {}
+                                        },
+                                        {
+                                            "type": "json",
+                                            "heading": "Body",
+                                            "placeholder": "{\"key\": \"value\"}",
+                                            "value": {}
+                                        }
+                                    ]
+                                },
+                                "selected": true
+                            }
+                        },
+                        {
+                            "id": "print-1747853302476",
+                            "type": "print",
+                            "position": {
+                                "x": 897.4005565158732,
+                                "y": 404.7849790551566
+                            },
+                            "data": {
+                                "label": "print node",
+                                "value": "",
+                                "details": {
+                                    "type": "Print",
+                                    "description": "This domino prints a given value.",
+                                    "fields": [
+                                        {
+                                            "type": "textInput",
+                                            "placeholder": "What to print ...",
+                                            "value": "",
+                                            "required": true,
+                                            "heading": "Text"
+                                        }
+                                    ]
+                                },
+                                "exportFields": [
+                                    "Text"
+                                ],
+                                "valueConnected": true,
+                                "selected": false
+                            }
+                        }
+                    ],
+                    "edges": [
+                        {
+                            "id": "reactflow__edge-apicall-1747853297703exec_out-print-1747853302476exec_in",
+                            "source": "apicall-1747853297703",
+                            "target": "print-1747853302476",
+                            "sourceHandle": "exec_out",
+                            "targetHandle": "exec_in"
+                        },
+                        {
+                            "id": "reactflow__edge-apicall-1747853297703value_out-print-1747853302476value_in",
+                            "source": "apicall-1747853297703",
+                            "target": "print-1747853302476",
+                            "sourceHandle": "value_out",
+                            "targetHandle": "value_in"
+                        }
+                    ]
+                }
+            ])
             const response = await ProjectsApi.getProjects(
                 token,
                 router,
@@ -573,8 +572,11 @@ export default function DominofyDashboard() {
                             }}
                         />
                     </div>
-                    <button className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800" onClick={() => setIsModalOpen(true)}>
-                        <FiUser className="text-gray-500" />
+                    <button
+                        className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white"
+                        onClick={() => setIsModalOpen(true)}
+                    >
+                        <FiPlus className="w-4 h-4" />
                     </button>
                 </div>
                 <hr className="border-t border-gray-200 dark:border-gray-800 w-full" />
