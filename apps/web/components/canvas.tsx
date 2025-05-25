@@ -176,29 +176,36 @@ export default function Canvas({
       if (isDuplicate || !isValidConnection(params)) return;
 
       if (params.targetHandle === "value_in") {
-        setNodes((prevNodes) => {
-          const updatedNodes = prevNodes.map((node) =>
-            node.id === params.target
-              ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  valueConnected: true,
-                },
-              }
-              : node
+        setEdges((prevEdges) => {
+          // Remove any previous connection to the same `value_in` pin
+          const filteredEdges = prevEdges.filter(
+            (edge) =>
+              !(edge.target === params.target && edge.targetHandle === "value_in")
           );
 
-          // only update pipeline AFTER state update
-          setEdges((eds) => {
-            const updatedEdges = addEdge(params, eds);
+          const updatedEdges = addEdge(params, filteredEdges);
+
+          // Update nodes after edges to ensure correct pipeline update
+          setNodes((prevNodes) => {
+            const updatedNodes = prevNodes.map((node) =>
+              node.id === params.target
+                ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    valueConnected: true,
+                  },
+                }
+                : node
+            );
             updatePipeline(updatedNodes, updatedEdges);
-            return updatedEdges;
+            return updatedNodes;
           });
 
-          return updatedNodes;
+          return updatedEdges;
         });
-      } else {
+      }
+      else {
         setEdges((eds) => {
           const updatedEdges = addEdge(params, eds);
           updatePipeline(nodes, updatedEdges); // nodes are still valid if no state change

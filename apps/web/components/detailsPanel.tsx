@@ -52,10 +52,37 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
     };
 
     const onDeploy = () => {
-        importWorkflow(jsonRef.current, setNodes, setEdges, {
-            setNodes,
-            updatePipeline,
+        const nodes = getNodes();
+        const edges = getEdges();
+
+        if (!nodes || !edges) return;
+
+        // 1. Block if only 1 or 0 dominos
+        if (nodes.length <= 1) {
+            alert("You must have at least two connected dominos to deploy.");
+            return;
+        }
+
+        // 2. Create a Set of connected node IDs from edges
+        const connectedNodeIds = new Set<string>();
+        edges.forEach((edge) => {
+            connectedNodeIds.add(edge.source);
+            connectedNodeIds.add(edge.target);
         });
+
+        // 3. Check for any unconnected nodes
+        const unconnectedNodes = nodes.filter((node) => !connectedNodeIds.has(node.id));
+
+        if (unconnectedNodes.length > 0) {
+            alert("Some dominos are not connected. Please connect all dominos before deploying.");
+            return;
+        }
+        alert("deploying...");
+
+        // importWorkflow(jsonRef.current, setNodes, setEdges, {
+        //     setNodes,
+        //     updatePipeline,
+        // });
     };
 
     const onRun = () => {
