@@ -63,27 +63,48 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
             return;
         }
 
-        // 2. Create a Set of connected node IDs from edges
-        const connectedNodeIds = new Set<string>();
-        edges.forEach((edge) => {
-            connectedNodeIds.add(edge.source);
-            connectedNodeIds.add(edge.target);
+        // 2. Create adjacency list
+        const adjacencyList: Record<string, string[]> = {};
+        nodes.forEach((node) => {
+            adjacencyList[node.id] = [];
         });
 
-        // 3. Check for any unconnected nodes
-        const unconnectedNodes = nodes.filter((node) => !connectedNodeIds.has(node.id));
+        edges.forEach((edge) => {
+            adjacencyList[edge.source].push(edge.target);
+            adjacencyList[edge.target].push(edge.source); // for undirected traversal
+        });
 
-        if (unconnectedNodes.length > 0) {
-            alert("Some dominos are not connected. Please connect all dominos before deploying.");
+        // 3. BFS to find connected component
+        const visited = new Set<string>();
+        const queue: string[] = [];
+
+        queue.push(nodes[0].id);
+        visited.add(nodes[0].id);
+
+        while (queue.length > 0) {
+            const current = queue.shift()!;
+            for (const neighbor of adjacencyList[current]) {
+                if (!visited.has(neighbor)) {
+                    visited.add(neighbor);
+                    queue.push(neighbor);
+                }
+            }
+        }
+
+        // 4. If not all nodes are visited, then multiple disconnected chains exist
+        if (visited.size !== nodes.length) {
+            alert("There are multiple disconnected chains in your workflow. Only one is allowed.");
             return;
         }
-        alert("deploying...");
+
+        alert("Deploying...");
 
         // importWorkflow(jsonRef.current, setNodes, setEdges, {
         //     setNodes,
         //     updatePipeline,
         // });
     };
+
 
     const onRun = () => {
         const pipeline = buildPipeline(getNodes(), getEdges());
