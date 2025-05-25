@@ -43,7 +43,7 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
                                 details: {
                                     ...node.data.details,
                                     fields: [
-                                        { heading: 'File Name', value: file.name, type: 'text' },
+                                        { heading: 'File Name', value: file.name, type: 'text', inPinId: 'value_in' },
                                     ],
                                 },
                             },
@@ -67,7 +67,7 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
                                 details: {
                                     type: 'Read File',
                                     description: 'Reads a file from input or manual upload',
-                                    fields: [],
+                                    fields: [{inPinId: 'value_in'}],
                                 },
                                 exportFields: ['File Name'],
                             },

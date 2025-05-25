@@ -29,6 +29,8 @@ export interface DominoFieldOption {
 export interface DominoField {
   type: WidgetType;
   value: any;
+  inPinId?: string;
+  connectedValue?: string;
   options?: DominoFieldOption[]; // For dropdown and multi-select
   placeholder?: string;
   required?: boolean;

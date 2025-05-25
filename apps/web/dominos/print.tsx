@@ -57,6 +57,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
                   type: 'textInput',
                   placeholder: 'What to print ...',
                   value,
+                  inPinId: 'value_in',
                   required: true,
                   heading: 'Text',
                 },

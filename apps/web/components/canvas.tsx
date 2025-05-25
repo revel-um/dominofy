@@ -26,6 +26,7 @@ import { DominoContext } from "../contexts/dominoContext";
 import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { validateNodeConnections } from "../helpers/errorDetector";
 import ReadFileDomino from "../dominos/readFile";
+import { DominoField } from "../types/dominoFieldTypes";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -164,6 +165,7 @@ export default function Canvas({
 
   const onConnect = useCallback(
     (params: Connection) => {
+      console.log(params);
       if (!setNodes || !setEdges) return;
 
       const isDuplicate = edges.some(
@@ -175,28 +177,38 @@ export default function Canvas({
       );
       if (isDuplicate || !isValidConnection(params)) return;
 
-      if (params.targetHandle === "value_in") {
+      if (params.targetHandle?.includes("value_in")) {
         setEdges((prevEdges) => {
           // Remove any previous connection to the same `value_in` pin
           const filteredEdges = prevEdges.filter(
             (edge) =>
-              !(edge.target === params.target && edge.targetHandle === "value_in")
+              !(edge.target === params.target && edge.targetHandle?.includes("value_in"))
           );
 
           const updatedEdges = addEdge(params, filteredEdges);
 
           // Update nodes after edges to ensure correct pipeline update
           setNodes((prevNodes) => {
-            const updatedNodes = prevNodes.map((node) =>
-              node.id === params.target
-                ? {
+            const updatedNodes = prevNodes.map((node) => {
+              if (node.id === params.target) {
+                console.log(node.data);
+                if (node?.data?.details?.fields?.length) {
+                  node.data.details.fields.forEach((field: DominoField) => {
+                    if (field.inPinId === params.targetHandle) {
+                      field.connectedValue = params.source as string;
+                    }
+                  });
+                }
+                return {
                   ...node,
                   data: {
                     ...node.data,
-                    valueConnected: true,
+                    valueConnected: true
                   },
                 }
-                : node
+              }
+              return node
+            }
             );
             updatePipeline(updatedNodes, updatedEdges);
             return updatedNodes;
@@ -245,43 +257,63 @@ export default function Canvas({
 
   const onEdgesChangeHandler: OnEdgesChange = useCallback(
     (changes) => {
-      let affectedValueInTargets: string[] = [];
-
-      // Only process removed edges
       const removedEdgeIds = changes
         .filter((c) => c.type === 'remove')
         .map((c) => c.id);
 
-      if (removedEdgeIds.length) {
-        // Find the actual edge data by ID
-        affectedValueInTargets = edges
-          .filter((edge) => removedEdgeIds.includes(edge.id) && edge.targetHandle === 'value_in')
-          .map((edge) => edge.target);
+      let updatedEdges: Edge[] = [];
 
-        if (affectedValueInTargets.length) {
-          setNodes!((prev) =>
-            prev.map((node) =>
-              affectedValueInTargets.includes(node.id)
-                ? {
+      setEdges!((prevEdges) => {
+        const newEdges = applyEdgeChanges(changes, prevEdges);
+        updatedEdges = newEdges;
+        return newEdges;
+      });
+
+      if (removedEdgeIds.length) {
+        // Delay node update to make sure setEdges applies first
+        setTimeout(() => {
+          const removedValueEdges = edges.filter(
+            (edge) =>
+              removedEdgeIds.includes(edge.id) &&
+              edge.targetHandle?.startsWith("value_in")
+          );
+
+          if (removedValueEdges.length) {
+            setNodes!((prevNodes) =>
+              prevNodes.map((node) => {
+                const matchingEdge = removedValueEdges.find(
+                  (e) => e.target === node.id
+                );
+
+                if (!matchingEdge) return node;
+
+                const updatedFields = node.data?.details?.fields?.map(
+                  (field: DominoField) =>
+                    field.inPinId === matchingEdge.targetHandle
+                      ? { ...field, connectedValue: undefined }
+                      : field
+                );
+
+                return {
                   ...node,
                   data: {
                     ...node.data,
                     valueConnected: false,
+                    details: {
+                      ...node.data.details,
+                      fields: updatedFields,
+                    },
                   },
-                }
-                : node
-            )
-          );
-        }
-      }
+                };
+              })
+            );
+          }
 
-      setEdges!((eds) => {
-        const updated = applyEdgeChanges(changes, eds);
-        if (removedEdgeIds.length) setTimeout(() => updatePipeline(nodes, updated), 0);
-        return updated;
-      });
+          updatePipeline(nodes, updatedEdges);
+        }, 0);
+      }
     },
-    [edges, nodes, setNodes, setEdges]
+    [edges, nodes, setEdges, setNodes, updatePipeline]
   );
 
   const runDominosFlow = async () => {
