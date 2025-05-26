@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Canvas from "../components/canvas";
-import { type Node, type Edge, ReactFlowProvider } from "reactflow";
+import { type Node, type Edge } from "reactflow";
 import { ProjectsApi } from "../apis/projects.apis";
 import { ToastContainer } from "react-toastify";
 import { useRouter } from "next/router";
@@ -16,6 +16,7 @@ import {
     FiSearch,
     FiChevronRight,
     FiPlus,
+    FiExternalLink,
 } from "react-icons/fi";
 import TemplatesCanvas from "../components/templateCarousel";
 
@@ -27,6 +28,7 @@ interface Project {
 }
 
 interface Workflow {
+    id: string;
     name: string;
     isPublished: boolean;
     isDefault: boolean;
@@ -53,9 +55,6 @@ export default function DominofyDashboard() {
     const [workflowCount, setWorkflowCount] = useState(0);
     const [user, setUser] = useState<User>({ name: "", email: "" });
     const [templates, setTemplates] = useState<any[]>([]);
-
-    const workflowNodes: Node[] = [];
-    const workflowEdges: Edge[] = [];
 
     const router = useRouter();
 
@@ -414,6 +413,23 @@ export default function DominofyDashboard() {
         setPage(1);
     };
 
+    const handleRedirect = (e: React.MouseEvent) => {
+        if (!recentWorkflow?.id) return;
+
+        // Store workflow in sessionStorage
+        sessionStorage.setItem("workflow-cache", JSON.stringify(recentWorkflow));
+
+        const url = `/dominofy/${recentWorkflow.id}`;
+
+        // If Cmd/Ctrl/Meta or middle-click → open in new tab
+        if (e.metaKey || e.ctrlKey || e.button === 1) {
+            window.open(url, "_blank");
+        } else {
+            router.push(url);
+        }
+    };
+
+
     // UI ------------------------------------------------------------------
     return (
         <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-950">
@@ -475,19 +491,38 @@ export default function DominofyDashboard() {
 
                     {/* Recent Card -------------------------------------------*/}
                     <div className="relative rounded-2xl bg-white dark:bg-gray-800 shadow-md overflow-hidden h-full">
-                        {/* Header overlay */}
+                        {/* Header overlay - Top left */}
                         <div className="absolute top-0 left-0 flex items-center px-2 py-2 z-10">
                             <div className="rounded-full px-4 py-2 bg-gray-400/30 dark:bg-black/30 backdrop-blur-sm flex items-center gap-x-2 text-black dark:text-white">
                                 <FiClock className="w-5 h-5" />
-                                <p className="text-sm font-medium">{(recentWorkflow?.isDefault && recentWorkflow.createdAt == recentWorkflow.updatedAt) ? 'Default' : 'Recent'}</p>
+                                <p className="text-sm font-medium">
+                                    {(recentWorkflow?.isDefault && recentWorkflow.createdAt === recentWorkflow.updatedAt) ? 'Default' : 'Recent'}
+                                </p>
                             </div>
+                        </div>
+
+                        {/* Redirect icon - Top right */}
+                        <div className="absolute top-0 right-0 px-3 py-2 z-10">
+                            <button
+                                onClick={handleRedirect}
+                                className="rounded-full p-2 bg-gray-400/30 dark:bg-black/30 backdrop-blur-sm text-black dark:text-white hover:bg-gray-500/40 dark:hover:bg-white/20 transition"
+                                title="Open full view"
+                            >
+                                <FiExternalLink className="w-5 h-5" />
+                            </button>
                         </div>
 
                         {/* Canvas */}
                         <div className="h-full">
-                            <Canvas nodes={recentWorkflow?.visualJson?.nodes ?? []} edges={recentWorkflow?.visualJson?.edges ?? []} id='dashboard-recent' readonly={true} />
+                            <Canvas
+                                nodes={recentWorkflow?.visualJson?.nodes ?? []}
+                                edges={recentWorkflow?.visualJson?.edges ?? []}
+                                id='dashboard-recent'
+                                readonly={true}
+                            />
                         </div>
                     </div>
+
 
                     {/* Additional Tasks Card --------------------------------*/}
                     <div className="rounded-2xl bg-gradient-to-br from-cyan-200 via-blue-200 to-blue-100 dark:from-cyan-800 dark:via-blue-800 dark:to-blue-700 p-6 shadow-md flex flex-col justify-between">

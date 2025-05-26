@@ -18,8 +18,10 @@ function MyApp({ Component, pageProps }: AppProps) {
     }
   }, []);
   const router = useRouter();
-  const isExcluded = EXCLUDED_ROUTES.includes(router.pathname);
-
+  const isExcluded = EXCLUDED_ROUTES.some((path) =>
+    router.pathname.includes(path)
+  );
+  
   return isExcluded ? (
     <Component {...pageProps} />
   ) : (
