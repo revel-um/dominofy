@@ -28,20 +28,29 @@ interface Props {
 export default function DominofyLayout({ workflow }: Props) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const [erroredNodes, setErroredNodes] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const [connectionErrors, setConnectionErrors] = useState<string[]>([])
+    const [validationErrors, setValidationErrors] = useState<string[]>([])
+
+    const erroredNodes = useMemo(
+        () => Array.from(new Set([...connectionErrors, ...validationErrors])),
+        [connectionErrors, validationErrors]
+    )
 
     const router = useRouter();
     const { id } = router.query;
 
-    const runDominosFlow = useCallback(() => {
-        runDominos(nodes, edges);
-    }, [nodes, edges]);
-
-    const contextValue = useMemo(
-        () => ({ runDominosFlow, erroredNodes }),
-        [runDominosFlow, erroredNodes]
-    );
+    const contextValue = {
+        erroredNodes,
+        setConnectionErrors,
+        setValidationErrors,
+        clearConnectionErrors: () => setConnectionErrors([]),
+        clearValidationErrors: () => setValidationErrors([]),
+        clearValidationForDominoId: (id: string) => {
+            setValidationErrors((prev) => prev.filter((errId) => errId !== id));
+        },
+    }
 
     const updatePipeline = useCallback((currentNodes = nodes, currentEdges = edges) => {
         const newPipeline = buildPipeline(currentNodes, currentEdges);

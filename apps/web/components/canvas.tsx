@@ -22,7 +22,7 @@ import PrintDomino from "../dominos/print";
 import ApiCallDomino from "../dominos/apiCall";
 import ApiTriggerDomino from "../dominos/apiTrigger";
 import buildPipeline from "../helpers/buildPipeline";
-import { DominoContext } from "../contexts/dominoContext";
+import { DominoContext, useDomino } from "../contexts/dominoContext";
 import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { validateNodeConnections } from "../helpers/errorDetector";
 import ReadFileDomino from "../dominos/readFile";
@@ -57,11 +57,12 @@ export default function Canvas({
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const [pipeline, setPipeline] = useState<PipelineStep[]>([]);
-  const [erroredNodes, setErroredNodes] = useState<string[]>([]);
+
+  const { setConnectionErrors, clearValidationForDominoId } = useDomino();
 
   useEffect(() => {
     const errorIds = validateNodeConnections(nodes, edges);
-    setErroredNodes(errorIds);
+    setConnectionErrors(errorIds);
   }, [nodes, edges]);
 
   const updatePipeline = (currentNodes = nodes, currentEdges = edges) => {
@@ -178,6 +179,7 @@ export default function Canvas({
       if (isDuplicate || !isValidConnection(params)) return;
 
       if (params.targetHandle?.includes("value_in")) {
+        setTimeout(() => {if(params.target) clearValidationForDominoId(params.target)}, 0); // Ensure state updates are applied before validation
         setEdges((prevEdges) => {
           // Remove any previous connection to the same `value_in` pin
           const filteredEdges = prevEdges.filter(
@@ -316,43 +318,31 @@ export default function Canvas({
     [edges, nodes, setEdges, setNodes, updatePipeline]
   );
 
-  const runDominosFlow = async () => {
-    try {
-      const response = await axios.post("/api/run-flow", { pipeline });
-      console.log("Execution Logs:", response.data.logs);
-    } catch (err) {
-      console.error("Error running dominos:", err);
-    }
-  };
-
   return (
-    <DominoContext.Provider value={{ runDominosFlow, erroredNodes }}>
-      <ReactFlow
-        id={id}
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChangeHandler}
-        onEdgesChange={onEdgesChangeHandler}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onConnect={onConnect}
-        isValidConnection={isValidConnection}
-        onInit={setReactFlowInstance}
-        fitView
-        className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
-        nodeTypes={nodeTypes}
-        onNodeClick={(_, node) => setSelectedNode(node)}
-        selectionKeyCode={null}
-        proOptions={{ hideAttribution: true }}
-        nodesDraggable={!readonly}
-        nodesConnectable={!readonly}
-        elementsSelectable={!readonly}
-        panOnDrag={true}
-        zoomOnScroll={!readonly}
-      >
-        <Background />
-        {/* <Controls /> */}
-      </ReactFlow>
-    </DominoContext.Provider>
+    <ReactFlow
+      id={id}
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChangeHandler}
+      onEdgesChange={onEdgesChangeHandler}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onConnect={onConnect}
+      isValidConnection={isValidConnection}
+      onInit={setReactFlowInstance}
+      fitView
+      className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
+      nodeTypes={nodeTypes}
+      onNodeClick={(_, node) => setSelectedNode(node)}
+      selectionKeyCode={null}
+      proOptions={{ hideAttribution: true }}
+      nodesDraggable={!readonly}
+      nodesConnectable={!readonly}
+      elementsSelectable={!readonly}
+      panOnDrag={true}
+      zoomOnScroll={!readonly}
+    >
+      <Background />
+    </ReactFlow>
   );
 }

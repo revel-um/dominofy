@@ -1,4 +1,5 @@
 import { Node, Edge } from 'reactflow';
+import { DominoField } from '../types/dominoFieldTypes';
 
 export function validateNodeConnections(nodes: Node[], edges: Edge[]): string[] {
   const execInMap = new Map<string, boolean>();
@@ -39,4 +40,30 @@ export function validateNodeValues(nodes: Node[]): string[] {
   });
 
   return erroredNodeIds;
+}
+
+export function validateAndMarkErrors(
+  nodes: Node[]
+) {
+  const erroredIds: string[] = [];          // collect here
+  const adjacencyList: Record<string, string[]> = {};
+
+  for (const node of nodes) {
+    adjacencyList[node.id] = [];            // still build your graph
+
+    const fields: DominoField[] = node.data?.details?.fields ?? [];
+
+    const hasMissingRequired = fields.some(
+      (field) =>
+        field.required &&
+        !(field.value?.length) &&           // value is empty
+        !(field.connectedValue?.length)     // AND nothing connected
+    );
+
+    if (hasMissingRequired) erroredIds.push(node.id);
+  }
+
+  // single, immutable state update – triggers one re-render
+  console.log('Errored Node IDs:', erroredIds);
+  return erroredIds;
 }

@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { FiPlay, FiTool } from 'react-icons/fi'; // ✅ Added FiTool icon
-import { useDomino } from '../contexts/dominoContext';
-import { Edge, Node, useReactFlow } from 'reactflow';
+import { Edge, Node } from 'reactflow';
 import { DominoField, fieldWidgetMap } from '../types/dominoFieldTypes';
-import { exportWorkflow, importWorkflow } from '../helpers/workflowManager';
+import { exportWorkflow } from '../helpers/workflowManager';
 import buildPipeline from '../helpers/buildPipeline';
-import { get } from 'http';
+import { validateAndMarkErrors } from '../helpers/errorDetector';
+import { useDomino } from '../contexts/dominoContext';
 
 interface DetailsPanelProps {
     selectedNode: Node | undefined;
@@ -17,12 +17,12 @@ interface DetailsPanelProps {
 }
 
 export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNodes, setEdges, updatePipeline }: DetailsPanelProps) {
-    const { runDominosFlow } = useDomino();
-
     const MIN_WIDTH = 280;
     const MAX_WIDTH = 480;
     const [width, setWidth] = useState(MIN_WIDTH);
     const isDragging = useRef(false);
+
+    const { setValidationErrors, clearValidationForDominoId } = useDomino();
 
     const handleMouseDown = () => {
         isDragging.current = true;
@@ -51,16 +51,16 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
         jsonRef.current = exported;
     };
 
-    const onDeploy = () => {
+    const isWorkflowValid = () => {
         const nodes = getNodes();
         const edges = getEdges();
 
-        if (!nodes || !edges) return;
+        if (!nodes || !edges) return false;
 
         // 1. Block if only 1 or 0 dominos
         if (nodes.length <= 1) {
             alert("You must have at least two connected dominos to deploy.");
-            return;
+            return false;
         }
 
         // 2. Create adjacency list
@@ -69,9 +69,18 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
             adjacencyList[node.id] = [];
         });
 
+        const errorIds = validateAndMarkErrors(nodes);
+        setValidationErrors(errorIds);
+        if (errorIds.length > 0) {
+            return false;
+        }
+
+
         edges.forEach((edge) => {
-            adjacencyList[edge.source].push(edge.target);
-            adjacencyList[edge.target].push(edge.source); // for undirected traversal
+            if (edge.sourceHandle?.startsWith('exec') || edge.targetHandle?.startsWith('exec')) {
+                adjacencyList[edge.source].push(edge.target);
+                adjacencyList[edge.target].push(edge.source); // for undirected traversal
+            }
         });
 
         // 3. BFS to find connected component
@@ -91,12 +100,19 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
             }
         }
 
+        const validationErrors = validateAndMarkErrors(nodes);
+        setValidationErrors(validationErrors);
+
         // 4. If not all nodes are visited, then multiple disconnected chains exist
         if (visited.size !== nodes.length) {
-            alert("There are multiple disconnected chains in your workflow. Only one is allowed.");
-            return;
+            alert("Disconnected dominos found. Please connect all or remove unused dominos before deploying.");
+            return false;
         }
+        return true;
+    }
 
+    const onDeploy = () => {
+        if (!isWorkflowValid()) return;
         alert("Deploying...");
 
         // importWorkflow(jsonRef.current, setNodes, setEdges, {
@@ -105,8 +121,8 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
         // });
     };
 
-
     const onRun = () => {
+        if (!isWorkflowValid()) return;
         const pipeline = buildPipeline(getNodes(), getEdges());
     }
 
@@ -166,6 +182,7 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
                                             placeholder={field.placeholder}
                                             required={field.required}
                                             onChange={(val: any) => {
+                                                clearValidationForDominoId(selectedNode.id);
                                                 selectedNode.data.setFieldValue(field.heading, val);
                                             }}
                                         />

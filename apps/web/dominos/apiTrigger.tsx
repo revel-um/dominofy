@@ -7,7 +7,7 @@ import { FiAlertCircle } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
 
 export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
-  const { erroredNodes } = useDomino();
+  const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const isValueConnected = data?.valueConnected ?? false;
 
@@ -105,9 +105,10 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
   }, [data, id, value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    clearValidationForDominoId(id); // Clear validation error on change
     const newValue = e.target.value;
     setValue(newValue);
-
+    
     if (data.setFieldValue) {
       data.setFieldValue('Function', newValue);
     }
@@ -118,7 +119,7 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
   return (
     <div
       className={`transition-all duration-150 rounded-md w-56 overflow-hidden shadow-sm
-        ${hasError ? 'border-red-500 border-4' : selected ? 'selected-border border-4' : 'unselected-border dark:border-gray-600'}
+        ${hasError ? 'error-border' : selected ? 'selected-border border-4' : 'unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
     >
       <div
