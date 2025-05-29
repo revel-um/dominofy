@@ -27,6 +27,8 @@ import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { validateNodeConnections } from "../helpers/errorDetector";
 import ReadFileDomino from "../dominos/readFile";
 import { DominoField } from "../types/dominoFieldTypes";
+import { FilesApi } from "../apis/files.apis";
+import { useRouter } from "next/router";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -54,6 +56,9 @@ export default function Canvas({
   setEdges,
   readonly = false,
 }: CanvasProps) {
+
+  const router = useRouter();
+
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const [pipeline, setPipeline] = useState<PipelineStep[]>([]);
@@ -197,7 +202,10 @@ export default function Canvas({
                 if (node?.data?.details?.fields?.length) {
                   node.data.details.fields.forEach((field: DominoField) => {
                     if (field.inPinId === params.targetHandle) {
+                      if (field?.file?.key) { FilesApi.deleteFile(field.file.key, localStorage.getItem('token') || '', router) }
+                      field.value = undefined;
                       field.connectedValue = params.source as string;
+                      field.file = undefined; // Clear file if it was connected
                     }
                   });
                 }

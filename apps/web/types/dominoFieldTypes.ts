@@ -35,6 +35,9 @@ export interface DominoField {
   placeholder?: string;
   required?: boolean;
   heading?: string;
+  shouldRender?: boolean; // For conditional rendering
+  needsUpload?: boolean; // For file inputs
+  file?: {key: string, url: string}; // For file inputs
 }
 
 export interface DominoNodeData {

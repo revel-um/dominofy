@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import Canvas from "../components/canvas";
-import { type Node, type Edge } from "reactflow";
 import { ProjectsApi } from "../apis/projects.apis";
 import { ToastContainer } from "react-toastify";
 import { useRouter } from "next/router";

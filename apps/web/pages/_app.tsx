@@ -5,6 +5,7 @@ import '../styles/globals.css';
 import type { AppProps } from 'next/app';
 import Layout from './layout';
 import { NextRouter, useRouter } from 'next/router';
+import { ToastContainer } from 'react-toastify';
 
 const EXCLUDED_ROUTES = ['/auth', '/dominofy'];
 
@@ -21,12 +22,30 @@ function MyApp({ Component, pageProps }: AppProps) {
   const isExcluded = EXCLUDED_ROUTES.some((path) =>
     router.pathname.includes(path)
   );
-  
+
   return isExcluded ? (
-    <Component {...pageProps} />
+    <>
+      <Component {...pageProps} />
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+      />
+    </>
   ) : (
     <Layout>
       <Component {...pageProps} />
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+      />
     </Layout>
   );
 }

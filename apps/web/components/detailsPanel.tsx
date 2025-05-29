@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { FiPlay, FiTool } from 'react-icons/fi'; // ✅ Added FiTool icon
+import { FiPlay } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
 import { DominoField, fieldWidgetMap } from '../types/dominoFieldTypes';
 import { exportWorkflow } from '../helpers/workflowManager';
@@ -8,7 +8,7 @@ import { validateAndMarkErrors } from '../helpers/errorDetector';
 import { useDomino } from '../contexts/dominoContext';
 
 interface DetailsPanelProps {
-    selectedNode: Node | undefined;
+    selectedNode?: Node;
     getNodes: () => Node[];
     getEdges: () => Edge[];
     setNodes: (nodes: Node[]) => void;
@@ -45,7 +45,9 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
     };
 
     const jsonRef = useRef<any>(null); // holds exported json
-    const onBuild = () => {
+    const onSave = async () => {
+        if (!isWorkflowValid()) return;
+
         const exported = exportWorkflow(getNodes(), getEdges());
         console.log('Exported Workflow JSON:', exported);
         jsonRef.current = exported;
@@ -74,7 +76,6 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
         if (errorIds.length > 0) {
             return false;
         }
-
 
         edges.forEach((edge) => {
             if (edge.sourceHandle?.startsWith('exec') || edge.targetHandle?.startsWith('exec')) {
@@ -132,17 +133,20 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
             style={{ width }}
         >
             <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">Details</h2>
+                <h2 className="text-lg font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+                    Details
+                </h2>
                 <div className="flex items-center gap-3">
                     <FiPlay
                         onClick={onRun}
                         className="text-2xl cursor-pointer text-dominofy-light-text dark:text-dominofy-dark-text hover:opacity-80"
                     />
-                    <FiTool
-                        onClick={onBuild}
-                        className="text-2xl cursor-pointer text-dominofy-light-text dark:text-dominofy-dark-text hover:opacity-80"
-                        title="Build"
-                    />
+                    <button
+                        onClick={onSave}
+                        className="px-4 py-1.5 rounded text-sm font-medium text-white bg-dominofy-light-accent dark:bg-dominofy-dark-accent hover:opacity-90 transition"
+                    >
+                        Save
+                    </button>
                     <button
                         onClick={onDeploy}
                         className="px-4 py-1.5 rounded text-sm font-medium text-white bg-dominofy-light-accent dark:bg-dominofy-dark-accent hover:opacity-90 transition"
@@ -151,6 +155,7 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
                     </button>
                 </div>
             </div>
+
 
             <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
                 {selectedNode?.data?.details && (
@@ -165,8 +170,8 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
                         <div className="space-y-5 pt-2">
                             {selectedNode.data.details.fields.map((field: DominoField, idx: React.Key) => {
                                 const Widget = fieldWidgetMap[field.type as keyof typeof fieldWidgetMap];
-                                if (!Widget) {
-                                    return <div key={idx}>Unsupported widget: {field.type}</div>;
+                                if (!Widget || field.shouldRender === false) {
+                                    return null; // Skip rendering if widget is not defined or should not render
                                 }
 
                                 return (

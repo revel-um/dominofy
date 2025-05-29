@@ -57,6 +57,7 @@ export default function DominofyLayout({ workflow }: Props) {
         console.log("Updated pipeline:", newPipeline);
     }, [nodes, edges]);
 
+    console.log(nodes);
     const selectedNode = nodes.find((node) => node.selected);
 
     useEffect(() => {
