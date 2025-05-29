@@ -26,12 +26,18 @@ import { DominoContext } from "../contexts/dominoContext";
 import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { validateNodeConnections } from "../helpers/errorDetector";
 import ReadFileDomino from "../dominos/readFile";
+import ConditionDomino from "../dominos/condition";
+import SwitchDomino from "../dominos/switch_case";
+import ArithmeticDomino from "../dominos/arithmetic";
 
 const nodeTypes = {
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
-  readfile: ReadFileDomino
+  readfile: ReadFileDomino,
+  condition: ConditionDomino,
+  switch_case: SwitchDomino,
+  arithmetic: ArithmeticDomino
 };
 
 interface CanvasProps {

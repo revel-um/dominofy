@@ -8,6 +8,7 @@ import { MultiSelect } from "../components/widgets/multiselect";
 import { TextWidget } from "../components/widgets/textWidget";
 import { TextInput } from "../components/widgets/textInput";
 import { CopyWidget } from "../components/widgets/copyWidget";
+import { KeyValInput } from "../components/widgets/keyValue";
 
 export type WidgetType =
   | 'text'
@@ -54,5 +55,6 @@ export const fieldWidgetMap = {
   json: JsonInput,
   date: DateInput,
   file: FileInput,
-  copy: CopyWidget
+  copy: CopyWidget,
+  keyVal: KeyValInput
 };

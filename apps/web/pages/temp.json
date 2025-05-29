@@ -1,0 +1,29 @@
+{
+  "label": "condition node",
+  "value": "",
+  "details": {
+    "type": "Condition",
+    "description": "This domino is used for condtion of 2 values.",
+    "fields": [
+      {
+        "type": "textInput",
+        "placeholder": "What to print ...",
+        "value": "",
+        "required": true,
+        "heading": "Text1"
+      },
+      {
+        "type": "textInput",
+        "placeholder": "What to print ...",
+        "value": "",
+        "required": true,
+        "heading": "Text2"
+      }
+    ]
+  },
+  "exportFields": [
+    "Text"
+  ],
+  "valueConnected": true,
+  "selected": true
+}
