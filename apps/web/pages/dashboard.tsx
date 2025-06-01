@@ -18,6 +18,7 @@ import {
     FiExternalLink,
 } from "react-icons/fi";
 import TemplatesCanvas from "../components/templateCarousel";
+import { useNodesState, useEdgesState } from "reactflow";
 
 interface Project {
     id: string;
@@ -54,6 +55,9 @@ export default function DominofyDashboard() {
     const [workflowCount, setWorkflowCount] = useState(0);
     const [user, setUser] = useState<User>({ name: "", email: "" });
     const [templates, setTemplates] = useState<any[]>([]);
+
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const router = useRouter();
 
@@ -516,6 +520,8 @@ export default function DominofyDashboard() {
                             <Canvas
                                 nodes={recentWorkflow?.visualJson?.nodes ?? []}
                                 edges={recentWorkflow?.visualJson?.edges ?? []}
+                                setNodes={setNodes}
+                                setEdges={setEdges}
                                 id='dashboard-recent'
                                 readonly={true}
                             />

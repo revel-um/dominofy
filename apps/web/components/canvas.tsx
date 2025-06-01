@@ -40,10 +40,10 @@ const nodeTypes = {
 interface CanvasProps {
   id: string;
   nodes: Node[];
-  setNodes?: React.Dispatch<React.SetStateAction<Node[]>>;
+  setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
   onNodesChange?: OnNodesChange;
   edges: Edge[];
-  setEdges?: React.Dispatch<React.SetStateAction<Edge[]>>;
+  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   onEdgesChange?: OnEdgesChange;
   readonly?: boolean;
 }

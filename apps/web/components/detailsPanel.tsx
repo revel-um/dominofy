@@ -2,10 +2,12 @@ import React, { useState, useRef } from 'react';
 import { FiPlay } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
 import { DominoField, fieldWidgetMap } from '../types/dominoFieldTypes';
-import { exportWorkflow } from '../helpers/workflowManager';
+import { exportWorkflow, importWorkflow } from '../helpers/workflowManager';
 import buildPipeline from '../helpers/buildPipeline';
 import { validateAndMarkErrors } from '../helpers/errorDetector';
 import { useDomino } from '../contexts/dominoContext';
+import { WorkflowsApi } from '../apis/workflow.apis';
+import { useRouter } from 'next/router';
 
 interface DetailsPanelProps {
     selectedNode?: Node;
@@ -14,13 +16,16 @@ interface DetailsPanelProps {
     setNodes: (nodes: Node[]) => void;
     setEdges: (edges: Edge[]) => void;
     updatePipeline: (currentNodes?: Node[], currentEdges?: Edge[]) => void;
+    workflowId?: string;
 }
 
-export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNodes, setEdges, updatePipeline }: DetailsPanelProps) {
+export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNodes, setEdges, updatePipeline, workflowId }: DetailsPanelProps) {
     const MIN_WIDTH = 280;
     const MAX_WIDTH = 480;
     const [width, setWidth] = useState(MIN_WIDTH);
     const isDragging = useRef(false);
+
+    const router = useRouter();
 
     const { setValidationErrors, clearValidationForDominoId } = useDomino();
 
@@ -44,13 +49,13 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
         document.removeEventListener('mouseup', handleMouseUp);
     };
 
-    const jsonRef = useRef<any>(null); // holds exported json
     const onSave = async () => {
-        if (!isWorkflowValid()) return;
-
         const exported = exportWorkflow(getNodes(), getEdges());
-        console.log('Exported Workflow JSON:', exported);
-        jsonRef.current = exported;
+        if (!workflowId) {
+            alert("Workflow ID is not set. Cannot save.");
+            return;
+        }
+        await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router)
     };
 
     const isWorkflowValid = () => {

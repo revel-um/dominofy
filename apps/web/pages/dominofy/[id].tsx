@@ -3,7 +3,6 @@ import Canvas from "../../components/canvas";
 import DominosPanel from "../../components/dominosPanel";
 import DetailsPanel from "../../components/detailsPanel";
 import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow';
-import { runDominos } from '../../helpers/runDominos';
 import { DominoContext } from "../../contexts/dominoContext";
 import buildPipeline from "../../helpers/buildPipeline";
 import { useRouter } from "next/router";
@@ -28,6 +27,8 @@ interface Props {
 export default function DominofyLayout({ workflow }: Props) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [workflowId, setWorkflowId] = useState<string | undefined>();
+
     const [loading, setLoading] = useState(true);
 
     const [connectionErrors, setConnectionErrors] = useState<string[]>([])
@@ -65,6 +66,7 @@ export default function DominofyLayout({ workflow }: Props) {
             if (workflow) {
                 setNodes(workflow.visualJson?.nodes || []);
                 setEdges(workflow.visualJson?.edges || []);
+                setWorkflowId(workflow.id);
                 setLoading(false);
                 return;
             }
@@ -80,6 +82,7 @@ export default function DominofyLayout({ workflow }: Props) {
                     if (parsed?.id === id) {
                         setNodes(parsed.visualJson?.nodes || []);
                         setEdges(parsed.visualJson?.edges || []);
+                        setWorkflowId(parsed.id);
                         setLoading(false);
                         return;
                     } else {
@@ -102,6 +105,7 @@ export default function DominofyLayout({ workflow }: Props) {
                     const json = await response.json();
                     setNodes(json.visualJson?.nodes || []);
                     setEdges(json.visualJson?.edges || []);
+                    setWorkflowId(json.id);
                 } else {
                     router.push("/error");
                 }
@@ -145,6 +149,7 @@ export default function DominofyLayout({ workflow }: Props) {
                         setNodes={setNodes}
                         setEdges={setEdges}
                         updatePipeline={updatePipeline}
+                        workflowId={workflowId}
                     />
                 </ReactFlowProvider>
             </div>

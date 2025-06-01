@@ -1,4 +1,4 @@
-import { Controller, Get, Req } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Req } from '@nestjs/common';
 import { BaseController } from 'src/common/base.controller';
 import { Workflow } from './workflow.entity';
 import { CreateWorkflowDto } from './workflow.dto';
@@ -27,5 +27,20 @@ export class WorkflowController extends BaseController<
     async getRecentWorkflows(@Req() req: Request) {
         const id = (req as any).user.id;
         return this.workflowService.getRecentWorkflows(id);
+    }
+
+    @Post(':id')
+    async saveWorkflow(
+        @Param('id') id: string,
+        @Body('visualJson') visualJson: string
+    ) {
+
+        const workflow = await this.workflowService.findOne(id);
+        if (!workflow) {
+            throw new NotFoundException(`Workflow with id ${id} not found`);
+        }
+
+        workflow.visualJson = JSON.parse(visualJson);
+        return this.workflowService.update(id, workflow);
     }
 }
