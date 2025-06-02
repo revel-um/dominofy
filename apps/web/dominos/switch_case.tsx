@@ -5,25 +5,13 @@ import { ChangeEvent, useEffect, useState } from 'react';
 import { DominoField, DominoFieldOption, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { Button } from '@headlessui/react';
-import { Delete } from 'lucide-react';
+import { Delete, Trash } from 'lucide-react';
 
 export default function SwitchDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
   const isValueConnected = data?.valueConnected ?? false;
   const [value, setValue] = useState("");
-
-  const options: DominoFieldOption[] = [
-    { label: "or", value: "or" },
-    { label: "and", value: "and" },
-    { label: "is", value: "is" },
-    { label: "contains", value: "contains" },
-    { label: "<", value: "less" },
-    { label: ">", value: "greater" },
-    { label: "==", value: "equal" },
-    { label: "!=", value: "not_equal" },
-  ];
-
 
   const [inputs, setInputs] = useState(['']);
   const [prevTop, setPrevTop] = useState(20);
@@ -188,7 +176,7 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
                   onClick={() => removeInput(index)}
                   className="px-2 py-2 bg-red-500 text-white rounded-mdtransition-colors"
                 >
-                  <Delete />
+                  <Trash />
                 </button>
               )}
             </div>
@@ -212,20 +200,8 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
       
       <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition='20px'/>
       <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition='50%'/>
-
-
-      {/* <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition='20px'/> */}
-
-      {/* <DominoPin id="exec_out_2" pinType={PinType.EXEC_OUT} pinPosition='100px'/>
-      <DominoPin id="exec_out_2" pinType={PinType.EXEC_OUT} pinPosition='120px'/> */}
-      
-      
-
-      {/* <DominoPin id="value_out" pinType={PinType.VALUE_OUT} /> */}
-      
-
+  
     </div>
-
     </>
   );
 }
