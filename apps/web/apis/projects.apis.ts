@@ -1,11 +1,13 @@
 import { NextRouter } from "next/router";
 import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
+import { config } from "../config/config";
 
 export class ProjectsApi {
     static async getProjects(token: string, router: NextRouter, limit=10, offset=0, query?: string) {
         console.log(limit, offset);
         try {
-            const response = await fetch(`http://localhost:3001/api/v1/projects?limit=${limit}&offset=${offset}&query=${query}`, {
+            console.log(`${config.bakendBaseUrl}/projects?limit=${limit}&offset=${offset}&query=${query}`);
+            const response = await fetch(`${config.bakendBaseUrl}/projects?limit=${limit}&offset=${offset}&query=${query}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -24,7 +26,7 @@ export class ProjectsApi {
         description?: string
     }) {
         try {
-            const response = await fetch("http://localhost:3001/api/v1/projects", {
+            const response = await fetch(`${config.bakendBaseUrl}/projects`, {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,

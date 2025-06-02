@@ -378,7 +378,6 @@ export default function DominofyDashboard() {
     //     // eslint-disable-next-line react-hooks/exhaustive-deps
     // }, [page, limit, query]);
 
-
     const createProject = async (name: string, description?: string) => {
         const token = localStorage.getItem("token");
         if (!token) return router.push("/auth");

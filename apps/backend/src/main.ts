@@ -25,7 +25,8 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.enableCors({
-    origin: 'http://localhost:3000',        // your front-end origin
+    //enable cors for all origins
+    origin: '*', // or specify specific origins like ['http://localhost:3000']
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type,Authorization',
     credentials: true,                      // if you need cookies/auth
