@@ -365,18 +365,18 @@ export default function DominofyDashboard() {
         }
     };
 
-    // useEffect(() => {
-    //     fetchProjects();
-    // }, [page, limit, query]);
-
     useEffect(() => {
-        const timeout = setTimeout(() => {
-            fetchProjects();
-        }, 2000);
-
-        return () => clearTimeout(timeout); // cleanup on unmount or dependency change
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        fetchProjects();
     }, [page, limit, query]);
+
+    // useEffect(() => {
+    //     const timeout = setTimeout(() => {
+    //         fetchProjects();
+    //     }, 2000);
+
+    //     return () => clearTimeout(timeout); // cleanup on unmount or dependency change
+    //     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // }, [page, limit, query]);
 
 
     const createProject = async (name: string, description?: string) => {

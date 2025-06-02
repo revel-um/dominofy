@@ -50,11 +50,12 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
     };
 
     const onSave = async () => {
-        const exported = exportWorkflow(getNodes(), getEdges());
+        const exported = exportWorkflow(getNodes(), getEdges(), workflowId);
         if (!workflowId) {
             alert("Workflow ID is not set. Cannot save.");
             return;
         }
+        // sessionStorage.setItem('workflow-cache', exported);
         await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router)
     };
 
@@ -129,7 +130,8 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
 
     const onRun = () => {
         if (!isWorkflowValid()) return;
-        const pipeline = buildPipeline(getNodes(), getEdges());
+        // const pipeline = buildPipeline(getNodes(), getEdges());
+        
     }
 
     return (

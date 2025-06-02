@@ -1,7 +1,8 @@
 import { Node, Edge } from 'reactflow';
 
-export function exportWorkflow(nodes: Node[], edges: Edge[]) {
+export function exportWorkflow(nodes: Node[], edges: Edge[], workflowId?: string): string {
     const exportedData = {
+        workflowId,
         nodes: nodes.map(({ id, type, position, data }) => ({
             id,
             type,
@@ -24,11 +25,14 @@ export function importWorkflow(
     json: string,
     setNodes: (nodes: Node[]) => void,
     setEdges: (edges: Edge[]) => void,
+    setWorkflowId: (id: string | undefined) => void,
     options: { setNodes: any; updatePipeline: any }
 ) {
     try {
         if (!json) return;
-        const { nodes, edges } = JSON.parse(json);
+        const { nodes, edges, workflowId } = JSON.parse(json);
+
+        console.log('Importing workflow id:', workflowId);
 
         if (!Array.isArray(nodes) || !Array.isArray(edges)) {
             throw new Error('Invalid workflow format');
@@ -49,6 +53,7 @@ export function importWorkflow(
 
         setNodes(enhancedNodes);
         setEdges(edges);
+        setWorkflowId(workflowId);
     } catch (error) {
         console.error('Failed to import workflow:', error);
         alert('Failed to load workflow. Please check your file or format.');

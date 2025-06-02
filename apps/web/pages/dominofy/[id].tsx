@@ -7,6 +7,7 @@ import { DominoContext } from "../../contexts/dominoContext";
 import buildPipeline from "../../helpers/buildPipeline";
 import { useRouter } from "next/router";
 import { WorkflowsApi } from "../../apis/workflow.apis";
+import { importWorkflow } from "../../helpers/workflowManager";
 
 interface Props {
     workflow?: {
@@ -80,9 +81,13 @@ export default function DominofyLayout({ workflow }: Props) {
                 try {
                     const parsed = JSON.parse(cached);
                     if (parsed?.id === id) {
-                        setNodes(parsed.visualJson?.nodes || []);
-                        setEdges(parsed.visualJson?.edges || []);
-                        setWorkflowId(parsed.id);
+                        importWorkflow(
+                            JSON.stringify(parsed.visualJson),
+                            setNodes,
+                            setEdges,
+                            setWorkflowId,
+                            { setNodes, updatePipeline }
+                        );
                         setLoading(false);
                         return;
                     } else {
@@ -103,9 +108,14 @@ export default function DominofyLayout({ workflow }: Props) {
 
                 if (response?.ok) {
                     const json = await response.json();
-                    setNodes(json.visualJson?.nodes || []);
-                    setEdges(json.visualJson?.edges || []);
-                    setWorkflowId(json.id);
+
+                    importWorkflow(
+                        JSON.stringify(json),
+                        setNodes,
+                        setEdges,
+                        setWorkflowId,
+                        { setNodes, updatePipeline }
+                    );
                 } else {
                     router.push("/error");
                 }
