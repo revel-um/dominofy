@@ -2,8 +2,7 @@ import React, { useState, useRef } from 'react';
 import { FiPlay } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
 import { DominoField, fieldWidgetMap } from '../types/dominoFieldTypes';
-import { exportWorkflow, importWorkflow } from '../helpers/workflowManager';
-import buildPipeline from '../helpers/buildPipeline';
+import { exportWorkflow } from '../helpers/workflowManager';
 import { validateAndMarkErrors } from '../helpers/errorDetector';
 import { useDomino } from '../contexts/dominoContext';
 import { WorkflowsApi } from '../apis/workflow.apis';
@@ -47,16 +46,6 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
         document.body.classList.remove('select-none');
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    const onSave = async () => {
-        const exported = exportWorkflow(getNodes(), getEdges(), workflowId);
-        if (!workflowId) {
-            alert("Workflow ID is not set. Cannot save.");
-            return;
-        }
-        // sessionStorage.setItem('workflow-cache', exported);
-        await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router)
     };
 
     const isWorkflowValid = () => {
@@ -118,6 +107,16 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
         return true;
     }
 
+    const onSave = async () => {
+        const exported = exportWorkflow(getNodes(), getEdges(), workflowId);
+        if (!workflowId) {
+            alert("Workflow ID is not set. Cannot save.");
+            return;
+        }
+        // sessionStorage.setItem('workflow-cache', exported);
+        await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router)
+    };
+
     const onDeploy = () => {
         if (!isWorkflowValid()) return;
         alert("Deploying...");
@@ -131,7 +130,7 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
     const onRun = () => {
         if (!isWorkflowValid()) return;
         // const pipeline = buildPipeline(getNodes(), getEdges());
-        
+
     }
 
     return (

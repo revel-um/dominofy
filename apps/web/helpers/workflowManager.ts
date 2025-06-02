@@ -26,11 +26,12 @@ export function importWorkflow(
     setNodes: (nodes: Node[]) => void,
     setEdges: (edges: Edge[]) => void,
     setWorkflowId: (id: string | undefined) => void,
+    workflowId: string,
     options: { setNodes: any; updatePipeline: any }
 ) {
     try {
         if (!json) return;
-        const { nodes, edges, workflowId } = JSON.parse(json);
+        const { nodes, edges } = JSON.parse(json);
 
         console.log('Importing workflow id:', workflowId);
 
@@ -39,7 +40,6 @@ export function importWorkflow(
         }
 
         const enhancedNodes = nodes.map((node: Node, index: number) => {
-            console.log(node)
             return ({
                 ...node,
                 data: {

@@ -1,11 +1,12 @@
 // src/apis/workflows.api.ts
 import { NextRouter } from "next/router";
 import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
+import { config } from "../config/config";
 
 export class WorkflowsApi {
   static async getRecentWorkflowsAndCount(token: string, router: NextRouter) {
     try {
-      const response = await fetch("http://localhost:3001/api/v1/workflow/recent", {
+      const response = await fetch(`${config.bakendBaseUrl}/workflow/recent`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -24,7 +25,7 @@ export class WorkflowsApi {
 
   static async getWorkflowById(id: string, token: string, router: NextRouter) {
     try {
-      const response = await fetch(`http://localhost:3001/api/v1/workflow/${id}`, {
+      const response = await fetch(`${config.bakendBaseUrl}/workflow/${id}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -43,7 +44,7 @@ export class WorkflowsApi {
 
   static async saveWorkflow(id: string, visualJson: string, token: string, router: NextRouter) {
     try {
-      const response = await fetch(`http://localhost:3001/api/v1/workflow/${id}`, {
+      const response = await fetch(`${config.bakendBaseUrl}/workflow/${id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

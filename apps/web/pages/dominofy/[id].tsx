@@ -65,9 +65,13 @@ export default function DominofyLayout({ workflow }: Props) {
     useEffect(() => {
         const hydrateWorkflow = async () => {
             if (workflow) {
-                setNodes(workflow.visualJson?.nodes || []);
-                setEdges(workflow.visualJson?.edges || []);
-                setWorkflowId(workflow.id);
+                importWorkflow(JSON.stringify(workflow.visualJson), setNodes, setEdges, setWorkflowId, workflow.id, {
+                    setNodes,
+                    updatePipeline
+                });
+                // setNodes(workflow.visualJson?.nodes || []);
+                // setEdges(workflow.visualJson?.edges || []);
+                // setWorkflowId(workflow.id);
                 setLoading(false);
                 return;
             }
@@ -86,6 +90,7 @@ export default function DominofyLayout({ workflow }: Props) {
                             setNodes,
                             setEdges,
                             setWorkflowId,
+                            parsed.id,
                             { setNodes, updatePipeline }
                         );
                         setLoading(false);
@@ -114,6 +119,7 @@ export default function DominofyLayout({ workflow }: Props) {
                         setNodes,
                         setEdges,
                         setWorkflowId,
+                        json.id,
                         { setNodes, updatePipeline }
                     );
                 } else {

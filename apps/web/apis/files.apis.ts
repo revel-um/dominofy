@@ -1,6 +1,7 @@
 // src/apis/files.api.ts
 import { NextRouter } from 'next/router';
 import { handleServerError, handleUnauthorizedError } from '../utils/error.handler';
+import { config } from '../config/config';
 
 export interface UploadResponse {
   key: string;
@@ -29,7 +30,7 @@ export class FilesApi {
       formData.append('file', file);
 
       const response = await fetch(
-        'http://localhost:3001/api/v1/files/upload',
+        `${config.bakendBaseUrl}/files/upload`,
         {
           method: 'POST',
           headers: {
@@ -68,7 +69,7 @@ export class FilesApi {
     try {
       const encodedKey = encodeURIComponent(key);
       const response = await fetch(
-        `http://localhost:3001/api/v1/files/${encodedKey}`,
+        `${config.bakendBaseUrl}/files/${encodedKey}`,
         {
           method: 'DELETE',
           headers: {
