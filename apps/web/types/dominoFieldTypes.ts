@@ -30,10 +30,15 @@ export interface DominoFieldOption {
 export interface DominoField {
   type: WidgetType;
   value: any;
+  inPinId?: string;
+  connectedValue?: string;
   options?: DominoFieldOption[]; // For dropdown and multi-select
   placeholder?: string;
   required?: boolean;
   heading?: string;
+  shouldRender?: boolean; // For conditional rendering
+  needsUpload?: boolean; // For file inputs
+  file?: {key: string, url: string}; // For file inputs
 }
 
 export interface DominoNodeData {

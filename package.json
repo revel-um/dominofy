@@ -8,11 +8,12 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "npm run aws:local && turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "start": "turbo run start"
+    "start": "turbo run start",
+    "aws:local": "docker compose -f aws-local.yml up -d"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

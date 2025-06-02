@@ -21,4 +21,44 @@ export class WorkflowsApi {
       handleServerError(router, err);
     }
   }
+
+  static async getWorkflowById(id: string, token: string, router: NextRouter) {
+    try {
+      const response = await fetch(`http://localhost:3001/api/v1/workflow/${id}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        handleUnauthorizedError(router);
+      }
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
+  static async saveWorkflow(id: string, visualJson: string, token: string, router: NextRouter) {
+    try {
+      const response = await fetch(`http://localhost:3001/api/v1/workflow/${id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ visualJson }),
+      });
+
+      if (response.status === 401) {
+        handleUnauthorizedError(router);
+      }
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
 }

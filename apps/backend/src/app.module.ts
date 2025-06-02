@@ -7,6 +7,8 @@ import { ProjectsModule } from './projects/projects.module';
 import { UserModule } from './user/user.module';
 import { WorkflowModule } from './workflow/workflow.module';
 import { VerifyTokenMiddleware } from './middlewares/auth.middleware';
+import { AwsServicesModule } from './aws-services/aws-services.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
@@ -28,6 +30,7 @@ import { VerifyTokenMiddleware } from './middlewares/auth.middleware';
     ProjectsModule,
     UserModule,
     WorkflowModule,
+    AwsServicesModule
   ],
   controllers: [AppController],
   providers: [AppService, VerifyTokenMiddleware],

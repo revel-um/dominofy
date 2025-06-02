@@ -2,8 +2,6 @@ import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { Node, Edge } from 'reactflow';
 
 export default function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
-  console.log('building...');
-
   const execEdges = edges.filter(e => e.sourceHandle?.startsWith('exec'));
   const idToNode = new Map(nodes.map(n => [n.id, n]));
 
