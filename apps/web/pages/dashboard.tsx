@@ -353,7 +353,7 @@ export default function DominofyDashboard() {
                 router,
             );
             if (!workflowResponse?.ok) return;
-            console.log(workflowResponse)
+
             const { workflows, count: wfCount, user } = await workflowResponse.json();
             setUser({ name: user.name, email: user.email });
             setWorkflowCount(wfCount);

@@ -171,7 +171,6 @@ export default function Canvas({
 
   const onConnect = useCallback(
     (params: Connection) => {
-      console.log(params);
       if (!setNodes || !setEdges) return;
 
       const isDuplicate = edges.some(
@@ -198,7 +197,6 @@ export default function Canvas({
           setNodes((prevNodes) => {
             const updatedNodes = prevNodes.map((node) => {
               if (node.id === params.target) {
-                console.log(node.data);
                 if (node?.data?.details?.fields?.length) {
                   node.data.details.fields.forEach((field: DominoField) => {
                     if (field.inPinId === params.targetHandle) {

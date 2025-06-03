@@ -7,8 +7,8 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Sse('event')
-  dominofyEvent(@Body() pipeline: PipelineStep[]) {
-    return this.appService.dominofyEvent(pipeline);
+  dominofyEvent() {
+    return this.appService.dominofyEvent();
   }
 
   @Post()

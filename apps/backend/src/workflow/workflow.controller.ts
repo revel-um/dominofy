@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Req } from '@nestjs/common';
 import { BaseController } from 'src/common/base.controller';
 import { Workflow } from './workflow.entity';
 import { CreateWorkflowDto } from './workflow.dto';
@@ -27,6 +27,21 @@ export class WorkflowController extends BaseController<
     async getRecentWorkflows(@Req() req: Request) {
         const id = (req as any).user.id;
         return this.workflowService.getRecentWorkflows(id);
+    }
+
+    @Get(':id')
+    async getWorkflowById(@Param('id') id: string, @Req() req: Request) {
+        const userId = (req as any).user.id;
+
+        const workflow = await this.workflowService.findOneAndVerify(id);
+        if (!workflow) {
+            throw new NotFoundException(`Workflow with id ${id} not found`);
+        }
+
+        if (!workflow.user || workflow.user.id == userId) {
+            throw new ForbiddenException(`Access denied to workflow with id ${id}`);
+        }
+        return workflow;
     }
 
     @Post(':id')

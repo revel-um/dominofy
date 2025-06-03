@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { FiPlay } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
 import { DominoField, fieldWidgetMap } from '../types/dominoFieldTypes';
@@ -7,6 +7,9 @@ import { validateAndMarkErrors } from '../helpers/errorDetector';
 import { useDomino } from '../contexts/dominoContext';
 import { WorkflowsApi } from '../apis/workflow.apis';
 import { useRouter } from 'next/router';
+import { PipelineStep } from '../../../shared/types/pipelineStepType';
+import { useDominofySSE } from '../hooks/useDominofySSE';
+import { config } from '../config/config';
 
 interface DetailsPanelProps {
     selectedNode?: Node;
@@ -15,7 +18,7 @@ interface DetailsPanelProps {
     setNodes: (nodes: Node[]) => void;
     setEdges: (edges: Edge[]) => void;
     updatePipeline: (currentNodes?: Node[], currentEdges?: Edge[]) => void;
-    workflowId?: string;
+    workflowId: string;
 }
 
 export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNodes, setEdges, updatePipeline, workflowId }: DetailsPanelProps) {
@@ -27,6 +30,11 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
     const router = useRouter();
 
     const { setValidationErrors, clearValidationForDominoId } = useDomino();
+
+    const [currentPipeline, setCurrentPipeline] = useState<PipelineStep[]>([]);
+
+    const { events: sseEvents, connected: sseConnected, error: sseError, start: startSSE, stop: stopSSE } =
+        useDominofySSE(config.bakendBaseUrl);
 
     const handleMouseDown = () => {
         isDragging.current = true;
@@ -114,7 +122,7 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
             return;
         }
         // sessionStorage.setItem('workflow-cache', exported);
-        await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router)
+        await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router);
     };
 
     const onDeploy = () => {
@@ -127,11 +135,16 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
         // });
     };
 
-    const onRun = () => {
+    const onRun = useCallback(async () => {
         if (!isWorkflowValid()) return;
-        // const pipeline = buildPipeline(getNodes(), getEdges());
-
-    }
+        if (!workflowId) {
+            alert("Workflow ID is not set. Cannot save.");
+            return;
+        }
+        const exported = exportWorkflow(getNodes(), getEdges(), workflowId);
+        await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router);
+        startSSE(workflowId);
+    }, [isWorkflowValid, workflowId, startSSE]);
 
     return (
         <div

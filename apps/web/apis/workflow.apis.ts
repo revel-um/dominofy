@@ -36,6 +36,10 @@ export class WorkflowsApi {
         handleUnauthorizedError(router);
       }
 
+      if (response.status === 404 || response.status === 403) {
+        handleServerError(router, new Error("Access denied to this workflow"));
+      }
+
       return response;
     } catch (err) {
       handleServerError(router, err);

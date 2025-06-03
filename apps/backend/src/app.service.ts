@@ -4,18 +4,22 @@ import { Observable } from 'rxjs';
 
 @Injectable()
 export class AppService {
-  dominofyEvent(pipeline: PipelineStep[]) {
-    return new Observable<PipelineStep>((observer) => {
+  dominofyEvent(): Observable<string> {
+    return new Observable<string>((observer) => {
+      let count = 0;
+
       const interval = setInterval(() => {
-        const step = pipeline.shift();
-        if (!step) {
+        if (count >= 5) {
           clearInterval(interval);
+          observer.next('done');
           observer.complete();
           return;
         }
-        observer.next(step);
-      }, 1000); // Emit one step per second
-  
+
+        observer.next('hello');
+        count++;
+      }, 1000); // Emit "hello" every 1 second, 5 times
+
       // Cleanup on unsubscribe
       return () => clearInterval(interval);
     });

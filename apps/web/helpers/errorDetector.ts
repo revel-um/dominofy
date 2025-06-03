@@ -64,6 +64,5 @@ export function validateAndMarkErrors(
   }
 
   // single, immutable state update – triggers one re-render
-  console.log('Errored Node IDs:', erroredIds);
   return erroredIds;
 }

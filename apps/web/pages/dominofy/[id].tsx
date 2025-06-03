@@ -55,11 +55,9 @@ export default function DominofyLayout({ workflow }: Props) {
     }
 
     const updatePipeline = useCallback((currentNodes = nodes, currentEdges = edges) => {
-        const newPipeline = buildPipeline(currentNodes, currentEdges);
-        console.log("Updated pipeline:", newPipeline);
+        buildPipeline(currentNodes, currentEdges);
     }, [nodes, edges]);
 
-    console.log(nodes);
     const selectedNode = nodes.find((node) => node.selected);
 
     useEffect(() => {
@@ -80,7 +78,6 @@ export default function DominofyLayout({ workflow }: Props) {
 
             // Try loading from sessionStorage
             const cached = sessionStorage.getItem("workflow-cache");
-            console.log("Cached workflow:", cached);
             if (cached) {
                 try {
                     const parsed = JSON.parse(cached);
@@ -115,7 +112,7 @@ export default function DominofyLayout({ workflow }: Props) {
                     const json = await response.json();
 
                     importWorkflow(
-                        JSON.stringify(json),
+                        JSON.stringify(json.visualJson),
                         setNodes,
                         setEdges,
                         setWorkflowId,
@@ -165,7 +162,7 @@ export default function DominofyLayout({ workflow }: Props) {
                         setNodes={setNodes}
                         setEdges={setEdges}
                         updatePipeline={updatePipeline}
-                        workflowId={workflowId}
+                        workflowId={workflowId!}
                     />
                 </ReactFlowProvider>
             </div>

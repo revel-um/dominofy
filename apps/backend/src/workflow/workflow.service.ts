@@ -31,4 +31,8 @@ export class WorkflowService extends BaseService<Workflow> {
 
         return { workflows, count, user };
     }
+
+    findOneAndVerify(id: string) {
+        return this.workflowRepository.findOne({ where: { id }, relations: ['user'] })
+    }
 }
