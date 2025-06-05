@@ -1,10 +1,9 @@
-// dominos/apicall.domino.ts
+// domino-engine/dominos/apicall.domino.ts
 import { PipelineStep } from "../../../../../shared/types/pipelineStepType";
 import { DominoExecutable, ExecuteContext, DominoResult } from "../domino-engine.type";
 import axios from "axios";
 
 export class ApiCallDomino implements DominoExecutable {
-  /** required by the interface */
   id: string;
   type = "apicall" as const;
 
@@ -13,8 +12,7 @@ export class ApiCallDomino implements DominoExecutable {
 
   constructor(node: PipelineStep) {
     this.id = node.id;
-    // pull whatever config you store in node.data
-    this.url    = node.data?.Url?.value ?? "";
+    this.url = node.data?.Url?.value ?? "";
     this.method = (node.data?.Method?.value ?? "GET") as any;
   }
 

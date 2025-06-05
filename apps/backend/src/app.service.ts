@@ -19,15 +19,28 @@ export class AppService {
     const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
 
     return new Observable<DominoResult>(subscriber => {
-    const runId = uuidv4();
-    const runner = new Runner(pipeline);
+      const runId = uuidv4();
+      const runner = new Runner(pipeline, 5); // or any concurrency you want
 
-    runner.on("done", res => subscriber.next(res));
-    runner.on("allDone", () => subscriber.complete());
+      // Subscribe to per-node “done” events:
+      runner.on("done", (res: DominoResult) => subscriber.next(res));
+      runner.on("error", (errContext) => {
+        // you can choose to propagate errors or just log them
+        console.error("[Runner] Node error:", errContext);
+      });
+      runner.on("allDone", (finalResults) => {
+        subscriber.complete();
+      });
 
-    runner.run(runId).catch(err => subscriber.error(err));
-    return () => runner.removeAllListeners();
-  });
+      runner.run(runId).catch((err) => {
+        // If something catastrophic happens (e.g., graph cycle detection),
+        // surface it here and complete the SSE stream with an error.
+        subscriber.error(err);
+      });
+
+      // When the client unsubscribes, clean up listeners:
+      return () => runner.removeAllListeners();
+    });
   }
 
   dominofy(pipeline: PipelineStep[]) {
