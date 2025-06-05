@@ -102,18 +102,18 @@ export default function DominofyDashboard() {
                                 "label": "apicall node",
                                 "value": "",
                                 "exportFields": [
-                                    "URL",
+                                    "Url",
                                     "Method",
                                     "Headers",
                                     "Body"
                                 ],
                                 "details": {
                                     "type": "ApiCall",
-                                    "description": "This domino sends an HTTP request to a specified URL with optional headers and body.",
+                                    "description": "This domino sends an HTTP request to a specified Url with optional headers and body.",
                                     "fields": [
                                         {
                                             "type": "textInput",
-                                            "heading": "URL",
+                                            "heading": "Url",
                                             "placeholder": "https://api.example.com",
                                             "value": "",
                                             "required": true
@@ -220,18 +220,18 @@ export default function DominofyDashboard() {
                                 "label": "apicall node",
                                 "value": "",
                                 "exportFields": [
-                                    "URL",
+                                    "Url",
                                     "Method",
                                     "Headers",
                                     "Body"
                                 ],
                                 "details": {
                                     "type": "ApiCall",
-                                    "description": "This domino sends an HTTP request to a specified URL with optional headers and body.",
+                                    "description": "This domino sends an HTTP request to a specified Url with optional headers and body.",
                                     "fields": [
                                         {
                                             "type": "textInput",
-                                            "heading": "URL",
+                                            "heading": "Url",
                                             "placeholder": "https://api.example.com",
                                             "value": "",
                                             "required": true

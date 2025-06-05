@@ -4,7 +4,7 @@ import DominosPanel from "../../components/dominosPanel";
 import DetailsPanel from "../../components/detailsPanel";
 import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow';
 import { DominoContext } from "../../contexts/dominoContext";
-import buildPipeline from "../../helpers/buildPipeline";
+import { buildPipeline } from "../../../../shared/helpers/buildPipeline";
 import { useRouter } from "next/router";
 import { WorkflowsApi } from "../../apis/workflow.apis";
 import { importWorkflow } from "../../helpers/workflowManager";

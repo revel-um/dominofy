@@ -29,7 +29,7 @@ export class S3Controller {
       file.mimetype,
     );
 
-    // 2) Build the public URL
+    // 2) Build the public Url
     // For LocalStack (path-style)
     const location = endpoint.startsWith('http')
       ? `${endpoint}/${encodeURIComponent(bucket)}/${encodeURIComponent(key)}`

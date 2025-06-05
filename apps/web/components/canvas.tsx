@@ -1,8 +1,6 @@
 import React, { useCallback, useState, useEffect } from "react";
 import ReactFlow, {
   Background,
-  Controls,
-  MiniMap,
   addEdge,
   applyNodeChanges,
   applyEdgeChanges,
@@ -16,13 +14,12 @@ import ReactFlow, {
   NodeAddChange,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import axios from "axios";
 
 import PrintDomino from "../dominos/print";
 import ApiCallDomino from "../dominos/apiCall";
 import ApiTriggerDomino from "../dominos/apiTrigger";
-import buildPipeline from "../helpers/buildPipeline";
-import { DominoContext, useDomino } from "../contexts/dominoContext";
+import { buildPipeline } from "../../../shared/helpers/buildPipeline";
+import { useDomino } from "../contexts/dominoContext";
 import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { validateNodeConnections } from "../helpers/errorDetector";
 import ReadFileDomino from "../dominos/readFile";
@@ -183,7 +180,7 @@ export default function Canvas({
       if (isDuplicate || !isValidConnection(params)) return;
 
       if (params.targetHandle?.includes("value_in")) {
-        setTimeout(() => {if(params.target) clearValidationForDominoId(params.target)}, 0); // Ensure state updates are applied before validation
+        setTimeout(() => { if (params.target) clearValidationForDominoId(params.target) }, 0); // Ensure state updates are applied before validation
         setEdges((prevEdges) => {
           // Remove any previous connection to the same `value_in` pin
           const filteredEdges = prevEdges.filter(

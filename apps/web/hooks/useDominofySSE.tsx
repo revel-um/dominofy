@@ -1,6 +1,6 @@
 // src/hooks/useDominofySSE.tsx
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { PipelineStep } from '../../../shared/types/pipelineStepType';
+import { EventSourcePolyfill } from 'event-source-polyfill';
 
 interface UseDominofySSEResult {
   /** Array of JSON‐parsed SSE messages */
@@ -10,7 +10,7 @@ interface UseDominofySSEResult {
   /** Any error string, or null */
   error: string | null;
   /** Call this to kick off POST + open SSE, now providing an `id` */
-  start: (id: string) => void;
+  start: (id: string, token: string) => void;
   /** (Optional) Close the current SSE stream */
   stop: () => void;
 }
@@ -36,7 +36,7 @@ export function useDominofySSE(
    *   3) Wire up onopen, onmessage, onerror
    */
   const start = useCallback(
-    (id: string) => {
+    (id: string, token: string) => {
       if (!id) {
         console.warn('useDominofySSE.start(): id is empty.');
         return;
@@ -51,8 +51,12 @@ export function useDominofySSE(
       setError(null);
       setConnected(false);
 
-      const es = new EventSource(`${backendUrl}/dominofy/event?id=${encodeURIComponent(id)}`);
-      esRef.current = es;
+      const es = new EventSourcePolyfill(
+        `${backendUrl}/dominofy/event/${encodeURIComponent(id)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      ); esRef.current = es;
 
       es.onopen = () => {
         console.log('SSE connection opened for id=', id);
@@ -70,10 +74,9 @@ export function useDominofySSE(
         }
       };
 
-      es.addEventListener('done', (e: MessageEvent) => {
-        console.log('Received done event:', e.data);
-        // Mark that we intentionally closed
-        // Close from client side
+      es.addEventListener('done', (e) => {
+        const msg = e as MessageEvent;
+        console.log('Received done event:', msg.data);
         es.close();
         setConnected(false);
       });

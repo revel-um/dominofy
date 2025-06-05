@@ -142,8 +142,9 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
             return;
         }
         const exported = exportWorkflow(getNodes(), getEdges(), workflowId);
-        await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router);
-        startSSE(workflowId);
+        const token = localStorage.getItem('token') || '';
+        await WorkflowsApi.saveWorkflow(workflowId, exported, token, router);
+        startSSE(workflowId, token);
     }, [isWorkflowValid, workflowId, startSSE]);
 
     return (

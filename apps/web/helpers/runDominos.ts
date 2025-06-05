@@ -1,5 +1,5 @@
 import { Node, Edge } from 'reactflow';
-import buildPipeline from './buildPipeline';
+import { buildPipeline } from '../../../shared/helpers/buildPipeline';
 import axios from 'axios';
 
 /**

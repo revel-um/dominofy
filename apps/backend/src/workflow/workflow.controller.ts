@@ -33,15 +33,8 @@ export class WorkflowController extends BaseController<
     async getWorkflowById(@Param('id') id: string, @Req() req: Request) {
         const userId = (req as any).user.id;
 
-        const workflow = await this.workflowService.findOneAndVerify(id);
-        if (!workflow) {
-            throw new NotFoundException(`Workflow with id ${id} not found`);
-        }
-
-        if (!workflow.user || workflow.user.id == userId) {
-            throw new ForbiddenException(`Access denied to workflow with id ${id}`);
-        }
-        return workflow;
+        return await this.workflowService.findOneAndVerify(id, userId);
+        
     }
 
     @Post(':id')
