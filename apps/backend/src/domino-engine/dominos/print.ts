@@ -5,16 +5,19 @@ import { DominoExecutable, ExecuteContext, DominoResult } from "../domino-engine
 export class PrintDomino implements DominoExecutable {
   id: string;
   type = "print" as const;
-  private template?: string;
+  private literalTemplate?: string;
 
   constructor(node: PipelineStep) {
     this.id = node.id;
-    this.template = node.data?.Text?.value;
+    this.literalTemplate = node.data?.Text?.value;
   }
 
   async execute(ctx: ExecuteContext): Promise<DominoResult> {
     const startedAt = Date.now();
-    const msg = this.render(ctx.input);
+    // Try to use dynamic template from input, else fallback to literal
+    const dynamicTemplate = ctx.input.Text;
+    const rawTemplate = typeof dynamicTemplate === "string" ? dynamicTemplate : this.literalTemplate;
+    const msg = this.render(rawTemplate, ctx.input);
     console.log(`[PrintDomino:${this.id}] ${msg}`);
     return {
       id: this.id,
@@ -24,11 +27,13 @@ export class PrintDomino implements DominoExecutable {
     };
   }
 
-  private render(input: Record<string, any>): string {
-    if (!this.template) {
+  private render(template: string | undefined, input: Record<string, any>): string {
+    if (!template) {
+      // If no template string, just print the entire input object
       return JSON.stringify(input, null, 2);
     }
-    return this.template.replace(/\{\{(\w+)\}\}/g, (_, key: string) =>
+    // Template is a string; replace placeholders
+    return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) =>
       key in input ? String(input[key]) : ""
     );
   }

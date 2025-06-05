@@ -11,7 +11,7 @@ export class Runner extends EventEmitter {
 
   constructor(
     private pipeline: PipelineStep[],
-    private maxConcurrency = 5 // default to 5 concurrent dominos
+    private maxConcurrency = 20 // default to 5 concurrent dominos
   ) {
     super();
     // Initialize the queue with a concurrency cap:
@@ -49,12 +49,30 @@ export class Runner extends EventEmitter {
 
     console.log(`Executing node ${id}`);
     try {
-      // Instantiate & run the domino
-      const dom = dominoRegistry.instantiate(node);
-      const res: DominoResult = await dom.execute({
-        runId,
-        input: this.collectParentOutputs(id, deps, results),
+      // Build runtime inputs by resolving value pins
+      const runtimeInputs: Record<string, any> = {};
+      Object.entries(node.data).forEach(([fieldName, fieldObj]) => {
+        if (fieldObj.connectedValue) {
+          const upstreamId = fieldObj.connectedValue;
+          const upstreamResult = results[upstreamId];
+          if (upstreamResult === undefined) {
+            throw new Error(
+              `Node ${id} expected output from ${upstreamId}, but it's not available.`
+            );
+          }
+          // Assume upstreamResult is an object containing fields matching fieldName or a direct value
+          runtimeInputs[fieldName] =
+            upstreamResult[fieldName] !== undefined
+              ? upstreamResult[fieldName]
+              : upstreamResult;
+        } else {
+          runtimeInputs[fieldName] = fieldObj.value;
+        }
       });
+
+      // Instantiate & run the domino with resolved inputs
+      const dom = dominoRegistry.instantiate(node);
+      const res: DominoResult = await dom.execute({ runId, input: runtimeInputs });
 
       this.emit("done", res);
       results[id] = res.output;
@@ -62,7 +80,6 @@ export class Runner extends EventEmitter {
     } catch (err) {
       console.error(`[Runner] Error executing node ${id}:`, err);
       this.emit("error", { nodeId: id, error: err });
-      // We still proceed to unlock children; we don't leave them hanging.
     } finally {
       // 3️⃣  Unlock downstream children
       (children.get(id) || []).forEach((childId) => {
@@ -77,19 +94,5 @@ export class Runner extends EventEmitter {
         }
       });
     }
-  }
-
-  private collectParentOutputs(
-    nodeId: string,
-    deps: Map<string, Set<string>>,
-    results: Record<string, any>
-  ): Record<string, any> {
-    const parentOutputs: Record<string, any> = {};
-    deps.get(nodeId)?.forEach((pId) => {
-      if (pId in results) {
-        parentOutputs[pId] = results[pId];
-      }
-    });
-    return parentOutputs;
   }
 }

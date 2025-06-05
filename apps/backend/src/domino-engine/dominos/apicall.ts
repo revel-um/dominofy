@@ -7,23 +7,25 @@ export class ApiCallDomino implements DominoExecutable {
   id: string;
   type = "apicall" as const;
 
-  private url: string;
-  private method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  private literalUrl: string;
+  private literalMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
   constructor(node: PipelineStep) {
     this.id = node.id;
-    this.url = node.data?.Url?.value ?? "";
-    this.method = (node.data?.Method?.value ?? "GET") as any;
+    // Store literal defaults
+    this.literalUrl = node.data?.Url?.value ?? "";
+    this.literalMethod = (node.data?.Method?.value ?? "GET") as any;
   }
 
   async execute(ctx: ExecuteContext): Promise<DominoResult> {
     const startedAt = Date.now();
-    const res = await axios.request({
-      url: this.url,
-      method: this.method,
-      data: ctx.input,
-    });
-    console.log(res.data)
+    // Resolve URL and method from input overrides first, else fallback to literals
+    const url = (ctx.input.Url as string) ?? this.literalUrl;
+    const method = (ctx.input.Method as string as any) ?? this.literalMethod;
+    // Payload/body can be passed via a 'Body' field if connected
+    const data = ctx.input.Body ?? {}; // default to empty object
+
+    const res = await axios.request({ url, method, data });
     return {
       id: this.id,
       output: res.data,
