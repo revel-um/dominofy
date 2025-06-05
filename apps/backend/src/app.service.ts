@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PipelineStep } from '../../../shared/types/pipelineStepType';
-import { buildPipeline, buildLevelBuckets } from '../../../shared/helpers/buildPipeline';
+import { buildPipeline } from '../../../shared/helpers/buildPipeline';
 import { Observable } from 'rxjs';
 import { WorkflowService } from './workflow/workflow.service';
 import { DominoResult } from './domino-engine/domino-engine.type';
