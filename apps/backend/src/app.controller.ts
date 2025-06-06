@@ -12,22 +12,6 @@ export class AppController {
     return this.appService.dominofyEvent(id, userId);
   }
 
-// @Sse('run/:workflowId')
-// runWorkflow(@Param("workflowId") id: string) {
-//   return new Observable<DominoResult>(subscriber => {
-//     const runId = uuidv4();
-//     const pipeline = this.workflowService.load(id);           // your JSON
-//     const runner = new Runner(pipeline);
-
-//     runner.on("done", res => subscriber.next(res));
-//     runner.on("allDone", () => subscriber.complete());
-
-//     runner.run(runId).catch(err => subscriber.error(err));
-//     return () => runner.removeAllListeners();
-//   });
-// }
-
-
   @Post()
   dominofy(@Body() pipeline: PipelineStep[]) {
     return this.appService.dominofy(pipeline);

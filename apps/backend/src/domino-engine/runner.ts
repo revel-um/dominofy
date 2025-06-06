@@ -8,30 +8,44 @@ import { DominoResult } from "./domino-engine.type";
 
 export class Runner extends EventEmitter {
   private queue: PQueue;
+  private scheduled: Set<string>;
 
   constructor(
     private pipeline: PipelineStep[],
-    private maxConcurrency = 20 // default to 5 concurrent dominos
+    private maxConcurrency = 20 // default to 20 concurrent dominos
   ) {
     super();
     // Initialize the queue with a concurrency cap:
     this.queue = new PQueue({ concurrency: this.maxConcurrency });
+    this.scheduled = new Set();
   }
 
   async run(runId: string) {
     const { children, deps } = buildGraph(this.pipeline);
     const results: Record<string, any> = {};
 
-    // 1️⃣  Enqueue all “root” nodes (deps.size === 0)
+    // Deep clone deps to avoid mutating original dependencies across runs
+    const depsClone = new Map<string, Set<string>>();
     deps.forEach((depSet, nodeId) => {
-      if (depSet.size === 0) {
-        this.queue.add(() => this.executeNode(nodeId, runId, children, deps, results));
+      depsClone.set(nodeId, new Set(depSet));
+    });
+
+    // Clear scheduled set before starting
+    this.scheduled.clear();
+
+    // 1️⃣  Enqueue all “root” nodes (deps.size === 0)
+    depsClone.forEach((depSet, nodeId) => {
+      if (depSet.size === 0 && !this.scheduled.has(nodeId)) {
+        this.scheduled.add(nodeId);
+        this.queue.add(() =>
+          this.executeNode(nodeId, runId, children, depsClone, results)
+        );
       }
     });
 
     // 2️⃣  Wait until the queue is idle (i.e., all tasks have finished or errored)
     await this.queue.onIdle();
-    this.emit("allDone", results);
+    this.emit("terminate", results);
   }
 
   private async executeNode(
@@ -76,17 +90,17 @@ export class Runner extends EventEmitter {
 
       this.emit("done", res);
       results[id] = res.output;
-      console.log(`Node ${id} finished`);
+      // console.log(`Node ${id} finished`);
     } catch (err) {
-      console.error(`[Runner] Error executing node ${id}:`, err);
+      // console.error(`[Runner] Error executing node ${id}:`, err);
       this.emit("error", { nodeId: id, error: err });
     } finally {
       // 3️⃣  Unlock downstream children
       (children.get(id) || []).forEach((childId) => {
         const childDeps = deps.get(childId)!;
         childDeps.delete(id);
-        if (childDeps.size === 0) {
-          // Child is now ready—enqueue it
+        if (childDeps.size === 0 && !this.scheduled.has(childId)) {
+          this.scheduled.add(childId);
           console.log(`→ Child ${childId} ready; enqueueing`);
           this.queue.add(() =>
             this.executeNode(childId, runId, children, deps, results)

@@ -29,6 +29,9 @@ export function useDominofySSE(
   // We'll keep the EventSource reference here so we can close it later.
   const esRef = useRef<EventSource | null>(null);
 
+  // Track if the connection was closed deliberately
+  const closedDeliberatelyRef = useRef<boolean>(false);
+
   /**
    * start(id, pipeline):
    *   1) POST pipeline + id → /dominofy?id=<id>
@@ -37,6 +40,8 @@ export function useDominofySSE(
    */
   const start = useCallback(
     (id: string, token: string) => {
+      closedDeliberatelyRef.current = false; // reset when starting
+
       if (!id) {
         console.warn('useDominofySSE.start(): id is empty.');
         return;
@@ -56,7 +61,8 @@ export function useDominofySSE(
         {
           headers: { Authorization: `Bearer ${token}` }
         }
-      ); esRef.current = es;
+      );
+      esRef.current = es;
 
       es.onopen = () => {
         console.log('SSE connection opened for id=', id);
@@ -65,23 +71,23 @@ export function useDominofySSE(
 
       es.onmessage = (e) => {
         try {
-          // const parsed = JSON.parse(e.data);
-          const parsed = e.data;
+          const parsed = JSON.parse(e.data);
+          // const parsed = e.data;
           console.log('SSE message received:', parsed);
           setEvents((prev) => [...prev, parsed]);
         } catch {
+          if (e.data == 'terminate') {
+            closedDeliberatelyRef.current = true;
+            setConnected(false);
+            es.close();
+            return;
+          }
           console.warn('Could not parse SSE data as JSON:', e.data);
         }
       };
 
-      es.addEventListener('done', (e) => {
-        const msg = e as MessageEvent;
-        console.log('Received done event:', msg.data);
-        es.close();
-        setConnected(false);
-      });
-
       es.onerror = (evt) => {
+        if (closedDeliberatelyRef.current) return;
         if (!connected) {
           es.close();
           return;
