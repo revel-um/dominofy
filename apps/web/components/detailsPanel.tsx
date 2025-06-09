@@ -207,6 +207,7 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
                                             placeholder={field.placeholder}
                                             required={field.required}
                                             onChange={(val: any) => {
+                                                if (field.onChange) val = field.onChange(val);
                                                 clearValidationForDominoId(selectedNode.id);
                                                 selectedNode.data.setFieldValue(field.heading, val);
                                             }}

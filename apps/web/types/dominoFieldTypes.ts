@@ -31,6 +31,7 @@ export interface DominoField {
   value: any;
   inPinId?: string;
   connectedValue?: string;
+  onChange?: Function;
   options?: DominoFieldOption[]; // For dropdown and multi-select
   placeholder?: string;
   required?: boolean;
@@ -51,7 +52,7 @@ export interface DominoNodeData {
 
 export const fieldWidgetMap = {
   text: TextWidget,
-  boolean: Checkbox,
+  checkbox: Checkbox,
   dropdown: Dropdown,
   multiSelect: MultiSelect,
   code: CodeInput,

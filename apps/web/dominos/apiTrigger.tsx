@@ -18,7 +18,7 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
 
   const [value, setValue] = useState(getInitialFunctionValue());
 
-  // 🔁 Sync value from details.fields when loaded or updated
+  // Sync value from details.fields when loaded or updated
   useEffect(() => {
     const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Function');
     if (field && field.value !== value) {
@@ -26,7 +26,6 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
     }
   }, [data?.details?.fields]);
 
-  // ✅ Always ensure setFieldValue is available, even if details exist
   useEffect(() => {
     if ((!data.setFieldValue || !data.details) && data.setNodes) {
       const setFieldValue = (heading: string, newValue: any) => {
@@ -67,36 +66,65 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         prevNodes.map((node) => {
           if (node.id !== id) return node;
 
-          const details: DominoNodeData =
-            node.data.details ?? {
-              type: 'ApiTrigger',
-              description: 'This domino triggers execution via a unique API.',
-              fields: [
-                {
-                  type: 'copy',
-                  heading: 'Api Url',
-                  required: true,
-                  value: 'https://api.dominofy.com/trigger/' + value,
+          const baseFields: DominoField[] =
+            node.data.details?.fields ?? [
+              {
+                type: 'copy',
+                heading: 'Api Url',
+                required: true,
+                value: 'https://api.dominofy.com/trigger/' + value,
+              },
+              {
+                type: 'textInput',
+                placeholder: 'Enter trigger name...',
+                value: value,
+                required: true,
+                heading: 'Function',
+                onChange: (val: any) => {
+                  val = val.replace(/\s+/g, '');
+                  val = val.replace(/[^a-zA-Z0-9_]/g, '');
+                  if (val.length > 0 && /^[0-9]/.test(val.charAt(0))) {
+                    val = val.slice(1);
+                  }
+                  return val;
                 },
-                {
-                  type: 'textInput',
-                  placeholder: 'Enter trigger name...',
-                  value: value,
-                  required: true,
-                  heading: 'Function',
-                },
-              ],
-            };
+              },
+            ];
 
-          const exportFields = ['Function'];
+          // Add checkbox fields only to details.fields for details panel rendering
+          const checkboxFields: DominoField[] = [
+            {
+              type: 'checkbox',
+              heading: 'Require File Upload',
+              required: false,
+              value: node.data.details?.fields?.find((f: { heading: string; }) => f.heading === 'Require File Upload')?.value ?? false,
+            },
+            {
+              type: 'checkbox',
+              heading: 'Require Body',
+              required: false,
+              value: node.data.details?.fields?.find((f: { heading: string; }) => f.heading === 'Require Body')?.value ?? false,
+            },
+          ];
+
+          // Filter out any existing checkbox fields to avoid duplicates
+          const fields = [
+            ...baseFields.filter(f => !checkboxFields.some(cb => cb.heading === f.heading)),
+            ...checkboxFields,
+          ];
+
+          const exportFields = ['Function', 'Require File Upload', 'Require Body'];
 
           return {
             ...node,
             data: {
               ...node.data,
-              details,
+              details: {
+                ...node.data.details,
+                fields,
+              },
               exportFields,
-              setFieldValue, // ✅ always inject
+              setFieldValue,
             },
           };
         })
@@ -105,15 +133,23 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
   }, [data, id, value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    clearValidationForDominoId(id); // Clear validation error on change
-    const newValue = e.target.value;
-    setValue(newValue);
-    
-    if (data.setFieldValue) {
-      data.setFieldValue('Function', newValue);
+    if (!e?.target) return;
+    clearValidationForDominoId(id);
+    let rawValue = e.target.value;
+
+    rawValue = rawValue.replace(/\s+/g, '');
+    rawValue = rawValue.replace(/[^a-zA-Z0-9_]/g, '');
+    if (rawValue.length > 0 && /^[0-9]/.test(rawValue.charAt(0))) {
+      rawValue = rawValue.slice(1);
     }
 
-    return newValue;
+    setValue(rawValue);
+
+    if (data.setFieldValue) {
+      data.setFieldValue('Function', rawValue);
+    }
+
+    return rawValue;
   };
 
   return (
