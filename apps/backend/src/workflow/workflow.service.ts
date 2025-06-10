@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BaseService } from 'src/common/base.service';
 import { Workflow } from './workflow.entity';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -30,5 +30,17 @@ export class WorkflowService extends BaseService<Workflow> {
         });
 
         return { workflows, count, user };
+    }
+
+    async findOneAndVerify(id: string, userId: string) {
+        const workflow = await this.workflowRepository.findOne({ where: { id }, relations: ['user'] })
+        if (!workflow) {
+            throw new NotFoundException(`Workflow with id ${id} not found`);
+        }
+
+        if (!workflow.user || workflow.user.id !== userId) {
+            throw new ForbiddenException(`Access denied to workflow with id ${id}`);
+        }
+        return workflow;
     }
 }

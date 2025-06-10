@@ -33,8 +33,6 @@ export function importWorkflow(
         if (!json) return;
         const { nodes, edges } = JSON.parse(json);
 
-        console.log('Importing workflow id:', workflowId);
-
         if (!Array.isArray(nodes) || !Array.isArray(edges)) {
             throw new Error('Invalid workflow format');
         }

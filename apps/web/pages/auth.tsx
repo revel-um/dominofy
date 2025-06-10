@@ -23,7 +23,7 @@ export default function AuthPage() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      // use push so URL updates immediately
+      // use push so Url updates immediately
       router.push('/dashboard');
     } else {
       // no token, show login form

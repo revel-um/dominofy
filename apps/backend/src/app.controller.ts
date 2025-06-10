@@ -1,14 +1,15 @@
-import { Body, Controller, Post, Sse } from '@nestjs/common';
+import { Body, Controller, Param, Post, Query, Req, Sse } from '@nestjs/common';
 import { AppService } from './app.service';
 import { PipelineStep } from '../../../shared/types/pipelineStepType';
 
 @Controller('dominofy')
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService) { }
 
-  @Sse('event')
-  dominofyEvent(@Body() pipeline: PipelineStep[]) {
-    return this.appService.dominofyEvent(pipeline);
+  @Sse('event/:id')
+  dominofyEvent(@Param('id') id: string, @Req() req: Request) {
+    const userId = (req as any).user.id;
+    return this.appService.dominofyEvent(id, userId);
   }
 
   @Post()

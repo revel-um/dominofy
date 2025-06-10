@@ -1,112 +1,128 @@
 // src/hooks/useDominofySSE.tsx
-import { useEffect, useRef, useState } from 'react';
-
-export interface PipelineStep {
-  // (fill in whatever fields your shared PipelineStep type has)
-  id: string;
-  name: string;
-  // …etc.
-}
-
-interface UseDominofySSEOptions {
-  /**
-   * The pipeline array you want to run. 
-   * An array of PipelineStep objects.
-   */
-  pipeline: PipelineStep[];
-
-  /**
-   * The full URL (including protocol + host) of your NestJS server.
-   * Example: "http://localhost:3000"
-   */
-  backendUrl: string;
-}
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { EventSourcePolyfill } from 'event-source-polyfill';
 
 interface UseDominofySSEResult {
-  /**
-   * All SSE messages received so far, in the order they arrived.
-   */
+  /** Array of JSON‐parsed SSE messages */
   events: unknown[];
-
-  /**
-   * True while the SSE connection is open.
-   */
+  /** True if EventSource is currently open */
   connected: boolean;
-
-  /**
-   * If the SSE stream errors out, an Error object or message (otherwise null).
-   */
+  /** Any error string, or null */
   error: string | null;
+  /** Call this to kick off POST + open SSE, now providing an `id` */
+  start: (id: string, token: string) => void;
+  /** (Optional) Close the current SSE stream */
+  stop: () => void;
 }
 
 /**
- * Custom React hook that:
- *   1. POSTs the pipeline to /dominofy 
- *   2. Opens an EventSource to /dominofy/event 
- *   3. Aggregates incoming SSE messages in `events`.
+ * Hook that does NOT automatically open SSE.
+ * You must call `start(id, pipeline)` to begin.
  */
-export function useDominofySSE({
-  pipeline,
-  backendUrl,
-}: UseDominofySSEOptions): UseDominofySSEResult {
+export function useDominofySSE(
+  backendUrl: string
+): UseDominofySSEResult {
   const [events, setEvents] = useState<unknown[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
 
-  useEffect(() => {
-    if (!pipeline || pipeline.length === 0) {
-      return;
+  // We'll keep the EventSource reference here so we can close it later.
+  const esRef = useRef<EventSource | null>(null);
+
+  // Track if the connection was closed deliberately
+  const closedDeliberatelyRef = useRef<boolean>(false);
+
+  /**
+   * start(id, pipeline):
+   *   1) POST pipeline + id → /dominofy?id=<id>
+   *   2) Open EventSource → /dominofy/event?id=<id>
+   *   3) Wire up onopen, onmessage, onerror
+   */
+  const start = useCallback(
+    (id: string, token: string) => {
+      closedDeliberatelyRef.current = false; // reset when starting
+
+      if (!id) {
+        console.warn('useDominofySSE.start(): id is empty.');
+        return;
+      }
+
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+
+      setEvents([]);
+      setError(null);
+      setConnected(false);
+
+      const es = new EventSourcePolyfill(
+        `${backendUrl}/dominofy/event/${encodeURIComponent(id)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      esRef.current = es;
+
+      es.onopen = () => {
+        console.log('SSE connection opened for id=', id);
+        setConnected(true);
+      };
+
+      es.onmessage = (e) => {
+        try {
+          const parsed = JSON.parse(e.data);
+          // const parsed = e.data;
+          console.log('SSE message received:', parsed);
+          setEvents((prev) => [...prev, parsed]);
+        } catch {
+          if (e.data == 'terminate') {
+            closedDeliberatelyRef.current = true;
+            setConnected(false);
+            es.close();
+            return;
+          }
+          console.warn('Could not parse SSE data as JSON:', e.data);
+        }
+      };
+
+      es.onerror = (evt) => {
+        if (closedDeliberatelyRef.current) return;
+        if (!connected) {
+          es.close();
+          return;
+        }
+        console.error('SSE error for id=', id, evt);
+        setError('SSE connection error or closed.');
+        setConnected(false);
+        es.close();
+        esRef.current = null;
+      };
+    },
+    [backendUrl]
+  );
+
+  /**
+   * stop():
+   *   Closes any open EventSource.
+   */
+  const stop = useCallback(() => {
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+      setConnected(false);
     }
+  }, []);
 
-    // 1) First, POST the pipeline to /dominofy (so NestJS knows which job to run).
-    //    We fire-and-forget this fetch; SSE will stream back results once the server is ready.
-    fetch(`${backendUrl}/dominofy`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(pipeline),
-    }).catch((err) => {
-      console.error('Failed to POST pipeline:', err);
-      setError('Could not start pipeline.');
-    });
-
-    // 2) Then open an EventSource to /dominofy/event
-    const sseUrl = `${backendUrl}/dominofy/event`;
-    const es = new EventSource(sseUrl, { withCredentials: false });
-    eventSourceRef.current = es;
-
-    es.onopen = () => {
-      console.log('SSE connection opened');
-      setConnected(true);
-    };
-
-    es.onmessage = (e) => {
-      try {
-        // Parse the JSON data from the server. Adjust deserialization as needed.
-        const parsed = JSON.parse(e.data);
-        setEvents((prev) => [...prev, parsed]);
-      } catch (parseErr) {
-        console.warn('Could not parse SSE data as JSON:', e.data);
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
       }
     };
+  }, []);
 
-    es.onerror = (evt) => {
-      console.error('SSE error:', evt);
-      setError('Connection lost or server error.');
-      setConnected(false);
-      // Optionally close on error:
-      es.close();
-    };
-
-    return () => {
-      // cleanup when component unmounts or pipeline changes:
-      console.log('Closing SSE');
-      es.close();
-      setConnected(false);
-    };
-  }, [pipeline, backendUrl]);
-
-  return { events, connected, error };
+  return { events, connected, error, start, stop };
 }

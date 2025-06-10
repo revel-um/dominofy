@@ -10,15 +10,15 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const getInitialUrl = () => {
-    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'URL');
+    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Url');
     return typeof field?.value === 'string' ? field.value : (data.url ?? '');
   };
 
   const [url, setUrl] = useState(getInitialUrl());
 
-  // 🔁 Sync URL from details.fields if workflow is imported
+  // 🔁 Sync Url from details.fields if workflow is imported
   useEffect(() => {
-    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'URL');
+    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Url');
     if (field && field.value !== url) {
       setUrl(field.value);
     }
@@ -28,7 +28,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
   useEffect(() => {
     if ((!data.setFieldValue || !data.details) && data.setNodes) {
       const setFieldValue = (heading: string, newValue: any) => {
-        if (heading === 'URL') setUrl(newValue);
+        if (heading === 'Url') setUrl(newValue);
 
         data.setNodes?.((nodes: any[]) =>
           nodes.map((n) =>
@@ -37,7 +37,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
                 ...n,
                 data: {
                   ...n.data,
-                  url: heading === 'URL' ? newValue : n.data.url,
+                  url: heading === 'Url' ? newValue : n.data.url,
                   method: heading === 'Method' ? newValue : n.data.method,
                   headers: heading === 'Headers' ? newValue : n.data.headers,
                   body: heading === 'Body' ? newValue : n.data.body,
@@ -62,11 +62,11 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
             node.data.details ?? {
               type: 'ApiCall',
               description:
-                'This domino sends an HTTP request to a specified URL with optional headers and body.',
+                'This domino sends an HTTP request to a specified Url with optional headers and body.',
               fields: [
                 {
                   type: 'textInput',
-                  heading: 'URL',
+                  heading: 'Url',
                   placeholder: 'https://api.example.com',
                   value: url,
                   required: true,
@@ -98,7 +98,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
               ],
             };
 
-          const exportFields = ['URL', 'Method', 'Headers', 'Body'];
+          const exportFields = ['Url', 'Method', 'Headers', 'Body'];
 
           return {
             ...node,
@@ -119,7 +119,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
     setUrl(newUrl);
 
     if (data.setFieldValue) {
-      data.setFieldValue('URL', newUrl);
+      data.setFieldValue('Url', newUrl);
     }
     clearValidationForDominoId(id);
     return newUrl;

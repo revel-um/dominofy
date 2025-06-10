@@ -2,7 +2,7 @@
 import { NextRouter } from "next/router";
 
 export const handleServerError = (router: NextRouter, err: any) => {
-    console.error("Server Error:", err);
+    sessionStorage.setItem("error-message", err?.message);
     router.push("/error");
 };
 
