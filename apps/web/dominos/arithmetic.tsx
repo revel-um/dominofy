@@ -13,6 +13,8 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
   const hasError = erroredNodes.includes(id);
   const isValueConnected = data?.valueConnected ?? false;
 
+  const [prevTop, setPrevTop] = useState(130);
+
   // "value" holds the first input's text
   const [value, setValue] = useState("");
 
@@ -54,11 +56,15 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
     setInputs(prev => [...prev, ""]);
     // We append a "+" so that newControls line up
     setOperators(prev => [...prev, "+"]);
+
+    setPrevTop(prevTop+80)
   };
 
   const removeInput = (index: number) => {
     setInputs(prev => prev.filter((_, i) => i !== index));
     setOperators(prev => prev.filter((_, i) => i !== index));
+
+    setPrevTop(prevTop-80)
   };
 
   const handleInputChange = (index: number, newVal: string) => {
@@ -179,10 +185,11 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
           placeholder="Input 1"
           className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-2"
         />
+        <DominoPin id="value_in"  pinType={PinType.VALUE_IN} pinPosition={ `60px` } />
 
         {/* Map over each "additional" input, with its own operator */}
         {inputs.map((inputVal, index) => (
-          <div key={index} className="mb-2">
+          <div key={index} className="mb-1">
             <select
               value={operators[index]}
               onChange={(e) => handleOperatorChange(index, e.target.value)}
@@ -203,6 +210,17 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
                 placeholder={`Input ${index + 2}`}
                 className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
               />
+
+              { isValueConnected? 
+                <>
+                  <DominoPin id={ `value_in_${index+1}`  } pinType={PinType.VALUE_IN} pinPosition={ ` calc( ${ ((index+1)*50 ) }px + 50px)` } />
+                </>
+                :
+                <>
+                  <DominoPin id={ `value_in_${index+1}`  } pinType={PinType.VALUE_IN} pinPosition={ `calc( ${ ((index+1)*70 ) }px + 60px)` } />
+                </>
+              }
+
               {!isValueConnected && inputs.length > 1 && (
                 <button
                   onClick={() => removeInput(index)}
@@ -218,20 +236,20 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        {!isValueConnected && (
+        
           <button
             onClick={addInput}
             className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
           >
             Add Input
           </button>
-        )}
+        
       </div>
 
       <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition="20px" />
-      <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition="50%" />
+      {/* <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition="50%" /> */}
       <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition="20px" />
-      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
+      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} pinPosition="50%" />
     </div>
   );
 }

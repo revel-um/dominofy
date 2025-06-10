@@ -11,6 +11,7 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
   const isValueConnected = data?.valueConnected ?? false;
+  
   const [value, setValue] = useState("");
 
   const [inputs, setInputs] = useState(['']);
@@ -83,10 +84,10 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
               fields: [
                 {
                   type: 'textInput',
-                  placeholder: 'Your Switch Value Here',
+                  placeholder: 'Case 1',
                   value: value,
                   required: true,
-                  heading: 'Text',
+                  heading: 'Text1',
                 },
 
                 // loop here
@@ -139,16 +140,18 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        {!isValueConnected && (
-          <input
+        
+          {/* <input
             type="text"
             placeholder="What to print..."
             value={value ?? ''}
             name='Text'
             onChange={handleChange}
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-          />
-        )} 
+          /> */}
+          Input
+          <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition="60px" />
+        
 
         {hasError && (
           <p className="mt-1 text-xs text-red-500">
@@ -158,7 +161,7 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        {/* {!isValueConnected && ( */}
+        
           <>      
 
           {inputs.map((value, index) => (
@@ -167,10 +170,17 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
                 type="text"
                 value={value}
                 onChange={(e) => handleInputChange(index, e.target.value)}
-                placeholder={`Input ${index + 1}`}
+                placeholder={`Case ${index + 1}`}
+                name={`Text${index + 1}`}
                 className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
               />
-              <DominoPin id={ `exec_out_${index}`  } pinType={PinType.EXEC_OUT} pinPosition={` ${ (index+1) }rem` } />
+              <br />
+              
+              <>
+                <DominoPin id={ `exec_out_${index + 1}`  } pinType={PinType.EXEC_OUT} pinPosition={ ` calc( ${ (index*40 ) }px + 110px)` } />
+                <DominoPin id={ `value_in_${index + 1}`  } pinType={PinType.VALUE_IN} pinPosition={ ` calc( ${ (index*40 ) }px + 110px)` } />
+              </>
+
               {!isValueConnected &&  inputs.length > 1 && (
                 <button
                   onClick={() => removeInput(index)}
@@ -187,19 +197,19 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        {!isValueConnected && (
+        
           <button
             onClick={addInput}
             className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
           >
             Add Input
           </button>
-        )} 
+
       </div>
 
       
       <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition='20px'/>
-      <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition='50%'/>
+      {/* <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition='50%'/> */}
   
     </div>
     </>

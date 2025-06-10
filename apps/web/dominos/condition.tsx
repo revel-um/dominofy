@@ -203,7 +203,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        {!isValueConnected && (
+        {/* {!isValueConnected && ( */}
           <input
             type="text"
             placeholder="What to print..."
@@ -212,7 +212,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
             onChange={handleChange}
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
           />
-        )} 
+        {/* )}  */}
 
         {hasError && (
           <p className="mt-1 text-xs text-red-500">
@@ -225,7 +225,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        {!isValueConnected && (
+        {/* {!isValueConnected && ( */}
           <input
             type="text"
             placeholder="What to print..."
@@ -234,7 +234,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
             onChange={handleChange}
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
           />
-          )} 
+          {/* )}  */}
 
         {hasError && (
           <p className="mt-1 text-xs text-red-500">
@@ -251,9 +251,9 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
       <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition='15%'/>
 
       <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
-      <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition='50%'/>
+      <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition='55%'/>
       
-      <DominoPin id="value_in2" pinType={PinType.VALUE_IN} pinPosition='70%' /> 
+      <DominoPin id="value_in2" pinType={PinType.VALUE_IN} pinPosition='85%' /> 
       <DominoPin id="exec_out2" pinType={PinType.EXEC_OUT} pinPosition='30%'/>
     </div>
 

@@ -113,6 +113,9 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
             alert("Workflow ID is not set. Cannot save.");
             return;
         }
+        else {
+            alert("Saved Succesfully!")
+        }
         // sessionStorage.setItem('workflow-cache', exported);
         await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router)
     };
