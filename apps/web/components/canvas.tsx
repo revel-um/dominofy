@@ -31,7 +31,7 @@ const nodeTypes = {
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
-  readfile: ReadFileDomino
+  readfile: ReadFileDomino,
 };
 
 interface CanvasProps {
@@ -43,6 +43,7 @@ interface CanvasProps {
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   onEdgesChange?: OnEdgesChange;
   readonly?: boolean;
+  workflowId?: string;
 }
 
 export default function Canvas({
@@ -52,8 +53,8 @@ export default function Canvas({
   edges,
   setEdges,
   readonly = false,
+  workflowId
 }: CanvasProps) {
-
   const router = useRouter();
 
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -90,30 +91,22 @@ export default function Canvas({
         data: {
           label: `${type} node`,
           value: "",
+          workflowId,
           setNodes,
-          updatePipeline
+          updatePipeline,
         },
         draggable: true,
-        selected: true
+        selected: true,
       };
 
       setNodes!((nds) => {
         const updated = nds.map((node) => ({
           ...node,
           selected: false,
-          data: {
-            ...node.data,
-          },
+          data: node.data,
         }));
 
-        const newNodeWithSelection = {
-          ...newNode,
-          data: {
-            ...newNode.data,
-          },
-        };
-
-        const finalNodes = [...updated, newNodeWithSelection];
+        const finalNodes = [...updated, newNode];
         updatePipeline(finalNodes, edges);
         return finalNodes;
       });
@@ -140,7 +133,11 @@ export default function Canvas({
     return !willFormCycle;
   };
 
-  const detectCycle = (sourceId: string, targetId: string, edges: Edge[]): boolean => {
+  const detectCycle = (
+    sourceId: string,
+    targetId: string,
+    edges: Edge[]
+  ): boolean => {
     const graph = new Map<string, string[]>();
     for (const edge of edges) {
       if (!graph.has(edge.source)) graph.set(edge.source, []);
@@ -179,28 +176,41 @@ export default function Canvas({
       );
       if (isDuplicate || !isValidConnection(params)) return;
 
+      /** 1️⃣  VALUE-IN pins (existing behaviour) */
       if (params.targetHandle?.includes("value_in")) {
-        setTimeout(() => { if (params.target) clearValidationForDominoId(params.target) }, 0); // Ensure state updates are applied before validation
+        setTimeout(() => {
+          if (params.target) clearValidationForDominoId(params.target);
+        }, 0); // let state settle first
+
         setEdges((prevEdges) => {
-          // Remove any previous connection to the same `value_in` pin
+          // Remove any previous connection to the *same* value_in pin
           const filteredEdges = prevEdges.filter(
             (edge) =>
-              !(edge.target === params.target && edge.targetHandle?.includes("value_in"))
+              !(
+                edge.target === params.target &&
+                edge.targetHandle?.includes("value_in")
+              )
           );
 
           const updatedEdges = addEdge(params, filteredEdges);
 
-          // Update nodes after edges to ensure correct pipeline update
+          // Mutate node field metadata
           setNodes((prevNodes) => {
             const updatedNodes = prevNodes.map((node) => {
               if (node.id === params.target) {
                 if (node?.data?.details?.fields?.length) {
                   node.data.details.fields.forEach((field: DominoField) => {
                     if (field.inPinId === params.targetHandle) {
-                      if (field?.file?.key) { FilesApi.deleteFile(field.file.key, localStorage.getItem('token') || '', router) }
+                      if (field?.file?.key) {
+                        FilesApi.deleteFile(
+                          field.file.key,
+                          localStorage.getItem("token") || "",
+                          router
+                        );
+                      }
                       field.value = undefined;
                       field.connectedValue = params.source as string;
-                      field.file = undefined; // Clear file if it was connected
+                      field.file = undefined; // wipe any file
                     }
                   });
                 }
@@ -208,13 +218,12 @@ export default function Canvas({
                   ...node,
                   data: {
                     ...node.data,
-                    valueConnected: true
+                    valueConnected: true,
                   },
-                }
+                };
               }
-              return node
-            }
-            );
+              return node;
+            });
             updatePipeline(updatedNodes, updatedEdges);
             return updatedNodes;
           });
@@ -222,10 +231,31 @@ export default function Canvas({
           return updatedEdges;
         });
       }
+
+      /** 2️⃣  NEW: EXEC-IN pins (single inbound edge enforced) */
+      else if (params.targetHandle?.startsWith("exec")) {
+        setEdges((prevEdges) => {
+          // Remove any previous connection to the *same* exec-in pin
+          const filteredEdges = prevEdges.filter(
+            (edge) =>
+              !(
+                edge.target === params.target &&
+                edge.targetHandle?.startsWith("exec")
+              )
+          );
+
+          const updatedEdges = addEdge(params, filteredEdges);
+          // No DominoField mutation needed for exec pins
+          updatePipeline(nodes, updatedEdges);
+          return updatedEdges;
+        });
+      }
+
+      /** 3️⃣  All other cases (e.g., connecting to value_out etc.) */
       else {
         setEdges((eds) => {
           const updatedEdges = addEdge(params, eds);
-          updatePipeline(nodes, updatedEdges); // nodes are still valid if no state change
+          updatePipeline(nodes, updatedEdges);
           return updatedEdges;
         });
       }
@@ -235,12 +265,19 @@ export default function Canvas({
 
   const onNodesChangeHandler: OnNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      const selectEvents = changes.filter((c): c is NodeSelectionChange => c.type === 'select');
-      const addEvents = changes.filter((c): c is NodeAddChange<any> => c.type === 'add');
-      const onlyDeselection = selectEvents.length > 0 && selectEvents.every((e) => e.selected === false);
+      const selectEvents = changes.filter(
+        (c): c is NodeSelectionChange => c.type === "select"
+      );
+      const addEvents = changes.filter(
+        (c): c is NodeAddChange<any> => c.type === "add"
+      );
+      const onlyDeselection =
+        selectEvents.length > 0 &&
+        selectEvents.every((e) => e.selected === false);
       if (onlyDeselection) return;
 
-      const newSelectedId = selectEvents.find((e) => e.selected)?.id ?? addEvents[0]?.item.id ?? null;
+      const newSelectedId =
+        selectEvents.find((e) => e.selected)?.id ?? addEvents[0]?.item.id ?? null;
 
       setNodes!((prev) => {
         let next = applyNodeChanges(changes, prev);
@@ -263,7 +300,7 @@ export default function Canvas({
   const onEdgesChangeHandler: OnEdgesChange = useCallback(
     (changes) => {
       const removedEdgeIds = changes
-        .filter((c) => c.type === 'remove')
+        .filter((c) => c.type === "remove")
         .map((c) => c.id);
 
       let updatedEdges: Edge[] = [];
@@ -275,7 +312,7 @@ export default function Canvas({
       });
 
       if (removedEdgeIds.length) {
-        // Delay node update to make sure setEdges applies first
+        // Delay node update until edges are settled
         setTimeout(() => {
           const removedValueEdges = edges.filter(
             (edge) =>
@@ -342,7 +379,7 @@ export default function Canvas({
       nodesDraggable={!readonly}
       nodesConnectable={!readonly}
       elementsSelectable={!readonly}
-      panOnDrag={true}
+      panOnDrag
       zoomOnScroll={!readonly}
     >
       <Background />

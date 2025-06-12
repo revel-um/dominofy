@@ -12,7 +12,7 @@ export class Runner extends EventEmitter {
 
   constructor(
     private pipeline: PipelineStep[],
-    private maxConcurrency = 20 // default to 20 concurrent dominos
+    private maxConcurrency = 20, // default to 20 concurrent dominos
   ) {
     super();
     // Initialize the queue with a concurrency cap:
@@ -90,7 +90,6 @@ export class Runner extends EventEmitter {
 
       this.emit("done", res);
       results[id] = res.output;
-      // console.log(`Node ${id} finished`);
     } catch (err) {
       // console.error(`[Runner] Error executing node ${id}:`, err);
       this.emit("error", { nodeId: id, error: err });

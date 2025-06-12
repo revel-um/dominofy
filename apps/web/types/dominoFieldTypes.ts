@@ -48,6 +48,7 @@ export interface DominoNodeData {
   setNodes?: (updater: any) => void;
   updatePipeline?: (nodes: any[]) => void;
   [key: string]: any; // Extra props if needed
+  isTrigger?: boolean;
 }
 
 export const fieldWidgetMap = {

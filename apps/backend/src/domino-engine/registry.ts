@@ -1,9 +1,10 @@
 // domino-engine/registry.ts
 import { PipelineStep } from "../../../../shared/types/pipelineStepType";
 import { DominoExecutable } from "./domino-engine.type";
+import { ApiCallDomino } from "./dominos/apiCall";
+import { ApiTriggerDomino } from "./dominos/apiTrigger";
 
 // Import each domino implementation class:
-import { ApiCallDomino } from "./dominos/apicall";
 import { PrintDomino }   from "./dominos/print";
 // … import other dominos here …
 
@@ -16,6 +17,7 @@ class DominoRegistry {
     // Register each type → its class constructor:
     this.register("apicall", ApiCallDomino);
     this.register("print",   PrintDomino);
+    this.register("apitrigger", ApiTriggerDomino);
     // this.register("arithmetic", ArithmeticDomino);
     // … etc. for all your other domino types …
   }

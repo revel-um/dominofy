@@ -20,7 +20,7 @@ export class AppService {
 
     return new Observable(subscriber => {
       const runId = uuidv4();
-      const runner = new Runner(pipeline, 5); // or any concurrency you want
+      const runner = new Runner(pipeline, 20); // or any concurrency you want
 
       // Subscribe to per-node “done” events:
       runner.on("done", (res: DominoResult) => {

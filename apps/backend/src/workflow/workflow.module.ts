@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { WorkflowController } from './workflow.controller';
 import { WorkflowService } from './workflow.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -14,6 +14,9 @@ import { UserModule } from 'src/user/user.module';
 })
 export class WorkflowModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(VerifyTokenMiddleware).forRoutes(WorkflowController);
+    consumer.apply(VerifyTokenMiddleware).exclude(
+      { path: 'workflow/:workflowId/trigger/:functionName', method: RequestMethod.POST, version: '1' },
+      { path: 'workflow/:workflowId/trigger/:functionName', method: RequestMethod.GET, version: '1' }
+    ).forRoutes(WorkflowController);
   }
 }
