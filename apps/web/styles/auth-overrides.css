@@ -1,0 +1,25 @@
+/* Specific styles for auth page inputs */
+#auth-form input[type="text"],
+#auth-form input[type="email"],
+#auth-form input[type="password"] {
+  color: #111827 !important; /* Force dark text color */
+  background-color: #ffffff !important; /* Force white background */
+}
+
+/* Placeholder text */
+#auth-form input::placeholder {
+  color: #6b7280 !important; /* Slightly lighter for placeholders */
+  opacity: 1 !important; /* Ensure full opacity */
+}
+
+/* Dark mode overrides */
+.dark #auth-form input[type="text"],
+.dark #auth-form input[type="email"],
+.dark #auth-form input[type="password"] {
+  color: #f9fafb !important; /* Light text for dark mode */
+  background-color: #1f2937 !important; /* Dark background */
+}
+
+.dark #auth-form input::placeholder {
+  color: #9ca3af !important; /* Lighter placeholder for dark mode */
+}
