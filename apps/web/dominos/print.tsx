@@ -13,8 +13,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
 
   // Sync value from existing details field on mount or update
   useEffect(() => {
-    console.log("--------------------------------------------")
-    console.log(data?.details?.fields);
+
     const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text');
     if (field && field.value !== value) {
       setValue(field.value);

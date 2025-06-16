@@ -11,8 +11,6 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
   const isValueConnected = data?.valueConnected ?? false;
-  
-  const [value, setValue] = useState("");
 
   const [inputs, setInputs] = useState(['']);
   const [prevTop, setPrevTop] = useState(20);
@@ -28,102 +26,67 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
     setPrevTop(prevTop-100);
   };
 
-  const handleInputChange = (index: number, value: string) => {
-    const newInputs = [...inputs];
-    newInputs[index] = value;
-    setInputs(newInputs);
+  // const handleInputChange = (index: number, value: string) => {
+  //   const newInputs = [...inputs];
+  //   newInputs[index] = value;
+  //   setInputs(newInputs);
+
+  // };
+
+   const handleInputChange = (index: number, newVal: string) => {
+    setInputs(prev => {
+      const arr = [...prev];
+      arr[index] = newVal;
+      return arr;
+    });
   };
 
-  
 
-  // Sync value from existing details field on mount or update
+  // ✅ Initialize ONCE on mount from details.fields:
   useEffect(() => {
-    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text');   
-    if (field && field.value !== value) {
-      setValue(field.value);
+
+    const caseFields = data?.details?.fields?.filter((f: { heading: string; }) => f?.heading?.startsWith('Case_')) || [];
+    if (caseFields.length > 0) {
+      setInputs(caseFields.map((f: { value: any; }) => f?.value ?? ''));
+    } else {
+      setInputs(['']);
     }
-  }, [data?.details?.fields]);
+  }, []); // empty deps → run ONCE
 
   
   // Always ensure setFieldValue is available
   useEffect(() => {
+    if (!data.setNodes) return;
+    data.setNodes((nodes: any[]) =>
+      nodes.map((node: { id: string; data: { details: any; }; }) =>
+        node.id !== id
+          ? node
+          : {
+              ...node,
+              data: {
+                ...node.data,
+                details: {
+                  ...node.data.details,
+                  fields: [
+                    ...inputs.map((inp, idx) => ({
+                      type: 'textInput',
+                      value: inp,
+                      required: true,
+                      heading: `Case_${idx + 1}`,
+                      // shouldRender: false,
+                    })),
+                  ],
+                  exportFields: [
+                    ...inputs.map((inp, idx) => (`Case_${idx + 1}`))
+                  ]
+                },
+              },
+            }
+      )
+    );
     
-    if ((!data.setFieldValue || !data.details) && data.setNodes) {
+  }, [inputs, data.setNodes, id]);
 
-      const setFieldValue = (heading: string, newValue: any) => {
-
-        setValue(newValue);
-        data.setNodes?.((nodes: any[]) =>
-          nodes.map((n) =>
-            n.id === id
-              ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  details: {
-                    ...n.data.details,
-                    fields: n.data.details.fields.map((field: DominoField) =>
-                      field.heading === heading ? { ...field, value: newValue } : field
-                    ),
-                  },
-                },
-              }
-              : n
-          )
-        );
-      };
-
-      data.setNodes((prevNodes: any[]) =>
-        prevNodes.map((node: any) => {
-          if (node.id !== id) return node;
-
-          const newDetails: DominoNodeData =
-            node.data.details ?? {
-              type: 'Switch Case',
-              description: 'This domino is used for Switch Case.',
-              fields: [
-                {
-                  type: 'textInput',
-                  placeholder: 'Case 1',
-                  value: value,
-                  required: true,
-                  heading: 'Text1',
-                },
-
-                // loop here
-                
-              ],
-            };
-
-          const exportFields = ['Text'];
-          // const exportFields = ['Switch Value'];
-
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              details: newDetails,
-              exportFields,
-              setFieldValue, // ✅ attach no matter what
-            },
-          };
-        })
-      );
-    }
-  }, [data, id, value]);
-
-
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-
-    const newValue = e.target.value;
-    setValue(newValue);
-
-    if (data.setFieldValue) {
-      data.setFieldValue('Text', newValue);
-    }
-    return newValue;
-  };
 
   return (
     <>
@@ -139,7 +102,8 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
         Switch       
       </div>
 
-      <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
+      <div className= 'px-3 py-2'>
+  
         
           {/* <input
             type="text"
@@ -152,15 +116,9 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
           Input
           <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition="60px" />
         
-
-        {hasError && (
-          <p className="mt-1 text-xs text-red-500">
-            ⚠️ Value input pin is connected but execution pin is missing.
-          </p>
-        )}
       </div>
 
-      <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
+      <div className= 'px-3 py-2'>
         
           <>      
 
@@ -171,17 +129,16 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
                 value={value}
                 onChange={(e) => handleInputChange(index, e.target.value)}
                 placeholder={`Case ${index + 1}`}
-                name={`Text${index + 1}`}
+                name={`Case_${index + 1}`}
                 className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
               />
-              <br />
               
               <>
-                <DominoPin id={ `exec_out_${index + 1}`  } pinType={PinType.EXEC_OUT} pinPosition={ ` calc( ${ (index*40 ) }px + 110px)` } />
-                <DominoPin id={ `value_in_${index + 1}`  } pinType={PinType.VALUE_IN} pinPosition={ ` calc( ${ (index*40 ) }px + 110px)` } />
+                <DominoPin id={ `exec_out_${index + 1}`  } pinType={PinType.EXEC_OUT} pinPosition={ ` calc( ${ (index*40 ) }px + 105px)` } />
+                <DominoPin id={ `value_in_${index + 1}`  } pinType={PinType.VALUE_IN} pinPosition={ ` calc( ${ (index*40 ) }px + 105px)` } />
               </>
 
-              {!isValueConnected &&  inputs.length > 1 && (
+              {inputs.length > 1 && (
                 <button
                   onClick={() => removeInput(index)}
                   className="px-2 py-2 bg-red-500 text-white rounded-mdtransition-colors"
@@ -191,25 +148,28 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
               )}
             </div>
           ))}
+
           </>
-        {/* )} */}
                  
       </div>
 
-      <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        
+      <div className= 'px-3 py-2'>   
           <button
             onClick={addInput}
             className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
           >
             Add Input
           </button>
-
       </div>
 
       
       <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition='20px'/>
-      {/* <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition='50%'/> */}
+      
+      {hasError && (
+        <p className="mt-1 text-xs text-red-500">
+          ⚠️ Value input pin is connected but execution pin is missing.
+        </p>
+      )}
   
     </div>
     </>

@@ -8,13 +8,17 @@ import { useDomino } from '../contexts/dominoContext';
 export default function ConditionDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const isValueConnected = data?.valueConnected ?? false;
-  // const isValue2Connected = data?.value2Connnected ?? false;
+
+  // const isValueConnected = data?.valueConnected ?? false;
+
   // const [value, setValue] = useState("");
   const [values, setValue] = useState({
     value1:"",
-    value2:""
+    value2:"",
+    operator:""
   });
+
+  // const [operator, setOperator] = useState("");
 
   const options: DominoFieldOption[] = [
     { label: "or", value: "or" },
@@ -27,17 +31,6 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
     { label: "!=", value: "not_equal" },
   ];
 
-  
-  
-  // const countIncomingConnections = (nodeId: string, edges: any[]) => {
-  //   return edges.filter((edge) => edge.target === nodeId).length;
-  // };
-  
-  // const incomingCount = countIncomingConnections("node-1", edges);
-  // console.log(`Node-1 has ${incomingCount} incoming connections.`);
-
-  
-
   // Sync value from existing details field on mount or update
   useEffect(() => {
     console.log("--------------------------------------------")
@@ -45,6 +38,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
 
     const field1 = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text1');
     const field2 = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text2');
+    const field3 = data?.details?.fields?.find((f: DominoField) => f.heading === 'Option');
     
     // if (field && field.value !== values) {
     //   setValue(field.value);
@@ -62,6 +56,14 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
       setValue((prevData) => ({
         ...prevData,
         value2: field2.value
+        }
+      ))
+    }
+
+     if (field3 && field3.value !== values.operator) {
+      setValue((prevData) => ({
+        ...prevData,
+        operator: field3.value
         }
       ))
     }
@@ -117,7 +119,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
                   placeholder: 'What to print ...',
                   value: values.value1,
                   required: true,
-                  heading: 'Text1',
+                  heading: 'Text1', 
                 },
                 {
                   type: 'textInput',
@@ -156,12 +158,12 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
 
 
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: any) => {
 
     // const newValue = e.target.value;
     // setValue(newValue);
 
-    const target = e.target as HTMLInputElement;
+    const target = e.target as any;
     const { name, value } = target;
 
     setValue((prevData) => ({
@@ -202,8 +204,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
                
       </div>
 
-      <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        {/* {!isValueConnected && ( */}
+      <div className= 'px-3 py-2'>
           <input
             type="text"
             placeholder="What to print..."
@@ -212,20 +213,25 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
             onChange={handleChange}
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
           />
-        {/* )}  */}
-
-        {hasError && (
-          <p className="mt-1 text-xs text-red-500">
-            ⚠️ Value input pin is connected but execution pin is missing.
-          </p>
-        )}
-
-        {/* <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
-        <DominoPin id="value_in" pinType={PinType.VALUE_IN} /> */}
       </div>
 
-      <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        {/* {!isValueConnected && ( */}
+      <div className= 'px-3 py-2'>
+        <select
+          value={values.operator ?? ''}
+          name='Option'
+          onChange={handleChange}
+          // onChange={(e) => setValue((prevData) => ({...prevData, operator: e.target.value }))}
+          className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className= 'px-3 py-2'>
           <input
             type="text"
             placeholder="What to print..."
@@ -234,27 +240,27 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
             onChange={handleChange}
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
           />
-          {/* )}  */}
+      </div>
 
+      
+      <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition='10%'/>
+      
+      <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition='10%'/>
+
+      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
+      <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition='80px'/>
+      
+      <DominoPin id="value_in2" pinType={PinType.VALUE_IN} pinPosition='175px' /> 
+      <DominoPin id="exec_out2" pinType={PinType.EXEC_OUT} pinPosition='20%'/>
+
+
+      <div>
         {hasError && (
           <p className="mt-1 text-xs text-red-500">
             ⚠️ Value input pin is connected but execution pin is missing.
           </p>
         )}
-
-        
       </div>
-
-      
-      <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition='15%'/>
-      
-      <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition='15%'/>
-
-      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
-      <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition='55%'/>
-      
-      <DominoPin id="value_in2" pinType={PinType.VALUE_IN} pinPosition='85%' /> 
-      <DominoPin id="exec_out2" pinType={PinType.EXEC_OUT} pinPosition='30%'/>
     </div>
 
     </>

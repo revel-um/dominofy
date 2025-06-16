@@ -22,10 +22,10 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
   const [inputs, setInputs] = useState<string[]>([""]);
 
   // operators array holds one operator ('+', '-', '*') per additional input
-  const [operators, setOperators] = useState<string[]>(() => inputs.map(() => "+"));
+  const [operators, setOperators] = useState<string[]>(() => inputs.map(() => ""));
 
   // available operator choices:
-  const options = [
+  const options: DominoFieldOption[] =[
     { label: "+", value: "+" },
     { label: "*", value: "*" },
     { label: "-", value: "-" },
@@ -76,86 +76,99 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
   };
 
   const handleOperatorChange = (index: number, newOp: string) => {
-    setOperators(prev => prev.map((op, i) => (i === index ? newOp : op)));
+    // setOperators(prev => prev.map((op, i) => (i === index ? newOp : op)));
+
+    setOperators(prev => {
+      const copy = [...prev];
+      copy.map((op, i) => (i === index ? copy[index] = newOp : op))
+      return copy;
+    });
+
   };
 
-  // Sync the first input's value from details.fields on mount or update:
+  // ✅ Initialize ONCE on mount from details.fields:
   useEffect(() => {
-    const field = data?.details?.fields?.find((f: DominoField) => f.heading === "Text");
+
+    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Input');
     if (field && field.value !== value) {
-      setValue(field.value as string);
+      setValue(field.value);
     }
-  }, [data?.details?.fields]);
+
+    const caseFields = data?.details?.fields?.filter((f: { heading: string; }) => f?.heading?.startsWith('Input_')) || [];
+    const caseOperatorFields = data?.details?.fields?.filter((f: { heading: string; }) => f?.heading?.startsWith('Operator_')) || [];
+    
+    if (caseFields.length > 0) {
+      setInputs(caseFields.map((f: { value: any; }) => f?.value ?? ''));
+    } else {
+      setInputs(['']);
+    }
+
+    if (caseOperatorFields.length > 0) {
+      setOperators(caseOperatorFields.map((f: { value: any; }) => f?.value ?? ''));
+    } else {
+      setOperators(['']);
+    }
+  }, []); // empty deps → run ONCE
 
   // Ensure setFieldValue is attached and that the "Text" field exists in details:
   useEffect(() => {
-    if ((!data.setFieldValue || !data.details) && data.setNodes) {
-      const setFieldValue = (heading: string, newValue: any) => {
-        setValue(newValue);
-        data.setNodes?.((nodes: any[]) =>
-          nodes.map((n) =>
-            n.id === id
-              ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    details: {
-                      ...n.data.details,
-                      fields: n.data.details.fields.map((field: DominoField) =>
-                        field.heading === heading ? { ...field, value: newValue } : field
-                      ),
+    if (!data.setNodes) return;
+    data.setNodes((nodes: any[]) =>
+      nodes.map((node: { id: string; data: { details: any; }; }) =>
+        node.id !== id
+          ? node
+          : {
+              ...node,
+              data: {
+                ...node.data,
+                details: {
+                  ...node.data.details,
+                  fields: [
+                    {
+                      type: 'textInput',
+                      placeholder: 'Your Switch Value Here',
+                      value: value,
+                      required: true,
+                      heading: 'Input',
                     },
-                  },
-                }
-              : n
-          )
-        );
-      };
-
-      data.setNodes((prevNodes: any[]) =>
-        prevNodes.map((node: any) => {
-          if (node.id !== id) return node;
-
-          const newDetails: DominoNodeData =
-            node.data.details ?? {
-              type: 'Arithmetic',
-              description: 'This domino is used for Arithmetic operations.',
-              fields: [
-                {
-                  type: 'textInput',
-                  placeholder: 'Your Switch Value Here',
-                  value: value,
-                  required: true,
-                  heading: 'Text',
+                    ...inputs.flatMap((inp, idx) => [
+                      {
+                        type: 'dropdown',
+                        options: options,
+                        value: operators[idx],
+                        required: true,
+                        heading: `Operator_${idx + 1}`,
+                        // shouldRender: false,
+                      },
+                      {
+                        type: 'textInput',
+                        value: inputs[idx],
+                        required: true,
+                        heading: `Input_${idx + 1}`,
+                        // shouldRender: false,
+                      },
+                    ]),
+                  ],
+                  exportFields: [
+                    ...inputs.map((inp, idx) => (`Case_${idx + 1}`)),
+                    ...operators.map((inp, idx) => (`Operator_${idx + 1}`))
+                  ]
                 },
-                // we are not adding the additional inputs to details.fields here,
-                // but you could push more DominoField objects if you want them saved.
-              ],
-            };
+              },
+            }
+      )
+    );
+    
+  }, [inputs, data.setNodes, id, value, operators]);
 
-          const exportFields = ['Text'];
-
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              details: newDetails,
-              exportFields,
-              setFieldValue,
-            },
-          };
-        })
-      );
-    }
-  }, [data, id, value, inputs]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setValue(newValue);
 
-    if (data.setFieldValue) {
-      data.setFieldValue("Text", newValue);
-    }
+    // if (data.setFieldValue) {
+    //   data.setFieldValue("Text1", newValue);
+    // }
   };
 
   return (
@@ -176,7 +189,7 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
         Arithmetic
       </div>
 
-      <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
+      <div className= 'px-3 py-2'>
         {/* First input (always shown) */}
         <input
           type="text"
@@ -207,21 +220,15 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
                 type="text"
                 value={inputVal}
                 onChange={(e) => handleInputChange(index, e.target.value)}
-                placeholder={`Input ${index + 2}`}
+                placeholder={`Input${index + 2}`}
                 className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
               />
 
-              { isValueConnected? 
-                <>
-                  <DominoPin id={ `value_in_${index+1}`  } pinType={PinType.VALUE_IN} pinPosition={ ` calc( ${ ((index+1)*50 ) }px + 50px)` } />
-                </>
-                :
-                <>
-                  <DominoPin id={ `value_in_${index+1}`  } pinType={PinType.VALUE_IN} pinPosition={ `calc( ${ ((index+1)*70 ) }px + 60px)` } />
-                </>
-              }
-
-              {!isValueConnected && inputs.length > 1 && (
+              <>
+                <DominoPin id={ `value_in_${index+1}`  } pinType={PinType.VALUE_IN} pinPosition={ `calc( ${ ((index+1)*70 ) }px + 60px)` } />
+              </>
+               
+              {inputs.length > 1 && (
                 <button
                   onClick={() => removeInput(index)}
                   className="ml-2 px-2 py-2 bg-red-500 text-white rounded-md transition-colors"
@@ -235,8 +242,7 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
         ))}
       </div>
 
-      <div className={`${hasError || !isValueConnected ? 'px-3 py-2' : ''}`}>
-        
+      <div className= 'px-3 py-2'>
           <button
             onClick={addInput}
             className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
@@ -247,9 +253,14 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition="20px" />
-      {/* <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition="50%" /> */}
       <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition="20px" />
       <DominoPin id="value_out" pinType={PinType.VALUE_OUT} pinPosition="50%" />
+
+      {hasError && (
+        <p className="mt-1 text-xs text-red-500">
+          ⚠️ Value input pin is connected but execution pin is missing.
+        </p>
+      )}
     </div>
   );
 }

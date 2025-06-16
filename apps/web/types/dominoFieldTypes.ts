@@ -20,7 +20,8 @@ export type WidgetType =
   | 'json'
   | 'date'
   | 'file'
-  | 'copy';
+  | 'copy'
+  | 'switch';
 
 export interface DominoFieldOption {
   label: string;
