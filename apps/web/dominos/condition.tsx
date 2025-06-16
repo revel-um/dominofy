@@ -116,19 +116,19 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
               fields: [
                 {
                   type: 'textInput',
-                  placeholder: 'What to print ...',
                   value: values.value1,
                   required: true,
                   heading: 'Text1',
                   inPinId: 'value_in_1', 
+                  shouldRender: false,
                 },
                 {
                   type: 'textInput',
-                  placeholder: 'What to print ...',
                   value: values.value2,
                   required: true,
                   heading: 'Text2',
                   inPinId: 'value_in_2',
+                  shouldRender: false,
                 },
                 {
                   type: 'dropdown',
@@ -137,6 +137,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
                   placeholder: 'What to print ...',
                   required: true,
                   heading: 'Option',
+                  shouldRender: false,
                 },
               ],
             };
@@ -209,7 +210,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
       <div className= 'px-3 py-2'>
           <input
             type="text"
-            placeholder="What to print..."
+            placeholder="Input 1"
             value={values.value1 ?? ''}
             name='Text1'
             onChange={handleChange}
@@ -236,7 +237,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
       <div className= 'px-3 py-2'>
           <input
             type="text"
-            placeholder="What to print..."
+            placeholder="Input 2"
             value={values.value2 ?? ''}
             name='Text2'
             onChange={handleChange}

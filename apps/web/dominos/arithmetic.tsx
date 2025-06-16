@@ -129,8 +129,9 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
                       placeholder: 'Your Switch Value Here',
                       value: value,
                       required: true,
-                      heading: 'Input',
+                      heading: 'Input_1',
                       shouldRender: false,
+                      inPinId: 'value_in_1',
                     },
                     ...inputs.flatMap((inp, idx) => [
                       {
@@ -145,13 +146,15 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
                         type: 'textInput',
                         value: inputs[idx],
                         required: true,
-                        heading: `Input_${idx + 1}`,
+                        heading: `Input_${idx + 2}`,
                         shouldRender: false,
+                        inPinId: `value_in_${idx + 2}`,
                       },
                     ]),
                   ],
                   exportFields: [
-                    ...inputs.map((inp, idx) => (`Case_${idx + 1}`)),
+                    "Input_1",
+                    ...inputs.map((inp, idx) => (`Input_${idx + 2}`)),
                     ...operators.map((inp, idx) => (`Operator_${idx + 1}`))
                   ]
                 },
@@ -199,7 +202,7 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
           placeholder="Input 1"
           className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-2"
         />
-        <DominoPin id="value_in"  pinType={PinType.VALUE_IN} pinPosition={ `60px` } />
+        <DominoPin id="value_in_1"  pinType={PinType.VALUE_IN} pinPosition={ `60px` } />
 
         {/* Map over each "additional" input, with its own operator */}
         {inputs.map((inputVal, index) => (
@@ -226,7 +229,7 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
               />
 
               <>
-                <DominoPin id={ `value_in_${index+1}`  } pinType={PinType.VALUE_IN} pinPosition={ `calc( ${ ((index+1)*70 ) }px + 60px)` } />
+                <DominoPin id={ `value_in_${index+2}`  } pinType={PinType.VALUE_IN} pinPosition={ `calc( ${ ((index+1)*70 ) }px + 60px)` } />
               </>
                
               {inputs.length > 1 && (

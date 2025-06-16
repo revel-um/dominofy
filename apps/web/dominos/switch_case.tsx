@@ -74,6 +74,8 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
                       required: true,
                       heading: `Case_${idx + 1}`,
                       shouldRender: false,
+                      inPinId: `value_in_${idx + 1}`,
+                      execOutPinId: `exec_out_${idx + 1}`,
                     })),
                   ],
                   exportFields: [
