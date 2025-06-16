@@ -1,3 +1,4 @@
+import { Calculator, FileQuestion, ToggleLeftIcon } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -25,5 +26,20 @@ export default [
     id: 'readexcel',
     label: 'Read Excel',
     icon: FiFileText, // 📄 Represents reading a local file
+  },
+  {
+    id: 'condition',
+    label: 'Condition Operator',
+    icon: FileQuestion, // 📄 Represents reading a local file
+  },
+  {
+    id: 'switch_case',
+    label: 'Switch Operator',
+    icon: ToggleLeftIcon, // 📄 Represents reading a local file
+  },
+  {
+    id: 'arithmetic',
+    label: 'Arithmetic Operator',
+    icon: Calculator, // 📄 Represents reading a local file
   }
 ];

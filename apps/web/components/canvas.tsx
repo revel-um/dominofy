@@ -22,6 +22,9 @@ import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { useDomino } from "../contexts/dominoContext";
 import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { validateNodeConnections } from "../helpers/errorDetector";
+import ConditionDomino from "../dominos/condition";
+import SwitchDomino from "../dominos/switch_case";
+import ArithmeticDomino from "../dominos/arithmetic";
 import ReadExcelDomino from "../dominos/readExcel";
 import { DominoField } from "../types/dominoFieldTypes";
 import { FilesApi } from "../apis/files.apis";
@@ -31,6 +34,9 @@ const nodeTypes = {
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
+  condition: ConditionDomino,
+  switch_case: SwitchDomino,
+  arithmetic: ArithmeticDomino,
   readexcel: ReadExcelDomino,
 };
 
