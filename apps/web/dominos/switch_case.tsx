@@ -73,7 +73,7 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
                       value: inp,
                       required: true,
                       heading: `Case_${idx + 1}`,
-                      // shouldRender: false,
+                      shouldRender: false,
                     })),
                   ],
                   exportFields: [
@@ -103,25 +103,12 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <div className= 'px-3 py-2'>
-  
-        
-          {/* <input
-            type="text"
-            placeholder="What to print..."
-            value={value ?? ''}
-            name='Text'
-            onChange={handleChange}
-            className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-          /> */}
-          Input
-          <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition="60px" />
-        
+        Input
+        <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition="60px" />
       </div>
 
       <div className= 'px-3 py-2'>
-        
-          <>      
-
+        <>      
           {inputs.map((value, index) => (
             <div key={index} style={{ display: 'flex', flexDirection: 'row'}}>
               <input
@@ -148,18 +135,16 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
               )}
             </div>
           ))}
-
-          </>
-                 
+        </>   
       </div>
 
       <div className= 'px-3 py-2'>   
-          <button
-            onClick={addInput}
-            className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-          >
-            Add Input
-          </button>
+        <button
+          onClick={addInput}
+          className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+        >
+          Add Input
+        </button>
       </div>
 
       

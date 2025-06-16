@@ -130,6 +130,7 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
                       value: value,
                       required: true,
                       heading: 'Input',
+                      shouldRender: false,
                     },
                     ...inputs.flatMap((inp, idx) => [
                       {
@@ -138,14 +139,14 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
                         value: operators[idx],
                         required: true,
                         heading: `Operator_${idx + 1}`,
-                        // shouldRender: false,
+                        shouldRender: false,
                       },
                       {
                         type: 'textInput',
                         value: inputs[idx],
                         required: true,
                         heading: `Input_${idx + 1}`,
-                        // shouldRender: false,
+                        shouldRender: false,
                       },
                     ]),
                   ],

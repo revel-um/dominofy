@@ -119,7 +119,8 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
                   placeholder: 'What to print ...',
                   value: values.value1,
                   required: true,
-                  heading: 'Text1', 
+                  heading: 'Text1',
+                  inPinId: 'value_in_1', 
                 },
                 {
                   type: 'textInput',
@@ -127,6 +128,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
                   value: values.value2,
                   required: true,
                   heading: 'Text2',
+                  inPinId: 'value_in_2',
                 },
                 {
                   type: 'dropdown',
@@ -245,13 +247,13 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
       
       <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition='10%'/>
       
-      <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition='10%'/>
-
-      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
-      <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition='80px'/>
+      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} pinPosition='65%'/>
       
-      <DominoPin id="value_in2" pinType={PinType.VALUE_IN} pinPosition='175px' /> 
-      <DominoPin id="exec_out2" pinType={PinType.EXEC_OUT} pinPosition='20%'/>
+      <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} pinPosition='80px'/>
+      <DominoPin id="value_in_2" pinType={PinType.VALUE_IN} pinPosition='175px' /> 
+
+      <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} pinPosition='10%'/>
+      <DominoPin id="exec_out_2" pinType={PinType.EXEC_OUT} pinPosition='20%'/>
 
 
       <div>
