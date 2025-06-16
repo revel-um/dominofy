@@ -30,7 +30,7 @@ export class FilesApi {
       formData.append('file', file);
 
       const response = await fetch(
-        `${config.bakendBaseUrl}/files/upload`,
+        `${config.backendBaseUrl}/files/upload`,
         {
           method: 'POST',
           headers: {
@@ -69,7 +69,7 @@ export class FilesApi {
     try {
       const encodedKey = encodeURIComponent(key);
       const response = await fetch(
-        `${config.bakendBaseUrl}/files/${encodedKey}`,
+        `${config.backendBaseUrl}/files/${encodedKey}`,
         {
           method: 'DELETE',
           headers: {

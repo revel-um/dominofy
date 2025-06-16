@@ -153,6 +153,7 @@ export default function DominofyLayout({ workflow }: Props) {
                         edges={edges}
                         setEdges={setEdges}
                         onEdgesChange={onEdgesChange}
+                        workflowId={workflowId}
                     />
                     <DominosPanel />
                     <DetailsPanel

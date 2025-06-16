@@ -1,61 +1,140 @@
-import { NodeProps } from 'reactflow';
+import {
+  NodeProps,
+  useUpdateNodeInternals,
+  useReactFlow,
+} from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useEffect, useState } from 'react';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { FiAlertCircle } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
+import { config } from '../config/config';
 
 export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
+  const updateNodeInternals = useUpdateNodeInternals();
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const isValueConnected = data?.valueConnected ?? false;
 
+  /* graph helpers */
+  const { getEdges, setEdges } = useReactFlow();
+
+  /* ---------------- helpers ---------------- */
   const getInitialFunctionValue = (): string => {
-    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Function');
+    const field = data?.details?.fields?.find(
+      (f: DominoField) => f.heading === 'Function'
+    );
     return typeof field?.value === 'string' ? field.value : '';
   };
 
+  /* ---------------- state ---------------- */
   const [value, setValue] = useState(getInitialFunctionValue());
 
-  // Sync value from details.fields when loaded or updated
+  /* derive checkbox state */
+  const requireFileUpload =
+    data?.details?.fields?.some(
+      (f: DominoField) => f.heading === 'Require File Upload' && f.value === true
+    ) ?? false;
+
+  const requireBody =
+    data?.details?.fields?.some(
+      (f: DominoField) => f.heading === 'Require Body' && f.value === true
+    ) ?? false;
+
+  const showValueOutPin = requireFileUpload || requireBody;
+
+  /* tell React Flow to re-measure when handles change */
+  useEffect(() => updateNodeInternals(id), [showValueOutPin, id]);
+
+  /* 🔪 prune edges + clear downstream flags when value_out disappears */
   useEffect(() => {
-    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Function');
+    if (showValueOutPin) return; // pin still visible → nothing to do
+
+    const edges = getEdges();
+    const edgesToRemove = edges.filter(
+      (e) =>
+        (e.source === id && e.sourceHandle === 'value_out') ||
+        (e.target === id && e.targetHandle === 'value_out')
+    );
+
+    if (!edgesToRemove.length) return; // nothing to drop
+
+    const detachedTargetIds = edgesToRemove
+      .filter((e) => e.source === id)
+      .map((e) => e.target);
+
+    /* 1️⃣ drop the edges */
+    setEdges(edges.filter((e) => !edgesToRemove.includes(e)));
+
+    /* 2️⃣ clear flags on downstream nodes */
+    data.setNodes?.((nodes: any[]) =>
+      nodes.map((node) => {
+        if (!detachedTargetIds.includes(node.id)) return node;
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            valueConnected: false,
+            details: {
+              ...node.data.details,
+              fields: node.data.details.fields.map((field: any) =>
+                field.connectedValue === id
+                  ? { ...field, connectedValue: null }
+                  : field
+              ),
+            },
+          },
+        };
+      })
+    );
+
+    /* 3️⃣ re-measure this node and targets */
+    updateNodeInternals(id);
+    detachedTargetIds.forEach((tid) => updateNodeInternals(tid));
+  }, [showValueOutPin, id, getEdges, setEdges]);
+
+  /* sync value from details.fields */
+  useEffect(() => {
+    const field = data?.details?.fields?.find(
+      (f: DominoField) => f.heading === 'Function'
+    );
     if (field && field.value !== value) {
       setValue(field.value);
     }
   }, [data?.details?.fields]);
 
+  /* initialize / patch node data */
   useEffect(() => {
     if ((!data.setFieldValue || !data.details) && data.setNodes) {
       const setFieldValue = (heading: string, newValue: any) => {
-        setValue(newValue);
+        if (heading === 'Function') setValue(newValue);
 
         data.setNodes?.((nodes: any[]) =>
           nodes.map((n) => {
             if (n.id !== id) return n;
 
-            const updatedFields = n.data.details.fields.map((field: DominoField) => {
-              if (field.heading === heading) {
-                return { ...field, value: newValue };
+            const updatedFields = n.data.details.fields.map(
+              (field: DominoField) => {
+                if (field.heading === heading) {
+                  return { ...field, value: newValue };
+                }
+                if (field.heading === 'Api Url' && heading === 'Function') {
+                  return {
+                    ...field,
+                    value: `${config.backendBaseUrl}/workflow/${n.data.workflowId}/trigger/` + newValue,
+                  };
+                }
+                return field;
               }
-              if (field.heading === 'Api Url') {
-                return {
-                  ...field,
-                  value: 'https://api.dominofy.com/trigger/' + newValue,
-                };
-              }
-              return field;
-            });
+            );
 
             return {
               ...n,
               data: {
                 ...n.data,
-                details: {
-                  ...n.data.details,
-                  fields: updatedFields,
-                },
+                details: { ...n.data.details, fields: updatedFields },
               },
             };
           })
@@ -72,7 +151,7 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
                 type: 'copy',
                 heading: 'Api Url',
                 required: true,
-                value: 'https://api.dominofy.com/trigger/' + value,
+                value: `${config.backendBaseUrl}/workflow/${node.data.workflowId}/trigger/` + value,
               },
               {
                 type: 'textInput',
@@ -80,50 +159,55 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
                 value: value,
                 required: true,
                 heading: 'Function',
-                onChange: (val: any) => {
-                  val = val.replace(/\s+/g, '');
-                  val = val.replace(/[^a-zA-Z0-9_]/g, '');
-                  if (val.length > 0 && /^[0-9]/.test(val.charAt(0))) {
-                    val = val.slice(1);
-                  }
-                  return val;
+                onChange: (val: string) => {
+                  val = val.replace(/\s+/g, '').replace(/[^a-zA-Z0-9_]/g, '');
+                  return /^[0-9]/.test(val) ? val.slice(1) : val;
                 },
               },
             ];
 
-          // Add checkbox fields only to details.fields for details panel rendering
           const checkboxFields: DominoField[] = [
             {
               type: 'checkbox',
               heading: 'Require File Upload',
               required: false,
-              value: node.data.details?.fields?.find((f: { heading: string; }) => f.heading === 'Require File Upload')?.value ?? false,
+              value:
+                node.data.details?.fields?.find(
+                  (f: { heading: string }) =>
+                    f.heading === 'Require File Upload'
+                )?.value ?? false,
             },
             {
               type: 'checkbox',
               heading: 'Require Body',
               required: false,
-              value: node.data.details?.fields?.find((f: { heading: string; }) => f.heading === 'Require Body')?.value ?? false,
+              value:
+                node.data.details?.fields?.find(
+                  (f: { heading: string }) => f.heading === 'Require Body'
+                )?.value ?? false,
             },
           ];
 
-          // Filter out any existing checkbox fields to avoid duplicates
           const fields = [
-            ...baseFields.filter(f => !checkboxFields.some(cb => cb.heading === f.heading)),
+            ...baseFields.filter(
+              (f) => !checkboxFields.some((cb) => cb.heading === f.heading)
+            ),
             ...checkboxFields,
           ];
 
-          const exportFields = ['Function', 'Require File Upload', 'Require Body'];
+          const details: DominoNodeData = { 
+            type: 'ApiTrigger',
+            description: 'You can start this workflow by visiting a special link using this domino.',
+            isTrigger: true,
+            ...node.data.details, fields
+          };
 
           return {
             ...node,
             data: {
               ...node.data,
-              details: {
-                ...node.data.details,
-                fields,
-              },
-              exportFields,
+              details,
+              exportFields: ['Function', 'Require File Upload', 'Require Body'],
               setFieldValue,
             },
           };
@@ -132,30 +216,29 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
     }
   }, [data, id, value]);
 
+  /* handlers */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e?.target) return;
     clearValidationForDominoId(id);
-    let rawValue = e.target.value;
-
-    rawValue = rawValue.replace(/\s+/g, '');
-    rawValue = rawValue.replace(/[^a-zA-Z0-9_]/g, '');
-    if (rawValue.length > 0 && /^[0-9]/.test(rawValue.charAt(0))) {
-      rawValue = rawValue.slice(1);
-    }
+    let rawValue = e.target.value
+      .replace(/\s+/g, '')
+      .replace(/[^a-zA-Z0-9_]/g, '');
+    if (/^[0-9]/.test(rawValue)) rawValue = rawValue.slice(1);
 
     setValue(rawValue);
-
-    if (data.setFieldValue) {
-      data.setFieldValue('Function', rawValue);
-    }
-
+    data.setFieldValue?.('Function', rawValue);
     return rawValue;
   };
 
+  /* render */
   return (
     <div
       className={`transition-all duration-150 rounded-md w-56 overflow-hidden shadow-sm
-        ${hasError ? 'error-border' : selected ? 'selected-border border-4' : 'unselected-border dark:border-gray-600'}
+        ${hasError
+          ? 'error-border'
+          : selected
+            ? 'selected-border border-4'
+            : 'unselected-border dark:border-gray-600'
+        }
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
     >
       <div
@@ -164,9 +247,10 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
       >
         API Trigger
         {hasError && (
-          <div className="absolute right-2 top-2 text-red-300" title="Missing execution input">
-            <FiAlertCircle className="w-4 h-4" />
-          </div>
+          <FiAlertCircle
+            className="absolute right-2 top-2 w-4 h-4 text-red-300"
+            title="Missing execution input"
+          />
         )}
       </div>
 
@@ -187,8 +271,12 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         </div>
       )}
 
+      {/* Exec-out is always present */}
       <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} />
-      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
+      {/* Value-out appears only when at least one checkbox is checked */}
+      {showValueOutPin && (
+        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} />
+      )}
     </div>
   );
 }

@@ -34,7 +34,7 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
     const [currentPipeline, setCurrentPipeline] = useState<PipelineStep[]>([]);
 
     const { events: sseEvents, connected: sseConnected, error: sseError, start: startSSE, stop: stopSSE } =
-        useDominofySSE(config.bakendBaseUrl);
+        useDominofySSE(config.backendBaseUrl);
 
     const handleMouseDown = () => {
         isDragging.current = true;

@@ -23,8 +23,8 @@ export default [
     icon: FiZap, // ⚡️ Represents an active trigger or webhook
   },
   {
-    id: 'readfile',
-    label: 'Read File',
+    id: 'readexcel',
+    label: 'Read Excel',
     icon: FiFileText, // 📄 Represents reading a local file
   },
   {

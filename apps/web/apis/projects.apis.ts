@@ -5,7 +5,7 @@ import { config } from "../config/config";
 export class ProjectsApi {
     static async getProjects(token: string, router: NextRouter, limit=10, offset=0, query?: string) {
         try {
-            const response = await fetch(`${config.bakendBaseUrl}/projects?limit=${limit}&offset=${offset}&query=${query}`, {
+            const response = await fetch(`${config.backendBaseUrl}/projects?limit=${limit}&offset=${offset}&query=${query}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -24,7 +24,7 @@ export class ProjectsApi {
         description?: string
     }) {
         try {
-            const response = await fetch(`${config.bakendBaseUrl}/projects`, {
+            const response = await fetch(`${config.backendBaseUrl}/projects`, {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,

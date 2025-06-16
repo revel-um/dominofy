@@ -41,6 +41,7 @@ export interface DominoField {
   shouldRender?: boolean; // For conditional rendering
   needsUpload?: boolean; // For file inputs
   file?: {key: string, url: string}; // For file inputs
+  exportOverride?: string | string[]
 }
 
 export interface DominoNodeData {
@@ -50,6 +51,7 @@ export interface DominoNodeData {
   setNodes?: (updater: any) => void;
   updatePipeline?: (nodes: any[]) => void;
   [key: string]: any; // Extra props if needed
+  isTrigger?: boolean;
 }
 
 export const fieldWidgetMap = {
