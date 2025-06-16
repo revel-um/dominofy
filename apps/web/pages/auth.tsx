@@ -4,6 +4,8 @@ import axios from 'axios';
 import { FcGoogle } from 'react-icons/fc';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import '../styles/auth-overrides.css';
+import styles from './auth.module.css';
 
 export default function AuthPage() {
   const router = useRouter();
@@ -147,7 +149,7 @@ export default function AuthPage() {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form id="auth-form" onSubmit={handleSubmit} className="space-y-4">
               {isSignup && (
                 <input
                   type="text"

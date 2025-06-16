@@ -1,79 +1,176 @@
-import { FiHome, FiGrid, FiUser, FiSettings, FiLogOut } from "react-icons/fi";
+import { 
+  FiHome, 
+  FiGrid, 
+  FiUser, 
+  FiSettings, 
+  FiLogOut, 
+  FiHeadphones, 
+  FiMenu, 
+  FiX 
+} from "react-icons/fi";
 import { useRouter } from "next/router";
-import { ReactElement } from "react";
+import { ReactElement, useState, useEffect } from "react";
 import { handleUnauthorizedError } from "../utils/error.handler";
+import { useResponsive } from "../contexts/ResponsiveContext";
 
-interface NavItemsProps {
+interface NavItemProps {
   label: string;
-  icon: ReactElement<any, any>;
+  icon: ReactElement;
   href: string;
-  action?: Function;
+  action?: () => Promise<void> | void;
 }
-const navItems: NavItemsProps[] = [
+
+const navItems: NavItemProps[] = [
   { label: "Dashboard", icon: <FiHome />, href: "/dashboard" },
   { label: "Overview", icon: <FiGrid />, href: "/overview" },
+  { label: "Support", icon: <FiHeadphones />, href: "/support" },
   { label: "Profile", icon: <FiUser />, href: "/profile" },
   { label: "Settings", icon: <FiSettings />, href: "/settings" },
 ];
 
 export default function SideNavbar() {
   const router = useRouter();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isMobile } = useResponsive();
 
-  const handleNavClick = async (href: string, label: string, action?: Function) => {
+  // Close mobile menu when route changes
+  useEffect(() => {
+    const handleRouteChange = () => {
+      if (isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    router.events.on('routeChangeComplete', handleRouteChange);
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChange);
+    };
+  }, [isMobileMenuOpen, router.events]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const sidebar = document.querySelector('.sidebar');
+      const menuButton = document.querySelector('.menu-button');
+      
+      if (isMobileMenuOpen && 
+          sidebar && 
+          !sidebar.contains(target) && 
+          menuButton && 
+          !menuButton.contains(target)) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMobileMenuOpen]);
+
+  const handleNavClick = async (href: string, action?: () => Promise<void> | void) => {
     if (action) await action();
+    if (isMobile) setIsMobileMenuOpen(false);
     await router.push(href);
   };
 
+  const handleLogout = async () => {
+    await handleUnauthorizedError(router);
+    if (isMobile) setIsMobileMenuOpen(false);
+  };
+
   return (
-    <div className="group h-screen flex flex-col transition-all duration-300 w-20 hover:w-64 
-                    bg-white text-gray-900 border-r border-gray-200 
-                    dark:bg-gray-900 dark:text-white dark:border-gray-700">
-      {/* Logo */}
-      <div className="text-xl font-bold px-6 py-6 whitespace-nowrap overflow-hidden transition-all duration-300">
-        <span className="hidden group-hover:inline">Dominofy</span>
-        <span className="group-hover:hidden text-2xl">D</span>
-      </div>
+    <>
+      {/* Mobile Menu Toggle Button */}
+      <button
+        className={`menu-button lg:hidden fixed top-4 left-4 z-50 p-2 rounded-md 
+          bg-white dark:bg-gray-800 shadow-md 
+          hover:bg-gray-100 dark:hover:bg-gray-700 
+          transition-colors duration-200
+          ${isMobileMenuOpen ? 'transform rotate-90' : ''}`}
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={isMobileMenuOpen}
+      >
+        {isMobileMenuOpen ? (
+          <FiX className="h-6 w-6" />
+        ) : (
+          <FiMenu className="h-6 w-6" />
+        )}
+      </button>
 
-      <hr className="border-t border-gray-200 dark:border-gray-700" />
-
-      {/* Nav Items */}
-      <nav className="flex-1 px-2 py-4 space-y-2">
-        {navItems.map((item) => (
-          <div
-            key={item.label}
-            onClick={() => handleNavClick(item.href, item.label, item.action)}
-            className={`flex items-center gap-3 px-4 py-5 rounded-lg cursor-pointer transition-colors
-              ${router.pathname === item.href
-                ? "bg-gray-100 dark:bg-gray-800"
-                : "hover:bg-gray-100 dark:hover:bg-gray-700"
-              }`}
-          >
-            <span className="text-xl">{item.icon}</span>
-            <span className="whitespace-nowrap overflow-hidden transition-all duration-300 group-hover:inline hidden">
-              {item.label}
-            </span>
+      {/* Sidebar */}
+      <aside 
+        className={`sidebar fixed inset-y-0 left-0 z-40 transform 
+          lg:relative lg:translate-x-0 transition-all duration-300 ease-in-out
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          group h-screen flex flex-col w-64 lg:w-20 lg:hover:w-64
+          bg-white text-gray-900 border-r border-gray-200 
+          dark:bg-gray-900 dark:text-white dark:border-gray-700
+          shadow-xl lg:shadow-none`}
+        aria-label="Sidebar"
+      >
+        {/* Logo */}
+        <div className="flex items-center px-6 py-4">
+          <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
+            <span className="lg:hidden">Dominofy</span>
+            <span className="hidden lg:block group-hover:hidden text-center w-full">D</span>
+            <span className="hidden lg:hidden group-hover:block">Dominofy</span>
           </div>
-        ))}
-      </nav>
-
-      {/* Divider */}
-      <hr className="border-t border-gray-200 dark:border-gray-700 mx-4 my-2" />
-
-      {/* Logout */}
-      <div className="px-2 pb-6">
-        <div
-          onClick={() => handleUnauthorizedError(router)}
-          className="flex items-center gap-3 px-4 py-2 rounded-lg cursor-pointer
-                     hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        >
-          <span className="text-xl">
-            <FiLogOut />
-          </span>
-          <span className="whitespace-nowrap overflow-hidden transition-all duration-300 group-hover:inline hidden">
-            Logout
-          </span>
         </div>
-      </div>
-    </div>
+
+        <hr className="border-t border-gray-200 dark:border-gray-700 mx-4" />
+
+        {/* Navigation Items */}
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+          {navItems.map((item) => {
+            const isActive = router.pathname === item.href;
+            return (
+              <button
+                key={item.label}
+                onClick={() => handleNavClick(item.href, item.action)}
+                className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
+                  ${isActive 
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <span className={`text-xl flex-shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>
+                  {item.icon}
+                </span>
+                <span className="whitespace-nowrap overflow-hidden transition-all duration-300">
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Bottom Section */}
+        <div className="p-2 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg 
+              text-red-600 dark:text-red-400 
+              hover:bg-red-50 dark:hover:bg-red-900/30 
+              transition-colors duration-200"
+          >
+            <FiLogOut className="text-xl flex-shrink-0" />
+            <span className="whitespace-nowrap overflow-hidden transition-all duration-300">
+              Logout
+            </span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Overlay for mobile */}
+      <div 
+        className={`fixed inset-0 bg-black/50 z-30 transition-opacity duration-300 ease-in-out 
+          ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'} 
+          lg:hidden`}
+        onClick={() => setIsMobileMenuOpen(false)}
+        aria-hidden="true"
+      />
+    </>
   );
 }
