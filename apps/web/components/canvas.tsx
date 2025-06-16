@@ -22,7 +22,7 @@ import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { useDomino } from "../contexts/dominoContext";
 import { PipelineStep } from "../../../shared/types/pipelineStepType";
 import { validateNodeConnections } from "../helpers/errorDetector";
-import ReadFileDomino from "../dominos/readFile";
+import ReadExcelDomino from "../dominos/readExcel";
 import { DominoField } from "../types/dominoFieldTypes";
 import { FilesApi } from "../apis/files.apis";
 import { useRouter } from "next/router";
@@ -31,7 +31,7 @@ const nodeTypes = {
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
-  readfile: ReadFileDomino,
+  readexcel: ReadExcelDomino,
 };
 
 interface CanvasProps {

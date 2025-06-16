@@ -1,4 +1,3 @@
-// domino-engine/runner.ts
 import { EventEmitter } from "events";
 import PQueue from "p-queue";
 import { buildGraph } from "./graph";
@@ -12,38 +11,33 @@ export class Runner extends EventEmitter {
 
   constructor(
     private pipeline: PipelineStep[],
-    private maxConcurrency = 20, // default to 20 concurrent dominos
+    private maxConcurrency = 20,
   ) {
     super();
-    // Initialize the queue with a concurrency cap:
     this.queue = new PQueue({ concurrency: this.maxConcurrency });
     this.scheduled = new Set();
   }
 
-  async run(runId: string) {
+  async run(runId: string, globalInput: Record<string, any> = {}) {
     const { children, deps } = buildGraph(this.pipeline);
     const results: Record<string, any> = {};
 
-    // Deep clone deps to avoid mutating original dependencies across runs
     const depsClone = new Map<string, Set<string>>();
     deps.forEach((depSet, nodeId) => {
       depsClone.set(nodeId, new Set(depSet));
     });
 
-    // Clear scheduled set before starting
     this.scheduled.clear();
 
-    // 1️⃣  Enqueue all “root” nodes (deps.size === 0)
     depsClone.forEach((depSet, nodeId) => {
       if (depSet.size === 0 && !this.scheduled.has(nodeId)) {
         this.scheduled.add(nodeId);
         this.queue.add(() =>
-          this.executeNode(nodeId, runId, children, depsClone, results)
+          this.executeNode(nodeId, runId, globalInput, children, depsClone, results)
         );
       }
     });
 
-    // 2️⃣  Wait until the queue is idle (i.e., all tasks have finished or errored)
     await this.queue.onIdle();
     this.emit("terminate", results);
   }
@@ -51,6 +45,7 @@ export class Runner extends EventEmitter {
   private async executeNode(
     id: string,
     runId: string,
+    globalInput: Record<string, any>,
     children: Map<string, string[]>,
     deps: Map<string, Set<string>>,
     results: Record<string, any>
@@ -63,7 +58,6 @@ export class Runner extends EventEmitter {
 
     console.log(`Executing node ${id}`);
     try {
-      // Build runtime inputs by resolving value pins
       const runtimeInputs: Record<string, any> = {};
       Object.entries(node.data).forEach(([fieldName, fieldObj]) => {
         if (fieldObj.connectedValue) {
@@ -74,7 +68,6 @@ export class Runner extends EventEmitter {
               `Node ${id} expected output from ${upstreamId}, but it's not available.`
             );
           }
-          // Assume upstreamResult is an object containing fields matching fieldName or a direct value
           runtimeInputs[fieldName] =
             upstreamResult[fieldName] !== undefined
               ? upstreamResult[fieldName]
@@ -84,17 +77,28 @@ export class Runner extends EventEmitter {
         }
       });
 
-      // Instantiate & run the domino with resolved inputs
+      // Instantiate the domino
       const dom = dominoRegistry.instantiate(node);
-      const res: DominoResult = await dom.execute({ runId, input: runtimeInputs });
+
+      // ✅ Use globalInput if this domino declares itself a trigger
+      let combinedInput: Record<string, any>;
+      if ((dom as any).isTrigger) {
+        combinedInput = globalInput;
+      } else {
+        const keys = Object.keys(runtimeInputs);
+        combinedInput = keys.length === 1 ? runtimeInputs[keys[0]] : runtimeInputs;
+      }
+
+      const res: DominoResult = await dom.execute({
+        runId,
+        input: combinedInput,
+      });
 
       this.emit("done", res);
       results[id] = res.output;
     } catch (err) {
-      // console.error(`[Runner] Error executing node ${id}:`, err);
       this.emit("error", { nodeId: id, error: err });
     } finally {
-      // 3️⃣  Unlock downstream children
       (children.get(id) || []).forEach((childId) => {
         const childDeps = deps.get(childId)!;
         childDeps.delete(id);
@@ -102,7 +106,7 @@ export class Runner extends EventEmitter {
           this.scheduled.add(childId);
           console.log(`→ Child ${childId} ready; enqueueing`);
           this.queue.add(() =>
-            this.executeNode(childId, runId, children, deps, results)
+            this.executeNode(childId, runId, globalInput, children, deps, results)
           );
         }
       });

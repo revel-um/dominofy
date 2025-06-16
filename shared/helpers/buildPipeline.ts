@@ -28,32 +28,41 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
 
   const makeStep = (node: Node): PipelineStep => {
     const exportFields: string[] = node.data?.exportFields || [];
+    const fields = node.data?.details?.fields || [];
 
-    // Build a map of heading → { value, connectedValue }
-    const fieldMap = (node.data?.details?.fields || []).reduce(
-      (acc: Record<string, { value: any; connectedValue: any }>, field: any) => {
-        if (field.heading) {
-          acc[field.heading] = {
-            value: field.value,
-            connectedValue: field.connectedValue ?? null,
-          };
-        }
-        return acc;
-      },
-      {},
-    );
+    const cleanedData: Record<string, any> = {};
 
-    // Pick only the fields marked for export
-    const cleanedData = exportFields.reduce(
-      (acc: Record<string, { value: any; connectedValue: any }>, key: string) => {
-        acc[key] = fieldMap[key];
-        return acc;
-      },
-      {},
-    );
+    exportFields.forEach((fieldHeading) => {
+      const field = fields.find((f: any) => f.heading === fieldHeading);
+      if (!field) return;
+      const override = field.exportOverride;
+
+      if (Array.isArray(override)) {
+        // If it's an array → build object of { name: value, ... }
+        const overrideObject: Record<string, any> = {};
+        override.forEach((name) => {
+          overrideObject[name] = field[name];
+        });
+        cleanedData[fieldHeading] = overrideObject;
+      } else if (typeof override === 'string') {
+        const related = field[override]
+        cleanedData[fieldHeading] = related;
+      } else {
+        // Default: just use value + connectedValue
+        cleanedData[fieldHeading] = {
+          value: field.value,
+          connectedValue: field.connectedValue ?? null,
+        };
+      }
+    });
 
     const next = adjacency[node.id] || [];
-    return { id: node.id, type: node.type || "unknown", data: cleanedData, next };
+    return {
+      id: node.id,
+      type: node.type || "unknown",
+      data: cleanedData,
+      next,
+    };
   };
 
   // 3️⃣ Kahn’s topological sort

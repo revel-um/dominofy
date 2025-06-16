@@ -6,6 +6,7 @@ import { ApiTriggerDomino } from "./dominos/apiTrigger";
 
 // Import each domino implementation class:
 import { PrintDomino }   from "./dominos/print";
+import { ReadExcelDomino } from "./dominos/readExcel";
 // … import other dominos here …
 
 type DominoCtor = new (node: PipelineStep) => DominoExecutable;
@@ -18,6 +19,7 @@ class DominoRegistry {
     this.register("apicall", ApiCallDomino);
     this.register("print",   PrintDomino);
     this.register("apitrigger", ApiTriggerDomino);
+    this.register("readexcel", ReadExcelDomino);
     // this.register("arithmetic", ArithmeticDomino);
     // … etc. for all your other domino types …
   }

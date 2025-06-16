@@ -9,7 +9,7 @@ import { DominoNodeData } from '../types/dominoFieldTypes';
 import { FilesApi } from '../apis/files.apis';
 import { useRouter } from 'next/router';
 
-export default function ReadFileDomino({ data, id, selected }: NodeProps) {
+export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
     const router = useRouter();
     const { erroredNodes, clearValidationForDominoId } = useDomino();
     const hasError = erroredNodes.includes(id);
@@ -17,20 +17,26 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [fileName, setFileName] = useState<string>(() => {
-        const field = data?.details?.fields?.find((f: any) => f.heading === 'File Name');
+        const field = data?.details?.fields?.find((f: any) => f.heading === 'File');
         return typeof field?.value === 'string' ? field.value : '';
     });
     const [isUploading, setIsUploading] = useState<boolean>(false);
 
     // Sync fileName from details.fields on load or import
     useEffect(() => {
-        const field = data?.details?.fields?.find((f: any) => f.heading === 'File Name');
+        const field = data?.details?.fields?.find((f: any) => f.heading === 'File');
         if (field && field.value !== fileName) setFileName(field.value);
     }, [data?.details?.fields]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // Validate file type
+        if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+            toast.error('Please upload a valid Excel file (.xlsx or .xls)');
+            return;
+        }
 
         clearValidationForDominoId(id);
         setIsUploading(true);
@@ -52,22 +58,23 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
                     nodes.map((node: any) => {
                         if (node.id !== id) return node;
                         const details: DominoNodeData = {
-                            type: 'Read File',
-                            description: 'Reads a file from input or manual upload',
+                            type: 'Read Excel',
+                            description: 'Reads data from an Excel (.xlsx or .xls) file',
                             fields: [
                                 {
                                     inPinId: 'value_in',
                                     type: 'file',
-                                    heading: 'File Name',
+                                    heading: 'File',
                                     value: file.name,
                                     shouldRender: false,
                                     required: true,
                                     needsUpload: false,
-                                    file: { key, url: location }
+                                    file: { key, url: location },
+                                    exportOverride: 'file'
                                 }
                             ]
                         };
-                        return { ...node, data: { ...node.data, details, exportFields: ['File Name'] } };
+                        return { ...node, data: { ...node.data, details, exportFields: ['File'] } };
                     })
                 );
             }
@@ -81,7 +88,7 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
 
     const handleRemove = async () => {
         clearValidationForDominoId(id);
-        const fileField = data?.details?.fields?.find((f: any) => f.heading === 'File Name');
+        const fileField = data?.details?.fields?.find((f: any) => f.heading === 'File');
         const key = (fileField as any)?.file?.key;
 
         if (key) {
@@ -100,10 +107,10 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
                 nodes.map((node: any) => {
                     if (node.id !== id) return node;
                     const details: DominoNodeData = {
-                        type: 'Read File',
-                        description: 'Reads a file from input or manual upload',
+                        type: 'Read Excel',
+                        description: 'Reads data from an Excel (.xlsx or .xls) file',
                         fields: [
-                            { inPinId: 'value_in', type: 'file', heading: 'File Name', value: '', shouldRender: false, required: true, needsUpload: true }
+                            { inPinId: 'value_in', type: 'file', heading: 'File', value: '', shouldRender: false, required: true, needsUpload: true, exportOverride: 'file' }
                         ]
                     };
                     return { ...node, data: { ...node.data, details } };
@@ -119,13 +126,13 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
                 prevNodes.map((node: any) => {
                     if (node.id !== id) return node;
                     const details: DominoNodeData = {
-                        type: 'Read File',
-                        description: 'Reads a file from input or manual upload',
+                        type: 'Read Excel',
+                        description: 'Reads data from an Excel (.xlsx or .xls) file',
                         fields: [
-                            { inPinId: 'value_in', type: 'file', heading: 'File Name', value: '', shouldRender: false, required: true, needsUpload: true }
+                            { inPinId: 'value_in', type: 'file', heading: 'File', value: '', shouldRender: false, required: true, needsUpload: true, exportOverride: 'file' }
                         ]
                     };
-                    return { ...node, data: { ...node.data, details, exportFields: ['File Name'] } };
+                    return { ...node, data: { ...node.data, details, exportFields: ['File'] } };
                 })
             );
         }
@@ -142,7 +149,7 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
                 style={{ backgroundColor: '#0ea5e9', borderBottomColor: '#0284c7' }}
             >
                 <div className="flex items-center">
-                    <span>Read File</span>
+                    <span>Read Excel</span>
                     {isUploading && (
                         <FiLoader className="ml-2 inline-block h-6 w-6 text-dominofy-light-accent animate-spin" />
                     )}
@@ -174,7 +181,7 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
                     ) : (
                         <>
                             <button
-                                title="Choose File"
+                                title="Choose Excel File"
                                 onClick={() => fileInputRef.current?.click()}
                                 className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded bg-dominofy-light-accent text-white hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={isUploading}
@@ -187,13 +194,14 @@ export default function ReadFileDomino({ data, id, selected }: NodeProps) {
                                 ) : (
                                     <>
                                         <FiUpload className="w-4 h-4" />
-                                        <span>Choose File</span>
+                                        <span>Choose Excel File</span>
                                     </>
                                 )}
                             </button>
                             <input
                                 ref={fileInputRef}
                                 type="file"
+                                accept=".xlsx,.xls"
                                 style={{ display: 'none' }}
                                 onChange={handleFileUpload}
                             />

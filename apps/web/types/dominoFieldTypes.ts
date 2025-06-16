@@ -39,6 +39,7 @@ export interface DominoField {
   shouldRender?: boolean; // For conditional rendering
   needsUpload?: boolean; // For file inputs
   file?: {key: string, url: string}; // For file inputs
+  exportOverride?: string | string[]
 }
 
 export interface DominoNodeData {
