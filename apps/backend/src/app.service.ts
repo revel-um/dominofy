@@ -17,14 +17,12 @@ export class AppService {
 
     const { nodes, edges } = workflow.visualJson;
     const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
-
     return new Observable(subscriber => {
       const runId = uuidv4();
       const runner = new Runner(pipeline, 20); // or any concurrency you want
 
       // Subscribe to per-node “done” events:
       runner.on("done", (res: DominoResult) => {
-        console.log('res:', res);
         subscriber.next(JSON.stringify(res))
       });
       runner.on("error", (errContext) => {

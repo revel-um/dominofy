@@ -1,13 +1,13 @@
-// domino-engine/graph.ts
 import { PipelineStep } from "../../../../shared/types/pipelineStepType";
 
 /**
- * children :  id → [ids of nodes I trigger next or whose data I feed]
- * deps     :  id → Set<ids of nodes I must wait for (control-flow + data-flow) >
+ * buildGraph analyzes a pipeline of steps and returns:
+ *  • children: map of each node to all statically-known child node IDs (control + data edges)
+ *  • deps:    map of each node to a set of parent node IDs it depends on
  */
 export function buildGraph(nodes: PipelineStep[]) {
-  const children = new Map<string, string[]>(); // parentId → [childIds]
-  const deps     = new Map<string, Set<string>>(); // childId → Set<parentIds>
+  const children = new Map<string, string[]>();  // parentId → [childIds]
+  const deps = new Map<string, Set<string>>();    // childId  → Set<parentIds>
 
   // 1️⃣ initialize empty buckets
   nodes.forEach((n) => {
@@ -15,34 +15,27 @@ export function buildGraph(nodes: PipelineStep[]) {
     deps.set(n.id, new Set());
   });
 
-  // 2️⃣ control-flow edges (the “next” array on each PipelineStep)
+  // 2️⃣ control-flow edges (the “next” map on each PipelineStep)
   nodes.forEach((n) => {
-    (n.next ?? []).forEach((childId) => {
-      // forward link: parent → child
-      children.get(n.id)!.push(childId);
-      // reverse link: child depends on parent
-      deps.get(childId)!.add(n.id);
-    });
+    for (const childList of Object.values(n.next || {})) {
+      childList.forEach((childId) => {
+        children.get(n.id)!.push(childId);
+        deps.get(childId)!.add(n.id);
+      });
+    }
   });
 
   // 3️⃣ data-flow edges (connectedValue fields in node.data)
   nodes.forEach((n) => {
-    // collect every parentId that this node’s fields are connected to
-    const parentIds = Object.values(n.data ?? {})
+    Object.values(n.data ?? {})
       .filter(
-        (fieldObj) =>
-          fieldObj &&
-          typeof fieldObj === "object" &&
-          (fieldObj as any).connectedValue
+        (f) => f && typeof f === "object" && (f as any).connectedValue
       )
-      .map((fieldObj) => (fieldObj as any).connectedValue as string);
-
-    parentIds.forEach((parentId) => {
-      // forward link: parent → child
-      children.get(parentId)!.push(n.id);
-      // reverse link: child depends on parent
-      deps.get(n.id)!.add(parentId);
-    });
+      .map((f) => (f as any).connectedValue as string)
+      .forEach((parentId) => {
+        children.get(parentId)!.push(n.id);
+        deps.get(n.id)!.add(parentId);
+      });
   });
 
   return { children, deps };

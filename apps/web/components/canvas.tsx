@@ -19,7 +19,7 @@ import PrintDomino from "../dominos/print";
 import ApiCallDomino from "../dominos/apiCall";
 import ApiTriggerDomino from "../dominos/apiTrigger";
 import ConditionDomino from "../dominos/condition";
-import SwitchDomino from "../dominos/switch_case";
+import SwitchDomino from "../dominos/switchCase";
 import ArithmeticDomino from "../dominos/arithmetic";
 import ReadExcelDomino from "../dominos/readExcel";
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
@@ -35,7 +35,7 @@ const nodeTypes = {
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
   condition: ConditionDomino,
-  switch_case: SwitchDomino,
+  switchcase: SwitchDomino,
   arithmetic: ArithmeticDomino,
   readexcel: ReadExcelDomino,
 };

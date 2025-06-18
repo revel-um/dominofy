@@ -10,7 +10,6 @@ export class ReadExcelDomino implements DominoExecutable {
 
 
     constructor(node: PipelineStep) {
-        console.log(node)
         this.id = node.id;
 
         this.fileUrl = node?.data?.File?.url;
@@ -21,7 +20,6 @@ export class ReadExcelDomino implements DominoExecutable {
         let fileUrl = this.fileUrl;
         let fileBuffer: Buffer;
 
-        console.log({ctx})
         // 1️⃣ If dynamic input → use it
         if (ctx?.input?.value && ctx?.input?.value?.url) {
             // Enforce type check for Excel

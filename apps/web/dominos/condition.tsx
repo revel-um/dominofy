@@ -25,17 +25,16 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
     { label: "and", value: "and" },
     { label: "is", value: "is" },
     { label: "contains", value: "contains" },
-    { label: "<", value: "less" },
-    { label: ">", value: "greater" },
-    { label: "==", value: "equal" },
-    { label: "!=", value: "not_equal" },
+    { label: "Less Than", value: "less_than" },
+    { label: "Greater Than", value: "greater_than" },
+    { label: "Less Than Or Equal", value: "less_or_equal" },
+    { label: "Greater Than Or Equal", value: "greater_or_equal" },
+    { label: "Equal to", value: "equal" },
+    { label: "Not Equal to", value: "not_equal" },
   ];
 
   // Sync value from existing details field on mount or update
   useEffect(() => {
-    console.log("--------------------------------------------")
-    // console.log(data?.details?.fields);
-
     const field1 = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text1');
     const field2 = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text2');
     const field3 = data?.details?.fields?.find((f: DominoField) => f.heading === 'Option');

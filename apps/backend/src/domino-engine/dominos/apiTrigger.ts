@@ -36,7 +36,6 @@ export class ApiTriggerDomino implements DominoExecutable {
 
       // Optionally delete the redundant Text field
       delete cleanedOutput['Text'];
-      console.log(cleanedOutput)
     }
 
     return {
