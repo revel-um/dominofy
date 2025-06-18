@@ -3,46 +3,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Ensure input text is always visible */
-input, textarea, select {
-  color: #111827; /* text-gray-900 */
-}
-
-/* High specificity input styles */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="text"]:focus,
-input[type="email"]:focus,
-input[type="password"]:focus {
-  color: #111827 !important; /* Force dark text color */
-  background-color: #ffffff !important; /* Force white background */
-}
-
-input::placeholder, textarea::placeholder {
-  color: #6B7280 !important; /* text-gray-500 - much darker for better visibility */
-  opacity: 1 !important; /* Firefox */
-  font-weight: 400 !important; /* Ensure normal font weight */
-}
-
-/* Dark mode overrides */
-.dark input[type="text"],
-.dark input[type="email"],
-.dark input[type="password"],
-.dark input[type="text"]:focus,
-.dark input[type="email"]:focus,
-.dark input[type="password"]:focus {
-  color: #f9fafb !important; /* Light text for dark mode */
-  background-color: #1f2937 !important; /* Dark background */
-}
-
-.dark input::placeholder, .dark textarea::placeholder {
-  color: #9ca3af !important; /* Lighter placeholder for dark mode */
-}
+/*
+  Base layer: CSS variables and global resets
+*/
 
 /* Dark mode support */
 .dark input, .dark textarea, .dark select {
-  color: #F9FAFB; /* text-gray-50 */
+  color: #01080f; /* text-gray-50 */
 }
 
 .dark input::placeholder, .dark textarea::placeholder {

@@ -4,43 +4,32 @@ import axios from 'axios';
 import { FcGoogle } from 'react-icons/fc';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import '../styles/auth-overrides.css';
-import styles from './auth.module.css';
 
 export default function AuthPage() {
   const router = useRouter();
-
-  // form state
   const [isSignup, setIsSignup] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // New: tracking whether we've checked for token
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // 1 & 2. On mount, check token → dashboard
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      // use push so Url updates immediately
       router.push('/dashboard');
     } else {
-      // no token, show login form
       setCheckingAuth(false);
     }
   }, [router]);
 
-  // don't render your auth form while we're redirecting
   if (checkingAuth) {
-    return null; // or a spinner if you like
+    return null;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // re-check cache
     if (localStorage.getItem('token')) {
       router.push('/dashboard');
       return;
@@ -102,7 +91,7 @@ export default function AuthPage() {
             className="w-32 h-auto mt-4"
           />
           <blockquote className="italic text-sm opacity-75 text-center max-w-xs mt-4">
-            “Give your developers a break—accomplish more without extra hires.”
+            "Give your developers a break—accomplish more without extra hires."
           </blockquote>
         </div>
 
@@ -127,7 +116,7 @@ export default function AuthPage() {
                     </span>
                     <button
                       onClick={() => setIsSignup(false)}
-                      className="text-sm font-semibold text-blue-600"
+                      className="text-sm font-semibold text-blue-600 hover:underline"
                     >
                       Log in here
                     </button>
@@ -139,7 +128,7 @@ export default function AuthPage() {
                     </span>
                     <button
                       onClick={() => setIsSignup(true)}
-                      className="text-sm font-semibold text-blue-600"
+                      className="text-sm font-semibold text-blue-600 hover:underline"
                     >
                       Sign up here
                     </button>
@@ -149,14 +138,14 @@ export default function AuthPage() {
             </div>
 
             {/* Form */}
-            <form id="auth-form" onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {isSignup && (
                 <input
                   type="text"
                   placeholder="Your Full Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   required
                 />
               )}
@@ -165,7 +154,7 @@ export default function AuthPage() {
                 placeholder="Your Email Address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                 required
               />
               <input
@@ -173,7 +162,7 @@ export default function AuthPage() {
                 placeholder="Your Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                 required
               />
               {isSignup && (
@@ -182,28 +171,33 @@ export default function AuthPage() {
                   placeholder="Confirm Your Password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
-                  className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   required
                 />
               )}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {loading ? 'Please wait...' : isSignup ? 'Create Account' : 'Log In'}
               </button>
             </form>
 
             {/* Google Auth */}
-            <div className="flex items-center justify-center space-x-2">
-              <span className="text-gray-500">Or</span>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              </div>
             </div>
             <button
               onClick={() => {
                 // trigger Google OAuth
               }}
-              className="w-full py-3 flex items-center justify-center bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition"
+              className="w-full py-3 flex items-center justify-center bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <FcGoogle className="mr-2 text-lg" />
               {isSignup ? 'Sign up with Google' : 'Log in with Google'}

@@ -185,202 +185,200 @@ export default function ProfilePage() {
   }
 
   return (
-    <ResponsiveContainer>
-      <div className="min-h-screen bg-dominofy-light-background dark:bg-dominofy-dark-background">
-        {/* Keep only vertical padding */}
-        <div className="py-4 sm:py-6">
-          {/* Adjust max-width without additional padding */}
-          <div className="max-w-3xl mx-auto">
-            {/* Profile Header */}
-            <div className="space-y-6">
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6">
-                <div className="flex items-center space-x-6">
-                  {/* Avatar */}
-                  <div className="relative">
-                    <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-2xl text-white">
-                      {profile.avatar ? (
-                        <img 
-                          src={profile.avatar} 
-                          alt={profile.name} 
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      ) : (
-                        profile.name.charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <button 
-                      className="absolute bottom-0 right-0 bg-gray-100 dark:bg-gray-700 p-2 rounded-full shadow-lg hover:bg-gray-200 dark:hover:bg-gray-600"
-                      onClick={() => {/* Handle avatar update */}}
-                    >
-                      <FiUser className="w-4 h-4" />
-                    </button>
-                  </div>
+    <div className="w-full min-h-screen bg-dominofy-light-background dark:bg-dominofy-dark-background">
+      <div className="w-full px-2 sm:px-4 py-6">
+        <div className="w-full space-y-4">
+          {/* Profile Header */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
+              {/* Avatar */}
+              <div className="relative">
+                <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-2xl text-white">
+                  {profile.avatar ? (
+                    <img 
+                      src={profile.avatar} 
+                      alt={profile.name} 
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    profile.name.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <button 
+                  className="absolute bottom-0 right-0 bg-gray-100 dark:bg-gray-700 p-2 rounded-full shadow-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                  onClick={() => {/* Handle avatar update */}}
+                >
+                  <FiUser className="w-4 h-4" />
+                </button>
+              </div>
 
-                  {/* Basic Info */}
-                  <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {profile.name}
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400">{profile.email}</p>
-                    <div className="mt-2 flex items-center space-x-2">
-                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                        {profile.role}
-                      </span>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        Member since {formatDate(profile.createdAt)}
-                      </span>
-                    </div>
+              {/* Basic Info */}
+              <div className="flex-1 w-full text-center sm:text-left">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {profile.name}
+                </h1>
+                <p className="text-gray-500 dark:text-gray-400">{profile.email}</p>
+                <div className="mt-2 flex flex-wrap gap-2 justify-center sm:justify-start">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    {profile.role}
+                  </span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    Member since {formatDate(profile.createdAt)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Left Column - Personal Information */}
+            <div className="md:col-span-2 space-y-4">
+              {/* Personal Information */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-5">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Personal Information
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={profile.name}
+                      onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={profile.email}
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    {isEditing ? (
+                      <div className="space-x-3">
+                        <button
+                          onClick={() => setIsEditing(false)}
+                          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => updateProfile({ name: profile.name })}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
+                        >
+                          Save Changes
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium"
+                      >
+                        Edit Profile
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Profile Sections */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-                {/* Personal Information */}
-                <div className="md:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow">
-                  <div className="p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                      Personal Information
-                    </h2>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Full Name
-                        </label>
-                        <input
-                          type="text"
-                          value={profile.name}
-                          onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                          disabled={!isEditing}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Email Address
-                        </label>
-                        <input
-                          type="email"
-                          value={profile.email}
-                          disabled
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700"
-                        />
-                      </div>
-                      <div className="flex justify-end">
-                        {isEditing ? (
-                          <div className="space-x-3">
-                            <button
-                              onClick={() => setIsEditing(false)}
-                              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => updateProfile({ name: profile.name })}
-                              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
-                            >
-                              Save Changes
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setIsEditing(true)}
-                            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium"
-                          >
-                            Edit Profile
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Account Settings
+              {/* Activity History */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <div className="p-4 sm:p-5">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                    Activity History
                   </h2>
-                  <div className="space-y-3">
-                    <button 
-                      onClick={() => setShowPasswordModal(true)}
-                      className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md"
-                    >
-                      <div className="flex items-center">
-                        <FiKey className="mr-3 h-5 w-5 text-gray-400" />
-                        <span>Change Password</span>
-                      </div>
-                      <FiChevronRight className="ml-3 h-5 w-5 text-gray-400" />
-                    </button>
-                    <button className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">
-                      <div className="flex items-center">
-                        <FiShield className="mr-3 h-5 w-5 text-gray-400" />
-                        <span>Security Settings</span>
-                      </div>
-                      <FiChevronRight className="ml-3 h-5 w-5 text-gray-400" />
-                    </button>
-                    <button className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">
-                      <div className="flex items-center">
-                        <FiSettings className="mr-3 h-5 w-5 text-gray-400" />
-                        <span>Preferences</span>
-                      </div>
-                      <FiChevronRight className="ml-3 h-5 w-5 text-gray-400" />
-                    </button>
-                  </div>
+                  <ActivityHistory activities={activities} />
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Settings */}
+            <div className="space-y-6">
+              {/* Account Settings */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-5">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Account Settings
+                </h2>
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => setShowPasswordModal(true)}
+                    className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md"
+                  >
+                    <div className="flex items-center">
+                      <FiKey className="mr-3 h-5 w-5 text-gray-400" />
+                      <span>Change Password</span>
+                    </div>
+                    <FiChevronRight className="ml-3 h-5 w-5 text-gray-400" />
+                  </button>
+                  <button className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">
+                    <div className="flex items-center">
+                      <FiShield className="mr-3 h-5 w-5 text-gray-400" />
+                      <span>Security Settings</span>
+                    </div>
+                    <FiChevronRight className="ml-3 h-5 w-5 text-gray-400" />
+                  </button>
+                  <button className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">
+                    <div className="flex items-center">
+                      <FiSettings className="mr-3 h-5 w-5 text-gray-400" />
+                      <span>Preferences</span>
+                    </div>
+                    <FiChevronRight className="ml-3 h-5 w-5 text-gray-400" />
+                  </button>
                 </div>
               </div>
 
-              {/* Activity and Settings Sections */}
-              <div className="space-y-4 sm:space-y-6">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-                  <div className="p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                      Activity History
-                    </h2>
-                    <ActivityHistory activities={activities} />
-                  </div>
+              {/* Security Settings */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div className="p-4 sm:p-5">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                    Security Settings
+                  </h2>
+                  <SecuritySettings
+                    settings={securitySettings}
+                    onUpdate={async (settings) => {
+                      setSecuritySettings({ ...securitySettings, ...settings });
+                      // Add API call to update settings
+                    }}
+                  />
                 </div>
+              </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-                  <div className="p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                      Security Settings
-                    </h2>
-                    <SecuritySettings
-                      settings={securitySettings}
-                      onUpdate={async (settings) => {
-                        setSecuritySettings({ ...securitySettings, ...settings });
-                        // Add API call to update settings
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-                  <div className="p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                      Preferences
-                    </h2>
-                    <UserPreferences
-                      preferences={preferences}
-                      onUpdate={async (newPrefs) => {
-                        setPreferences({ ...preferences, ...newPrefs });
-                        // Add API call to update preferences
-                      }}
-                    />
-                  </div>
+              {/* Preferences */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div className="p-4 sm:p-5">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                    Preferences
+                  </h2>
+                  <UserPreferences
+                    preferences={preferences}
+                    onUpdate={async (newPrefs) => {
+                      setPreferences({ ...preferences, ...newPrefs });
+                      // Add API call to update preferences
+                    }}
+                  />
                 </div>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Modals */}
-        <ChangePasswordModal
-          isOpen={showPasswordModal}
-          onClose={() => setShowPasswordModal(false)}
-          onSubmit={handlePasswordChange}
-        />
       </div>
-    </ResponsiveContainer>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onSubmit={handlePasswordChange}
+      />
+    </div>
   );
 }
