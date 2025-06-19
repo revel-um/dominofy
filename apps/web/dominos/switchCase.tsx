@@ -10,16 +10,15 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
   const hasError = erroredNodes.includes(id);
 
   const [inputs, setInputs] = useState<string[]>(['']);
-  const [prevTop, setPrevTop] = useState(20);
 
   const addInput = () => {
+    clearValidationForDominoId(id);
     setInputs(prev => [...prev, '']);
-    setPrevTop(prevTop + 100);
   };
 
   const removeInput = (index: number) => {
+    clearValidationForDominoId(id);
     setInputs(prev => prev.filter((_, i) => i !== index));
-    setPrevTop(prevTop - 100);
   };
 
   const handleInputChange = (index: number, newVal: string) => {
@@ -35,50 +34,74 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
   useEffect(() => {
     const caseFields = data?.details?.fields?.filter(
       (f: { heading: string }) => f.heading?.startsWith('Case_')
-    ) || [];
-    if (caseFields.length > 0) {
-      setInputs(caseFields.map((f: { value: string; }) => f.value as string));
-    } else {
-      setInputs(['']);
+    );
+    if (caseFields && caseFields.length > 0) {
+      setInputs(caseFields.map((f: { value: string }) => f.value as string));
     }
+    // run only once
   }, []);
 
-  // Always sync fields & exportFields back into node data
+  // Always sync fields & exportFields back into node data, preserving connections
   useEffect(() => {
     if (!data.setNodes) return;
+
     data.setNodes((nodes: any[]) =>
-      nodes.map(node =>
-        node.id !== id
-          ? node
-          : {
-            ...node,
-            data: {
-              ...node.data,
-              details: {
-                ...node.data.details,
-                fields: [
-                  {
-                    type: 'text',
-                    inPinId: 'value_in',
-                    shouldRender: false,
-                    heading: 'Input',
-                    required: true
-                  },
-                  ...inputs.map((inp, idx) => ({
-                    type: 'textInput',
-                    value: inp,
-                    required: true,
-                    heading: `Case_${idx + 1}`,
-                    shouldRender: false,
-                    inPinId: `value_in_${idx + 1}`,
-                    execOutPinId: `exec_out_${idx + 1}`,
-                  }))
-                ]
-              },
-              exportFields: ['Input', ...inputs.map((_, idx) => `Case_${idx + 1}`)],
+      nodes.map(node => {
+        if (node.id !== id) return node;
+
+        // safely grab existing fields array
+        const existingFields =
+          Array.isArray(node.data?.details?.fields) ? node.data.details.fields : [];
+
+        // build a lookup of existing fields by heading
+        const oldFieldsByHeading = existingFields.reduce(
+          (map: Record<string, any>, f: any) => {
+            if (f?.heading) map[f.heading] = f;
+            return map;
+          },
+          {} as Record<string, any>
+        );
+
+        // ensure at least the Input field exists
+        const inputField = oldFieldsByHeading['Input'] || {
+          type: 'text',
+          inPinId: 'value_in',
+          shouldRender: false,
+          heading: 'Input',
+          required: true,
+        };
+
+        // rebuild fields: reuse old field objects and only override value & heading
+        const newFields = [
+          { ...inputField },
+          ...inputs.map((inp, idx) => {
+            const heading = idx === 0 ? 'Case_Default' : `Case_${idx}`;
+            const oldField = oldFieldsByHeading[heading] || {};
+            return {
+              ...oldField,
+              value: inp,
+              heading,
+              inPinId: idx == 0? undefined: `value_in_${idx}`,
+              shouldRender: false,
+              required: idx !== 0
+            };
+          }),
+        ];
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            details: {
+              ...node.data.details,
+              fields: newFields,
             },
-          }
-      )
+            exportFields: ['Input', ...inputs.map((_, idx) =>
+              idx === 0 ? 'Case_Default' : `Case_${idx}`
+            )],
+          },
+        };
+      })
     );
   }, [inputs, data.setNodes, id]);
 
@@ -94,16 +117,14 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
           backgroundColor: '#6366f1',
           borderBottomColor: '#4f46e5',
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'space-between'
         }}
       >
         Switch
       </div>
 
       <div className="px-3 py-2">
-        <div
-        className='text-white'
-        >
+        <div className="text-white">
           Input
           <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition="60px" />
         </div>
@@ -114,23 +135,27 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
           <div key={index} className="mb-1 flex items-center">
             <input
               type="text"
-              value={value}
+              value={index == 0? 'Default': value}
               onChange={e => handleInputChange(index, e.target.value)}
-              placeholder={`Case ${index + 1}`}
-              name={`Case_${index + 1}`}
+              placeholder={index === 0 ? 'Default' : `Case ${index}`}
+              name={index === 0 ? 'Case_Default' : `Case_${index}`}
+              readOnly={index === 0}
+              disabled={index === 0}
               className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
             />
             <DominoPin
-              id={`exec_out_${index + 1}`}
+              id={`exec_out_${index === 0 ? 'default' : index}`}
               pinType={PinType.EXEC_OUT}
-              pinPosition={`calc(${index * 34.1}px + 100px)`}
+              pinPosition={`calc(${index * 34}px + 102px)`}
             />
-            <DominoPin
-              id={`value_in_${index + 1}`}
-              pinType={PinType.VALUE_IN}
-              pinPosition={`calc(${index * 34.1}px + 100px)`}
-            />
-            {inputs.length > 1 && (
+            {index > 0 && (
+              <DominoPin
+                id={`value_in_${index}`}
+                pinType={PinType.VALUE_IN}
+                pinPosition={`calc(${index * 34}px + 102px)`}
+              />
+            )}
+            {index > 0 && (
               <button onClick={() => removeInput(index)} className="ml-2 p-1 bg-red-500 text-white rounded">
                 <Trash size={16} />
               </button>

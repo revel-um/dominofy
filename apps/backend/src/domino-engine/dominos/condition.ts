@@ -11,11 +11,14 @@ export class ConditionDomino implements DominoExecutable {
 
     // helper to compare values based on operator
     private compare(a: string, b: string, op: string): boolean {
+        a = a.toString();
+        b = b.toString();
+        
         switch (op) {
             case "equal":
-                return a === b;
+                return a == b;
             case "not_equal":
-                return a !== b;
+                return a != b;
             case "greater_than":
                 return a > b;
             case "less_than":

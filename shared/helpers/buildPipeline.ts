@@ -99,7 +99,6 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
       sortedPipeline.push(makeStep(node));
     }
   });
-  console.table(sortedPipeline)
-  console.log(sortedPipeline.find((step) => step.type == 'switchcase'))
+  // sortedPipeline.forEach((step) => console.log(step));
   return sortedPipeline;
 }

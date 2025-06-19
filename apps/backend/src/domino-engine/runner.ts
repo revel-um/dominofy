@@ -30,7 +30,7 @@ export class Runner extends EventEmitter {
 
     this.scheduled.clear();
 
-    // Schedule all root nodes
+    // Schedule all root nodes (no deps)
     depsClone.forEach((depSet, nodeId) => {
       if (depSet.size === 0 && !this.scheduled.has(nodeId)) {
         this.scheduled.add(nodeId);
@@ -60,11 +60,12 @@ export class Runner extends EventEmitter {
     console.log(`Executing node ${id}`);
 
     try {
-      // Build runtime inputs from `node.data`
+      // 1️⃣ Build runtime inputs from step.data
       const runtimeInputs: Record<string, any> = {};
       Object.entries(step.data).forEach(([fieldName, fieldObj]) => {
-        if (fieldObj.connectedValue) {
-          const upstreamId = fieldObj.connectedValue;
+        const obj = fieldObj as any;
+        if (obj.connectedValue) {
+          const upstreamId = obj.connectedValue as string;
           const upstreamResult = results[upstreamId];
           if (upstreamResult === undefined) {
             throw new Error(
@@ -76,67 +77,63 @@ export class Runner extends EventEmitter {
               ? upstreamResult[fieldName]
               : upstreamResult;
         } else {
-          runtimeInputs[fieldName] = fieldObj.value;
+          runtimeInputs[fieldName] = obj.value;
         }
       });
 
-      // Instantiate the domino
+      // 2️⃣ Instantiate the domino
       const dom = dominoRegistry.instantiate(step);
 
-      // Combine inputs: globalInput for triggers, single-value or object otherwise
+      // 3️⃣ Decide input shape: unwrap for print-domino
       let combinedInput: any;
-      if ((dom as any).isTrigger) {
-        combinedInput = globalInput;
+      if (step.type === "print" && Object.keys(runtimeInputs).length === 1) {
+        const soleKey = Object.keys(runtimeInputs)[0];
+        combinedInput = runtimeInputs[soleKey];
       } else {
-        const keys = Object.keys(runtimeInputs);
-        combinedInput = keys.length === 1 ? runtimeInputs[keys[0]] : runtimeInputs;
+        combinedInput = (dom as any).isTrigger ? globalInput : runtimeInputs;
       }
 
-      // Execute and capture result
+      // 4️⃣ Execute and capture result
       const res: DominoResult = await dom.execute({ runId, input: combinedInput });
       this.emit("done", res);
       results[id] = res.output;
 
-      // ─── Determine branches to follow ───
-      const branchKeys = Object.keys(step.next);
-      let toFollow: string[];
+      // 5️⃣ Remove this node from deps of ALL its children (control + data)
+      const allChildren = children.get(id) || [];
+      for (const childId of allChildren) {
+        deps.get(childId)!.delete(id);
+      }
 
-      if (branchKeys.length === 0) {
-        // No outgoing branches
-        return;
-      } else if (branchKeys.length === 1) {
-        // Single branch: always follow
-        toFollow = branchKeys;
-      } else {
-        // Multi-branch: require nextChainKeys
+      // 6️⃣ Determine control-flow branches
+      const branchKeys = Object.keys(step.next);
+      const controlChildren = new Set(Object.values(step.next).flat());
+      let branchChildren = new Set<string>();
+
+      if (branchKeys.length === 1 && (!res?.nextChainKeys?.length || res?.nextChainKeys?.includes(branchKeys[0]))) {
+        branchChildren = new Set(controlChildren);
+      } else if (branchKeys.length > 1) {
         if (!res.nextChainKeys) {
           throw new Error(
             `[Runner] Node ${id} must return nextChainKeys for multi-branch step`
           );
         }
-        toFollow = res.nextChainKeys.filter(k => !!step.next[k]);
-        if (toFollow.length === 0) {
-          throw new Error(
-            `[Runner] Node ${id} returned no valid branches (${res.nextChainKeys.join(",")})`
-          );
-        }
+        (res.nextChainKeys as string[])
+          .filter(k => step.next[k])
+          .forEach(k => step.next[k].forEach(cid => branchChildren.add(cid)));
       }
 
-      // ─── Enqueue only selected children ───
-      for (const branch of toFollow) {
-        for (const childId of step.next[branch]) {
-          const childDeps = deps.get(childId)!;
-          childDeps.delete(id);
-          if (childDeps.size === 0 && !this.scheduled.has(childId)) {
-            this.scheduled.add(childId);
-            console.log(`→ Child ${childId} ready on branch ${branch}; enqueueing`);
-            this.queue.add(() =>
-              this.executeNode(childId, runId, globalInput, children, deps, results)
-            );
-          }
-        }
-      }
+      // 7️⃣ Enqueue children whose deps are now zero
+      for (const childId of allChildren) {
+        const childDeps = deps.get(childId)!;
+        if (childDeps.size > 0 || this.scheduled.has(childId)) continue;
+        if (controlChildren.has(childId) && !branchChildren.has(childId)) continue;
 
+        this.scheduled.add(childId);
+        console.log(`→ Child ${childId} ready; enqueueing`);
+        this.queue.add(() =>
+          this.executeNode(childId, runId, globalInput, children, deps, results)
+        );
+      }
     } catch (err) {
       this.emit("error", { nodeId: id, error: err });
     }
