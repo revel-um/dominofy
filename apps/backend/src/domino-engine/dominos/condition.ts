@@ -13,7 +13,7 @@ export class ConditionDomino implements DominoExecutable {
     private compare(a: string, b: string, op: string): boolean {
         a = a.toString();
         b = b.toString();
-        
+
         switch (op) {
             case "equal":
                 return a == b;
