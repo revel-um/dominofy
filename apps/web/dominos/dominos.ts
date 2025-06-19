@@ -33,7 +33,7 @@ export default [
     icon: FileQuestion, // 📄 Represents reading a local file
   },
   {
-    id: 'switch_case',
+    id: 'switchcase',
     label: 'Switch Operator',
     icon: ToggleLeftIcon, // 📄 Represents reading a local file
   },

@@ -27,6 +27,7 @@ export default function DominoPin({ id, pinType, pinPosition }: DominoPinProps) 
       type={isInput ? 'target' : 'source'}
       position={position}
       isConnectable={true}
+      title={id}
       style={{
         width: 8,
         height: 8,

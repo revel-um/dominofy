@@ -2,53 +2,56 @@ import { PipelineStep } from "../types/pipelineStepType";
 import { Node, Edge } from "reactflow";
 
 export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
+  // Filter only execution edges
   const execEdges = edges.filter(e => e.sourceHandle?.startsWith("exec"));
+  // Map node ID to Node object
   const idToNode = new Map(nodes.map(n => [n.id, n]));
 
-  const adjacency: Record<string, string[]> = {};
+  // Adjacency: for each node ID, map exec-handle IDs to downstream node IDs
+  const adjacency: Record<string, Record<string, string[]>> = {};
   const inDegree: Record<string, number> = {};
 
-  // 1️⃣ Initialise adjacency + indegree
+  // Initialize adjacency and in-degree counts
   nodes.forEach(node => {
-    adjacency[node.id] = [];
+    adjacency[node.id] = {};
     inDegree[node.id] = 0;
   });
 
-  // 2️⃣ Build graph
-  execEdges.forEach(edge => {
-    if (edge.source && edge.target) {
-      adjacency[edge.source].push(edge.target);
-      inDegree[edge.target]++;
+  // Build the graph
+  execEdges.forEach(({ source, target, sourceHandle }) => {
+    if (source && target && sourceHandle) {
+      if (!adjacency[source][sourceHandle]) {
+        adjacency[source][sourceHandle] = [];
+      }
+      adjacency[source][sourceHandle].push(target);
+      inDegree[target] = (inDegree[target] || 0) + 1;
     }
   });
 
+  // Prepare for Kahn's topological sort
   const queue: string[] = Object.keys(inDegree).filter(id => inDegree[id] === 0);
   const sortedPipeline: PipelineStep[] = [];
   const visited = new Set<string>();
 
+  // Helper to convert a Node to PipelineStep
   const makeStep = (node: Node): PipelineStep => {
     const exportFields: string[] = node.data?.exportFields || [];
     const fields = node.data?.details?.fields || [];
 
     const cleanedData: Record<string, any> = {};
-
-    exportFields.forEach((fieldHeading) => {
+    exportFields.forEach(fieldHeading => {
       const field = fields.find((f: any) => f.heading === fieldHeading);
       if (!field) return;
       const override = field.exportOverride;
-
       if (Array.isArray(override)) {
-        // If it's an array → build object of { name: value, ... }
         const overrideObject: Record<string, any> = {};
-        override.forEach((name) => {
+        override.forEach(name => {
           overrideObject[name] = field[name];
         });
         cleanedData[fieldHeading] = overrideObject;
-      } else if (typeof override === 'string') {
-        const related = field[override]
-        cleanedData[fieldHeading] = related;
+      } else if (typeof override === "string") {
+        cleanedData[fieldHeading] = field[override];
       } else {
-        // Default: just use value + connectedValue
         cleanedData[fieldHeading] = {
           value: field.value,
           connectedValue: field.connectedValue ?? null,
@@ -56,7 +59,9 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
       }
     });
 
-    const next = adjacency[node.id] || [];
+    // next: map of exec-pin IDs to downstream node IDs
+    const next = adjacency[node.id] || {};
+
     return {
       id: node.id,
       type: node.type || "unknown",
@@ -65,24 +70,35 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
     };
   };
 
-  // 3️⃣ Kahn’s topological sort
+  // Kahn's algorithm
   while (queue.length) {
     const current = queue.shift()!;
     if (visited.has(current)) continue;
     visited.add(current);
 
     const node = idToNode.get(current);
-    if (node) sortedPipeline.push(makeStep(node));
+    if (node) {
+      sortedPipeline.push(makeStep(node));
+    }
 
-    adjacency[current].forEach(target => {
-      if (--inDegree[target] === 0) queue.push(target);
+    // Decrement in-degree for all downstream nodes
+    const downstreamMap = adjacency[current] || {};
+    Object.values(downstreamMap).forEach(targetList => {
+      targetList.forEach(targetId => {
+        inDegree[targetId]--;
+        if (inDegree[targetId] === 0) {
+          queue.push(targetId);
+        }
+      });
     });
   }
 
-  // 4️⃣ Add disconnected nodes (optional)
+  // Append any disconnected nodes
   nodes.forEach(node => {
-    if (!visited.has(node.id)) sortedPipeline.push(makeStep(node));
+    if (!visited.has(node.id)) {
+      sortedPipeline.push(makeStep(node));
+    }
   });
-
+  // sortedPipeline.forEach((step) => console.log(step));
   return sortedPipeline;
 }

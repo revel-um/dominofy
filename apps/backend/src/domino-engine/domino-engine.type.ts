@@ -17,4 +17,5 @@ export interface DominoResult {
   output: any;
   startedAt: number;
   finishedAt: number;
+  nextChainKeys?: string[];
 }

@@ -3,10 +3,13 @@ import { PipelineStep } from "../../../../shared/types/pipelineStepType";
 import { DominoExecutable } from "./domino-engine.type";
 import { ApiCallDomino } from "./dominos/apiCall";
 import { ApiTriggerDomino } from "./dominos/apiTrigger";
+import { ArithmeticDomino } from "./dominos/arithmetic";
+import { ConditionDomino } from "./dominos/condition";
 
 // Import each domino implementation class:
 import { PrintDomino }   from "./dominos/print";
 import { ReadExcelDomino } from "./dominos/readExcel";
+import { SwitchCaseDomino } from "./dominos/switchCase";
 // … import other dominos here …
 
 type DominoCtor = new (node: PipelineStep) => DominoExecutable;
@@ -20,6 +23,9 @@ class DominoRegistry {
     this.register("print",   PrintDomino);
     this.register("apitrigger", ApiTriggerDomino);
     this.register("readexcel", ReadExcelDomino);
+    this.register("condition", ConditionDomino);
+    this.register("arithmetic", ArithmeticDomino);
+    this.register("switchcase", SwitchCaseDomino);
     // this.register("arithmetic", ArithmeticDomino);
     // … etc. for all your other domino types …
   }
