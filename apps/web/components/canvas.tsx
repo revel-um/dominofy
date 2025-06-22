@@ -30,6 +30,7 @@ import { validateNodeConnections } from "../helpers/errorDetector";
 import { DominoField } from "../types/dominoFieldTypes";
 import { FilesApi } from "../apis/files.apis";
 import { useRouter } from "next/router";
+import DeconstrctDomino from "../dominos/deconstructor";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -39,6 +40,7 @@ const nodeTypes = {
   switchcase: SwitchDomino,
   arithmetic: ArithmeticDomino,
   readexcel: ReadExcelDomino,
+  deconstructor: DeconstrctDomino
 };
 
 interface CanvasProps {

@@ -1,4 +1,4 @@
-import { Calculator, FileQuestion, ToggleLeftIcon } from 'lucide-react';
+import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -41,5 +41,10 @@ export default [
     id: 'arithmetic',
     label: 'Arithmetic Operator',
     icon: Calculator, // 📄 Represents reading a local file
+  },
+  {
+    id: 'deconstructor',
+    label: 'Deconstruct',
+    icon: BoomBox, // 📄 Represents reading a local file
   }
 ];
