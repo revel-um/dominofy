@@ -1,68 +1,86 @@
+// src/helpers/errorDetector.ts
 import { Node, Edge } from 'reactflow';
 import { DominoField } from '../types/dominoFieldTypes';
 
+/* ─────────────────────────────────────────
+ * CONNECTION-LEVEL VALIDATION
+ * - “value_in” requires a matching “exec_in”
+ * ───────────────────────────────────────── */
 export function validateNodeConnections(nodes: Node[], edges: Edge[]): string[] {
-  const execInMap = new Map<string, boolean>();
+  const execInMap  = new Map<string, boolean>();
   const valueInMap = new Map<string, boolean>();
 
-  // Check all incoming edges and classify them
+  // classify incoming edges
   edges.forEach(edge => {
     const target = edge.target;
-    if (edge.targetHandle?.startsWith('exec')) {
-      execInMap.set(target, true);
-    } else if (edge.targetHandle?.startsWith('value')) {
-      valueInMap.set(target, true);
-    }
+    if (edge.targetHandle?.startsWith('exec'))  execInMap.set(target, true);
+    if (edge.targetHandle?.startsWith('value')) valueInMap.set(target, true);
   });
 
-  // Collect IDs of nodes with value_in but no exec_in
-  const erroredNodeIds: string[] = [];
+  // nodes with Value-in but no Exec-in
+  const erroredIds: string[] = [];
   nodes.forEach(node => {
-    if (valueInMap.get(node.id) && !execInMap.get(node.id)) {
-      erroredNodeIds.push(node.id);
-    }
+    if (valueInMap.get(node.id) && !execInMap.get(node.id)) erroredIds.push(node.id);
   });
 
-  return erroredNodeIds;
+  return erroredIds;
 }
 
+/* ─────────────────────────────────────────
+ * SIMPLE “EMPTY VALUE” VALIDATION
+ * (kept for backward compatibility)
+ * ───────────────────────────────────────── */
 export function validateNodeValues(nodes: Node[]): string[] {
-  const erroredNodeIds: string[] = [];
+  const erroredIds: string[] = [];
 
   nodes.forEach(node => {
-    if (node.data?.details?.fields) {
-      node.data.details.fields.forEach((field: any) => {
-        if (field.value === undefined || field.value === null || field.value === '') {
-          erroredNodeIds.push(node.id);
-        }
-      });
-    }
+    const fields: DominoField[] = node.data?.details?.fields ?? [];
+    fields.forEach(field => {
+      if (field.value === undefined || field.value === null || field.value === '')
+        erroredIds.push(node.id);
+    });
   });
 
-  return erroredNodeIds;
+  return erroredIds;
 }
 
-export function validateAndMarkErrors(
-  nodes: Node[]
-) {
-  const erroredIds: string[] = [];          // collect here
-  const adjacencyList: Record<string, string[]> = {};
+/* ─────────────────────────────────────────
+ * MASTER VALIDATOR USED BEFORE RUN
+ * Adds new rule:
+ *   Iterator must have  (Max === true)  OR  (Limit > 0)
+ * ───────────────────────────────────────── */
+export function validateAndMarkErrors(nodes: Node[]): string[] {
+  const erroredIds: Set<string> = new Set();
 
-  for (const node of nodes) {
-    adjacencyList[node.id] = [];            // still build your graph
-
+  nodes.forEach(node => {
     const fields: DominoField[] = node.data?.details?.fields ?? [];
 
-    const hasMissingRequired = fields.some(
-      (field) =>
-        field.required &&
-        !(field.value?.length) &&           // value is empty
-        !(field.connectedValue?.length)     // AND nothing connected
+    /* ---- Rule 1: any required field empty AND not connected ---- */
+    const missingRequired = fields.some(
+      f =>
+        f.required &&
+        !(f.value?.toString().length) && // empty value
+        !(f.connectedValue?.toString().length),
     );
+    if (missingRequired) erroredIds.add(node.id);
 
-    if (hasMissingRequired) erroredIds.push(node.id);
-  }
+    /* ---- Rule 2: Iterator must have Max true OR positive Limit ---- */
+    if (node.type === 'iterator') {
+      const maxField   = fields.find(f => f.heading === 'Max');
+      const limitField = fields.find(f => f.heading === 'Limit');
 
-  // single, immutable state update – triggers one re-render
-  return erroredIds;
+      const isMaxTrue = Boolean(maxField?.value);
+      const limitVal  = limitField?.value;
+      const limitOk   =
+        limitVal !== undefined &&
+        limitVal !== '' &&
+        !isNaN(Number(limitVal)) &&
+        Number(limitVal) > 0;
+
+      if (!isMaxTrue && !limitOk) erroredIds.add(node.id);
+    }
+  });
+
+  // return as plain array for callers
+  return Array.from(erroredIds);
 }

@@ -150,8 +150,6 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
     }
   }, [data, id, values]);
 
-
-
   const handleChange = (e: any) => {
 
     // const newValue = e.target.value;

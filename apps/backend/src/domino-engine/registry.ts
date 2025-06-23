@@ -5,6 +5,7 @@ import { ApiCallDomino } from "./dominos/apiCall";
 import { ApiTriggerDomino } from "./dominos/apiTrigger";
 import { ArithmeticDomino } from "./dominos/arithmetic";
 import { ConditionDomino } from "./dominos/condition";
+import { IteratorDomino } from "./dominos/iterator";
 
 // Import each domino implementation class:
 import { PrintDomino }   from "./dominos/print";
@@ -26,6 +27,7 @@ class DominoRegistry {
     this.register("condition", ConditionDomino);
     this.register("arithmetic", ArithmeticDomino);
     this.register("switchcase", SwitchCaseDomino);
+    this.register("iterator", IteratorDomino);
     // this.register("arithmetic", ArithmeticDomino);
     // … etc. for all your other domino types …
   }

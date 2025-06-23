@@ -1,9 +1,32 @@
 // domino-engine/types.ts
+
 export interface ExecuteContext {
-  runId: string;                    // same runId we bubble up to SSE
-  input: Record<string, any>;       // outputs of parent dominos
-  globals?: Record<string, any>;    // DB handles, env, secrets, etc.
+  /** Same runId bubbled up to SSE */
+  runId: string;
+
+  /** Aggregated inputs coming from parent dominos */
+  input: Record<string, any>;
+
+  /** Optional global helpers (DB handles, env, secrets, etc.) */
+  globals?: Record<string, any>;
+
+  /* ────────────── Added for state‑ful dominos (Iterator, etc.) ────────────── */
+
+  /** Scratch‑pad that persists for *this* domino for the lifetime of the run */
+  local: Record<string, any>;
+
+  /**
+   * Safe mutator for the scratch‑pad.  
+   * – `setLocal(key, value)` → add / update entry  
+   * – `setLocal(key, undefined)` → delete entry
+   */
+  setLocal: (key: string, value: any) => void;
+
+  /** Allow long‑running dominos to support cooperative cancellation */
+  abortSignal?: AbortSignal;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────── */
 
 export interface DominoExecutable {
   id: string;
@@ -17,5 +40,6 @@ export interface DominoResult {
   output: any;
   startedAt: number;
   finishedAt: number;
+  /** Exec‑out pins to trigger; optional because single‑branch dominos need none */
   nextChainKeys?: string[];
 }

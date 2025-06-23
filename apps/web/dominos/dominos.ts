@@ -3,7 +3,8 @@ import {
   FiPrinter,
   FiGlobe,
   FiZap,
-  FiFileText
+  FiFileText,
+  FiRepeat
 } from 'react-icons/fi';
 
 export default [
@@ -41,5 +42,10 @@ export default [
     id: 'arithmetic',
     label: 'Arithmetic Operator',
     icon: Calculator, // 📄 Represents reading a local file
-  }
+  },
+  {
+    id: 'iterator',
+    label: 'Iterator',
+    icon: FiRepeat,           // 🔁 Iterate over list
+  },
 ];
