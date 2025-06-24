@@ -81,7 +81,7 @@ export class ReadExcelDomino implements DominoExecutable {
     // 3️⃣  Return result
     return {
       id: this.id,
-      output: { fileContent: sheetJSON },
+      output: sheetJSON,
       startedAt,
       finishedAt: Date.now(),
     };

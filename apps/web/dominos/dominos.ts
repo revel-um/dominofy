@@ -3,7 +3,8 @@ import {
   FiPrinter,
   FiGlobe,
   FiZap,
-  FiFileText
+  FiFileText,
+  FiRepeat
 } from 'react-icons/fi';
 
 export default [
@@ -46,5 +47,10 @@ export default [
     id: 'deconstructor',
     label: 'Deconstruct',
     icon: BoomBox, // 📄 Represents reading a local file
-  }
+  },
+  {
+    id: 'iterator',
+    label: 'Iterator',
+    icon: FiRepeat,           // 🔁 Iterate over list
+  },
 ];

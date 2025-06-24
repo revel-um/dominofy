@@ -1,10 +1,9 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { ChangeEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
-import { Dropdown } from '../components/widgets/dropdown';
 import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
 
 export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
@@ -116,6 +115,7 @@ const handleChange = (e: any) => {
               value: inp,
               heading,
               inPinId: `value_in_${idx + 1}`,
+              outPinId: `value_out_${idx + 1}`,
               shouldRender: false,
               required: true
             };
@@ -187,16 +187,14 @@ const handleChange = (e: any) => {
               type="text"
               value={value}
               onChange={e => handleInputChange(index, e.target.value)}
-              placeholder={`Key ${index+1}`}
+              placeholder={`${type == 'object'? 'Key': 'Index'} ${index+1}`}
               name={`Key_${index+1}`}
-            //   readOnly={index === 0}
-            //   disabled={index === 0}
               className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
             />
 
             <DominoPin
-                id={`exec_out_${index+1}`}
-                pinType={PinType.EXEC_OUT}
+                id={`value_out_${index+1}`}
+                pinType={PinType.VALUE_OUT}
                 pinPosition={`calc(${(index + 1) * 34}px + 65px)`}
             />
             <DominoPin

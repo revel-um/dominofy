@@ -54,7 +54,8 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
       } else {
         cleanedData[fieldHeading] = {
           value: field.value,
-          connectedValue: field.connectedValue ?? null,
+          connectedValue: field.connectedValue,
+          connectedPin: field.connectedPin,
         };
       }
     });

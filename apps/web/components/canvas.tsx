@@ -31,6 +31,7 @@ import { DominoField } from "../types/dominoFieldTypes";
 import { FilesApi } from "../apis/files.apis";
 import { useRouter } from "next/router";
 import DeconstrctDomino from "../dominos/deconstructor";
+import IteratorDomino from "../dominos/iterator";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -40,7 +41,8 @@ const nodeTypes = {
   switchcase: SwitchDomino,
   arithmetic: ArithmeticDomino,
   readexcel: ReadExcelDomino,
-  deconstructor: DeconstrctDomino
+  deconstructor: DeconstrctDomino,
+  iterator: IteratorDomino
 };
 
 interface CanvasProps {
@@ -282,6 +284,7 @@ export default function Canvas({
                     field.value = undefined;
                     field.connectedValue = params.source as string;
                     field.file = undefined;
+                    field.connectedPin = params.sourceHandle as string;
                   }
                 });
                 return { ...node, data: { ...node.data, valueConnected: true } };
@@ -393,7 +396,7 @@ export default function Canvas({
     }
   };
 
-  const handleNodeClick = (_: any, node: React.SetStateAction<Node | null> & {id: string}) => {
+  const handleNodeClick = (_: any, node: React.SetStateAction<Node | null> & { id: string }) => {
     if (connectStart && node.id !== connectStart.nodeId) {
       setEdges((prev) => {
         const newEdges = addEdge(
@@ -485,8 +488,8 @@ export default function Canvas({
                 <li key={domino}>
                   <button
                     className={`block w-full text-left px-3 py-2 rounded ${idx === highlightIndex
-                        ? "bg-gray-200 dark:bg-gray-600"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                      ? "bg-gray-200 dark:bg-gray-600"
+                      : "hover:bg-gray-100 dark:hover:bg-gray-700"
                       }`}
                     onClick={() => {
                       onSelectDomino(domino);
