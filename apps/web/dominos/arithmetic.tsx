@@ -16,6 +16,8 @@ import { Trash } from 'lucide-react';
  * 2.  **Always works with an existing `fields` array** (falls back to `[]`) so
  *     the component remains robust if a connection is created immediately
  *     after the node is dropped on the canvas.
+ * 3.  **Captures latest `data.details.fields` inside the sync‑back effect** to
+ *     avoid wiping out `connectedValue` that was set by other hooks/events.
  */
 export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
@@ -58,29 +60,35 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
       f.heading?.startsWith('Operator_'),
     );
 
-    setInputs(additionalInputFields.length ? additionalInputFields.map((f: { value: any; }) => String(f.value ?? '')) : ['']);
-    setOperators(operatorFields.length ? operatorFields.map((f: { value: any; }) => String(f.value ?? '+')) : ['+']);
+    setInputs(
+      additionalInputFields.length
+        ? additionalInputFields.map((f: DominoField) => String(f.value ?? ''))
+        : [''],
+    );
+    setOperators(
+      operatorFields.length
+        ? operatorFields.map((f: DominoField) => String(f.value ?? '+'))
+        : ['+'],
+    );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* ─────────────────────── helper: preserve props ─────────────────────── */
-  const previousFields: DominoField[] = data.details?.fields ?? [];
-  const findPrev = (heading: string) => previousFields.find(f => f.heading === heading);
-
-  const buildField = (
-    base: Omit<DominoField, 'connectedValue' | 'file'> & { heading: string },
-  ): DominoField => {
-    const prev = findPrev(base.heading);
-    return {
-      ...base,
-      // Preserve these two so onConnect mutations survive
-      connectedValue: prev?.connectedValue,
-      file: prev?.file,
-    } as DominoField;
-  };
 
   /* ─────────── sync local state → node.data.details.fields ─────────── */
   useEffect(() => {
     if (!data.setNodes) return;
+
+    // 🔹 Always take the *latest* snapshot of existing fields
+    const prevFields: DominoField[] = data.details?.fields ?? [];
+    const findPrev = (heading: string) => prevFields.find(f => f.heading === heading);
+
+    const buildField = (
+      base: Omit<DominoField, 'connectedValue' | 'file'> & { heading: string },
+    ): DominoField => {
+      const prev = findPrev(base.heading);
+      return {
+        ...prev, // keep every prop we don't explicitly overwrite (connectedValue, file, etc.)
+        ...base,
+      } as DominoField;
+    };
 
     const expectedFields: DominoField[] = [
       buildField({
@@ -145,7 +153,7 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
             },
       ),
     );
-  }, [value, inputs, operators, data.setNodes, id]);
+  }, [value, inputs, operators, data.details?.fields, data.setNodes, id]);
 
   /* ─────────────────────────── ui handlers ─────────────────────────── */
   const addInput = () => {
