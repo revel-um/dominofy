@@ -1,6 +1,7 @@
 // domino-engine/registry.ts
 import { PipelineStep } from "../../../../shared/types/pipelineStepType";
 import { DominoExecutable } from "./domino-engine.type";
+import { AggregatorDomino } from "./dominos/aggregator";
 import { ApiCallDomino } from "./dominos/apiCall";
 import { ApiTriggerDomino } from "./dominos/apiTrigger";
 import { ArithmeticDomino } from "./dominos/arithmetic";
@@ -30,6 +31,7 @@ class DominoRegistry {
     this.register("switchcase", SwitchCaseDomino);
     this.register("iterator", IteratorDomino);
     this.register("deconstructor", DeconstructorDomino);
+    this.register("aggregator", AggregatorDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {

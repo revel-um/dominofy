@@ -1,4 +1,3 @@
-// apps/backend/src/domino-engine/runner.ts
 import { EventEmitter } from "events";
 import PQueue from "p-queue";
 import { buildGraph } from "./graph";
@@ -9,10 +8,9 @@ import { ExecuteContext, DominoResult } from "./domino-engine.type";
 export class Runner extends EventEmitter {
   private queue: PQueue;
   private scheduled = new Set<string>();
-  /** Per-domino scratch-pad that survives across ticks */
-  private localState = new Map<string, Record<string, any>>();
-  /** Dominos that emit multiple value-out pins */
-  private multiOut = new Set<string>();
+  private localState = new Map<string, Record<string, any>>(); // per-domino state
+  private multiOut = new Set<string>();                        // multi-pin dominos
+  private doneFlags = new Map<string, boolean>();              // cascade flags
 
   constructor(private pipeline: PipelineStep[], private maxConcurrency = 20) {
     super();
@@ -29,7 +27,7 @@ export class Runner extends EventEmitter {
     const depsClone = new Map<string, Set<string>>();
     deps.forEach((set, id) => depsClone.set(id, new Set(set)));
 
-    /* quick validation */
+    /* validate */
     for (const [nodeId, depSet] of depsClone) {
       depSet.forEach(depId => {
         if (!depsClone.has(depId)) {
@@ -43,6 +41,7 @@ export class Runner extends EventEmitter {
     const unresolved = new Set(this.pipeline.map(s => s.id));
     this.scheduled.clear();
     this.multiOut.clear();
+    this.doneFlags.clear();
 
     /* schedule roots */
     depsClone.forEach((depSet, nodeId) => {
@@ -68,14 +67,12 @@ export class Runner extends EventEmitter {
       }));
       this.emit("deadlock", pending);
       this.cleanup();
-      const msg =
+      throw new Error(
         `[Runner] Dead-lock: the following dominos could not be scheduled:\n` +
-        pending
-          .map(
-            p => ` • ${p.id}  ←  ${p.waitingFor.join(", ") || "??"}`,
-          )
-          .join("\n");
-      throw new Error(msg);
+          pending
+            .map(p => ` • ${p.id}  ←  ${p.waitingFor.join(", ") || "??"}`)
+            .join("\n"),
+      );
     }
 
     this.emit("terminate", results);
@@ -91,6 +88,7 @@ export class Runner extends EventEmitter {
     this.scheduled.clear();
     this.localState.clear();
     this.multiOut.clear();
+    this.doneFlags.clear();
     this.removeAllListeners();
   }
 
@@ -118,6 +116,8 @@ export class Runner extends EventEmitter {
     );
   }
 
+  /* ───────────────────── execute one node ───────────────────── */
+
   private async executeNode(
     id: string,
     runId: string,
@@ -130,12 +130,12 @@ export class Runner extends EventEmitter {
     this.scheduled.delete(id);
 
     const step = this.pipeline.find(n => n.id === id);
-    if (!step)
-      throw new Error(`[Runner] Node ${id} not found in pipeline array`);
+    if (!step) throw new Error(`[Runner] Node ${id} not found in pipeline`);
 
     try {
-      /* 1️⃣ Build runtime inputs */
+      /* 1️⃣  build runtimeInputs & gather upstream done flag */
       const runtimeInputs: Record<string, any> = {};
+      let upstreamDone = false;
 
       for (const [fieldName, fieldObj] of Object.entries(step.data)) {
         const obj = fieldObj as any;
@@ -153,14 +153,12 @@ export class Runner extends EventEmitter {
           const upstreamIsMulti = this.multiOut.has(upstreamId);
 
           if (upstreamIsMulti) {
-            /* must have connectedPin */
             const pin = obj.connectedPin as string | undefined;
-            if (!pin) {
+            if (!pin)
               throw new Error(
-                `Node ${id} is wired to multi-output domino "${upstreamId}" ` +
+                `Node ${id} wired to multi-output "${upstreamId}" ` +
                   `but field "${fieldName}" lacks connectedPin.`,
               );
-            }
             if (
               typeof upstreamOutput !== "object" ||
               upstreamOutput === null ||
@@ -173,15 +171,17 @@ export class Runner extends EventEmitter {
             }
             runtimeInputs[fieldName] = upstreamOutput[pin];
           } else {
-            /* single-output domino: pass whole value */
             runtimeInputs[fieldName] = upstreamOutput;
           }
+
+          /* propagate done flag from this parent */
+          if (this.doneFlags.get(upstreamId)) upstreamDone = true;
         } else {
           runtimeInputs[fieldName] = obj.value;
         }
       }
 
-      /* 2️⃣ Instantiate domino & build context */
+      /* 2️⃣  instantiate domino & build ExecuteContext */
       const domino = dominoRegistry.instantiate(step);
 
       const combinedInput =
@@ -204,16 +204,21 @@ export class Runner extends EventEmitter {
         globals: globalInput,
         local,
         setLocal,
+        done: upstreamDone,            // ← done flag exposed here
       };
 
-      /* 3️⃣ Execute domino */
+      /* 3️⃣  execute */
       const res: DominoResult = await domino.execute(ctx);
       this.emit("done", res);
+
+      /* cascade done flag */
+      const nodeDone = upstreamDone || (res as any).done === true;
+      this.doneFlags.set(id, nodeDone);
 
       results[id] = res.output;
       if ((res as any).isMultiOutPinDomino) this.multiOut.add(id);
 
-      /* iterator re-queue */
+      /* iterator requeue */
       const hasCursor = Object.keys(local).some(k =>
         k.startsWith(`iterator_cursor_${id}`),
       );
@@ -232,7 +237,7 @@ export class Runner extends EventEmitter {
       /* mark executed */
       unresolved.delete(id);
 
-      /* dep-graph update */
+      /* dep-graph maintenance */
       const allChildren = children.get(id) || [];
       allChildren.forEach(childId => deps.get(childId)!.delete(id));
 
@@ -255,19 +260,14 @@ export class Runner extends EventEmitter {
         }
         res.nextChainKeys
           .filter(k => step.next[k])
-          .forEach(k =>
-            step.next[k].forEach(cid => branchChildren.add(cid)),
-          );
+          .forEach(k => step.next[k].forEach(cid => branchChildren.add(cid)));
       }
 
-      /* queue eligible children */
+      /* enqueue eligible children */
       for (const childId of allChildren) {
         const childDeps = deps.get(childId)!;
         if (childDeps.size > 0) continue;
-        if (
-          controlChildren.has(childId) &&
-          !branchChildren.has(childId)
-        )
+        if (controlChildren.has(childId) && !branchChildren.has(childId))
           continue;
         this.scheduleNode(
           childId,
@@ -281,7 +281,7 @@ export class Runner extends EventEmitter {
       }
     } catch (err) {
       this.emit("error", { nodeId: id, error: err });
-      // unresolved → dead-lock detector handles it
+      /* leave node in unresolved; dead-lock detector will handle */
     }
   }
 }

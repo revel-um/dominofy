@@ -1,3 +1,4 @@
+// src/dominos/arithmetic.tsx
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
@@ -6,30 +7,22 @@ import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
 
-/**
- * ArithmeticDomino
- * ---------------
- * Fixes:
- * 1.  **Preserves `connectedValue` & `file`** when syncing local state back to
- *     `node.data.details.fields` so that a value‑pin connection made via
- *     `onConnect` is never lost.
- * 2.  **Always works with an existing `fields` array** (falls back to `[]`) so
- *     the component remains robust if a connection is created immediately
- *     after the node is dropped on the canvas.
- * 3.  **Captures latest `data.details.fields` inside the sync‑back effect** to
- *     avoid wiping out `connectedValue` that was set by other hooks/events.
- */
+/* ───────────────────────── Types */
+type CaseRow = string;
+
+/* ───────────────────────── Component */
 export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const [prevTop, setPrevTop] = useState(130);
 
-  /* ────────────────────────── state ────────────────────────── */
-  const [value, setValue] = useState(''); // first input value
-  const [inputs, setInputs] = useState<string[]>(['']); // additional inputs
-  const [operators, setOperators] = useState<string[]>(() => inputs.map(() => '+'));
+  /* ─────────── local state ─────────── */
+  const [value, setValue] = useState('');
+  const [inputs, setInputs] = useState<string[]>(['']);
+  const [operators, setOperators] = useState<string[]>(() =>
+    inputs.map(() => '+')
+  );
 
-  /* ──────────────────────── constants ──────────────────────── */
+  /* dropdown options */
   const options: DominoFieldOption[] = [
     { label: '+', value: '+' },
     { label: '*', value: '*' },
@@ -39,248 +32,223 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
     { label: '^', value: '^' },
   ];
 
-  /* ───────────── keep operators array length in sync ───────────── */
+  /* keep operators length in sync with inputs */
   useEffect(() => {
-    setOperators(prev => {
-      if (inputs.length > prev.length) return [...prev, ...inputs.slice(prev.length).map(() => '+')];
-      if (inputs.length < prev.length) return prev.slice(0, inputs.length);
-      return prev;
-    });
+    setOperators(prev =>
+      inputs.length > prev.length
+        ? [...prev, ...Array(inputs.length - prev.length).fill('+')]
+        : prev.slice(0, inputs.length)
+    );
   }, [inputs]);
 
-  /* ─────────────── initial load from existing node data ─────────────── */
+  /* load from saved node data once */
   useEffect(() => {
-    const mainField = data?.details?.fields?.find((f: DominoField) => f.heading === 'Input_1');
-    if (mainField && typeof mainField.value === 'string') setValue(mainField.value);
+    const fields = data.details?.fields ?? [];
+    const f1 = fields.find((f: { heading: string; }) => f.heading === 'Input_1');
+    if (f1 && typeof f1.value === 'string') setValue(f1.value);
 
-    const additionalInputFields = (data?.details?.fields ?? []).filter(
-      (f: DominoField) => f.heading?.startsWith('Input_') && f.heading !== 'Input_1',
-    );
-    const operatorFields = (data?.details?.fields ?? []).filter((f: DominoField) =>
-      f.heading?.startsWith('Operator_'),
-    );
+    const moreInputs = fields
+      .filter((f: { heading: string; }) => f.heading?.startsWith('Input_') && f.heading !== 'Input_1')
+      .map((f: { value: any; }) => String(f.value ?? ''));
 
-    setInputs(
-      additionalInputFields.length
-        ? additionalInputFields.map((f: DominoField) => String(f.value ?? ''))
-        : [''],
-    );
-    setOperators(
-      operatorFields.length
-        ? operatorFields.map((f: DominoField) => String(f.value ?? '+'))
-        : ['+'],
-    );
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const savedOps = fields
+      .filter((f: { heading: string; }) => f.heading?.startsWith('Operator_'))
+      .map((f: { value: any; }) => String(f.value ?? '+'));
 
-  /* ─────────── sync local state → node.data.details.fields ─────────── */
+    if (moreInputs.length) setInputs(moreInputs);
+    if (savedOps.length) setOperators(savedOps);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* sync → node data, preserving connectedValue / file */
   useEffect(() => {
     if (!data.setNodes) return;
 
-    // 🔹 Always take the *latest* snapshot of existing fields
-    const prevFields: DominoField[] = data.details?.fields ?? [];
-    const findPrev = (heading: string) => prevFields.find(f => f.heading === heading);
+    const prevFlds: DominoField[] = data.details?.fields ?? [];
+    const getOld = (h: string) => prevFlds.find(f => f.heading === h);
 
-    const buildField = (
-      base: Omit<DominoField, 'connectedValue' | 'file'> & { heading: string },
-    ): DominoField => {
-      const prev = findPrev(base.heading);
-      return {
-        ...prev, // keep every prop we don't explicitly overwrite (connectedValue, file, etc.)
-        ...base,
-      } as DominoField;
-    };
+    const makeField = (
+      base: Omit<DominoField, 'connectedValue' | 'file'> & { heading: string }
+    ): DominoField => ({ ...getOld(base.heading), ...base } as DominoField);
 
-    const expectedFields: DominoField[] = [
-      buildField({
+    const newFields: DominoField[] = [
+      makeField({
         type: 'textInput',
-        placeholder: 'Input 1',
-        value,
-        required: true,
         heading: 'Input_1',
+        value,
+        placeholder: 'Input 1',
+        required: true,
         shouldRender: false,
         inPinId: 'value_in_1',
       }),
-      ...inputs.flatMap((inp, idx) => [
-        buildField({
+      ...inputs.flatMap((v, i) => [
+        makeField({
           type: 'dropdown',
+          heading: `Operator_${i + 1}`,
+          value: operators[i],
           options,
-          value: operators[idx],
           required: true,
-          heading: `Operator_${idx + 1}`,
           shouldRender: false,
         }),
-        buildField({
+        makeField({
           type: 'textInput',
-          value: inp,
+          heading: `Input_${i + 2}`,
+          value: v,
           required: true,
-          heading: `Input_${idx + 2}`,
           shouldRender: false,
-          inPinId: `value_in_${idx + 2}`,
+          inPinId: `value_in_${i + 2}`,
         }),
       ]),
     ];
 
-    const expectedExport = [
-      'Input_1',
-      ...inputs.map((_, i) => `Input_${i + 2}`),
-      ...operators.map((_, i) => `Operator_${i + 1}`),
-    ];
-
-    const existingFields = data.details?.fields ?? [];
-    const existingExport = (data.exportFields as string[]) ?? [];
-
-    // If nothing changed (deep compare), bail early
-    if (
-      JSON.stringify(existingFields) === JSON.stringify(expectedFields) &&
-      JSON.stringify(existingExport) === JSON.stringify(expectedExport)
-    )
-      return;
-
     data.setNodes((nodes: any[]) =>
-      nodes.map(node =>
-        node.id !== id
-          ? node
-          : {
-              ...node,
+      nodes.map((n: { id: string; data: { details: any; }; }) =>
+        n.id === id
+          ? {
+              ...n,
               data: {
-                ...node.data,
-                exportFields: expectedExport,
-                details: {
-                  ...node.data.details,
-                  fields: expectedFields,
-                },
+                ...n.data,
+                details: { ...n.data.details, fields: newFields },
+                exportFields: newFields.map(f => f.heading),
               },
-            },
-      ),
+            }
+          : n
+      )
     );
-  }, [value, inputs, operators, data.details?.fields, data.setNodes, id]);
+  }, [value, inputs, operators, data.setNodes, id]);
 
-  /* ─────────────────────────── ui handlers ─────────────────────────── */
+  /* ─────────── ui handlers ─────────── */
   const addInput = () => {
     clearValidationForDominoId(id);
-    setInputs(prev => [...prev, '']);
-    setOperators(prev => [...prev, '+']);
-    setPrevTop(prev => prev + 80);
+    setInputs(p => [...p, '']);
+    setOperators(p => [...p, '+']);
   };
 
-  const removeInput = (index: number) => {
+  const removeInput = (i: number) => {
     clearValidationForDominoId(id);
-    setInputs(prev => prev.filter((_, i) => i !== index));
-    setOperators(prev => prev.filter((_, i) => i !== index));
-    setPrevTop(prev => prev - 80);
+    setInputs(p => p.filter((_, idx) => idx !== i));
+    setOperators(p => p.filter((_, idx) => idx !== i));
   };
 
-  const handleInputChange = (index: number, newVal: string) => {
-    clearValidationForDominoId(id);
-    setInputs(prev => {
-      const copy = [...prev];
-      copy[index] = newVal;
-      return copy;
-    });
-  };
-
-  const handleOperatorChange = (index: number, newOp: string) => {
-    clearValidationForDominoId(id);
-    setOperators(prev => {
-      const copy = [...prev];
-      copy[index] = newOp;
-      return copy;
-    });
-  };
-
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleMainChange = (e: ChangeEvent<HTMLInputElement>) => {
     clearValidationForDominoId(id);
     setValue(e.target.value);
   };
 
-  /* ─────────────────────────── render ─────────────────────────── */
+  /* ───────────── render ───────────── */
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-hidden shadow-sm ${
-        hasError
-          ? 'border-red-500 border-4'
-          : selected
-          ? 'selected-border border-4'
-          : 'unselected-border dark:border-gray-600'
-      } bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
+        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
+        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      style={{ minWidth: '13rem' }}
     >
+      {/* header with exec pins */}
       <div
-        className="relative px-3 py-2 text-sm font-semibold text-white border-b"
+        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
         style={{
           backgroundColor: '#6366f1',
           borderBottomColor: '#4f46e5',
-          display: 'flex',
-          justifyContent: 'space-between',
+          borderRadius: '0.23rem 0.23rem 0 0',
         }}
       >
-        Arithmetic
+        <div className="flex items-center gap-1">
+          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+          <span>Arithmetic</span>
+        </div>
+        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      <div className="px-3 py-2">
-        {/* First input */}
+      {/* first input */}
+      <div className="px-3 py-2 flex items-center gap-2 relative">
+        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
         <input
           type="text"
           value={value}
-          onChange={handleChange}
+          onChange={handleMainChange}
           placeholder="Input 1"
-          className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
+          className="flex-1 px-2 py-1 text-sm border rounded
+                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                     text-dominofy-light-text dark:text-dominofy-dark-text"
         />
-        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} pinPosition="60px" />
+      </div>
 
-        {/* Additional inputs */}
-        {inputs.map((inputVal, index) => (
-          <div key={index} className="mb-1 flex items-center">
+      {/* additional rows */}
+      <div className="flex flex-col gap-2">
+        {inputs.map((val, i) => (
+          <div key={i} className="flex items-center gap-2 relative px-3">
+            <DominoPin id={`value_in_${i + 2}`} pinType={PinType.VALUE_IN} inline />
+
             <select
-              value={operators[index]}
-              onChange={e => handleOperatorChange(index, e.target.value)}
-              className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mr-2"
+              value={operators[i]}
+              onChange={e =>
+                setOperators(prev => {
+                  const c = [...prev];
+                  c[i] = e.target.value;
+                  return c;
+                })
+              }
+              className="px-2 py-1 text-sm border rounded
+                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                         text-dominofy-light-text dark:text-dominofy-dark-text"
             >
-              {options.map(opt => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+              {options.map(o => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </select>
+
             <input
               type="text"
-              value={inputVal}
-              onChange={e => handleInputChange(index, e.target.value)}
-              placeholder={`Input ${index + 2}`}
-              className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+              value={val}
+              onChange={e => {
+                const nv = e.target.value;
+                setInputs(prev => {
+                  const c = [...prev];
+                  c[i] = nv;
+                  return c;
+                });
+              }}
+              placeholder={`Input ${i + 2}`}
+              className="flex-1 px-2 py-1 text-sm border rounded
+                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                         text-dominofy-light-text dark:text-dominofy-dark-text"
             />
-            <DominoPin
-              id={`value_in_${index + 2}`}
-              pinType={PinType.VALUE_IN}
-              pinPosition={`calc(${(index + 1) * 34}px + 60px)`}
-            />
+
             {inputs.length > 1 && (
               <button
-                onClick={() => removeInput(index)}
-                className="ml-2 p-1 bg-red-500 text-white rounded"
+                onClick={() => removeInput(i)}
+                className="p-1 bg-red-500 text-white rounded ml-1"
               >
-                <Trash size={16} />
+                <Trash size={14} />
               </button>
             )}
           </div>
         ))}
       </div>
 
+      {/* add button */}
       <div className="px-3 py-2">
         <button
           onClick={addInput}
-          className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+          className="px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
         >
           Add Input
         </button>
       </div>
 
-      {/* Exec & value pins */}
-      <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition="20px" />
-      <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition="20px" />
-      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} pinPosition="50%" />
+      {/* output row */}
+      <div className="px-3 py-2 flex items-center relative justify-between">
+        <div></div>
+        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
+          Output
+        </span>
+        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+      </div>
 
       {hasError && (
-        <p className="mt-1 text-xs text-red-500">
+        <p className="px-3 pb-2 text-xs text-red-500">
           ⚠️ Value input pin is connected but execution pin is missing.
         </p>
       )}
