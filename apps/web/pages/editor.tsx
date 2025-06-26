@@ -271,7 +271,10 @@ const EditorPage: React.FC = () => {
         isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
       )}>
         <div className="flex items-center">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
+          <h1 className={cn(
+            'text-xl font-bold',
+            isDarkMode ? 'text-white' : 'text-black'
+          )}>
             Code Editor
           </h1>
         </div>
@@ -300,6 +303,12 @@ const EditorPage: React.FC = () => {
               size="sm"
               onClick={() => setShowConnectionForm(true)}
               disabled={isLoading}
+              className={cn(
+                'border',
+                isDarkMode 
+                  ? 'border-gray-600 hover:bg-gray-700 hover:border-gray-500 text-gray-200' 
+                  : 'border-gray-300 hover:bg-gray-100 text-gray-700'
+              )}
             >
               Connect to Database
             </Button>
