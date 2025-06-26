@@ -114,6 +114,21 @@
   ============================================ 
 */
 
+/* assume border: 4px, so half is 2px */
+/* left‐side handles */
+.react-flow__handle.handle-inline-left {
+  left: 0 !important;             /* at inner edge */
+  top: 50% !important;            /* vertical center */
+  transform: translate(calc(-50% - 1px), -50%) !important;
+}
+
+/* right‐side handles */
+.react-flow__handle.handle-inline-right {
+  right: 0 !important;            /* at inner edge */
+  top: 50% !important;
+  transform: translate(calc(50% + 1px), -50%) !important;
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

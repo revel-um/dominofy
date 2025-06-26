@@ -42,7 +42,7 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
     exportFields.forEach(fieldHeading => {
       const field = fields.find((f: any) => f.heading === fieldHeading);
       if (!field) return;
-      const override = field.exportOverride;
+      const override = field.connectedValue ? undefined : field.exportOverride;
       if (Array.isArray(override)) {
         const overrideObject: Record<string, any> = {};
         override.forEach(name => {
@@ -54,7 +54,8 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
       } else {
         cleanedData[fieldHeading] = {
           value: field.value,
-          connectedValue: field.connectedValue ?? null,
+          connectedValue: field.connectedValue,
+          connectedPin: field.connectedPin,
         };
       }
     });

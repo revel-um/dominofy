@@ -1,3 +1,4 @@
+// src/dominos/arithmetic.tsx
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
@@ -6,241 +7,248 @@ import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
 
+/* ───────────────────────── Types */
+type CaseRow = string;
+
+/* ───────────────────────── Component */
 export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const [prevTop, setPrevTop] = useState(130);
 
-  // "value" holds the first input's text
-  const [value, setValue] = useState("");
+  /* ─────────── local state ─────────── */
+  const [value, setValue] = useState('');
+  const [inputs, setInputs] = useState<string[]>(['']);
+  const [operators, setOperators] = useState<string[]>(() =>
+    inputs.map(() => '+')
+  );
 
-  // inputs array holds the text of each "additional" input (beyond the first one)
-  const [inputs, setInputs] = useState<string[]>([""]);
-
-  // operators array holds one operator per additional input
-  const [operators, setOperators] = useState<string[]>(() => inputs.map(() => "+"));
-
-  // available operator choices:
+  /* dropdown options */
   const options: DominoFieldOption[] = [
-    { label: "+", value: "+" },
-    { label: "*", value: "*" },
-    { label: "-", value: "-" },
-    { label: "/", value: "/" },
-    { label: "%", value: "%" },
-    { label: "^", value: "^" },
+    { label: '+', value: '+' },
+    { label: '*', value: '*' },
+    { label: '-', value: '-' },
+    { label: '/', value: '/' },
+    { label: '%', value: '%' },
+    { label: '^', value: '^' },
   ];
 
-  // Keep operators in sync with inputs length
+  /* keep operators length in sync with inputs */
   useEffect(() => {
-    setOperators(prev => {
-      if (inputs.length > prev.length) return [...prev, ...inputs.slice(prev.length).map(() => "+")];
-      if (inputs.length < prev.length) return prev.slice(0, inputs.length);
-      return prev;
-    });
+    setOperators(prev =>
+      inputs.length > prev.length
+        ? [...prev, ...Array(inputs.length - prev.length).fill('+')]
+        : prev.slice(0, inputs.length)
+    );
   }, [inputs]);
 
-  // Initialize once from details.fields
+  /* load from saved node data once */
   useEffect(() => {
-    // load the main Input_1 value
-    const main = data?.details?.fields?.find((f: DominoField) => f.heading === 'Input_1');
-    if (main && main.value !== value) {
-      setValue(main.value as string);
-    }
+    const fields = data.details?.fields ?? [];
+    const f1 = fields.find((f: { heading: string; }) => f.heading === 'Input_1');
+    if (f1 && typeof f1.value === 'string') setValue(f1.value);
 
-    // only additional fields beyond Input_1
-    const caseFields = data?.details?.fields?.filter(
-      (f: DominoField) => f.heading?.startsWith('Input_') && f.heading !== 'Input_1'
-    ) || [];
-    const caseOperatorFields = data?.details?.fields?.filter(
-      (f: DominoField) => f.heading?.startsWith('Operator_')
-    ) || [];
+    const moreInputs = fields
+      .filter((f: { heading: string; }) => f.heading?.startsWith('Input_') && f.heading !== 'Input_1')
+      .map((f: { value: any; }) => String(f.value ?? ''));
 
-    setInputs(
-      caseFields.length > 0
-        ? caseFields.map((f: { value: string; }) => f.value as string)
-        : ['']
-    );
+    const savedOps = fields
+      .filter((f: { heading: string; }) => f.heading?.startsWith('Operator_'))
+      .map((f: { value: any; }) => String(f.value ?? '+'));
 
-    setOperators(
-      caseOperatorFields.length > 0
-        ? caseOperatorFields.map((f: { value: string; }) => f.value as string)
-        : ['+']
-    );
+    if (moreInputs.length) setInputs(moreInputs);
+    if (savedOps.length) setOperators(savedOps);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync React state back into node.data only when it actually changes
+  /* sync → node data, preserving connectedValue / file */
   useEffect(() => {
     if (!data.setNodes) return;
 
-    // Build expected fields & exportFields
-    const expectedFields: DominoField[] = [
-      {
+    const prevFlds: DominoField[] = data.details?.fields ?? [];
+    const getOld = (h: string) => prevFlds.find(f => f.heading === h);
+
+    const makeField = (
+      base: Omit<DominoField, 'connectedValue' | 'file'> & { heading: string }
+    ): DominoField => ({ ...getOld(base.heading), ...base } as DominoField);
+
+    const newFields: DominoField[] = [
+      makeField({
         type: 'textInput',
-        placeholder: 'Your Switch Value Here',
-        value,
-        required: true,
         heading: 'Input_1',
+        value,
+        placeholder: 'Input 1',
+        required: true,
         shouldRender: false,
         inPinId: 'value_in_1',
-      },
-      ...inputs.flatMap((inp, idx) => [
-        {
-          type: 'dropdown' as DominoField['type'],
+      }),
+      ...inputs.flatMap((v, i) => [
+        makeField({
+          type: 'dropdown',
+          heading: `Operator_${i + 1}`,
+          value: operators[i],
           options,
-          value: operators[idx],
           required: true,
-          heading: `Operator_${idx + 1}`,
           shouldRender: false,
-        },
-        {
-          type: 'textInput' as DominoField['type'],
-          value: inp,
+        }),
+        makeField({
+          type: 'textInput',
+          heading: `Input_${i + 2}`,
+          value: v,
           required: true,
-          heading: `Input_${idx + 2}`,
           shouldRender: false,
-          inPinId: `value_in_${idx + 2}`,
-        },
+          inPinId: `value_in_${i + 2}`,
+        }),
       ]),
     ];
 
-    const expectedExport = [
-      'Input_1',
-      ...inputs.map((_, i) => `Input_${i + 2}`),
-      ...operators.map((_, i) => `Operator_${i + 1}`),
-    ];
-
-    const existing = data.details?.fields ?? [];
-    const existingExp = (data.exportFields as string[]) ?? [];
-
-    if (
-      JSON.stringify(existing) === JSON.stringify(expectedFields) &&
-      JSON.stringify(existingExp) === JSON.stringify(expectedExport)
-    ) {
-      return;
-    }
-
     data.setNodes((nodes: any[]) =>
-      nodes.map((node: { id: string; data: { details: any; }; }) =>
-        node.id !== id
-          ? node
-          : {
-              ...node,
+      nodes.map((n: { id: string; data: { details: any; }; }) =>
+        n.id === id
+          ? {
+              ...n,
               data: {
-                ...node.data,
-                exportFields: expectedExport,
-                details: {
-                  ...node.data.details,
-                  fields: expectedFields,
-                },
+                ...n.data,
+                details: { ...n.data.details, fields: newFields },
+                exportFields: newFields.map(f => f.heading),
               },
             }
+          : n
       )
     );
-  }, [inputs, operators, value, data.setNodes, id, options]);
+  }, [value, inputs, operators, data.setNodes, id]);
 
+  /* ─────────── ui handlers ─────────── */
   const addInput = () => {
-    setInputs(prev => [...prev, '']);
-    setOperators(prev => [...prev, '+']);
-    setPrevTop(prev => prev + 80);
-  };
-
-  const removeInput = (index: number) => {
-    setInputs(prev => prev.filter((_, i) => i !== index));
-    setOperators(prev => prev.filter((_, i) => i !== index));
-    setPrevTop(prev => prev - 80);
-  };
-
-  const handleInputChange = (index: number, newVal: string) => {
     clearValidationForDominoId(id);
-    setInputs(prev => {
-      const copy = [...prev];
-      copy[index] = newVal;
-      return copy;
-    });
+    setInputs(p => [...p, '']);
+    setOperators(p => [...p, '+']);
   };
 
-  const handleOperatorChange = (index: number, newOp: string) => {
-    setOperators(prev => {
-      const copy = [...prev];
-      copy[index] = newOp;
-      return copy;
-    });
+  const removeInput = (i: number) => {
+    clearValidationForDominoId(id);
+    setInputs(p => p.filter((_, idx) => idx !== i));
+    setOperators(p => p.filter((_, idx) => idx !== i));
   };
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => setValue(e.target.value);
+  const handleMainChange = (e: ChangeEvent<HTMLInputElement>) => {
+    clearValidationForDominoId(id);
+    setValue(e.target.value);
+  };
 
+  /* ───────────── render ───────────── */
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-hidden shadow-sm
-        ${hasError ? 'border-red-500 border-4' : selected ? 'selected-border border-4' : 'unselected-border dark:border-gray-600'}
+      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
+        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      style={{ minWidth: '13rem' }}
     >
+      {/* header with exec pins */}
       <div
-        className="relative px-3 py-2 text-sm font-semibold text-white border-b"
+        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
         style={{
           backgroundColor: '#6366f1',
           borderBottomColor: '#4f46e5',
-          display: 'flex',
-          justifyContent: 'space-between',
+          borderRadius: '0.23rem 0.23rem 0 0',
         }}
       >
-        Arithmetic
+        <div className="flex items-center gap-1">
+          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+          <span>Arithmetic</span>
+        </div>
+        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      <div className="px-3 py-2">
-        {/* First input */}
+      {/* first input */}
+      <div className="px-3 py-2 flex items-center gap-2 relative">
+        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
         <input
           type="text"
           value={value}
-          onChange={handleChange}
+          onChange={handleMainChange}
           placeholder="Input 1"
-          className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
+          className="flex-1 px-2 py-1 text-sm border rounded
+                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                     text-dominofy-light-text dark:text-dominofy-dark-text"
         />
-        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} pinPosition="60px" />
+      </div>
 
-        {/* Additional inputs */}
-        {inputs.map((inputVal, index) => (
-          <div key={index} className="mb-1 flex items-center">
+      {/* additional rows */}
+      <div className="flex flex-col gap-2">
+        {inputs.map((val, i) => (
+          <div key={i} className="flex items-center gap-2 relative px-3">
+            <DominoPin id={`value_in_${i + 2}`} pinType={PinType.VALUE_IN} inline />
+
             <select
-              value={operators[index]}
-              onChange={e => handleOperatorChange(index, e.target.value)}
-              className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mr-2"
+              value={operators[i]}
+              onChange={e =>
+                setOperators(prev => {
+                  const c = [...prev];
+                  c[i] = e.target.value;
+                  return c;
+                })
+              }
+              className="px-2 py-1 text-sm border rounded
+                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                         text-dominofy-light-text dark:text-dominofy-dark-text"
             >
-              {options.map(opt => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+              {options.map(o => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </select>
+
             <input
               type="text"
-              value={inputVal}
-              onChange={e => handleInputChange(index, e.target.value)}
-              placeholder={`Input ${index + 2}`}
-              className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+              value={val}
+              onChange={e => {
+                const nv = e.target.value;
+                setInputs(prev => {
+                  const c = [...prev];
+                  c[i] = nv;
+                  return c;
+                });
+              }}
+              placeholder={`Input ${i + 2}`}
+              className="flex-1 px-2 py-1 text-sm border rounded
+                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                         text-dominofy-light-text dark:text-dominofy-dark-text"
             />
-            <DominoPin id={`value_in_${index + 2}`} pinType={PinType.VALUE_IN} pinPosition={`calc(${(index + 1) * 34}px + 60px)`} />
+
             {inputs.length > 1 && (
-              <button onClick={() => removeInput(index)} className="ml-2 p-1 bg-red-500 text-white rounded">
-                <Trash size={16} />
+              <button
+                onClick={() => removeInput(i)}
+                className="p-1 bg-red-500 text-white rounded ml-1"
+              >
+                <Trash size={14} />
               </button>
             )}
           </div>
         ))}
       </div>
 
+      {/* add button */}
       <div className="px-3 py-2">
-        <button onClick={addInput} className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+        <button
+          onClick={addInput}
+          className="px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
+        >
           Add Input
         </button>
       </div>
 
-      <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition="20px" />
-      <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition="20px" />
-      <DominoPin id="value_out" pinType={PinType.VALUE_OUT} pinPosition="50%" />
+      {/* output row */}
+      <div className="px-3 py-2 flex items-center relative justify-between">
+        <div></div>
+        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
+          Output
+        </span>
+        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+      </div>
 
       {hasError && (
-        <p className="mt-1 text-xs text-red-500">
+        <p className="px-3 pb-2 text-xs text-red-500">
           ⚠️ Value input pin is connected but execution pin is missing.
         </p>
       )}

@@ -1,13 +1,16 @@
 // domino-engine/registry.ts
 import { PipelineStep } from "../../../../shared/types/pipelineStepType";
 import { DominoExecutable } from "./domino-engine.type";
+import { AggregatorDomino } from "./dominos/aggregator";
 import { ApiCallDomino } from "./dominos/apiCall";
 import { ApiTriggerDomino } from "./dominos/apiTrigger";
 import { ArithmeticDomino } from "./dominos/arithmetic";
 import { ConditionDomino } from "./dominos/condition";
+import { DeconstructorDomino } from "./dominos/deconstructor";
+import { IteratorDomino } from "./dominos/iterator";
 
 // Import each domino implementation class:
-import { PrintDomino }   from "./dominos/print";
+import { PrintDomino } from "./dominos/print";
 import { ReadExcelDomino } from "./dominos/readExcel";
 import { SwitchCaseDomino } from "./dominos/switchCase";
 // … import other dominos here …
@@ -20,14 +23,15 @@ class DominoRegistry {
   constructor() {
     // Register each type → its class constructor:
     this.register("apicall", ApiCallDomino);
-    this.register("print",   PrintDomino);
+    this.register("print", PrintDomino);
     this.register("apitrigger", ApiTriggerDomino);
     this.register("readexcel", ReadExcelDomino);
     this.register("condition", ConditionDomino);
     this.register("arithmetic", ArithmeticDomino);
     this.register("switchcase", SwitchCaseDomino);
-    // this.register("arithmetic", ArithmeticDomino);
-    // … etc. for all your other domino types …
+    this.register("iterator", IteratorDomino);
+    this.register("deconstructor", DeconstructorDomino);
+    this.register("aggregator", AggregatorDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {

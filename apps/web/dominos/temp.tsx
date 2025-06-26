@@ -2,7 +2,6 @@ import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { ChangeEvent, useEffect, useState } from 'react';
-import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
 

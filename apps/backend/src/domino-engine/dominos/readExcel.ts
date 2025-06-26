@@ -1,52 +1,89 @@
 import { DominoExecutable, ExecuteContext, DominoResult } from "../domino-engine.type";
-import axios from 'axios';
-import * as XLSX from 'xlsx'; // If using excel parsing
+import axios from "axios";
+import * as XLSX from "xlsx";
 import { PipelineStep } from "../../../../../shared/types/pipelineStepType";
 
 export class ReadExcelDomino implements DominoExecutable {
-    id: string;
-    fileUrl?: string;
-    type: string;
+  id: string;
+  private staticFileUrl?: string;
+  type = "readexcel" as const;
 
+  constructor(node: PipelineStep) {
+    this.id = node.id;
+    this.staticFileUrl = node?.data?.File?.url;
+  }
 
-    constructor(node: PipelineStep) {
-        this.id = node.id;
+  /** ─────────────────────────────────────────────────────────
+   *  Scan ctx.input for either:
+   *    • { File: { file: { buffer, originalname } } }   ← NEW
+   *    • { url: "…xls/xlsx" }
+   *  Returns { buffer }  or  { url }  or  undefined.
+   *  ────────────────────────────────────────────────────────*/
+  private extractDynamicFile(
+    input: Record<string, any>
+  ): { buffer: Buffer; name: string } | { url: string } | undefined {
+    const walk = (val: any): any => {
+      if (!val || typeof val !== "object") return undefined;
 
-        this.fileUrl = node?.data?.File?.url;
+      // Case A: Buffered file object
+      if (
+        val.file?.buffer &&
+        val.file?.originalname &&
+        /\.(xls|xlsx)$/i.test(val.file.originalname)
+      ) {
+        return { buffer: Buffer.from(val.file.buffer), name: val.file.originalname };
+      }
+
+      // Case B: Direct url property
+      if (typeof val.url === "string" && /\.(xls|xlsx)$/i.test(val.url)) {
+        return { url: val.url };
+      }
+
+      // Recurse into nested values
+      for (const nested of Object.values(val)) {
+        const found = walk(nested);
+        if (found) return found;
+      }
+      return undefined;
+    };
+
+    return walk(input);
+  }
+
+  async execute(ctx: ExecuteContext): Promise<DominoResult> {
+    const startedAt = Date.now();
+
+    // 1️⃣  Find dynamic file (buffer OR url)
+    const dynamic = this.extractDynamicFile(ctx.input ?? {});
+    let buffer: Buffer | undefined;
+
+    if (dynamic && "buffer" in dynamic) {
+      // a) Got buffer directly ✔
+      buffer = dynamic.buffer;
+    } else {
+      // b) Need a URL (dynamic url → static url)
+      const fileUrl = dynamic && "url" in dynamic ? dynamic.url : this.staticFileUrl;
+      if (!fileUrl) {
+        throw new Error(
+          `[ReadExcelDomino:${this.id}] No Excel file supplied (dynamic or static).`
+        );
+      }
+
+      const { data } = await axios.get<ArrayBuffer>(fileUrl, { responseType: "arraybuffer" });
+      buffer = Buffer.from(data);
     }
 
-    async execute(ctx: ExecuteContext): Promise<DominoResult> {
-        const startedAt = Date.now();
-        let fileUrl = this.fileUrl;
-        let fileBuffer: Buffer;
+    // 2️⃣  Parse first worksheet
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const sheetName = wb.SheetNames[0];
+    const sheetJSON = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
 
-        // 1️⃣ If dynamic input → use it
-        if (ctx?.input?.value && ctx?.input?.value?.url) {
-            // Enforce type check for Excel
-            if (!ctx.input.value.url.match(/\.(xls|xlsx)$/i)) {
-                throw new Error(`[ReadExcelDomino:${this.id}] Invalid file type. Only Excel files allowed.`);
-            }
-            fileUrl = ctx.input.value.url;
-        }
-
-        if (!fileUrl) {
-            throw new Error(`[ReadExcelDomino:${this.id}] No file URL provided.`);
-        }
-
-        // Download file
-        const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
-        fileBuffer = Buffer.from(response.data);
-
-        // (Optional) Parse Excel here, or return raw content
-        const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-        const firstSheetName = workbook.SheetNames[0];
-        const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName]);
-        console.log(sheetData)
-        return {
-            id: this.id,
-            output: { fileContent: sheetData },
-            startedAt,
-            finishedAt: Date.now(),
-        };
-    }
+    // 3️⃣  Return result
+    return {
+      id: this.id,
+      output: sheetJSON,
+      startedAt,
+      finishedAt: Date.now(),
+    };
+  }
 }
