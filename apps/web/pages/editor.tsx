@@ -1,9 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FiPlay, FiCode, FiDatabase, FiTerminal, FiServer, FiUser, FiKey, FiLink } from 'react-icons/fi';
+import { 
+  FiPlay, FiCode, FiDatabase, FiTerminal, FiServer, 
+  FiUser, FiKey, FiLink, FiRefreshCw, FiSun, FiMoon, FiSettings,
+  FiChevronDown, FiChevronUp, FiX, FiCheck, FiSave
+} from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
 import CodeEditor from '@/components/code-editor/CodeEditor';
+import { cn } from '@/lib/utils';
 
 type ConnectionConfig = {
   host: string;
@@ -38,6 +43,26 @@ const EditorPage: React.FC = () => {
   const [showConnectionForm, setShowConnectionForm] = useState<boolean>(false);
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [connectionError, setConnectionError] = useState<string>('');
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+
+  // Toggle dark mode
+  const toggleDarkMode = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    document.documentElement.classList.toggle('dark', newMode);
+    localStorage.setItem('theme', newMode ? 'dark' : 'light');
+  };
+
+  // Initialize dark mode from system preference or localStorage
+  useEffect(() => {
+    const isDark = localStorage.theme === 'dark' || 
+                  (!('theme' in localStorage) && 
+                   window.matchMedia('(prefers-color-scheme: dark)').matches);
+    
+    setIsDarkMode(isDark);
+    document.documentElement.classList.toggle('dark', isDark);
+  }, []);
 
   // Load saved connection from localStorage
   useEffect(() => {
@@ -225,23 +250,39 @@ const EditorPage: React.FC = () => {
           setOutput(`SQL Error: ${error instanceof Error ? error.message : 'Failed to execute SQL query'}`);
         }
       }
-    } catch (error) {
-      setOutput(`Error: ${error instanceof Error ? error.message : 'An unknown error occurred'}`);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Reset code to default for the current language
+  const resetCode = () => {
+    setCode(language === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT);
+  };
+
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-800">Code Editor</h1>
+    <div className={cn(
+      'min-h-screen flex flex-col',
+      isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
+    )}>
+      {/* Header */}
+      <header className={cn(
+        'border-b p-4 flex justify-between items-center transition-colors duration-200',
+        isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+      )}>
+        <div className="flex items-center">
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
+            Code Editor
+          </h1>
+        </div>
+
         <div className="flex items-center space-x-2">
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-            connectionStatus === 'connected'
-              ? 'bg-green-100 text-green-800'
-              : 'bg-red-100 text-red-800'
-          }`}>
+          <span className={cn(
+            'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+            connectionStatus === 'connected' 
+              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+          )}>
             {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
           </span>
           {connectionStatus === 'connected' ? (
@@ -264,7 +305,7 @@ const EditorPage: React.FC = () => {
             </Button>
           )}
         </div>
-      </div>
+      </header>
 
       {/* Connection Form Modal */}
       {showConnectionForm && (
@@ -456,18 +497,61 @@ const EditorPage: React.FC = () => {
             </Button>
           </div>
 
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto relative">
+            <div className="absolute right-4 top-4 z-10">
+              <button
+                onClick={() => setCode(language === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT)}
+                className={cn(
+                  'flex items-center text-xs px-3 py-1.5 rounded-md transition-all',
+                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
+                  'backdrop-blur-sm',
+                  isDarkMode 
+                    ? 'text-gray-200 bg-gray-800/80 hover:bg-gray-700/90 border border-gray-700' 
+                    : 'text-gray-700 bg-white/80 hover:bg-gray-100/90 border border-gray-200',
+                  'shadow-sm'
+                )}
+                title="Reset code to default"
+              >
+                <FiRefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                Reset
+              </button>
+            </div>
             <CodeEditor
+              language={language}
               value={code}
               onChange={handleCodeChange}
-              language={language}
-              height="100%"
+              theme={isDarkMode ? 'vs-dark' : 'light'}
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,
                 wordWrap: 'on',
                 automaticLayout: true,
-                readOnly: language === 'sql' && connectionStatus !== 'connected',
+                readOnly: false,
+                scrollBeyondLastLine: false,
+                padding: { top: 16, bottom: 16 },
+                ...(isDarkMode ? {
+                  'editor.background': '#111827',
+                  'editor.foreground': '#f9fafb',
+                  'editor.lineHighlightBackground': '#1f2937',
+                  'editorLineNumber.foreground': '#4b5563',
+                  'editorLineNumber.activeForeground': '#9ca3af',
+                  'editor.selectionBackground': '#3b82f633',
+                  'editor.inactiveSelectionBackground': '#3b82f61a',
+                  'editorIndentGuide.background': '#1f2937',
+                  'editorIndentGuide.activeBackground': '#374151',
+                  'editorCursor.foreground': '#60a5fa'
+                } : {
+                  'editor.background': '#ffffff',
+                  'editor.foreground': '#111827',
+                  'editor.lineHighlightBackground': '#f9fafb',
+                  'editorLineNumber.foreground': '#9ca3af',
+                  'editorLineNumber.activeForeground': '#6b7280',
+                  'editor.selectionBackground': '#3b82f61a',
+                  'editor.inactiveSelectionBackground': '#e5e7eb',
+                  'editorIndentGuide.background': '#f3f4f6',
+                  'editorIndentGuide.activeBackground': '#d1d5db',
+                  'editorCursor.foreground': '#3b82f6'
+                })
               }}
             />
             {language === 'sql' && connectionStatus !== 'connected' && (
@@ -487,20 +571,66 @@ const EditorPage: React.FC = () => {
         </div>
 
         {/* Output Section */}
-        <div className="w-full md:w-1/2 flex flex-col bg-gray-50">
-          <div className="p-2 border-b border-gray-200 bg-gray-100 flex justify-between items-center">
-            <h2 className="text-sm font-medium text-gray-700">Output</h2>
-            {connectionStatus === 'connected' && (
-              <div className="flex items-center text-xs text-gray-500">
-                <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
-                Connected to {connectionConfig.host}/{connectionConfig.database}
-              </div>
-            )}
+        <div className={cn(
+          'w-full md:w-1/2 flex flex-col',
+          isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'
+        )}>
+          <div className={cn(
+            'p-3 border-b flex justify-between items-center',
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          )}>
+            <div className="flex items-center space-x-2">
+              <FiTerminal className={cn(
+                'h-4 w-4',
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              )} />
+              <h2 className={cn(
+                'text-sm font-medium',
+                isDarkMode ? 'text-gray-200' : 'text-gray-700'
+              )}>
+                Output
+              </h2>
+            </div>
+            <div className="flex items-center space-x-3">
+              {connectionStatus === 'connected' && (
+                <div className={cn(
+                  'flex items-center text-xs px-2 py-1 rounded-full',
+                  isDarkMode ? 'bg-gray-700 text-green-400' : 'bg-green-50 text-green-700'
+                )}>
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>
+                  Connected to {connectionConfig.host}/{connectionConfig.database}
+                </div>
+              )}
+              <button
+                onClick={() => setCode(language === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT)}
+                className={cn(
+                  'flex items-center text-xs px-3 py-1.5 rounded-md transition-colors',
+                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
+                  isDarkMode 
+                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white' 
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                )}
+                title="Reset code to default"
+              >
+                <FiRefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                Reset
+              </button>
+            </div>
           </div>
-          <div className="flex-1 overflow-auto p-4 font-mono text-sm whitespace-pre">
-            {output || (language === 'sql' && connectionStatus !== 'connected'
-              ? 'Connect to a database to run SQL queries'
-              : 'Run code to see output here...')}
+          <div className={cn(
+            'flex-1 overflow-auto p-4 font-mono text-sm whitespace-pre',
+            isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-800',
+            'transition-colors duration-200'
+          )}>
+            {output || (language === 'sql' && connectionStatus !== 'connected' ? (
+              <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>
+                Connect to a database to run SQL queries
+              </span>
+            ) : (
+              <span className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}>
+                Run code to see output here...
+              </span>
+            ))}
           </div>
         </div>
       </div>
