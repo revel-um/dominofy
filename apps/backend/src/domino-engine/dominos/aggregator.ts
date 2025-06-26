@@ -38,10 +38,11 @@ export class AggregatorDomino implements DominoExecutable {
     }
 
     async execute(ctx: ExecuteContext): Promise<DominoResult> {
+        console.log(ctx)
         const startedAt = Date.now();
         /* static config */
         const op = getFieldValue<string>(this.node, "Operation") ?? "sum";
-        const initRaw = getFieldValue<any>(this.node, "Initial Value");
+        const initRaw = ctx.input['Initial Value'] ?? getFieldValue<any>(this.node, "Initial Value");
 
         /* state */
         let acc = ctx.local.acc;
@@ -153,7 +154,7 @@ export class AggregatorDomino implements DominoExecutable {
         const finishedAt = Date.now();
         const result: DominoResult = {
             id: this.id,
-            output: isFinalCall ? { value_out: acc } : {}, // emit result only once
+            output: isFinalCall ? acc : {}, // emit result only once
             startedAt,
             finishedAt,
             nextChainKeys: isFinalCall ? ["exec_out"] : ['__skip__'],
