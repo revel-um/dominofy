@@ -38,6 +38,7 @@ export class AggregatorDomino implements DominoExecutable {
     }
 
     async execute(ctx: ExecuteContext): Promise<DominoResult> {
+        console.log(ctx)
         const startedAt = Date.now();
         /* static config */
         const op = getFieldValue<string>(this.node, "Operation") ?? "sum";
