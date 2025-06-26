@@ -8,9 +8,25 @@ interface CodeEditorProps {
   value: string;
   onChange: (value: string | undefined) => void;
   theme?: string;
+  height?: string | number;
+  options?: {
+    minimap?: { enabled: boolean };
+    fontSize?: number;
+    wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
+    automaticLayout?: boolean;
+    readOnly?: boolean;
+    [key: string]: any;
+  };
 }
 
-const CodeEditor: React.FC<CodeEditorProps> = ({ language, value, onChange, theme = 'vs-dark' }) => {
+const CodeEditor: React.FC<CodeEditorProps> = ({
+  language,
+  value,
+  onChange,
+  theme = 'vs-dark',
+  height = '100%',
+  options = {}
+}) => {
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     // Set ES6 support for JavaScript
@@ -24,7 +40,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ language, value, onChange, them
 
   return (
     <Editor
-      height="100%"
+      height={height}
       language={language}
       theme={theme}
       value={value}
@@ -36,6 +52,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ language, value, onChange, them
         wordWrap: 'on',
         automaticLayout: true,
         scrollBeyondLastLine: false,
+        ...options,
       }}
     />
   );
