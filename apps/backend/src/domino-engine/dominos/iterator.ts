@@ -89,7 +89,8 @@ export class IteratorDomino implements DominoExecutable {
 
       return {
         id: this.id,
-        output: value,              // value or {key, value}
+        output: value,
+        done: cursor + 1 === items.length,
         startedAt,
         finishedAt: Date.now(),
         nextChainKeys: ["exec_out"], // “For each” branch
@@ -102,6 +103,7 @@ export class IteratorDomino implements DominoExecutable {
     return {
       id: this.id,
       output: "Iterations complete",
+      done: true,
       startedAt,
       finishedAt: Date.now(),
       nextChainKeys: ["exec_out_1"], // “On complete” branch

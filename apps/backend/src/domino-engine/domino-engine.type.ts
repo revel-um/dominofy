@@ -4,6 +4,8 @@ export interface ExecuteContext {
   /** Same runId bubbled up to SSE */
   runId: string;
 
+  done?: any;
+
   /** Aggregated inputs coming from parent dominos */
   input: Record<string, any>;
 
@@ -43,4 +45,5 @@ export interface DominoResult {
   isMultiOutPinDomino?: boolean; // true if multiple out pins are used
   /** Exec‑out pins to trigger; optional because single‑branch dominos need none */
   nextChainKeys?: string[];
+  done?: boolean; // true if this domino is done and no more executions are expected
 }

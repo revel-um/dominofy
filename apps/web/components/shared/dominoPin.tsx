@@ -1,3 +1,4 @@
+// src/components/shared/dominoPin.tsx
 import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { PinType } from '../../types/pinTypes';
@@ -5,37 +6,46 @@ import { PinType } from '../../types/pinTypes';
 interface DominoPinProps {
   id: string;
   pinType: PinType;
-  // multiple: boolean;
+  inline?: boolean;
   pinPosition?: string;
 }
 
-export default function DominoPin({ id, pinType, pinPosition }: DominoPinProps) {
-  const isExecution = pinType === PinType.EXEC_IN || pinType === PinType.EXEC_OUT;
-  const isInput = pinType === PinType.EXEC_IN || pinType === PinType.VALUE_IN;
+export default function DominoPin({
+  id,
+  pinType,
+  inline = false,
+  pinPosition,
+}: DominoPinProps) {
+  const isExecution =
+    pinType === PinType.EXEC_IN || pinType === PinType.EXEC_OUT;
+  const isInput =
+    pinType === PinType.EXEC_IN || pinType === PinType.VALUE_IN;
   const position = isInput ? Position.Left : Position.Right;
 
-  const top = pinPosition??( pinType === PinType.EXEC_IN || pinType === PinType.EXEC_OUT ? '20%' : '70%');
-  
-  const className = isExecution
-    ? 'bg-dominofy-light-accent dark:bg-dominofy-dark-accent'
+  // Execution pins: blue & circular
+  // Value pins: green & rectangular
+  const colorClass = isExecution
+    ? 'bg-blue-500 dark:bg-blue-400'
     : 'bg-green-500 dark:bg-green-400';
 
+  // Inline positioning classes
+  const extraClasses = inline
+    ? `handle-inline-${isInput ? 'left' : 'right'}`
+    : '';
+
   return (
-    <>
     <Handle
       id={id}
       type={isInput ? 'target' : 'source'}
       position={position}
       isConnectable={true}
-      title={id}
+      className={`react-flow__handle ${colorClass} ${extraClasses}`}
       style={{
         width: 8,
         height: 8,
-        top,
-        borderRadius: isExecution ? '9999px' : '1px',
+        borderRadius: isExecution ? '50%' : '2px',
+        ...(pinPosition ? { top: pinPosition } : {}),
       }}
-      className={className}
     />
-    </>
   );
 }

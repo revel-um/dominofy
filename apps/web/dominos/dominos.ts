@@ -5,7 +5,8 @@ import {
   FiZap,
   FiFileText,
   FiRepeat,
-  FiDatabase
+  FiDatabase,
+  FiLayers
 } from 'react-icons/fi';
 
 export default [
@@ -59,4 +60,9 @@ export default [
     label: 'Database Setup',
     icon: FiDatabase,           // 🔁 Iterate over list
   },
+  {
+    id: 'aggregator',
+    label: 'Aggregator',
+    icon: FiLayers, // ➕ Accumulate values using sum, multiply, min, or max
+  }
 ];

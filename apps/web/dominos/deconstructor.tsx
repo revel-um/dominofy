@@ -1,3 +1,4 @@
+// src/dominos/deconstruct.tsx
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
@@ -6,205 +7,191 @@ import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
 import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
 
+/* ——————————————————— Component */
 export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
-  
+  /* dropdown options */
   const options: DominoFieldOption[] = [
-      { label: "Array", value: "array" },
-      { label: "Object", value: "object" },
-    ];
+    { label: 'Array',  value: 'array'  },
+    { label: 'Object', value: 'object' },
+  ];
 
+  /* local state */
   const [inputs, setInputs] = useState<string[]>(['']);
-    const [type, setType] = useState(options[0].value);
+  const [type,   setType]   = useState(options[0].value);
 
+  /* ---------- handlers ---------- */
   const addInput = () => {
     clearValidationForDominoId(id);
-    setInputs(prev => [...prev, '']);
+    setInputs(p => [...p, '']);
   };
 
-  const removeInput = (index: number) => {
+  const removeInput = (idx: number) => {
     clearValidationForDominoId(id);
-    setInputs(prev => prev.filter((_, i) => i !== index));
+    setInputs(p => p.filter((_, i) => i !== idx));
   };
 
-  const handleInputChange = (index: number, newVal: string) => {
+  const handleInputChange = (idx: number, v: string) => {
     clearValidationForDominoId(id);
-    setInputs(prev => {
-      const arr = [...prev];
-      arr[index] = newVal;
-      return arr;
+    setInputs(p => {
+      const c = [...p];
+      c[idx] = v;
+      return c;
     });
   };
 
-    
-const handleChange = (e: any) => {
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     clearValidationForDominoId(id);
-    const newValue = e.target.value;
-    setType(newValue);
-
-   
-    return newValue;
+    setType(e.target.value);
   };
 
-  // Initialize ONCE on mount from details.fields
+  /* ---------- bootstrap from saved node ---------- */
   useEffect(() => {
-    const typeField = data?.details?.fields?.find((f: DominoField) => f.heading === 'Type');
-    if (typeField && typeField.value !== type) {
-      setType(typeField.value)
-    }
+    const tField = data.details?.fields?.find((f: { heading: string; }) => f.heading === 'Type');
+    if (tField && tField.value) setType(String(tField.value));
 
-    const caseFields = data?.details?.fields?.filter(
-      (f: { heading: string }) => f.heading?.startsWith('Key_')
-    );
-    if (caseFields && caseFields.length > 0) {
-      setInputs(caseFields.map((f: { value: string }) => f.value as string));
-    }
-    // run only once
+    const keyFields = data.details?.fields?.filter((f: { heading: string; }) => f.heading?.startsWith('Key_'));
+    if (keyFields?.length) setInputs(keyFields.map((f: { value: any; }) => String(f.value ?? '')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
-
-  // Always sync fields & exportFields back into node data, preserving connections
+  /* ---------- sync → node.data ---------- */
   useEffect(() => {
     if (!data.setNodes) return;
 
     data.setNodes((nodes: any[]) =>
-      nodes.map(node => {
+      nodes.map((node: { id: string; data: { details: { fields: any; }; }; }) => {
         if (node.id !== id) return node;
 
-        // safely grab existing fields array
-        const existingFields =
-          Array.isArray(node.data?.details?.fields) ? node.data.details.fields : [];
-
-        // build a lookup of existing fields by heading
-        const oldFieldsByHeading = existingFields.reduce(
-          (map: Record<string, any>, f: any) => {
-            if (f?.heading) map[f.heading] = f;
-            return map;
-          },
-          {} as Record<string, any>
+        /* reuse existing field objects so we keep connectedValue/file */
+        const old = Object.fromEntries(
+          (node.data.details?.fields ?? []).map((f: any) => [f.heading, f])
         );
 
-        // ensure at least the Input field exists
-        const inputField = oldFieldsByHeading['Input'] || {
-          type: 'text',
-          inPinId: 'value_in',
-          shouldRender: false,
-          heading: 'Input',
-          required: true,
-        };
-
-        // rebuild fields: reuse old field objects and only override value & heading
-        const newFields = [
-          { ...inputField },
-          {
-            type: 'dropdown',
-            value:  type,
-            options: options,
+        const inputField =
+          old['Input'] ??
+          ({
+            type: 'text',
+            heading: 'Input',
+            inPinId: 'value_in',
             required: true,
+            shouldRender: false,
+          } as DominoField);
+
+        const newFields: DominoField[] = [
+          inputField,
+          {
+            ...(old['Type'] ?? {}),
+            type: 'dropdown',
             heading: 'Type',
+            value: type,
+            options,
+            required: true,
             shouldRender: false,
           },
-          ...inputs.map((inp, idx) => {
-            const heading = `Key_${idx + 1}`;
-            const oldField = oldFieldsByHeading[heading] || {};
-            return {
-              ...oldField,
-              value: inp,
-              heading,
-              inPinId: `value_in_${idx + 1}`,
-              outPinId: `value_out_${idx + 1}`,
-              shouldRender: false,
-              required: true
-            };
-          }),
+          ...inputs.map((v, i) => ({
+            ...(old[`Key_${i + 1}`] ?? {}),
+            type: 'text',
+            heading: `Key_${i + 1}`,
+            value: v,
+            inPinId:  `value_in_${i + 1}`,
+            outPinId: `value_out_${i + 1}`,
+            required: true,
+            shouldRender: false,
+          })),
         ];
 
         return {
           ...node,
           data: {
             ...node.data,
-            details: {
-              ...node.data.details,
-              fields: newFields,
-            },
-            exportFields: ['Input', 'Type', ...inputs.map((_, idx) =>
-              `Key_${idx+1}`
-            )],
+            details: { ...node.data.details, fields: newFields },
+            exportFields: ['Input', 'Type', ...inputs.map((_, i) => `Key_${i + 1}`)],
           },
         };
       })
     );
-  }, [inputs, data.setNodes, id, type]);
+  }, [inputs, type, data.setNodes, id]);
 
+  /* =============== render =============== */
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-hidden shadow-sm
-        ${hasError ? 'border-red-500 border-4' : selected ? 'selected-border border-4' : 'unselected-border dark:border-gray-600'}
+      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
+        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      style={{ minWidth: '13rem' }}
     >
+      {/* Header w/ exec handles */}
       <div
-        className="relative px-3 py-2 text-sm font-semibold text-white border-b"
+        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
         style={{
           backgroundColor: '#6366f1',
           borderBottomColor: '#4f46e5',
-          display: 'flex',
-          justifyContent: 'space-between'
+          borderRadius: '0.23rem 0.23rem 0 0',
         }}
       >
-        De-Construct
+        <div className="flex items-center gap-1">
+          <DominoPin id="exec_in"  pinType={PinType.EXEC_IN}  inline />
+          <span>De-Construct</span>
+        </div>
+        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      <div className="px-3 py-2 flex justify-between space-x-4">
-        <div className="text-white">
+      {/* Input row */}
+      <div className="px-3 py-2 flex items-center gap-2 relative">
+        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+        <span className="text-sm text-dominofy-light-text dark:text-dominofy-dark-text">
           Input
-          <DominoPin id="value_in" pinType={PinType.VALUE_IN} pinPosition="60px" />
-        </div>
-        
-        <div className='flex float-right'>
-            Type:
-            <select
-                value={type}
-                onChange={handleChange}
-                name='Type'
-                className="px-1 py-1 ml-2 p-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mr-2"
-            >
-            {options.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                </option>
-            ))}
-            </select>
-        </div>
+        </span>
       </div>
 
-      <div className="px-3 py-2">
-        {inputs.map((value, index) => (
-          <div key={index} className="mb-1 flex items-center">
+      {/* Type row */}
+      <div className="px-3 py-2 flex items-center gap-2">
+        <span className="text-sm text-dominofy-light-text dark:text-dominofy-dark-text">
+          Type:
+        </span>
+        <select
+          value={type}
+          onChange={handleTypeChange}
+          className="px-1 py-1 text-sm border rounded w-full
+                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                     text-dominofy-light-text dark:text-dominofy-dark-text"
+        >
+          {options.map(o => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Key / Index rows */}
+      <div className="flex flex-col gap-2">
+        {inputs.map((val, i) => (
+          <div key={i} className="flex items-center gap-2 relative px-3">
+            {/* left in-pin */}
+            <DominoPin id={`value_in_${i + 1}`} pinType={PinType.VALUE_IN} inline />
+
             <input
               type="text"
-              value={value}
-              onChange={e => handleInputChange(index, e.target.value)}
-              placeholder={`${type == 'object'? 'Key': 'Index'} ${index+1}`}
-              name={`Key_${index+1}`}
-              className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+              value={val}
+              onChange={e => handleInputChange(i, e.target.value)}
+              placeholder={`${type === 'object' ? 'Key' : 'Index'} ${i + 1}`}
+              className="flex-1 px-2 py-1 text-sm border rounded
+                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                         text-dominofy-light-text dark:text-dominofy-dark-text"
             />
 
-            <DominoPin
-                id={`value_out_${index+1}`}
-                pinType={PinType.VALUE_OUT}
-                pinPosition={`calc(${(index + 1) * 34}px + 65px)`}
-            />
-            <DominoPin
-                id={`value_in_${index+1}`}
-                pinType={PinType.VALUE_IN}
-                pinPosition={`calc(${(index + 1) * 34}px + 65px)`}
-            />
- 
-            {index > 0 && (
-              <button onClick={() => removeInput(index)} className="ml-2 p-1 bg-red-500 text-white rounded">
+            {/* right out-pin */}
+            <DominoPin id={`value_out_${i + 1}`} pinType={PinType.VALUE_OUT} inline />
+
+            {i > 0 && (
+              <button
+                onClick={() => removeInput(i)}
+                className="p-1 bg-red-500 text-white rounded ml-1"
+              >
                 <Trash size={16} />
               </button>
             )}
@@ -212,20 +199,18 @@ const handleChange = (e: any) => {
         ))}
       </div>
 
+      {/* add key/index */}
       <div className="px-3 py-2">
         <button
           onClick={addInput}
-          className="px-2 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+          className="px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
         >
-          Add Input
+          Add {type === 'object' ? 'Key' : 'Index'}
         </button>
       </div>
 
-      <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition="20px" />
-      <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} pinPosition="20px" />
-
       {hasError && (
-        <p className="mt-1 text-xs text-red-500">
+        <p className="px-3 pb-2 text-xs text-red-500">
           ⚠️ Value input pin is connected but execution pin is missing.
         </p>
       )}

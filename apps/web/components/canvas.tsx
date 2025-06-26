@@ -33,6 +33,7 @@ import { useRouter } from "next/router";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import DatabaseDomino from "../dominos/dbSetup";
+import AggregatorDomino from "../dominos/aggregator";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -45,6 +46,7 @@ const nodeTypes = {
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
   dbSetup: DatabaseDomino,
+  aggregator: AggregatorDomino
 };
 
 interface CanvasProps {

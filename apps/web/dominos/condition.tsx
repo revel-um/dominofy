@@ -1,83 +1,53 @@
+// src/dominos/condition.tsx
 import { NodeProps } from 'reactflow';
+import { useEffect, useState } from 'react';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useState } from 'react';
 import { DominoField, DominoFieldOption, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 
 export default function ConditionDomino({ data, id, selected }: NodeProps) {
-  const { erroredNodes } = useDomino();
+  const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
+  /* ───────── dropdown options */
   const options: DominoFieldOption[] = [
-    { label: "Equal to", value: "equal" },
-    { label: "Less Than", value: "less_than" },
-    { label: "Greater Than", value: "greater_than" },
-    { label: "Less Than Or Equal", value: "less_or_equal" },
-    { label: "Greater Than Or Equal", value: "greater_or_equal" },
-    { label: "Not Equal to", value: "not_equal" },
-    { label: "contains", value: "contains" },
+    { label: 'Equal to', value: 'equal' },
+    { label: 'Less Than', value: 'less_than' },
+    { label: 'Greater Than', value: 'greater_than' },
+    { label: 'Less Than Or Equal', value: 'less_or_equal' },
+    { label: 'Greater Than Or Equal', value: 'greater_or_equal' },
+    { label: 'Not Equal to', value: 'not_equal' },
+    { label: 'Contains', value: 'contains' },
   ];
 
-  const [values, setValue] = useState({
-    value1: "",
-    value2: "",
-    operator: options[0].value
+  /* ───────── state */
+  const [values, setValues] = useState({
+    value1: '',
+    value2: '',
+    operator: options[0].value,
   });
 
-  // Sync value from existing details field on mount or update
+  /* keep local state in sync when workflow imported */
   useEffect(() => {
-    const field1 = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text1');
-    const field2 = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text2');
-    const field3 = data?.details?.fields?.find((f: DominoField) => f.heading === 'Option');
+    const f1 = data.details?.fields?.find((f: DominoField) => f.heading === 'Text1');
+    const f2 = data.details?.fields?.find((f: DominoField) => f.heading === 'Text2');
+    const f3 = data.details?.fields?.find((f: DominoField) => f.heading === 'Option');
+    setValues({
+      value1: (f1?.value as string) ?? values.value1,
+      value2: (f2?.value as string) ?? values.value2,
+      operator: (f3?.value as string) ?? values.operator,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.details?.fields]);
 
-    // if (field && field.value !== values) {
-    //   setValue(field.value);
-    // }
-
-    if (field1 && field1.value !== values.value1) {
-      setValue((prevData) => ({
-        ...prevData,
-        value1: field1.value
-      }
-      ))
-    }
-
-    if (field2 && field2.value !== values.value2) {
-      setValue((prevData) => ({
-        ...prevData,
-        value2: field2.value
-      }
-      ))
-    }
-
-    if (field3 && field3.value !== values.operator) {
-      setValue((prevData) => ({
-        ...prevData,
-        operator: field3.value
-      }
-      ))
-    }
-
-
-  }, [data?.details?.fields]);
-
-
-  // Always ensure setFieldValue is available
+  /* bootstrap node + setFieldValue */
   useEffect(() => {
-
     if ((!data.setFieldValue || !data.details) && data.setNodes) {
-
-      const setFieldValue = (heading: string, newValue: any, name: any) => {
-
-        // setValue(newValue);
-        setValue((prevData) => ({
-          ...prevData,
-          [name]: newValue,
-        }));
-
+      const setFieldValue = (heading: string, val: any, name: string) => {
+        setValues(prev => ({ ...prev, [name]: val }));
         data.setNodes?.((nodes: any[]) =>
-          nodes.map((n) =>
+          nodes.map((n: { id: string; data: { details: { fields: DominoField[]; }; }; }) =>
             n.id === id
               ? {
                 ...n,
@@ -85,8 +55,8 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
                   ...n.data,
                   details: {
                     ...n.data.details,
-                    fields: n.data.details.fields.map((field: DominoField) =>
-                      field.heading === heading ? { ...field, value: newValue } : field
+                    fields: n.data.details.fields.map((f: DominoField) =>
+                      f.heading === heading ? { ...f, value: val } : f
                     ),
                   },
                 },
@@ -96,161 +66,153 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
         );
       };
 
-      data.setNodes((prevNodes: any[]) =>
-        prevNodes.map((node: any) => {
-          if (node.id !== id) return node;
-
-          const newDetails: DominoNodeData =
-            node.data.details ?? {
-              type: 'Condition',
-              description: 'This domino is used for condtion of 2 values.',
-              fields: [
-                {
-                  type: 'textInput',
-                  value: values.value1,
-                  required: true,
-                  heading: 'Text1',
-                  inPinId: 'value_in_1',
-                  shouldRender: false,
-                },
-                {
-                  type: 'textInput',
-                  value: values.value2,
-                  required: true,
-                  heading: 'Text2',
-                  inPinId: 'value_in_2',
-                  shouldRender: false,
-                },
-                {
-                  type: 'dropdown',
-                  value: options[0].value,
-                  options: options,
-                  placeholder: 'What to print ...',
-                  required: true,
-                  heading: 'Option',
-                  shouldRender: false,
-                },
-              ],
-            };
-
-          // const exportFields = ['Text'];
-          const exportFields = ['Text1', 'Text2', 'Option'];
-
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              details: newDetails,
-              exportFields,
-              setFieldValue, // ✅ attach no matter what
-            },
-          };
-        })
+      data.setNodes((prev: any[]) =>
+        prev.map((node: { id: string; data: any; }) =>
+          node.id !== id
+            ? node
+            : {
+              ...node,
+              data: {
+                ...node.data,
+                details: {
+                  type: 'Condition',
+                  description: 'Compare two values using an operator',
+                  fields: [
+                    {
+                      type: 'textInput',
+                      heading: 'Text1',
+                      value: values.value1,
+                      inPinId: 'value_in_1',
+                      required: true,
+                      shouldRender: false,
+                    },
+                    {
+                      type: 'textInput',
+                      heading: 'Text2',
+                      value: values.value2,
+                      inPinId: 'value_in_2',
+                      required: true,
+                      shouldRender: false,
+                    },
+                    {
+                      type: 'dropdown',
+                      heading: 'Option',
+                      value: values.operator,
+                      options,
+                      required: true,
+                      shouldRender: false,
+                    },
+                  ],
+                } as DominoNodeData,
+                exportFields: ['Text1', 'Text2', 'Option'],
+                setFieldValue,
+              },
+            }
+        )
       );
     }
   }, [data, id, values]);
 
-  const handleChange = (e: any) => {
-
-    // const newValue = e.target.value;
-    // setValue(newValue);
-
-    const target = e.target as any;
-    const { name, value } = target;
-
-    setValue((prevData) => ({
-      ...prevData,
-      [name]: value,
-    }));
-
-    if (data.setFieldValue) {
-      data.setFieldValue(name, value);
-    }
-
-    return value;
+  /* generic change handler */
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setValues(prev => ({ ...prev, [name]: value }));
+    data.setFieldValue?.(name, value);
+    clearValidationForDominoId(id);
   };
 
+  /* ───────── render */
   return (
-    <>
-      <div
-        className={`transition-all duration-150 rounded-md w-56 overflow-hidden shadow-sm
-        ${hasError ? 'border-red-500 border-4' : selected ? 'selected-border border-4' : 'unselected-border dark:border-gray-600'}
+    <div
+      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
+        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      style={{ minWidth: '13rem' }}
+    >
+      {/* header with exec pins and True/False rows */}
+      <div
+        className="flex justify-between text-sm font-semibold text-white border-b rounded-t-md relative"
+        style={{
+          backgroundColor: '#6366f1',
+          borderBottomColor: '#4f46e5',
+          borderRadius: '0.23rem 0.23rem 0 0',
+        }}
       >
-        <div
-          className="relative px-3 py-2 text-sm font-semibold text-white border-b"
-          style={{ backgroundColor: '#6366f1', borderBottomColor: '#4f46e5', display: 'flex', justifyContent: 'space-between' }}
-        >
+        <div className="flex items-center gap-1 px-3 py-2">
+          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+          <span>Condition</span>
+        </div>
 
-          Condition
-
-          <div style={{ float: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <div>True</div>
-            <div>False</div>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-1 relative px-3">
+            <span className="text-xs">True</span>
+            <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} inline />
           </div>
-
-
-        </div>
-
-        <div className='px-3 py-2'>
-          <input
-            type="text"
-            placeholder="Input 1"
-            value={values.value1 ?? ''}
-            name='Text1'
-            onChange={handleChange}
-            className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-          />
-        </div>
-
-        <div className='px-3 py-2'>
-          <select
-            value={values.operator ?? ''}
-            name='Option'
-            onChange={handleChange}
-            // onChange={(e) => setValue((prevData) => ({...prevData, operator: e.target.value }))}
-            className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
-          >
-            {options.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className='px-3 py-2'>
-          <input
-            type="text"
-            placeholder="Input 2"
-            value={values.value2 ?? ''}
-            name='Text2'
-            onChange={handleChange}
-            className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-          />
-        </div>
-
-
-        <DominoPin id="exec_in" pinType={PinType.EXEC_IN} pinPosition='10%' />
-
-        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} pinPosition='65%' />
-
-        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} pinPosition='80px' />
-        <DominoPin id="value_in_2" pinType={PinType.VALUE_IN} pinPosition='175px' />
-
-        <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} pinPosition='10%' />
-        <DominoPin id="exec_out_2" pinType={PinType.EXEC_OUT} pinPosition='20%' />
-
-
-        <div>
-          {hasError && (
-            <p className="mt-1 text-xs text-red-500">
-              ⚠️ Value input pin is connected but execution pin is missing.
-            </p>
-          )}
+          <div className="flex items-center gap-1 relative px-3">
+            <span className="text-xs">False</span>
+            <DominoPin id="exec_out_2" pinType={PinType.EXEC_OUT} inline />
+          </div>
         </div>
       </div>
 
-    </>
+      {/* Input 1 row */}
+      <div className="flex items-center gap-2 relative px-3 py-1">
+        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
+        <input
+          name="Text1"
+          value={values.value1}
+          onChange={handleChange}
+          placeholder="Input 1"
+          className="flex-1 px-2 py-1 text-sm border rounded
+                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                       text-dominofy-light-text dark:text-dominofy-dark-text"
+        />
+      </div>
+
+      {/* Operator row */}
+      <div className='px-3'>
+        <select
+          value={values.operator ?? ''}
+          name='Option'
+          onChange={handleChange}
+          className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Input 2 row */}
+      <div className="flex items-center gap-2 relative px-3">
+        <DominoPin id="value_in_2" pinType={PinType.VALUE_IN} inline />
+        <input
+          name="Text2"
+          value={values.value2}
+          onChange={handleChange}
+          placeholder="Input 2"
+          className="flex-1 px-2 py-1 text-sm border rounded
+                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                       text-dominofy-light-text dark:text-dominofy-dark-text"
+        />
+      </div>
+
+      {/* Output row */}
+      <div className="relative px-3 py-2 flex items-center justify-between">
+        <div></div>
+        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
+          Output
+        </span>
+        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+      </div>
+
+      {hasError && (
+        <p className="px-3 pb-2 text-xs text-red-500">
+          ⚠️ Value input pin is connected but execution pin is missing.
+        </p>
+      )}
+    </div>
   );
 }
