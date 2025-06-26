@@ -77,6 +77,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
                         placeholder: 'https://api.example.com',
                         value: url,
                         required: true,
+                        inPinId: 'value_in',
                       },
                       {
                         type: 'dropdown',

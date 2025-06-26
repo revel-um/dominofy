@@ -96,6 +96,7 @@ export default function AggregatorDomino({ data, id, selected }: NodeProps) {
                       value: '',
                       required: false,
                       shouldRender: false,
+                      inPinId: 'value_in_1',
                     } as DominoField,
                   ]
                 } as DominoNodeData,
@@ -186,7 +187,7 @@ export default function AggregatorDomino({ data, id, selected }: NodeProps) {
             Initial Value
           </label>
           <div className="relative px-3 flex items-center gap-2">
-            <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+            <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
             <input
               type="text"
               inputMode="numeric"

@@ -13,6 +13,7 @@ import ReactFlow, {
   NodeAddChange,
   OnConnectStart,
   OnConnectStartParams,
+  EdgeChange,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -250,69 +251,162 @@ export default function Canvas({
     return dfs(src);
   };
 
-  /* ──────────────────────────────  CONNECT (NORMAL)  ────────────────────────────── */
+  /**
+   * onConnect – authoritative handler implementing mutual‑exclusion rules between
+   * Aggregator‑fed pins and all “middle” nodes (nodes that sit between the last
+   * Iterator and that Aggregator).
+   *
+   * Simplified rule set implemented here:
+   * ▸ If the *new* source is an **Aggregator** and the target already has any
+   *   non‑Aggregator edges, wipe **all** existing edges to that target first.
+   * ▸ If the *new* source is **NOT** an Aggregator and the target already has at
+   *   least one Aggregator edge, wipe **all** existing edges to that target
+   *   first. (This catches the exact scenario you just hit.)
+   * ▸ Regardless, the exact pin (targetHandle) may only have one edge; prior edge
+   *   on that pin is removed before adding the new one.
+   */
   const onConnect = useCallback(
     (params: Connection) => {
       setConnectStart(null);
       if (!setNodes || !setEdges) return;
 
-      const isDup = edges.some(
-        (e) =>
-          e.source === params.source &&
-          e.target === params.target &&
-          e.sourceHandle === params.sourceHandle &&
-          e.targetHandle === params.targetHandle
-      );
-      if (isDup || !isValidConnection(params)) return;
+      const sourceNode = nodes.find((n) => n.id === params.source);
+      const sourceIsAggregator = sourceNode?.type === 'aggregator';
 
-      if (params.targetHandle?.startsWith("value_in")) {
-        setTimeout(() => params.target && clearValidationForDominoId(params.target), 0);
-        setEdges((prev) => {
-          const withoutOld = prev.filter(
-            (e) => !(e.target === params.target && e.targetHandle === params.targetHandle)
+      setEdges((prevEdges) => {
+        let working = prevEdges;
+
+        // ────────────────────────────────────────────────────────────────────
+        // Determine whether to wipe all existing edges for this target.
+        // ────────────────────────────────────────────────────────────────────
+        const existingTargetEdges = working.filter((e) => e.target === params.target);
+        const hasAggEdge = existingTargetEdges.some(
+          (e) => nodes.find((n) => n.id === e.source)?.type === 'aggregator'
+        );
+        const hasNonAggEdge = existingTargetEdges.some(
+          (e) => nodes.find((n) => n.id === e.source)?.type !== 'aggregator'
+        );
+
+        let wipeAll = false;
+        if (sourceIsAggregator && hasNonAggEdge) wipeAll = true;
+        if (!sourceIsAggregator && hasAggEdge) wipeAll = true;
+
+        if (wipeAll) {
+          working = working.filter((e) => e.target !== params.target);
+
+          // Clear connectedValue flags on the node as well.
+          setNodes((pn) =>
+            pn.map((node) => {
+              if (node.id !== params.target || !node.data.details?.fields) return node;
+              const clearedFields = node.data.details.fields.map((f: any) => ({ ...f, connectedValue: undefined }));
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  valueConnected: false,
+                  details: { ...node.data.details, fields: clearedFields },
+                },
+              };
+            })
           );
-          const withNew = addEdge(params, withoutOld);
-          setNodes((prevNodes) => {
-            const mapped = prevNodes.map((node) => {
-              if (node.id === params.target && node.data.details?.fields) {
-                node.data.details.fields.forEach((field: DominoField) => {
-                  if (field.inPinId === params.targetHandle) {
-                    field.file?.key &&
-                      FilesApi.deleteFile(
-                        field.file.key,
-                        localStorage.getItem("token") || "",
-                        router
-                      );
-                    field.value = undefined;
-                    field.connectedValue = params.source as string;
-                    field.file = undefined;
-                    field.connectedPin = params.sourceHandle as string;
-                  }
-                });
-                return { ...node, data: { ...node.data, valueConnected: true } };
-              }
-              return node;
-            });
-            updatePipeline(mapped, withNew);
-            return mapped;
-          });
-          return withNew;
-        });
-      } else if (params.targetHandle?.startsWith("exec")) {
-        setEdges((prev) => {
-          const withoutExec = prev.filter(
-            (e) => !(e.target === params.target && e.targetHandle?.startsWith("exec"))
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Ensure the specific pin is unique – remove any edge occupying it.
+        // ────────────────────────────────────────────────────────────────────
+        working = working.filter(
+          (e) => !(e.target === params.target && e.targetHandle === params.targetHandle)
+        );
+
+        // Reject duplicates or invalid
+        const isDup = working.some(
+          (e) =>
+            e.source === params.source &&
+            e.target === params.target &&
+            e.sourceHandle === params.sourceHandle &&
+            e.targetHandle === params.targetHandle
+        );
+        if (isDup || !isValidConnection(params)) return prevEdges;
+
+        // Add the new edge
+        const newEdges = addEdge(params, working);
+
+        // Handle value_in bookkeeping
+        if (params.targetHandle?.startsWith('value_in')) {
+          setTimeout(() => params.target && clearValidationForDominoId(params.target), 0);
+          setNodes((pn) =>
+            pn.map((node) => {
+              if (node.id !== params.target || !node.data.details?.fields) return node;
+              const patched = node.data.details.fields.map((field: { inPinId: string | null; file: { key: any; }; }) => {
+                if (field.inPinId !== params.targetHandle) return field;
+                if (field.file?.key) {
+                  FilesApi.deleteFile(field.file.key, localStorage.getItem('token') || '', router);
+                }
+                return {
+                  ...field,
+                  value: undefined,
+                  file: undefined,
+                  connectedValue: params.source as string,
+                  connectedPin: params.sourceHandle as string,
+                };
+              });
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  valueConnected: true,
+                  details: { ...node.data.details, fields: patched },
+                },
+              };
+            })
           );
-          const withExec = addEdge(params, withoutExec);
-          updatePipeline(nodes, withExec);
-          return withExec;
-        });
-      } else {
-        setEdges((prev) => {
-          const added = addEdge(params, prev);
-          updatePipeline(nodes, added);
-          return added;
-        });
+        }
+
+        updatePipeline(nodes, newEdges);
+        return newEdges;
+      });
+    },
+    [edges, nodes]
+  );
+
+  const onEdgesChangeHandler: OnEdgesChange = useCallback(
+    (changes) => {
+      const removedIds = changes
+        .filter((c): c is EdgeChange & { id: string } => c.type === 'remove' && 'id' in c)
+        .map((c) => c.id);
+
+      let after: Edge[] = [];
+      setEdges((prev) => {
+        after = applyEdgeChanges(changes, prev);
+        return after;
+      });
+
+      if (removedIds.length) {
+        setTimeout(() => {
+          const removedValueEdges = edges.filter(
+            (e) => removedIds.includes(e.id) && e.targetHandle?.startsWith('value_in')
+          );
+          if (removedValueEdges.length) {
+            setNodes((pn) =>
+              pn.map((node) => {
+                const match = removedValueEdges.find((e) => e.target === node.id);
+                if (!match || !node.data.details?.fields) return node;
+                const patched = node.data.details.fields.map((f: { inPinId: string | null | undefined; }) =>
+                  f.inPinId === match.targetHandle ? { ...f, connectedValue: undefined } : f
+                );
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    valueConnected: false,
+                    details: { ...node.data.details, fields: patched },
+                  },
+                };
+              })
+            );
+          }
+          updatePipeline(nodes, after);
+        }, 0);
       }
     },
     [edges, nodes]
@@ -340,46 +434,6 @@ export default function Canvas({
       });
     },
     [setNodes]
-  );
-
-  const onEdgesChangeHandler: OnEdgesChange = useCallback(
-    (changes) => {
-      const removedIds = changes.filter((c) => c.type === "remove").map((c) => c.id);
-      let after: Edge[] = [];
-      setEdges((prev) => {
-        after = applyEdgeChanges(changes, prev);
-        return after;
-      });
-
-      if (removedIds.length) {
-        setTimeout(() => {
-          const removedValue = edges.filter(
-            (e) => removedIds.includes(e.id) && e.targetHandle?.startsWith("value_in")
-          );
-          if (removedValue.length) {
-            setNodes((prev) =>
-              prev.map((node) => {
-                const rem = removedValue.find((e) => e.target === node.id);
-                if (!rem) return node;
-                const updatedFields = node.data.details.fields.map((f: DominoField) =>
-                  f.inPinId === rem!.targetHandle ? { ...f, connectedValue: undefined } : f
-                );
-                return {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    valueConnected: false,
-                    details: { ...node.data.details, fields: updatedFields },
-                  },
-                };
-              })
-            );
-          }
-          updatePipeline(nodes, after);
-        }, 0);
-      }
-    },
-    [edges, nodes]
   );
 
   /* ──────────────────────────────  KEYBOARD HANDLER FOR SEARCH  ────────────────────────────── */
