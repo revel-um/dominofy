@@ -213,18 +213,95 @@ export default function Canvas({
   };
 
   /* ──────────────────────────────  VALID CONNECTION TEST  ────────────────────────────── */
+  let levels = computeLevels(edges);
+
   const isValidConnection = (connection: Connection) => {
     const { source, target, sourceHandle, targetHandle } = connection;
     if (!source || !target || source === target) return false;
 
-    const handleMismatch = !(
-      (sourceHandle?.startsWith("exec") && targetHandle?.startsWith("exec")) ||
-      (sourceHandle?.startsWith("value") && targetHandle?.startsWith("value"))
-    );
-    if (handleMismatch) return false;
+    const isExec = sourceHandle?.startsWith("exec") && targetHandle?.startsWith("exec");
+    const isValue = sourceHandle?.startsWith("value") && targetHandle?.startsWith("value");
+    if (!isExec && !isValue) return false;
 
-    return !detectCycle(source, target, edges);
+    if (isValue) {
+      // recompute if edges have changed since last time...
+      // levels = computeLevels(edges);
+
+      const sLev = levels.get(source) ?? Infinity;
+      const tLev = levels.get(target) ?? Infinity;
+      // only allow if source is strictly higher (smaller level) than target
+      if (sLev >= tLev) {
+        return false;
+      }
+      // no further cycle‐check needed here
+    } else {
+      // exec-pin: still forbid any cycles
+      if (detectCycle(source, target, edges)) {
+        return false;
+      }
+    }
+
+    return true;
   };
+
+
+  /**
+   * Given the current exec‐edges, compute each node’s level:
+   *  roots (no incoming exec‐in) are level 0,
+   *  their direct exec‐children level 1, etc.
+   */
+  function computeLevels(edges: Edge[]): Map<string, number> {
+    // collect all nodes
+    const nodes = new Set<string>();
+    edges.forEach(({ source, target }) => {
+      nodes.add(source!);
+      nodes.add(target!);
+    });
+
+    // count incoming exec‐edges
+    const inDegree = new Map<string, number>();
+    for (const n of nodes) inDegree.set(n, 0);
+    for (const e of edges) {
+      if (e.sourceHandle?.startsWith("exec") && e.targetHandle?.startsWith("exec")) {
+        inDegree.set(e.target!, inDegree.get(e.target!)! + 1);
+      }
+    }
+
+    // Kahn’s algorithm to assign levels
+    const level = new Map<string, number>();
+    const q: string[] = [];
+    // start with all roots
+    for (const [n, deg] of inDegree) {
+      if (deg === 0) {
+        level.set(n, 0);
+        q.push(n);
+      }
+    }
+
+    while (q.length) {
+      const curr = q.shift()!;
+      const currLevel = level.get(curr)!;
+
+      for (const e of edges) {
+        if (
+          e.source === curr &&
+          e.sourceHandle?.startsWith("exec") &&
+          e.targetHandle?.startsWith("exec")
+        ) {
+          // assign child the max of its current level or parent+1
+          const prev = level.get(e.target!) ?? 0;
+          level.set(e.target!, Math.max(prev, currLevel + 1));
+
+          // decrement in‐degree and enqueue when ready
+          const nd = inDegree.get(e.target!)! - 1;
+          inDegree.set(e.target!, nd);
+          if (nd === 0) q.push(e.target!);
+        }
+      }
+    }
+
+    return level;
+  }
 
   const detectCycle = (src: string, tgt: string, edgeList: Edge[]): boolean => {
     const graph = new Map<string, string[]>();
@@ -252,74 +329,6 @@ export default function Canvas({
     return dfs(src);
   };
 
-  /* ──────────────────────────────  CONNECT (NORMAL)  ────────────────────────────── */
-  const onConnect = useCallback(
-    (params: Connection) => {
-      setConnectStart(null);
-      if (!setNodes || !setEdges) return;
-
-      const isDup = edges.some(
-        (e) =>
-          e.source === params.source &&
-          e.target === params.target &&
-          e.sourceHandle === params.sourceHandle &&
-          e.targetHandle === params.targetHandle
-      );
-      if (isDup || !isValidConnection(params)) return;
-
-      if (params.targetHandle?.startsWith("value_in")) {
-        setTimeout(() => params.target && clearValidationForDominoId(params.target), 0);
-        setEdges((prev) => {
-          const withoutOld = prev.filter(
-            (e) => !(e.target === params.target && e.targetHandle === params.targetHandle)
-          );
-          const withNew = addEdge(params, withoutOld);
-          setNodes((prevNodes) => {
-            const mapped = prevNodes.map((node) => {
-              if (node.id === params.target && node.data.details?.fields) {
-                node.data.details.fields.forEach((field: DominoField) => {
-                  if (field.inPinId === params.targetHandle) {
-                    field.file?.key &&
-                      FilesApi.deleteFile(
-                        field.file.key,
-                        localStorage.getItem("token") || "",
-                        router
-                      );
-                    field.value = undefined;
-                    field.connectedValue = params.source as string;
-                    field.file = undefined;
-                    field.connectedPin = params.sourceHandle as string;
-                  }
-                });
-                return { ...node, data: { ...node.data, valueConnected: true } };
-              }
-              return node;
-            });
-            updatePipeline(mapped, withNew);
-            return mapped;
-          });
-          return withNew;
-        });
-      } else if (params.targetHandle?.startsWith("exec")) {
-        setEdges((prev) => {
-          const withoutExec = prev.filter(
-            (e) => !(e.target === params.target && e.targetHandle?.startsWith("exec"))
-          );
-          const withExec = addEdge(params, withoutExec);
-          updatePipeline(nodes, withExec);
-          return withExec;
-        });
-      } else {
-        setEdges((prev) => {
-          const added = addEdge(params, prev);
-          updatePipeline(nodes, added);
-          return added;
-        });
-      }
-    },
-    [edges, nodes]
-  );
-
   /* ──────────────────────────────  NODE / EDGE CHANGE HANDLERS  ────────────────────────────── */
   const onNodesChangeHandler: OnNodesChange = useCallback(
     (changes) => {
@@ -342,46 +351,6 @@ export default function Canvas({
       });
     },
     [setNodes]
-  );
-
-  const onEdgesChangeHandler: OnEdgesChange = useCallback(
-    (changes) => {
-      const removedIds = changes.filter((c) => c.type === "remove").map((c) => c.id);
-      let after: Edge[] = [];
-      setEdges((prev) => {
-        after = applyEdgeChanges(changes, prev);
-        return after;
-      });
-
-      if (removedIds.length) {
-        setTimeout(() => {
-          const removedValue = edges.filter(
-            (e) => removedIds.includes(e.id) && e.targetHandle?.startsWith("value_in")
-          );
-          if (removedValue.length) {
-            setNodes((prev) =>
-              prev.map((node) => {
-                const rem = removedValue.find((e) => e.target === node.id);
-                if (!rem) return node;
-                const updatedFields = node.data.details.fields.map((f: DominoField) =>
-                  f.inPinId === rem!.targetHandle ? { ...f, connectedValue: undefined } : f
-                );
-                return {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    valueConnected: false,
-                    details: { ...node.data.details, fields: updatedFields },
-                  },
-                };
-              })
-            );
-          }
-          updatePipeline(nodes, after);
-        }, 0);
-      }
-    },
-    [edges, nodes]
   );
 
   /* ──────────────────────────────  KEYBOARD HANDLER FOR SEARCH  ────────────────────────────── */
@@ -421,6 +390,251 @@ export default function Canvas({
       setSelectedNode(node);
     }
   }
+
+  // ——————————————————————————————————————————
+  // Helper functions (place these at the top of your module/file)
+  // ——————————————————————————————————————————
+
+  /**
+   * Prune any value-edges whose source is not strictly higher than target.
+   * Returns both the kept edges and the ones removed.
+   */
+  function pruneValueEdges(
+    edges: Edge[],
+    levels: Map<string, number>
+  ): { kept: Edge[]; removed: Edge[] } {
+    const kept: Edge[] = [];
+    const removed: Edge[] = [];
+
+    for (const e of edges) {
+      if (
+        e.sourceHandle?.startsWith("value") &&
+        e.targetHandle?.startsWith("value")
+      ) {
+        const sLev = levels.get(e.source!) ?? Infinity;
+        const tLev = levels.get(e.target!) ?? Infinity;
+        if (sLev < tLev) {
+          kept.push(e);
+        } else {
+          removed.push(e);
+        }
+      } else {
+        kept.push(e);
+      }
+    }
+
+    return { kept, removed };
+  }
+
+  // ——————————————————————————————————————————
+  // onConnect handler
+  // ——————————————————————————————————————————
+  const onConnect = useCallback(
+    (params: Connection) => {
+      setConnectStart(null);
+      if (!setNodes || !setEdges) return;
+
+      // 1) Dedupe & basic pin‐type validation
+      const isDup = edges.some(
+        (e) =>
+          e.source === params.source &&
+          e.target === params.target &&
+          e.sourceHandle === params.sourceHandle &&
+          e.targetHandle === params.targetHandle
+      );
+      if (isDup || !isValidConnection(params)) return;
+
+      // 2) VALUE‐pin branch: preserve your existing logic
+      if (params.targetHandle?.startsWith("value_in")) {
+        setTimeout(
+          () =>
+            params.target &&
+            clearValidationForDominoId(params.target),
+          0
+        );
+        setEdges((prev) => {
+          // remove any old value-in on this handle, then add the new one
+          const withoutOld = prev.filter(
+            (e) =>
+              !(
+                e.target === params.target &&
+                e.targetHandle === params.targetHandle
+              )
+          );
+          const withNew = addEdge(params, withoutOld);
+
+          setNodes((prevNodes) =>
+            prevNodes.map((node) => {
+              if (
+                node.id === params.target &&
+                node.data.details?.fields
+              ) {
+                node.data.details.fields.forEach((field: DominoField) => {
+                  if (field.inPinId === params.targetHandle) {
+                    // clear any old file/value
+                    field.file?.key &&
+                      FilesApi.deleteFile(
+                        field.file.key,
+                        localStorage.getItem("token") || "",
+                        router
+                      );
+                    field.value = undefined;
+                    field.connectedValue = params.source as string;
+                    field.file = undefined;
+                    field.connectedPin = params.sourceHandle as string;
+                  }
+                });
+                return {
+                  ...node,
+                  data: { ...node.data, valueConnected: true },
+                };
+              }
+              return node;
+            })
+          );
+
+          return withNew;
+        });
+      }
+      // 3) EXEC‐pin branch: add edge, recompute levels, prune value‐edges
+      else if (params.targetHandle?.startsWith("exec")) {
+        setEdges((prevEdges) => {
+          // replace any existing exec‐in on this handle
+          const withoutExec = prevEdges.filter(
+            (e) =>
+              !(
+                e.target === params.target &&
+                e.targetHandle?.startsWith("exec")
+              )
+          );
+          const withExec = addEdge(params, withoutExec);
+
+          // recompute levels & prune
+          const levels = computeLevels(withExec);
+          const { kept, removed } = pruneValueEdges(withExec, levels);
+
+          // clear connectedValue on nodes whose value‐in edges were dropped
+          if (removed.length) {
+            setNodes((prevNodes) =>
+              prevNodes.map((node) => {
+                const drops = removed.filter((e) => e.target === node.id);
+                if (!drops.length) return node;
+
+                const updatedFields = node.data.details.fields.map(
+                  (f: DominoField) =>
+                    drops.some((e) => e.targetHandle === f.inPinId)
+                      ? {
+                        ...f,
+                        connectedValue: undefined,
+                        value: undefined,
+                        file: undefined,
+                      }
+                      : f
+                );
+
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    valueConnected: updatedFields.some(
+                      (f: { connectedValue: any; }) => f.connectedValue
+                    ),
+                    details: {
+                      ...node.data.details,
+                      fields: updatedFields,
+                    },
+                  },
+                };
+              })
+            );
+          }
+
+          updatePipeline(nodes, kept);
+          return kept;
+        });
+      }
+      // 4) Fallback for other pin‐types
+      else {
+        setEdges((prev) => {
+          const added = addEdge(params, prev);
+          updatePipeline(nodes, added);
+          return added;
+        });
+      }
+    },
+    [edges, nodes]
+  );
+
+  // ——————————————————————————————————————————
+  // onEdgesChangeHandler
+  // ——————————————————————————————————————————
+  const onEdgesChangeHandler: OnEdgesChange = useCallback(
+    (changes) => {
+      // 1) Which edge IDs were removed?
+      const removedIds = changes
+        .filter((c) => c.type === "remove")
+        .map((c) => c.id);
+      if (removedIds.length === 0) return;
+
+      setEdges((prevEdges) => {
+        // 2) Keep a reference to the old edges before we change them
+        const oldEdges = prevEdges;
+
+        // 3) Apply the React Flow removals/adds
+        const newEdges = applyEdgeChanges(changes, oldEdges);
+
+        // 4) Find which value_in edges got removed
+        const removedValueEdges = oldEdges.filter(
+          (e) =>
+            removedIds.includes(e.id) &&
+            e.targetHandle?.startsWith("value_in")
+        );
+
+        if (removedValueEdges.length) {
+          // 5) Clear connectedValue & connectedPin on those nodes
+          setNodes((prevNodes) =>
+            prevNodes.map((node) => {
+              // see if any dropped edge targeted this node
+              const drops = removedValueEdges.filter((e) => e.target === node.id);
+              if (!drops.length) return node;
+
+              const updatedFields = node.data.details.fields.map(
+                (f: DominoField) => {
+                  if (drops.some((e) => e.targetHandle === f.inPinId)) {
+                    return {
+                      ...f,
+                      connectedValue: undefined,
+                      connectedPin: undefined,
+                      value: undefined,
+                      file: undefined,
+                    };
+                  }
+                  return f;
+                }
+              );
+
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  valueConnected: updatedFields.some((f: { connectedValue: any; }) => !!f.connectedValue),
+                  details: {
+                    ...node.data.details,
+                    fields: updatedFields,
+                  },
+                },
+              };
+            })
+          );
+        }
+
+        // 6) Push your pipeline update and return the new edge list
+        updatePipeline(nodes, newEdges);
+        return newEdges;
+      });
+    },
+    [nodes]
+  );
 
   /* ──────────────────────────────  RENDER  ────────────────────────────── */
   return (

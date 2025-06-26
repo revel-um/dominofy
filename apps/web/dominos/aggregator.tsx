@@ -96,6 +96,7 @@ export default function AggregatorDomino({ data, id, selected }: NodeProps) {
                       value: '',
                       required: false,
                       shouldRender: false,
+                      inPinId: 'value_in_1',
                     } as DominoField,
                   ]
                 } as DominoNodeData,
