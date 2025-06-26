@@ -32,6 +32,7 @@ import { FilesApi } from "../apis/files.apis";
 import { useRouter } from "next/router";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
+import DatabaseDomino from "../dominos/dbSetup";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -42,7 +43,8 @@ const nodeTypes = {
   arithmetic: ArithmeticDomino,
   readexcel: ReadExcelDomino,
   deconstructor: DeconstrctDomino,
-  iterator: IteratorDomino
+  iterator: IteratorDomino,
+  dbSetup: DatabaseDomino,
 };
 
 interface CanvasProps {

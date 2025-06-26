@@ -4,7 +4,8 @@ import {
   FiGlobe,
   FiZap,
   FiFileText,
-  FiRepeat
+  FiRepeat,
+  FiDatabase
 } from 'react-icons/fi';
 
 export default [
@@ -52,5 +53,10 @@ export default [
     id: 'iterator',
     label: 'Iterator',
     icon: FiRepeat,           // 🔁 Iterate over list
+  },
+  {
+    id: 'dbSetup',
+    label: 'Database Setup',
+    icon: FiDatabase,           // 🔁 Iterate over list
   },
 ];
