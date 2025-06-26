@@ -52,6 +52,7 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
                 options: driverOptions,
                 required: true,
                 placeholder: 'Select driver',
+                inPinId: `value_in_1`,
               },
               {
                 type: 'textInput',
@@ -59,6 +60,7 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
                 value: values.Host,
                 required: true,
                 placeholder: 'localhost',
+                inPinId: `value_in_2`,
               },
               {
                 type: 'textInput',
@@ -66,18 +68,21 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
                 value: values.Port,
                 required: true,
                 placeholder: '5432',
+                inPinId: `value_in_3`,
               },
               {
                 type: 'textInput',
                 heading: 'Username',
                 value: values.Username,
                 required: true,
+                inPinId: `value_in_4`,
               },
               {
                 type: 'password',
                 heading: 'Password',
                 value: values.Password,
                 required: true,
+                inPinId: `value_in_5`,
               },
               {
                 type: 'textInput',
@@ -85,6 +90,7 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
                 value: values.Database,
                 required: true,
                 placeholder: 'DB name',
+                inPinId: `value_in_6`,
               },
               {
                 type: 'textInput',
@@ -92,6 +98,7 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
                 value: values.Timeout,
                 required: false,
                 placeholder: 'ms',
+                inPinId: `value_in_7`,
               },
               {
                 type: 'dropdown',
@@ -100,6 +107,7 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
                 options: sslOptions,
                 required: false,
                 placeholder: 'SSL mode',
+                inPinId: `value_in_8`,
               },
             ],
           };
@@ -196,15 +204,12 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
       
-      {data.details?.fields.map((field: DominoField) => {
+      {data.details?.fields.map((field: DominoField, idx: number) => {
         if (field.type === 'dropdown') {
           return (
-            <div className="px-3 py-2" key={field.heading} >
+            <div className="px-3 py-2 flex items-center gap-2 relative" key={field.heading} >
               <label className="block text-xs mb-1">{field.heading}</label>
-              
-              <div className="flex items-center gap-2 relative px-3">
-                <DominoPin id={`value_in_${field.heading}`} pinType={PinType.VALUE_IN} inline />
-              
+              <DominoPin id={`value_in_${idx+1}`} pinType={PinType.VALUE_IN} inline />
                 <select
                   name={field.heading}
                   value={values[field.heading as keyof typeof values]}
@@ -218,12 +223,16 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
                   ))}
                 </select>
               </div>
-            </div>
           );
         } else {
           return (
-            <div className="px-3 py-2" key={field.heading}>
+            <>
+            <div className="px-3 py-2 flex items-center gap-2 relative" key={field.heading}>
               <label className="block text-xs mb-1">{field.heading}</label>
+               
+                <DominoPin id={`value_in_${idx+1}`} pinType={PinType.VALUE_IN} inline />      
+            </div>
+            <div className="px-3">
               <input
                 type={field.type === 'password' ? 'password' : 'text'}
                 name={field.heading}
@@ -233,6 +242,8 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
                 className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
               />
             </div>
+                
+            </>
           );
         }
       })}

@@ -214,6 +214,10 @@ export default function DetailsPanel({ selectedNode, getNodes, getEdges, setNode
                                                 clearValidationForDominoId(selectedNode.id);
                                                 selectedNode.data.setFieldValue(field.heading, val);
                                             }}
+                                            label={field.label}
+                                            onClick={() => {
+                                                if (field.onClick) field.onClick();
+                                            }}
                                         />
                                     </div>
                                 );

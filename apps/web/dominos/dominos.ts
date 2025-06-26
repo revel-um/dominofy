@@ -6,7 +6,8 @@ import {
   FiFileText,
   FiRepeat,
   FiDatabase,
-  FiLayers
+  FiLayers,
+  FiCode
 } from 'react-icons/fi';
 
 export default [
@@ -64,5 +65,10 @@ export default [
     id: 'aggregator',
     label: 'Aggregator',
     icon: FiLayers, // ➕ Accumulate values using sum, multiply, min, or max
+  },
+  {
+    id: 'sqlRunner',
+    label: 'SQL Runner',
+    icon: FiCode, // ➕ Accumulate values using sum, multiply, min, or max
   }
 ];

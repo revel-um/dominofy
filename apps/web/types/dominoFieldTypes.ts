@@ -9,6 +9,7 @@ import { TextWidget } from "../components/widgets/textWidget";
 import { TextInput } from "../components/widgets/textInput";
 import { CopyWidget } from "../components/widgets/copyWidget";
 import { KeyValInput } from "../components/widgets/keyValue";
+import { Button } from "../components/widgets/button";
 
 export type WidgetType =
   | 'text'
@@ -22,7 +23,9 @@ export type WidgetType =
   | 'file'
   | 'copy'
   | 'switch'
-  | 'password';
+  | 'password'
+  | 'textArea'
+  | 'button';
 
 export interface DominoFieldOption {
   label: string;
@@ -32,9 +35,11 @@ export interface DominoFieldOption {
 export interface DominoField {
   type: WidgetType;
   value: any;
+  label?: string; // For buttons and labels
   inPinId?: string;
   connectedValue?: string;
   onChange?: Function;
+  onClick?: Function; // For buttons
   options?: DominoFieldOption[]; // For dropdown and multi-select
   placeholder?: string;
   required?: boolean;
@@ -67,5 +72,6 @@ export const fieldWidgetMap = {
   date: DateInput,
   file: FileInput,
   copy: CopyWidget,
+  button: Button,
   keyVal: KeyValInput
 };
