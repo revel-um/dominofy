@@ -21,7 +21,8 @@ export type WidgetType =
   | 'date'
   | 'file'
   | 'copy'
-  | 'switch';
+  | 'switch'
+  | 'password';
 
 export interface DominoFieldOption {
   label: string;

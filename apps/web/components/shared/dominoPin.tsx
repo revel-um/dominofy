@@ -7,14 +7,12 @@ interface DominoPinProps {
   id: string;
   pinType: PinType;
   inline?: boolean;
-  pinPosition?: string;
 }
 
 export default function DominoPin({
   id,
   pinType,
   inline = false,
-  pinPosition,
 }: DominoPinProps) {
   const isExecution =
     pinType === PinType.EXEC_IN || pinType === PinType.EXEC_OUT;
@@ -44,7 +42,6 @@ export default function DominoPin({
         width: 8,
         height: 8,
         borderRadius: isExecution ? '50%' : '2px',
-        ...(pinPosition ? { top: pinPosition } : {}),
       }}
     />
   );
