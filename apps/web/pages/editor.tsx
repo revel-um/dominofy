@@ -235,7 +235,7 @@ const EditorPage: React.FC = () => {
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-800">SQL Editor</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Code Editor</h1>
         <div className="flex items-center space-x-2">
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
             connectionStatus === 'connected'
