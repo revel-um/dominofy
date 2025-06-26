@@ -36,6 +36,7 @@ import IteratorDomino from "../dominos/iterator";
 import DatabaseDomino from "../dominos/dbSetup";
 import AggregatorDomino from "../dominos/aggregator";
 import SQLRunnerDomino from "../dominos/sqlRunner";
+import CustomCodeDomino from "../dominos/codeRunner";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -49,7 +50,8 @@ const nodeTypes = {
   iterator: IteratorDomino,
   dbSetup: DatabaseDomino,
   aggregator: AggregatorDomino,
-  sqlRunner: SQLRunnerDomino
+  sqlRunner: SQLRunnerDomino,
+  codeRunner: CustomCodeDomino
 };
 
 interface CanvasProps {

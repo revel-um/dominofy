@@ -70,5 +70,10 @@ export default [
     id: 'sqlRunner',
     label: 'SQL Runner',
     icon: FiCode, // ➕ Accumulate values using sum, multiply, min, or max
-  }
+  },
+  {
+    id: 'codeRunner',
+    label: 'Code Runner',
+    icon: FiCode, // ➕ Accumulate values using sum, multiply, min, or max
+  },
 ];
