@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   localstack-s3:
     image: localstack/localstack:latest

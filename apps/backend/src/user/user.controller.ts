@@ -32,7 +32,7 @@ export class UserController extends BaseController<
   @Get()
   find(@Req() req: Request) {
     const id = (req as any).user.id;
-    return this.service.findOne(id);
+    return this.vaultService.findOne(id);
   }
 
   /** encrypt password before persisting */

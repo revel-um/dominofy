@@ -1,13 +1,14 @@
-import { 
-  FiHome, 
-  FiGrid, 
-  FiUser, 
-  FiSettings, 
-  FiLogOut, 
-  FiHeadphones, 
-  FiMenu, 
+import {
+  FiHome,
+  FiGrid,
+  FiUser,
+  FiSettings,
+  FiLogOut,
+  FiHeadphones,
+  FiMenu,
   FiX,
-  FiCode
+  FiCode,
+  FiShield
 } from "react-icons/fi";
 import { useRouter } from "next/router";
 import { ReactElement, useState, useEffect } from "react";
@@ -27,6 +28,7 @@ const navItems: NavItemProps[] = [
   { label: "Code Editor", icon: <FiCode />, href: "/editor" },
   { label: "Support", icon: <FiHeadphones />, href: "/support" },
   { label: "Profile", icon: <FiUser />, href: "/profile" },
+  { label: "Vault", icon: <FiShield />, href: "/vault" },
   { label: "Settings", icon: <FiSettings />, href: "/settings" },
 ];
 
@@ -55,12 +57,12 @@ export default function SideNavbar() {
       const target = event.target as HTMLElement;
       const sidebar = document.querySelector('.sidebar');
       const menuButton = document.querySelector('.menu-button');
-      
-      if (isMobileMenuOpen && 
-          sidebar && 
-          !sidebar.contains(target) && 
-          menuButton && 
-          !menuButton.contains(target)) {
+
+      if (isMobileMenuOpen &&
+        sidebar &&
+        !sidebar.contains(target) &&
+        menuButton &&
+        !menuButton.contains(target)) {
         setIsMobileMenuOpen(false);
       }
     };
@@ -101,7 +103,7 @@ export default function SideNavbar() {
       </button>
 
       {/* Sidebar */}
-      <aside 
+      <aside
         className={`sidebar fixed inset-y-0 left-0 z-40 transform 
           lg:relative lg:translate-x-0 transition-all duration-300 ease-in-out
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -131,8 +133,8 @@ export default function SideNavbar() {
                 key={item.label}
                 onClick={() => handleNavClick(item.href, item.action)}
                 className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
-                  ${isActive 
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+                  ${isActive
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
                 aria-current={isActive ? 'page' : undefined}
@@ -166,7 +168,7 @@ export default function SideNavbar() {
       </aside>
 
       {/* Overlay for mobile */}
-      <div 
+      <div
         className={`fixed inset-0 bg-black/50 z-30 transition-opacity duration-300 ease-in-out 
           ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'} 
           lg:hidden`}

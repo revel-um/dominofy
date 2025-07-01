@@ -1,8 +1,9 @@
 // src/user/entities/user.entity.ts
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, ManyToMany } from 'typeorm';
 import { BaseEntity } from 'src/common/base.entity';
 import { Project } from 'src/projects/projects.entity';
 import { Workflow } from 'src/workflow/workflow.entity';
+import { Vault } from 'src/vault/vault.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -20,4 +21,7 @@ export class User extends BaseEntity {
 
   @OneToMany(() => Workflow, (workflow) => workflow.user)
   workflows: Workflow[];
+
+  @ManyToMany(() => Vault, (vault) => vault.users)
+  vaults: Vault[];
 }
