@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { c} from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { FiChevronUp, FiChevronDown, FiX, FiMaximize2, FiMinimize2 } from 'react-icons/fi';
 
 export interface ConsoleLog {
@@ -148,82 +148,81 @@ export const LogsPanel = React.memo(function LogsPanel({
     <div
       ref={panelRef}
       className={cn(
-        'bg-dominofy-light-surface dark:bg-dominofy-dark-surface',
-        'border-t border-gray-200 dark:border-gray-700 shadow-lg',
-        'transition-all duration-200 ease-in-out flex flex-col',
+        'bg-white dark:bg-gray-900',
+        'border-t border-gray-200 dark:border-gray-700 shadow-xl',
+        'transition-all duration-300 ease-in-out flex flex-col',
         'fixed bottom-0 left-0 right-0 z-50',
-        'flex flex-col',
+        'flex flex-col backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95',
+        'transform transition-transform duration-300',
+        isMinimized ? 'translate-y-[calc(100%-40px)]' : 'translate-y-0',
         className
       )}
       style={{
         height: isMinimized ? '40px' : `min(${height}, 80vh)`,
         maxHeight: isExpanded ? maxHeight : 'none',
-        minHeight: isMinimized ? '40px' : '140px',
-        transform: 'translateZ(0)', // Force GPU acceleration
-        marginTop: isMinimized ? '0' : '-1px', // Pull up slightly when expanded
+        minHeight: isMinimized ? '40px' : '160px',
       }}
     >
       {/* Resize handle */}
       <div 
-        className="h-2 w-full cursor-row-resize flex items-center justify-center group bg-dominofy-light-surface dark:bg-dominofy-dark-surface border-b border-gray-200 dark:border-gray-700 relative z-10"
+        className="h-2 w-full cursor-row-resize flex items-center justify-center group bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-600 dark:to-indigo-600 relative z-10"
         onMouseDown={handleMouseDown}
       >
-        <div className="w-16 h-1 bg-gray-300 dark:bg-gray-600 rounded-full group-hover:bg-blue-500 transition-colors" />
+        <div className="w-24 h-1 bg-white/50 rounded-full group-hover:bg-white/80 transition-all duration-200" />
       </div>
+      
       {/* Header */}
       <div 
         className={cn(
-          'h-14 flex items-center justify-between px-4 cursor-pointer select-none',
-          'bg-dominofy-light-surface dark:bg-dominofy-dark-surface',
+          'h-14 flex items-center justify-between px-5 cursor-pointer select-none',
+          'bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900',
           'border-b border-gray-200 dark:border-gray-700',
-          'hover:bg-dominofy-light-surface/95 dark:hover:bg-dominofy-dark-surface/95',
+          'hover:from-gray-100 hover:to-gray-200 dark:hover:from-gray-700 dark:hover:to-gray-800',
           'flex-shrink-0',
-          'transition-all duration-200',
+          'transition-all duration-300',
           'relative z-30',
           'shadow-sm',
           isMinimized ? 'rounded-t-lg' : ''
         )}
-        style={{
-          paddingTop: '2px', // Add slight top padding to ensure visibility
-        }}
         onClick={toggleMinimize}
       >
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
           <button 
-            onClick={toggleMinimize}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1"
+            onClick={(e) => { e.stopPropagation(); toggleMinimize(); }}
+            className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
             title={isMinimized ? 'Show logs' : 'Minimize'}
           >
-            {isMinimized ? <FiChevronUp /> : <FiChevronDown />}
+            {isMinimized ? <FiChevronUp size={18} /> : <FiChevronDown size={18} />}
           </button>
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <span className="relative flex h-3.5 w-3.5">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-blue-500"></span>
+            <span className="relative flex items-center justify-center">
+              <span className="absolute inline-flex h-3.5 w-3.5 rounded-full bg-blue-500 opacity-75 animate-pulse"></span>
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-500"></span>
             </span>
-            <span className="text-gray-900 dark:text-white text-[13px] font-medium">Workflow Logs</span>
+            <span className="text-gray-800 dark:text-gray-100 text-sm font-medium">Workflow Logs</span>
           </h3>
           {logs.length > 0 && (
-            <span className="text-xs bg-dominofy-light-panel dark:bg-dominofy-dark-panel px-2 py-0.5 rounded-full">
-              {logs.length}
+            <span className="text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 px-2 py-0.5 rounded-full">
+              {logs.length} {logs.length === 1 ? 'entry' : 'entries'}
             </span>
           )}
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1">
           <button
-            onClick={onClear}
-            className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title="Clear logs"
+            disabled={logs.length === 0}
           >
-            <FiX />
+            <FiX size={18} />
           </button>
           <button
-            onClick={toggleExpand}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1"
+            onClick={(e) => { e.stopPropagation(); toggleExpand(); }}
+            className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             title={isExpanded ? 'Collapse' : 'Expand'}
           >
-            {isExpanded ? <FiMinimize2 /> : <FiMaximize2 />}
+            {isExpanded ? <FiMinimize2 size={16} /> : <FiMaximize2 size={16} />}
           </button>
         </div>
       </div>
@@ -231,41 +230,63 @@ export const LogsPanel = React.memo(function LogsPanel({
       {/* Logs content */}
       {!isMinimized && (
         <div 
-          className="overflow-y-auto overflow-x-auto flex-grow p-3 relative z-0 bg-white dark:bg-gray-900"
+          className="overflow-y-auto overflow-x-auto flex-grow relative z-0 bg-white dark:bg-gray-900"
           style={{ 
             minHeight: '100px',
-            maxHeight: 'calc(80vh - 56px)' // Account for taller header
+            maxHeight: 'calc(80vh - 56px)'
           }}
         >
           {logs.length === 0 ? (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-              No logs available. Run the workflow to see logs here.
+            <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+              <div className="w-16 h-16 mb-4 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                <FiMaximize2 className="w-6 h-6 text-blue-400" />
+              </div>
+              <h4 className="text-gray-700 dark:text-gray-200 font-medium mb-1">No logs yet</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
+                Run your workflow to see execution logs appear here in real-time
+              </p>
             </div>
           ) : (
-            <div className="p-2 space-y-1">
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {logs.map((log) => (
                 <div
                   key={log.id}
                   className={cn(
-                    'text-xs font-mono p-1.5 rounded',
-                    'hover:bg-dominofy-light-panel dark:hover:bg-dominofy-dark-panel',
-                    getLogTypeStyles(log.type)
+                    'px-4 py-2.5 text-sm font-mono transition-colors duration-150',
+                    'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                    'border-l-4',
+                    log.type === 'error' ? 'border-red-500 bg-red-50/50 dark:bg-red-900/10' :
+                    log.type === 'warn' ? 'border-yellow-500 bg-yellow-50/50 dark:bg-yellow-900/10' :
+                    log.type === 'info' ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/10' :
+                    log.type === 'success' ? 'border-green-500 bg-green-50/50 dark:bg-green-900/10' :
+                    'border-transparent'
                   )}
                 >
                   <div className="flex items-start">
-                    <span className="text-gray-500 dark:text-gray-400 mr-2 whitespace-nowrap">
-                      [{formatTime(log.timestamp)}]
+                    <span className="text-xs text-gray-400 dark:text-gray-500 mr-3 mt-0.5 font-medium min-w-[72px]">
+                      {formatTime(log.timestamp)}
                     </span>
-                    {log.source && (
-                      <span className="text-purple-500 dark:text-purple-400 mr-2 font-medium">
-                        [{log.source}]
+                    <div className="flex-1">
+                      {log.source && (
+                        <span className="inline-block px-1.5 py-0.5 text-[11px] font-medium rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 mb-1 mr-2">
+                          {log.source}
+                        </span>
+                      )}
+                      <span className={cn(
+                        'whitespace-pre-wrap break-words',
+                        log.type === 'error' ? 'text-red-700 dark:text-red-300' :
+                        log.type === 'warn' ? 'text-yellow-700 dark:text-yellow-300' :
+                        log.type === 'info' ? 'text-blue-700 dark:text-blue-300' :
+                        log.type === 'success' ? 'text-green-700 dark:text-green-300' :
+                        'text-gray-700 dark:text-gray-200'
+                      )}>
+                        {log.message}
                       </span>
-                    )}
-                    <span className="whitespace-pre-wrap break-words">{log.message}</span>
+                    </div>
                   </div>
                 </div>
               ))}
-              <div ref={logsEndRef} />
+              <div ref={logsEndRef} className="h-4" />
             </div>
           )}
         </div>
