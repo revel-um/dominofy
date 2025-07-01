@@ -8,6 +8,7 @@ import { UserModule } from './user/user.module';
 import { WorkflowModule } from './workflow/workflow.module';
 import { VerifyTokenMiddleware } from './middlewares/auth.middleware';
 import { AwsServicesModule } from './aws-services/aws-services.module';
+import { VaultModule } from './vault/vault.module';
 
 @Module({
   imports: [
@@ -30,7 +31,8 @@ import { AwsServicesModule } from './aws-services/aws-services.module';
     ProjectsModule,
     UserModule,
     WorkflowModule,
-    AwsServicesModule
+    AwsServicesModule,
+    VaultModule
   ],
   controllers: [AppController],
   providers: [AppService, VerifyTokenMiddleware],
