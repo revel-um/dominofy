@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Canvas from "../../components/canvas";
 import DominosPanel from "../../components/dominosPanel";
 import DetailsPanel from "../../components/detailsPanel";
-import LogsPanel, { ConsoleLog } from "../../components/LogsPanel";
+import LogsPanel, { WorkflowLog } from "../../components/LogsPanel";
 import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow';
 import { DominoContext } from "../../contexts/dominoContext";
 import { buildPipeline } from "../../../../shared/helpers/buildPipeline";
@@ -30,14 +30,14 @@ export default function DominofyLayout({ workflow }: Props) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [workflowId, setWorkflowId] = useState<string | undefined>();
-    const [logs, setLogs] = useState<ConsoleLog[]>([]);
-    const logsRef = React.useRef<ConsoleLog[]>([]);
+    const [logs, setLogs] = useState<WorkflowLog[]>([]);
+    const logsRef = React.useRef<WorkflowLog[]>([]);
 
     const [loading, setLoading] = useState(true);
 
     // Function to add logs
     const addLog = useCallback((message: string, type: 'log' | 'info' | 'warn' | 'error' | 'success' = 'log', source?: string) => {
-        const newLog: ConsoleLog = {
+        const newLog: WorkflowLog = {
             id: Date.now().toString(),
             type,
             message,
@@ -167,7 +167,9 @@ export default function DominofyLayout({ workflow }: Props) {
     return (
         <DominoContext.Provider value={contextValue}>
             <div className="w-screen h-screen flex flex-col bg-dominofy-light-background dark:bg-dominofy-dark-background text-dominofy-light-text dark:text-dominofy-dark-text">
-                <div className="flex-1 relative overflow-hidden">
+                <div className="flex-1 relative overflow-hidden"
+                    style={{ paddingBottom: '60px' }}   // ← 60 px = collapsedHeight
+                >
                     <ReactFlowProvider>
                         <Canvas
                             id="dominofy"
@@ -191,9 +193,9 @@ export default function DominofyLayout({ workflow }: Props) {
                         />
                     </ReactFlowProvider>
                 </div>
-                <LogsPanel 
-                    logs={logs} 
-                    onClear={clearLogs} 
+                <LogsPanel
+                    logs={logs}
+                    onClear={clearLogs}
                     className="border-t border-gray-200 dark:border-gray-700"
                 />
             </div>
