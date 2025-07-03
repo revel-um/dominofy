@@ -9,6 +9,7 @@ import { WorkflowModule } from './workflow/workflow.module';
 import { VerifyTokenMiddleware } from './middlewares/auth.middleware';
 import { AwsServicesModule } from './aws-services/aws-services.module';
 import { WorkflowLoggerModule } from './workflow-logger/workflow-logger.module';
+import { VaultModule } from './vault/vault.module';
 
 @Module({
   imports: [
@@ -32,7 +33,8 @@ import { WorkflowLoggerModule } from './workflow-logger/workflow-logger.module';
     UserModule,
     WorkflowModule,
     AwsServicesModule,
-    WorkflowLoggerModule
+    WorkflowLoggerModule,
+    VaultModule
   ],
   controllers: [AppController],
   providers: [AppService, VerifyTokenMiddleware],

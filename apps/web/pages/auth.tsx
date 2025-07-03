@@ -101,7 +101,7 @@ export default function AuthPage() {
             {/* Header & Toggle */}
             <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center">
               <div>
-                <h2 className="text-3xl font-bold">
+                <h2 className="text-3xl font-bold text-black">
                   {isSignup ? 'Sign up to' : 'Log in to'}
                 </h2>
                 <span className="block text-3xl font-bold text-blue-600">
