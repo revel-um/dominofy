@@ -4,26 +4,29 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { FiCode, FiX } from 'react-icons/fi';
 
 export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const [showRawData, setShowRawData] = useState(false);
 
   // Form field types
   type FormField = {
     value: string;
     pinId: string;
     required: boolean;
+    valueConnected?: boolean;
   };
 
   // Form state
   const [formData, setFormData] = useState({
-    from: { value: '', pinId: 'from_pin', required: true },
-    to: { value: '', pinId: 'to_pin', required: true },
-    subject: { value: '', pinId: 'subject_pin', required: false },
-    body: { value: '', pinId: 'body_pin', required: true },
-    cc: { value: '', pinId: 'cc_pin', required: false },
-    bcc: { value: '', pinId: 'bcc_pin', required: false }
+    from: { value: '', pinId: 'from_pin', required: true, valueConnected: false },
+    to: { value: '', pinId: 'to_pin', required: true, valueConnected: false },
+    subject: { value: '', pinId: 'subject_pin', required: false, valueConnected: false },
+    body: { value: '', pinId: 'body_pin', required: true, valueConnected: false },
+    cc: { value: '', pinId: 'cc_pin', required: false, valueConnected: false },
+    bcc: { value: '', pinId: 'bcc_pin', required: false, valueConnected: false },
   });
 
   // Sync with node data
@@ -149,46 +152,94 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
     }
   }, [data, id]);
 
-  // Handle input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    const fieldName = name as keyof typeof formData;
-    
+  // Handle field changes
+  const handleFieldChange = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({
       ...prev,
-      [fieldName]: { ...prev[fieldName], value }
+      [field]: { ...prev[field], value }
     }));
     
-    data.setFieldValue?.(name, value);
+    const fieldName = field === 'cc' ? 'CC' : field === 'bcc' ? 'BCC' : 
+                    field.charAt(0).toUpperCase() + field.slice(1);
+    data.setFieldValue?.(fieldName, value);
     clearValidationForDominoId(id);
   };
 
-  // Render form field
-  const renderField = (fieldName: keyof typeof formData, placeholder: string, isTextArea = false) => {
-    const field = formData[fieldName];
-    const InputComponent = isTextArea ? 'textarea' : 'input';
-    
+  // Handle input changes (for direct input events)
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    handleFieldChange(name as keyof typeof formData, value);
+  };
+
+  // Toggle raw data panel
+  const toggleRawData = () => {
+    setShowRawData(!showRawData);
+  };
+
+  // Generate raw data object from form data
+  const getRawData = () => {
+    const rawData: Record<string, string> = {};
+    Object.entries(formData).forEach(([key, value]) => {
+      rawData[key] = value.value;
+    });
+    return rawData;
+  };
+
+  // Render a field with its pin
+  const renderField = (field: keyof typeof formData, placeholder: string, isTextArea = false) => {
+    const fieldData = formData[field];
+    const isConnected = fieldData.valueConnected || false;
+    const isRequired = fieldData.required;
+    const hasError = isRequired && !fieldData.value && !isConnected;
+    const fieldLabel = field === 'cc' ? 'CC' : field === 'bcc' ? 'BCC' : 
+                     field.charAt(0).toUpperCase() + field.slice(1);
+
     return (
-      <div className="flex items-start gap-1" key={fieldName}>
-        <div className="w-4 pt-2">
-          <DominoPin id={field.pinId} pinType={PinType.VALUE_IN} />
-        </div>
-        <div className="flex-1">
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            {fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}
-            {field.required && <span className="ml-1 text-red-500">*</span>}
+      <div key={field} className="space-y-1">
+        <div className="flex items-center gap-2 relative px-3">
+          <DominoPin id={`value_in_${field}`} pinType={PinType.VALUE_IN} inline />
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                {fieldLabel}
+                {isRequired && <span className="text-red-500 ml-1">*</span>}
+              </label>
+            </div>
+            {!isConnected ? (
+              isTextArea ? (
+                <textarea
+                  name={field}
+                  value={fieldData.value}
+                  onChange={handleChange}
+                  placeholder={placeholder}
+                  className={`mt-1 w-full px-2 py-1 text-sm border rounded ${
+                    hasError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  } bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text`}
+                  rows={3}
+                />
+              ) : (
+                <input
+                  type="text"
+                  name={field}
+                  value={fieldData.value}
+                  onChange={handleChange}
+                  placeholder={placeholder}
+                  className={`mt-1 w-full px-2 py-1 text-sm border rounded ${
+                    hasError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  } bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text`}
+                />
+              )
+            ) : (
+              <div className="mt-1 px-2 py-1 text-sm text-gray-500 italic">
+                Connected
+              </div>
+            )}
+            {hasError && (
+              <p className="mt-1 text-xs text-red-500">
+                This field is required
+              </p>
+            )}
           </div>
-          <InputComponent
-            name={fieldName}
-            value={field.value}
-            onChange={handleChange}
-            placeholder={placeholder}
-            rows={isTextArea ? 3 : undefined}
-            className={`w-full px-2 py-1 text-sm border rounded ${
-              field.required && !field.value ? 'border-red-500' : 'border-gray-300'
-            } bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-            text-dominofy-light-text dark:text-dominofy-dark-text`}
-          />
         </div>
       </div>
     );
@@ -196,24 +247,25 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
 
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-64 overflow-visible shadow-sm
-        ${hasError
+      className={`transition-all duration-150 rounded-md w-64 overflow-visible shadow-sm ${
+        hasError
           ? 'error-border'
           : selected
             ? 'selected-border border-4'
-            : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+            : 'unselected-border dark:border-gray-600'
+      } bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
     >
-      {/* Header */}
-      <div 
-        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md"
+      {/* Header with exec pins */}
+      <div
+        className="flex justify-between text-sm font-semibold text-white border-b rounded-t-md"
         style={{
           backgroundColor: '#10b981',
           borderBottomColor: '#059669',
           borderRadius: '0.23rem 0.23rem 0 0',
         }}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 px-3 py-2">
+          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
           <svg 
             className="w-4 h-4" 
             viewBox="0 0 24 24" 
@@ -228,14 +280,13 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
           </svg>
           <span>Email Sender</span>
         </div>
-        <div className="flex items-center gap-1">
-          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+        <div className="flex items-center pr-2">
           <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
         </div>
       </div>
 
       {/* Form fields */}
-      <div className="p-2 space-y-2">
+      <div className="space-y-2 p-2">
         {renderField('from', 'sender@example.com')}
         {renderField('to', 'recipient@example.com')}
         {renderField('subject', 'Email subject')}
@@ -249,6 +300,36 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
         <p className="px-3 pb-2 text-xs text-red-500">
           ⚠️ Please fill in all required fields
         </p>
+      )}
+
+      {/* Raw data toggle button */}
+      <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+        <button
+          onClick={toggleRawData}
+          className="w-full flex items-center justify-center gap-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+        >
+          {showRawData ? (
+            <>
+              <FiX size={14} /> Hide Raw Data
+            </>
+          ) : (
+            <>
+              <FiCode size={14} /> Show Raw Data
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Raw data panel */}
+      {showRawData && (
+        <div className="border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
+          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+            Raw Data
+          </div>
+          <pre className="text-xs bg-white dark:bg-gray-900 p-2 rounded overflow-auto max-h-40">
+            {JSON.stringify(getRawData(), null, 2)}
+          </pre>
+        </div>
       )}
     </div>
   );
