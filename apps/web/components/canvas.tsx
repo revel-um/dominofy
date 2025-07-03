@@ -34,6 +34,7 @@ import { useRouter } from "next/router";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
+import EmailSenderDomino from "../dominos/EmailSenderDomino";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -45,7 +46,8 @@ const nodeTypes = {
   readexcel: ReadExcelDomino,
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
-  aggregator: AggregatorDomino
+  aggregator: AggregatorDomino,
+  emailsender: EmailSenderDomino
 };
 
 interface CanvasProps {
