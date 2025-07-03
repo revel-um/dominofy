@@ -7,6 +7,6 @@ import { RunnerLauncherService } from './runner-launcher';
 @Module({
   imports: [TypeOrmModule.forFeature([WorkflowLog])],
   providers: [WorkflowLoggerService, RunnerLauncherService],
-  exports: [RunnerLauncherService]
+  exports: [RunnerLauncherService, WorkflowLoggerService]
 })
 export class WorkflowLoggerModule {}
