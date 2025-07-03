@@ -1,4 +1,4 @@
-import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon } from 'lucide-react';
+import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon, Filter } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -58,5 +58,10 @@ export default [
     id: 'aggregator',
     label: 'Aggregator',
     icon: FiLayers, // ➕ Accumulate values using sum, multiply, min, or max
+  },
+  {
+    id: 'filter',
+    label: 'Filter',
+    icon: Filter, // 🔍 Filter array of objects based on conditions
   }
 ];
