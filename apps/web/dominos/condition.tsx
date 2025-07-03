@@ -1,16 +1,25 @@
-// src/dominos/condition.tsx
 import { NodeProps } from 'reactflow';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { DominoField, DominoFieldOption, DominoNodeData } from '../types/dominoFieldTypes';
+import {
+  DominoField,
+  DominoFieldOption,
+  DominoNodeData,
+} from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 
 export default function ConditionDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
-  /* ───────── dropdown options */
+  /* ───────── helpers ───────── */
+  const getField = (heading: string) =>
+    (data.details as DominoNodeData | undefined)?.fields?.find(
+      f => f.heading === heading,
+    ) as any | undefined;
+
+  /* ───────── dropdown options ───────── */
   const options: DominoFieldOption[] = [
     { label: 'Equal to', value: 'equal' },
     { label: 'Less Than', value: 'less_than' },
@@ -21,115 +30,138 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
     { label: 'Contains', value: 'contains' },
   ];
 
-  /* ───────── state */
-  const [values, setValues] = useState({
-    value1: '',
-    value2: '',
-    operator: options[0].value,
-  });
+  /* ───────── local state ───────── */
+  const [value1, setValue1] = useState<string>(getField('Text1')?.value ?? '');
+  const [value2, setValue2] = useState<string>(getField('Text2')?.value ?? '');
+  const [operator, setOperator] = useState<string>(
+    getField('Option')?.value ?? options[0].value,
+  );
 
-  /* keep local state in sync when workflow imported */
+  /* Sync when a saved workflow is loaded */
   useEffect(() => {
-    const f1 = data.details?.fields?.find((f: DominoField) => f.heading === 'Text1');
-    const f2 = data.details?.fields?.find((f: DominoField) => f.heading === 'Text2');
-    const f3 = data.details?.fields?.find((f: DominoField) => f.heading === 'Option');
-    setValues({
-      value1: (f1?.value as string) ?? values.value1,
-      value2: (f2?.value as string) ?? values.value2,
-      operator: (f3?.value as string) ?? values.operator,
-    });
+    setValue1(getField('Text1')?.value ?? '');
+    setValue2(getField('Text2')?.value ?? '');
+    setOperator(getField('Option')?.value ?? options[0].value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.details?.fields]);
 
-  /* bootstrap node + setFieldValue */
-  useEffect(() => {
-    if ((!data.setFieldValue || !data.details) && data.setNodes) {
-      const setFieldValue = (heading: string, val: any, name: string) => {
-        setValues(prev => ({ ...prev, [name]: val }));
-        data.setNodes?.((nodes: any[]) =>
-          nodes.map((n: { id: string; data: { details: { fields: DominoField[]; }; }; }) =>
-            n.id === id
-              ? {
+  /* ───────── stable setFieldValue ───────── */
+  const setFieldValue = useCallback(
+    (heading: string, value: any) => {
+      // Update local state for instant UI feedback
+      if (heading === 'Text1') setValue1(value);
+      else if (heading === 'Text2') setValue2(value);
+      else setOperator(value);
+
+      if (!data.setNodes) return;
+      data.setNodes((nodes: any[]) =>
+        nodes.map((n: { id: string; data: { details: DominoNodeData; }; }) =>
+          n.id === id
+            ? {
                 ...n,
                 data: {
                   ...n.data,
                   details: {
-                    ...n.data.details,
-                    fields: n.data.details.fields.map((f: DominoField) =>
-                      f.heading === heading ? { ...f, value: val } : f
+                    ...(n.data.details as DominoNodeData),
+                    fields: (n.data.details as DominoNodeData).fields.map(f =>
+                      f.heading === heading ? { ...f, value } : f,
                     ),
                   },
                 },
               }
-              : n
-          )
-        );
-      };
-
-      data.setNodes((prev: any[]) =>
-        prev.map((node: { id: string; data: any; }) =>
-          node.id !== id
-            ? node
-            : {
-              ...node,
-              data: {
-                ...node.data,
-                details: {
-                  type: 'Condition',
-                  description: 'Compare two values using an operator',
-                  fields: [
-                    {
-                      type: 'textInput',
-                      heading: 'Text1',
-                      value: values.value1,
-                      inPinId: 'value_in_1',
-                      required: true,
-                      shouldRender: false,
-                    },
-                    {
-                      type: 'textInput',
-                      heading: 'Text2',
-                      value: values.value2,
-                      inPinId: 'value_in_2',
-                      required: true,
-                      shouldRender: false,
-                    },
-                    {
-                      type: 'dropdown',
-                      heading: 'Option',
-                      value: values.operator,
-                      options,
-                      required: true,
-                      shouldRender: false,
-                    },
-                  ],
-                } as DominoNodeData,
-                exportFields: ['Text1', 'Text2', 'Option'],
-                setFieldValue,
-              },
-            }
-        )
+            : n,
+        ),
       );
-    }
-  }, [data, id, values]);
+    },
+    [data.setNodes, id],
+  );
 
-  /* generic change handler */
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setValues(prev => ({ ...prev, [name]: value }));
-    data.setFieldValue?.(name, value);
+  /* ───────── one‑time bootstrap ───────── */
+  useEffect(() => {
+    if (!data.setNodes) return;
+
+    data.setNodes((prev: any[]) => {
+      let anyChanged = false;
+      const newNodes = prev.map((node: { id: string; data: any; }) => {
+        if (node.id !== id) return node;
+
+        let changed = false;
+        const newData: any = { ...node.data };
+
+        // Inject setFieldValue exactly once
+        if (!newData.setFieldValue) {
+          newData.setFieldValue = setFieldValue;
+          changed = true;
+        }
+
+        // Create default details only on first drop
+        if (!newData.details) {
+          newData.details = {
+            type: 'Condition',
+            description: 'Compare two values using an operator',
+            fields: [
+              {
+                type: 'textInput',
+                heading: 'Text1',
+                value: value1,
+                inPinId: 'value_in_1',
+                required: true,
+                shouldRender: false,
+              },
+              {
+                type: 'textInput',
+                heading: 'Text2',
+                value: value2,
+                inPinId: 'value_in_2',
+                required: true,
+                shouldRender: false,
+              },
+              {
+                type: 'dropdown',
+                heading: 'Option',
+                value: operator,
+                options,
+                required: true,
+                shouldRender: false,
+              },
+            ],
+          } as DominoNodeData;
+          (newData as any).exportFields = ['Text1', 'Text2', 'Option'];
+          changed = true;
+        }
+
+        if (changed) {
+          anyChanged = true;
+          return { ...node, data: newData };
+        }
+        return node;
+      });
+      return anyChanged ? newNodes : prev;
+    });
+  }, [data.setNodes, id, options, setFieldValue]);
+
+  /* ───────── change handler ───────── */
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    const { name, value } = e.target; // name === heading
     clearValidationForDominoId(id);
+    setFieldValue(name, value);
   };
 
-  /* ───────── render */
+  /* ───────── render ───────── */
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
-        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
       style={{ minWidth: '13rem' }}
+      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
+        ${hasError
+          ? 'error-border'
+          : selected
+          ? 'selected-border'
+          : 'unselected-border dark:border-gray-600'}
+        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
     >
-      {/* header with exec pins and True/False rows */}
+      {/* Header */}
       <div
         className="flex justify-between text-sm font-semibold text-white border-b rounded-t-md relative"
         style={{
@@ -142,7 +174,6 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
           <span>Condition</span>
         </div>
-
         <div className="flex flex-col items-end gap-1">
           <div className="flex items-center gap-1 relative px-3">
             <span className="text-xs">True</span>
@@ -155,29 +186,27 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
         </div>
       </div>
 
-      {/* Input 1 row */}
+      {/* Input 1 */}
       <div className="flex items-center gap-2 relative px-3 py-1">
         <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
         <input
           name="Text1"
-          value={values.value1}
+          value={value1}
           onChange={handleChange}
           placeholder="Input 1"
-          className="flex-1 px-2 py-1 text-sm border rounded
-                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                       text-dominofy-light-text dark:text-dominofy-dark-text"
+          className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
         />
       </div>
 
-      {/* Operator row */}
-      <div className='px-3'>
+      {/* Operator */}
+      <div className="px-3">
         <select
-          value={values.operator ?? ''}
-          name='Option'
+          value={operator}
+          name="Option"
           onChange={handleChange}
-          className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
+          className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
         >
-          {options.map((opt) => (
+          {options.map(opt => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -185,23 +214,21 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
         </select>
       </div>
 
-      {/* Input 2 row */}
+      {/* Input 2 */}
       <div className="flex items-center gap-2 relative px-3">
         <DominoPin id="value_in_2" pinType={PinType.VALUE_IN} inline />
         <input
           name="Text2"
-          value={values.value2}
+          value={value2}
           onChange={handleChange}
           placeholder="Input 2"
-          className="flex-1 px-2 py-1 text-sm border rounded
-                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                       text-dominofy-light-text dark:text-dominofy-dark-text"
+          className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
         />
       </div>
 
-      {/* Output row */}
+      {/* Output */}
       <div className="relative px-3 py-2 flex items-center justify-between">
-        <div></div>
+        <div />
         <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
           Output
         </span>
