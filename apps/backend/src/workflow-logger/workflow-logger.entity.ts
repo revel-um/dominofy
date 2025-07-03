@@ -30,7 +30,6 @@ export class WorkflowLog extends BaseEntity {
         onDelete: 'CASCADE',
         nullable: false,
     })
-    @JoinColumn({ name: 'workflow_id' })
     workflow: Workflow;
 
     /* ─────────── Routing keys ───────── */
@@ -53,13 +52,9 @@ export class WorkflowLog extends BaseEntity {
 
     /** Returned value from the domino (JSON-serialisable). */
     @Column({ type: 'jsonb', nullable: true })
-    output?: unknown;
+    output?: any;
 
     /** Error info if status === FAILURE. */
     @Column({ type: 'jsonb', nullable: true })
     error?: { message: string; stack?: string };
-
-    /** Free-form diagnostics (duration, retries, etc.). */
-    @Column({ type: 'jsonb', nullable: true })
-    meta?: Record<string, any>;
 }

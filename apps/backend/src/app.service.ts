@@ -6,10 +6,11 @@ import { WorkflowService } from './workflow/workflow.service';
 import { DominoResult } from './domino-engine/domino-engine.type';
 import { Runner } from './domino-engine/runner';
 import { v4 as uuidv4 } from 'uuid';
+import { RunnerLauncherService } from './workflow-logger/runner-launcher';
 
 @Injectable()
 export class AppService {
-  constructor(private readonly workflowService: WorkflowService) { }
+  constructor(private readonly workflowService: WorkflowService, private readonly runnerLauncherService: RunnerLauncherService) { }
 
   async dominofyEvent(workflowId: string, userId: string) {
     const workflow = await this.workflowService.findOneAndVerify(workflowId, userId);
@@ -19,7 +20,13 @@ export class AppService {
     const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
     return new Observable(subscriber => {
       const runId = uuidv4();
-      const runner = new Runner(pipeline, 20); // or any concurrency you want
+      
+      const runner = this.runnerLauncherService.createRunner(
+        workflowId,
+        runId,
+        pipeline,
+        20 // or any concurrency you want
+      );
 
       // Subscribe to per-node “done” events:
       runner.on("done", (res: DominoResult) => {

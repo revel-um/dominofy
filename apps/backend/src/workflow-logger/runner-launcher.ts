@@ -7,50 +7,51 @@ import { Runner } from '../domino-engine/runner';
 
 @Injectable()
 export class RunnerLauncherService {
-  constructor(private readonly logger: WorkflowLoggerService) { }
+  constructor(private readonly logger: WorkflowLoggerService) {}
 
   /**
-   * Launches a pipeline run with logging.
-   *
-   * @param workflowId  DB id for Workflow (FK in logs table)
-   * @param runId       uuid-v4 for this execution instance
-   * @param pipeline    parsed Domino pipeline
-   * @param globals     global input for triggers
-   * @param maxConc     Runner concurrency (default 20)
+   * Creates a Runner, wires logging, and returns it.
+   * Caller is responsible for invoking runner.run().
    */
-  launch(
+  createRunner(
     workflowId: string,
     runId: string,
     pipeline: PipelineStep[],
     maxConc = 20,
-  ) {
-    /* 1️⃣ create the plain Runner */
+  ): Runner {
     const runner = new Runner(pipeline, maxConc);
 
-    /* 2️⃣ attach SUCCESS listener */
+    /* per-run monotonically-increasing sequence counter ––––––––– */
+    let seq = 0;                                         // NEW
+
+    /* SUCCESS listener */
     runner.on('done', (res: any) => {
+      const type = res.id.split('-')[0];                 // e.g. 'print'
       this.logger.logLine({
         workflowId,
+        type,
         runId,
-        dominoId: res.nodeId,             // Runner emits nodeId in res
+        dominoId: res.id,
         status: WorkflowLogStatus.SUCCESS,
-        output: res.output,
-        meta: { durationMs: res.duration },
+        output: type === 'print' ? res.output : undefined,
+        seq: seq++,                                      // NEW
       });
     });
 
-    /* 3️⃣ attach FAILURE listener */
+    /* FAILURE listener */
     runner.on('error', ({ nodeId, error }) => {
+      const type = nodeId.split('-')[0];
       this.logger.logLine({
         workflowId,
+        type,
         runId,
         dominoId: nodeId,
         status: WorkflowLogStatus.FAILURE,
         error: { message: error?.message, stack: error?.stack },
+        seq: seq++,                                      // NEW
       });
     });
 
-    /* 4️⃣ run the pipeline */
     return runner;
   }
 }

@@ -21,7 +21,7 @@ export class PrintDomino implements DominoExecutable {
     console.log(`[PrintDomino:${this.id}] ${msg}`);
     return {
       id: this.id,
-      output: ctx.input.Text,
+      output: msg,
       startedAt,
       finishedAt: Date.now(),
     };
