@@ -198,7 +198,6 @@ export class WorkflowLoggerService
     const toSave: WorkflowLog[] = [];
 
     for (const g of groups.values()) {
-      console.log(g)
       const key = `${g.workflowId}::${g.runId}::${g.dominoId}`;
       const existing = existingMap.get(key);
 
