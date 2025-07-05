@@ -16,15 +16,16 @@ import {
   progressEmitter,
 } from './heavy-lifter/exec-pool.util';
 import { Runner } from './domino-engine/runner';
-
-const CPU_INTENSIVE = true;          // flip to false for local inline testing
+import { isWorkflowBlocking } from './heavy-lifter/block-checker';
+import { RunnerLauncherService } from './workflow-logger/runner-launcher';
 
 @Injectable()
 export class AppService {
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly workflowLogger: WorkflowLoggerService,
-  ) {}
+    private readonly runnerLauncherService: RunnerLauncherService,
+  ) { }
 
   async dominofyEvent(workflowId: string, userId: string) {
     const wf = await this.workflowService.findOneAndVerify(workflowId, userId);
@@ -37,8 +38,10 @@ export class AppService {
       const runId = uuidv4();
       console.log('started run', { runId });
 
-      /* ─────────── worker-thread path ─────────── */
-      if (CPU_INTENSIVE) {
+      const isBlocking = isWorkflowBlocking(pipeline);
+
+      //Assign blocking workflows to worker thread
+      if (isBlocking) {
         if (execPool.queueSize >= MAX_QUEUE_LEN) {
           subscriber.error(
             new HttpException('Server busy – retry soon', HttpStatus.TOO_MANY_REQUESTS),
@@ -94,31 +97,19 @@ export class AppService {
       }
 
       /* ─────────── inline path (CPU_INTENSIVE = false) ─────────── */
-      const runner = new Runner(pipeline, 20);
+      // const runner = new Runner(pipeline, 20);
+      const runner = this.runnerLauncherService.createRunner(
+        workflowId,
+        runId,
+        pipeline,
+        20,
+      );
 
       runner.on('done', (res) => {
-        const type = res.id.split('-')[0];
-        this.workflowLogger.logLine({
-          workflowId,
-          type,
-          runId,
-          dominoId: res.id,
-          status: WorkflowLogStatus.SUCCESS,
-          output: type === 'print' ? res.output : undefined,
-        });
         subscriber.next(JSON.stringify(res));
       });
 
       runner.on('error', ({ nodeId, error }) => {
-        const type = nodeId.split('-')[0];
-        this.workflowLogger.logLine({
-          workflowId,
-          type,
-          runId,
-          dominoId: nodeId,
-          status: WorkflowLogStatus.FAILURE,
-          error: { message: error?.message, stack: error?.stack },
-        });
         subscriber.next(JSON.stringify({ nodeId, error }));
       });
 

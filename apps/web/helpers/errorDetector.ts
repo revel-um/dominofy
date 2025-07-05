@@ -67,17 +67,25 @@ export function validateAndMarkErrors(nodes: Node[]): string[] {
     /* ---- Rule 2: Iterator must have Max true OR positive Limit ---- */
     if (node.type === 'iterator') {
       const maxField   = fields.find(f => f.heading === 'Max');
-      const limitField = fields.find(f => f.heading === 'Limit');
+      const rangeStart = fields.find(f => f.heading === 'Range Start');
+      const rangeEnd = fields.find(f => f.heading === 'Range End');
 
       const isMaxTrue = Boolean(maxField?.value);
-      const limitVal  = limitField?.value;
-      const limitOk   =
-        limitVal !== undefined &&
-        limitVal !== '' &&
-        !isNaN(Number(limitVal)) &&
-        Number(limitVal) > 0;
+      // const limitVal  = limitField?.value;
+      const lowerBound = rangeStart?.value;
+      const upperBound = rangeEnd?.value;
 
-      if (!isMaxTrue && !limitOk) erroredIds.add(node.id);
+      const isRangeValid = lowerBound !== undefined &&
+        lowerBound !== '' &&
+        !isNaN(Number(lowerBound)) &&
+        Number(lowerBound) >= 0 &&
+        upperBound !== undefined &&
+        upperBound !== '' &&
+        !isNaN(Number(upperBound)) &&
+        Number(upperBound) > 0 &&
+        Number(lowerBound) < Number(upperBound);
+
+      if (!isMaxTrue && !isRangeValid) erroredIds.add(node.id);
     }
   });
 

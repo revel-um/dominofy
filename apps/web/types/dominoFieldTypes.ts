@@ -40,7 +40,7 @@ export interface DominoField {
   heading?: string;
   shouldRender?: boolean; // For conditional rendering
   needsUpload?: boolean; // For file inputs
-  file?: {key: string, url: string}; // For file inputs
+  file?: {key: string, url: string, size: number}; // For file inputs
   exportOverride?: string | string[]
   connectedPin?: string; // For multi-pin connections
 }
