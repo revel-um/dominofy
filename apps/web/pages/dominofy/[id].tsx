@@ -194,8 +194,7 @@ export default function DominofyLayout({ workflow }: Props) {
                     </ReactFlowProvider>
                 </div>
                 <LogsPanel
-                    logs={logs}
-                    onClear={clearLogs}
+                    workflowId={workflowId!}
                     className="border-t border-gray-200 dark:border-gray-700"
                 />
             </div>
