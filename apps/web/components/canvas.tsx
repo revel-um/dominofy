@@ -34,8 +34,10 @@ import { useRouter } from "next/router";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
+import SchedulerDomino from "../dominos/SchedulerDomino";
 
 const nodeTypes = {
+  scheduler: SchedulerDomino,
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,

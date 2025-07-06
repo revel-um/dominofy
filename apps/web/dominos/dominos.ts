@@ -1,14 +1,20 @@
-import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon } from 'lucide-react';
+import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon, Clock } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
   FiZap,
   FiFileText,
   FiRepeat,
-  FiLayers
+  FiLayers,
+  FiClock
 } from 'react-icons/fi';
 
 export default [
+  {
+    id: 'scheduler',
+    label: 'Scheduler',
+    icon: FiClock, // ⏰ Represents scheduling and timing
+  },
   {
     id: 'print',
     label: 'Print',
