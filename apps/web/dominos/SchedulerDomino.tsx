@@ -248,6 +248,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
             onChange={handleFrequencyChange}
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
           >
+            <option value="once">Once</option>
             <option value="minute">Every X Minutes</option>
             <option value="hour">Every X Hours</option>
             <option value="day">Daily</option>
@@ -294,16 +295,16 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
               Days
             </label>
-            <div className="flex flex-wrap gap-1">
+            <div className="grid grid-cols-4 gap-1">
               {dayOptions.map((day) => (
                 <button
                   key={day.value}
                   type="button"
                   onClick={() => toggleDayOfWeek(day.value)}
-                  className={`px-2 py-1 text-xs rounded ${
+                  className={`py-1 text-xs text-center rounded ${
                     schedule.daysOfWeek.includes(day.value)
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
+                      : 'bg-purple-600 text-white'
                   }`}
                 >
                   {day.label.slice(0, 3)}
@@ -326,39 +327,20 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
             <option value="UTC">UTC</option>
             <option value="local">Local Time</option>
             <option value="Asia/Kolkata">Asia/Kolkata</option>
-            <option value="America/New_York">America/New_York</option>
+            <option value="America/New_York">America/New York</option>
             <option value="Europe/London">Europe/London</option>
           </select>
         </div>
 
-        {/* Schedule Info */}
-        <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-700 space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-500 dark:text-gray-400">Last Run:</span>
-            <span className="font-mono">{formatDate(schedule.lastRun)}</span>
+        {/* Last Run / Next Run */}
+        <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-700">
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Last run: {formatDate(schedule.lastRun)}
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-500 dark:text-gray-400">Next Run:</span>
-            <span className="font-mono">
-              {schedule.nextRun ? formatDate(schedule.nextRun) : 'Not scheduled'}
-            </span>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Next run: {formatDate(schedule.nextRun)}
           </div>
         </div>
-
-        {/* Test Button */}
-        <button
-          onClick={() => {
-            // This would trigger the schedule manually for testing
-            setSchedule(prev => ({
-              ...prev,
-              lastRun: new Date()
-            }));
-          }}
-          className="w-full flex items-center justify-center gap-2 px-3 py-1.5 mt-2 text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-        >
-          <FiPlay className="w-3 h-3" />
-          Test Schedule
-        </button>
       </div>
     </div>
   );
