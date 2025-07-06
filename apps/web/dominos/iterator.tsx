@@ -80,9 +80,9 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
                         type: 'text',
                         heading: 'Input',
                         inPinId: 'value_in',
-                        required: true,
+                        // required: true,
                         shouldRender: false,
-                        value: '',
+                        // value: '',
                       } as DominoField,
                       {
                         type: 'dropdown',

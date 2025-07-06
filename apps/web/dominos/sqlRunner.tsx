@@ -3,25 +3,17 @@
 import React, { useState, useEffect } from 'react';
 import { NodeProps } from 'reactflow';
 import SqlRunnerPopup from '../components/modals/SqlRunnerPopup';
+import ConnectionModal, { ConnectionConfig } from '../components/modals/ConnectionModal';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 
-interface ConnectionConfig {
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
-  ssl: boolean;
-}
-
 export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
 
-  // Query & connection state
+  // — Query & connection state —
   const [query, setQuery] = useState(
     (data.details?.fields.find((f: any) => f.heading === 'Query')?.value as string) || ''
   );
@@ -29,11 +21,12 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
     Boolean(data.details?.fields.find((f: any) => f.heading === 'Connection Name'))
   );
 
-  // Popup state & output
+  // — Popup & modal state —
   const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const [output, setOutput] = useState('');
 
-  // Connection config
+  // — Connection config & status —
   const [connectionConfig, setConnectionConfig] = useState<ConnectionConfig>({
     host: 'localhost',
     port: 5432,
@@ -42,27 +35,53 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
     password: '',
     ssl: false,
   });
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<
+    'disconnected' | 'connecting' | 'connected'
+  >('disconnected');
   const [isConnecting, setIsConnecting] = useState(false);
 
-  // Sync node fields
+  // — Sync node fields into ReactFlow’s details panel —
   useEffect(() => {
     if (!data.setNodes) return;
     data.setNodes((nodes: any[]) =>
-      nodes.map((n: { id: string; data: any; }) => {
+      nodes.map((n: any) => {
         if (n.id !== id) return n;
         const fields: DominoField[] = [
-          { type: 'textArea', heading: 'Query', value: query, required: true, placeholder: 'SELECT …', shouldRender: true },
-          { type: 'button', label: 'Connect', onClick: () => setConnected(true), value: '', required: true, shouldRender: true },
+          {
+            type: 'textArea',
+            heading: 'Query',
+            value: query,
+            required: true,
+            placeholder: 'SELECT …',
+            shouldRender: true,
+          },
+          {
+            type: 'button',
+            label: 'Connect',
+            onClick: () => setShowConfigModal(true),
+            value: '',
+            required: true,
+            shouldRender: true,
+          },
         ];
         if (connected) {
-          fields.push({ type: 'text', heading: 'Connection Name', value: connectionConfig.database, required: true, shouldRender: true });
+          fields.push({
+            type: 'text',
+            heading: 'Connection Name',
+            value: connectionConfig.database,
+            required: true,
+            shouldRender: true,
+          });
         }
         return {
           ...n,
           data: {
             ...n.data,
-            details: { type: 'SQLRunner', description: 'Run a SQL query against an existing database connection', fields } as DominoNodeData,
+            details: {
+              type: 'SQLRunner',
+              description: 'Run a SQL query against an existing database connection',
+              fields,
+            } as DominoNodeData,
             exportFields: ['Query'],
           },
         };
@@ -70,13 +89,13 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
     );
   }, [data.setNodes, id, query, connected, connectionConfig.database]);
 
-  // Allow details-panel to update Query
+  // — Allow details-panel to update Query field —
   useEffect(() => {
     if (data.setFieldValue || !data.setNodes) return;
     const setFieldValue = (heading: string, newValue: any) => {
       if (heading === 'Query') setQuery(newValue);
       data.setNodes!((nodes: any[]) =>
-        nodes.map((n: { id: string; data: { details: { fields: DominoField[]; }; }; }) =>
+        nodes.map(n =>
           n.id !== id
             ? n
             : {
@@ -95,14 +114,13 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
       );
     };
     data.setNodes((nodes: any[]) =>
-      nodes.map((n: { id: string; data: any; }) =>
-        n.id === id ? { ...n, data: { ...n.data, setFieldValue } } : n
-      )
+      nodes.map(n => (n.id === id ? { ...n, data: { ...n.data, setFieldValue } } : n))
     );
   }, [data.setFieldValue, data.setNodes, id]);
 
-  // Test DB connection
-  const handleConnect = async () => {
+  // — Test & save connection settings —
+  const handleSaveConfig = async () => {
+    setShowConfigModal(false);
     setIsConnecting(true);
     setConnectionStatus('connecting');
     try {
@@ -115,23 +133,24 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
       if (!res.ok || !json.data?.connected) throw new Error(json.error || 'Connection failed');
       setConnectionStatus('connected');
       setConnected(true);
+      // once connected, open the SQL popup:
       setIsPopupOpen(true);
     } catch (err) {
-      setConnectionStatus('disconnected');
       console.error(err);
+      setConnectionStatus('disconnected');
     } finally {
       setIsConnecting(false);
     }
   };
 
-  // Disconnect DB
+  // — Disconnect DB —
   const handleDisconnect = () => {
     setConnectionStatus('disconnected');
     setConnected(false);
     setOutput('');
   };
 
-  // Run SQL
+  // — Run SQL query —
   const runQuery = async () => {
     setOutput('Running…');
     try {
@@ -163,13 +182,14 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
 
   return (
     <>
-      {/* Node box */}
+      {/* node wrapper is now relative */}
       <div
-        style={{ minWidth: '14rem' }}
+        style={{ minWidth: '14rem', position: 'relative' }}
         className={`transition-all duration-150 rounded-md shadow-sm w-56
           ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
           bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
       >
+        {/* header */}
         <div
           className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md"
           style={{ backgroundColor: '#10b981', borderBottomColor: '#059669' }}
@@ -184,6 +204,7 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
           </div>
         </div>
 
+        {/* query input */}
         <div className="px-3 py-2">
           <label className="block text-xs mb-1">Query</label>
           <input
@@ -196,27 +217,45 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
           />
         </div>
 
+        {/* value‐out pin */}
         <div className="flex justify-center py-2">
           <DominoPin id="value_out_Result" pinType={PinType.VALUE_OUT} inline />
         </div>
 
         {hasError && (
-          <p className="mt-1 text-xs text-red-500 px-3">⚠️ Query failed or connection missing.</p>
+          <p className="mt-1 text-xs text-red-500 px-3">
+            ⚠️ Query failed or connection missing.
+          </p>
         )}
+
+        {/* — SQL Popup rendered inside this wrapper — */}
+        <SqlRunnerPopup
+          open={isPopupOpen}
+          query={query}
+          output={output}
+          connectionStatus={connectionStatus}
+          onQueryChange={setQuery}
+          onRun={runQuery}
+          onConnect={() => setShowConfigModal(true)}
+          onDisconnect={handleDisconnect}
+          onClose={() => setIsPopupOpen(false)}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            marginTop: '4px',
+            zIndex: 10,
+          }}
+        />
       </div>
 
-      {/* Popup */}
-      <SqlRunnerPopup
-        open={isPopupOpen}
-        query={query}
-        output={output}
-        connectionStatus={connectionStatus}
-        onQueryChange={setQuery}
-        onRun={runQuery}
-        onConnect={handleConnect}
-        onDisconnect={handleDisconnect}
-        onClose={() => setIsPopupOpen(false)}
-        style={{ top: 120, left: 200 }}
+      {/* — Connection Settings Modal — */}
+      <ConnectionModal
+        open={showConfigModal}
+        config={connectionConfig}
+        onChange={setConnectionConfig}
+        onSave={handleSaveConfig}
+        onClose={() => setShowConfigModal(false)}
       />
     </>
   );
