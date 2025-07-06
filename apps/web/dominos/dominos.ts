@@ -5,10 +5,16 @@ import {
   FiZap,
   FiFileText,
   FiRepeat,
-  FiLayers
+  FiLayers,
+  FiDownload
 } from 'react-icons/fi';
 
 export default [
+  {
+    id: 'csvwriter',
+    label: 'CSV Writer',
+    icon: FiDownload, // 📥 Represents downloading data
+  },
   {
     id: 'print',
     label: 'Print',

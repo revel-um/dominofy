@@ -34,8 +34,10 @@ import { useRouter } from "next/router";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
+import CSVWriterDomino from "../dominos/CSVWriterDomino";
 
 const nodeTypes = {
+  csvwriter: CSVWriterDomino,
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
