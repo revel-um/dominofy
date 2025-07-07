@@ -9,6 +9,7 @@ import { buildPipeline } from "../../../../shared/helpers/buildPipeline";
 import { useRouter } from "next/router";
 import { WorkflowsApi } from "../../apis/workflow.apis";
 import { importWorkflow } from "../../helpers/workflowManager";
+import { SSEProvider } from "@/contexts/sseContext";
 
 interface Props {
     workflow?: {
@@ -36,7 +37,7 @@ export default function DominofyLayout({ workflow }: Props) {
     const [loading, setLoading] = useState(true);
 
     // Function to add logs
-    const addLog = useCallback((message: string, type: 'log' | 'info' | 'warn' | 'error' | 'success' = 'log', source?: string) => {
+    useCallback((message: string, type: 'log' | 'info' | 'warn' | 'error' | 'success' = 'log', source?: string) => {
         const newLog: WorkflowLog = {
             id: Date.now().toString(),
             type,
@@ -165,39 +166,41 @@ export default function DominofyLayout({ workflow }: Props) {
     }
 
     return (
-        <DominoContext.Provider value={contextValue}>
-            <div className="w-screen h-screen flex flex-col bg-dominofy-light-background dark:bg-dominofy-dark-background text-dominofy-light-text dark:text-dominofy-dark-text">
-                <div className="flex-1 relative overflow-hidden"
-                    style={{ paddingBottom: '60px' }}   // ← 60 px = collapsedHeight
-                >
-                    <ReactFlowProvider>
-                        <Canvas
-                            id="dominofy"
-                            nodes={nodes}
-                            setNodes={setNodes}
-                            onNodesChange={onNodesChange}
-                            edges={edges}
-                            setEdges={setEdges}
-                            onEdgesChange={onEdgesChange}
-                            workflowId={workflowId}
-                        />
-                        <DominosPanel />
-                        <DetailsPanel
-                            selectedNode={selectedNode}
-                            getNodes={() => nodes}
-                            getEdges={() => edges}
-                            setNodes={setNodes}
-                            setEdges={setEdges}
-                            updatePipeline={updatePipeline}
-                            workflowId={workflowId!}
-                        />
-                    </ReactFlowProvider>
+        <SSEProvider>
+            <DominoContext.Provider value={contextValue}>
+                <div className="w-screen h-screen flex flex-col bg-dominofy-light-background dark:bg-dominofy-dark-background text-dominofy-light-text dark:text-dominofy-dark-text">
+                    <div className="flex-1 relative overflow-hidden"
+                        style={{ paddingBottom: '60px' }}   // ← 60 px = collapsedHeight
+                    >
+                        <ReactFlowProvider>
+                            <Canvas
+                                id="dominofy"
+                                nodes={nodes}
+                                setNodes={setNodes}
+                                onNodesChange={onNodesChange}
+                                edges={edges}
+                                setEdges={setEdges}
+                                onEdgesChange={onEdgesChange}
+                                workflowId={workflowId}
+                            />
+                            <DominosPanel />
+                            <DetailsPanel
+                                selectedNode={selectedNode}
+                                getNodes={() => nodes}
+                                getEdges={() => edges}
+                                setNodes={setNodes}
+                                setEdges={setEdges}
+                                updatePipeline={updatePipeline}
+                                workflowId={workflowId!}
+                            />
+                        </ReactFlowProvider>
+                    </div>
+                    <LogsPanel
+                        workflowId={workflowId!}
+                        className="border-t border-gray-200 dark:border-gray-700"
+                    />
                 </div>
-                <LogsPanel
-                    workflowId={workflowId!}
-                    className="border-t border-gray-200 dark:border-gray-700"
-                />
-            </div>
-        </DominoContext.Provider>
+            </DominoContext.Provider>
+        </SSEProvider>
     );
 }

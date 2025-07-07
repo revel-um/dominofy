@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { FiX, FiFile } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import { LogsApi } from '@/apis/logs.apis';
+import { useSSE } from '@/contexts/sseContext';
 
 export interface WorkflowLog {
   id: string;
@@ -42,8 +43,9 @@ export const LogsPanel = React.memo(function LogsPanel({
   defaultHeight = '60px',
   collapsedHeight = '60px',
 }: LogsPanelProps) {
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = new Date().toISOString().split('T')[0];
   const panelRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const previousHeight = useRef(defaultHeight);
   const isResizing = useRef(false);
@@ -66,19 +68,18 @@ export const LogsPanel = React.memo(function LogsPanel({
   const dateSelected = rangeStart !== '' && rangeEnd !== '';
   const isFiltering = minutesFilter !== null || dateSelected;
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  // pull shared SSE events
+  const { events: sseEvents } = useSSE();
 
-  // at top of LogsPanel
+  // auto-scroll state
   const [autoScroll, setAutoScroll] = useState(true);
-
-  // handler to detect if user has scrolled away from bottom
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    // consider “at bottom” within 20px
     const atBottom = scrollHeight - scrollTop - clientHeight < 20;
     setAutoScroll(atBottom);
   }, []);
 
+  // fetch + poll, grouping by runId
   const fetchLogs = useCallback(async () => {
     const token = localStorage.getItem('token') || '';
     const res = await LogsApi.getLogs(workflowId, token, router, {
@@ -89,59 +90,96 @@ export const LogsPanel = React.memo(function LogsPanel({
       endDate: dateSelected ? rangeEnd : undefined,
     });
     if (!res?.ok) return;
+    const { logs: raw } = await res.json();
 
-    let { logs: raw } = await res.json();
-    setLogs(
-      raw.filter((l: any) => l.dominoId.split('-')[0] == 'print').map((l: any) => ({
-        id: l.id,
-        type: l.status === 'failure' ? 'error' : 'log',
-        message: l.output
+    // group raw logs by runId
+    const grouped: Record<string, { messages: string[]; timestamp: Date; type: 'log' | 'error' }> = {};
+    raw
+      .filter((l: any) => l.dominoId.split('-')[0] === 'print')
+      .forEach((l: any) => {
+        const runId = l.runId;
+        const msg = l.output
           ? Array.isArray(l.output)
             ? l.output.map((o: any) => o.output).join('\n')
             : JSON.stringify(l.output)
-          : l.error?.message || '',
-        timestamp: new Date(l.updatedAt),
-        source: l.dominoId,
+          : l.error?.message || '';
+        const ts = new Date(l.updatedAt);
+        const type = l.status === 'failure' ? 'error' : 'log';
+
+        if (!grouped[runId]) {
+          grouped[runId] = { messages: [msg], timestamp: ts, type };
+        } else {
+          grouped[runId].messages.push(msg);
+          if (ts > grouped[runId].timestamp) grouped[runId].timestamp = ts;
+        }
+      });
+
+    setLogs(
+      Object.entries(grouped).map(([runId, data]) => ({
+        id: runId,
+        type: data.type as any,
+        message: data.messages.join('\n'),
+        timestamp: data.timestamp,
+        source: runId,
       }))
     );
+  }, [workflowId, router, offset, limit, minutesFilter, rangeStart, rangeEnd, dateSelected]);
 
-  }, [
-    workflowId,
-    router,
-    offset,
-    limit,
-    minutesFilter,
-    rangeStart,
-    rangeEnd,
-    dateSelected,
-  ]);
+  // append SSE events when live is on, grouping by runId
+  useEffect(() => {
+    if (!isLive || sseEvents.length === 0) return;
 
+    const incoming: Record<string, WorkflowLog> = {};
+    sseEvents
+      .filter((e: any) => e.id?.split('-')[0] === 'print')
+      .forEach((e: any) => {
+        const runId = e.runId;
+        const msg = e.output;
+        const ts = new Date(e.finishedAt || e.timestamp);
+
+        if (!incoming[runId]) {
+          incoming[runId] = {
+            id: runId,
+            type: 'log',
+            message: msg,
+            timestamp: ts,
+            source: runId,
+          };
+        } else {
+          incoming[runId].message += `\n${msg}`;
+          if (ts > incoming[runId].timestamp) incoming[runId].timestamp = ts;
+        }
+      });
+
+    setLogs((prev) => {
+      const map = new Map(prev.map((log) => [log.id, { ...log }]));
+      Object.values(incoming).forEach((log) => map.set(log.id, log));
+      return Array.from(map.values());
+    });
+  }, [sseEvents, isLive]);
+
+  // auto-scroll on logs update or panel open
   useEffect(() => {
     const c = containerRef.current;
     if (!c) return;
-    if (autoScroll) {
-      // jump straight to bottom on first render + whenever logs update
+    if (!isMinimized && autoScroll) {
       c.scrollTop = c.scrollHeight;
     }
   }, [logs, autoScroll, isMinimized]);
 
-
-
   useEffect(() => {
-    // 1️⃣ always fetch once when this effect first runs
+    if (isLive) return;
     fetchLogs();
-
-    // 2️⃣ if we’re filtering or the interval is off, don’t start polling
     if (isFiltering || refreshInterval <= 0) return;
-
-    // 3️⃣ otherwise start the interval
     const id = setInterval(fetchLogs, refreshInterval * 1000);
     return () => clearInterval(id);
-  }, [fetchLogs, isFiltering, refreshInterval]);
+  }, [fetchLogs, isFiltering, refreshInterval, isLive]);
 
-  const handleClear = () => setLogs([]);
+  const handleClear = () => { 
+    setLogs([])
+   };
 
-  // collapse & resize logic (unchanged)
+  // collapse & resize logic
   const px = (v: string) => parseInt(v, 10);
   const minOpenPx = () => Math.round(window.innerHeight * 0.35);
   const AUTO_COLLAPSE_THRESHOLD_PX = 120;
@@ -157,46 +195,49 @@ export const LogsPanel = React.memo(function LogsPanel({
     setIsMinimized(!isMinimized);
   }, [isMinimized, height, collapsedHeight, isDragging]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isMinimized) {
-      setIsMinimized(false);
-      setHeight(collapsedHeight);
-    }
-    const startY = e.clientY;
-    const startH = panelRef.current?.offsetHeight || px(collapsedHeight);
-    isResizing.current = true;
-    setIsDragging(true);
-    document.body.style.cursor = 'row-resize';
-    document.body.style.userSelect = 'none';
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!isResizing.current || !panelRef.current) return;
-      const newH = startH + (startY - ev.clientY);
-      const MIN = px(collapsedHeight);
-      const MAX = window.innerHeight;
-      const h = Math.max(MIN, Math.min(newH, MAX));
-      setHeight(`${h}px`);
-      previousHeight.current = `${h}px`;
-    };
-    const onMouseUp = () => {
-      isResizing.current = false;
-      setIsDragging(false);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      if (px(previousHeight.current) <= AUTO_COLLAPSE_THRESHOLD_PX) {
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isMinimized) {
+        setIsMinimized(false);
         setHeight(collapsedHeight);
-        setIsMinimized(true);
       }
-    };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, [isMinimized, collapsedHeight, isDragging]);
+      const startY = e.clientY;
+      const startH = panelRef.current?.offsetHeight ?? px(collapsedHeight);
+      isResizing.current = true;
+      setIsDragging(true);
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!isResizing.current || !panelRef.current) return;
+        const newH = startH + (startY - ev.clientY);
+        const MIN = px(collapsedHeight);
+        const MAX = window.innerHeight;
+        const h = Math.max(MIN, Math.min(newH, MAX));
+        setHeight(`${h}px`);
+        previousHeight.current = `${h}px`;
+      };
+      const onMouseUp = () => {
+        isResizing.current = false;
+        setIsDragging(false);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        if (px(previousHeight.current) <= AUTO_COLLAPSE_THRESHOLD_PX) {
+          setHeight(collapsedHeight);
+          setIsMinimized(true);
+        }
+      };
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    },
+    [isMinimized, collapsedHeight, isDragging]
+  );
 
-  const formatTime = useCallback((d: Date) => {
-    return (
+  const formatTime = useCallback(
+    (d: Date) =>
       d.toLocaleTimeString('en-US', {
         hour12: false,
         hour: '2-digit',
@@ -204,9 +245,9 @@ export const LogsPanel = React.memo(function LogsPanel({
         second: '2-digit',
       }) +
       '.' +
-      d.getMilliseconds().toString().padStart(3, '0')
-    );
-  }, []);
+      d.getMilliseconds().toString().padStart(3, '0'),
+    []
+  );
 
   return (
     <div
@@ -219,9 +260,7 @@ export const LogsPanel = React.memo(function LogsPanel({
         className
       )}
       style={{
-        height: isMinimized
-          ? collapsedHeight
-          : `min(${height}, 100vh)`,
+        height: isMinimized ? collapsedHeight : `min(${height},100vh)`,
         minHeight: collapsedHeight,
         maxHeight: isMinimized ? collapsedHeight : maxHeight,
         transform: isMinimized
@@ -245,7 +284,6 @@ export const LogsPanel = React.memo(function LogsPanel({
         )}
         onClick={toggleMinimize}
       >
-        {/* Title */}
         <div className="flex items-center space-x-3">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <span
@@ -260,9 +298,7 @@ export const LogsPanel = React.memo(function LogsPanel({
           </h3>
         </div>
 
-        {/* Filters & Controls */}
         <div className="flex items-center space-x-8 text-xs">
-
           {!isFiltering && !isLive && (
             <div className="flex items-center space-x-2 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">
               <label>Refresh:</label>
@@ -304,61 +340,65 @@ export const LogsPanel = React.memo(function LogsPanel({
             </div>
           )}
 
-          {!isLive && (<div className="flex items-center space-x-2 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">
-            <label>From:</label>
-            <input
-              type="date"
-              max={today}
-              className="border px-1 py-0.5 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-              value={rangeStart}
-              onChange={(e) => setRangeStart(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
+          {!isLive && (
+            <div className="flex items-center space-x-2 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">
+              <label>From:</label>
+              <input
+                type="date"
+                max={today}
+                className="border px-1 py-0.5 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                value={rangeStart}
+                onChange={(e) => setRangeStart(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
 
-            <label>To:</label>
-            <input
-              type="date"
-              min={rangeStart}
-              max={today}
-              className="border px-1 py-0.5 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-              value={rangeEnd}
-              onChange={(e) => setRangeEnd(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            />
+              <label>To:</label>
+              <input
+                type="date"
+                min={rangeStart}
+                max={today}
+                className="border px-1 py-0.5 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                value={rangeEnd}
+                onChange={(e) => setRangeEnd(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
 
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setRangeStart('');
-                setRangeEnd('');
-              }}
-              title="Clear dates"
-              className="p-1 text-gray-500 hover:text-red-500"
-            >
-              <FiX size={14} />
-            </button>
-          </div>)}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRangeStart('');
+                  setRangeEnd('');
+                }}
+                title="Clear dates"
+                className="p-1 text-gray-500 hover:text-red-500"
+              >
+                <FiX size={14} />
+              </button>
+            </div>
+          )}
 
-          <div className="flex items-center space-x-2">
+          {/* Live checkbox container now stops propagation */}
+          <div
+            className="flex items-center space-x-2"
+            onClick={(e) => e.stopPropagation()}
+          >
             <label className="flex items-center cursor-pointer">
               <input
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsLive(!isLive)
-                }}
                 type="checkbox"
-                defaultChecked={true}
+                checked={isLive}
+                onChange={(e) => {
+                  handleClear();
+                  setIsLive(e.target.checked)
+                }}
                 className="form-checkbox h-4 w-4 text-blue-600"
               />
               <span className="ml-2">Live</span>
             </label>
           </div>
 
-
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handleClear();
               setIsMinimized(true);
               setHeight(collapsedHeight);
             }}
@@ -371,7 +411,6 @@ export const LogsPanel = React.memo(function LogsPanel({
         </div>
       </div>
 
-      {/* content */}
       {!isMinimized && (
         <div
           ref={containerRef}
@@ -440,7 +479,6 @@ export const LogsPanel = React.memo(function LogsPanel({
         </div>
       )}
 
-      {/* bottom grab‐handle */}
       {!isMinimized && (
         <div
           className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-blue-400"
