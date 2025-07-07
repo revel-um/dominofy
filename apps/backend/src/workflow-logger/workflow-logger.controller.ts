@@ -44,7 +44,6 @@ export class WorkflowLoggerController extends BaseController<
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
     ): Promise<{ count: number; logs: WorkflowLog[] }> {
-        console.log('logger fetch')
         // 1. Verify workflow ownership
         const userId = (req as any).user.id;
         await this.workflowService.findOneAndVerify(workflowId, userId);

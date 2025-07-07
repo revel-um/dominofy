@@ -15,7 +15,6 @@ import {
   HeavyTaskInput,
   progressEmitter,
 } from './heavy-lifter/exec-pool.util';
-import { Runner } from './domino-engine/runner';
 import { isWorkflowBlocking } from './heavy-lifter/block-checker';
 import { RunnerLauncherService } from './workflow-logger/runner-launcher';
 
@@ -36,7 +35,6 @@ export class AppService {
 
     return new Observable(subscriber => {
       const runId = uuidv4();
-      console.log('started run', { runId });
 
       const isBlocking = isWorkflowBlocking(pipeline);
 
