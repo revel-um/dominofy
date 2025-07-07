@@ -69,7 +69,7 @@ export const LogsPanel = React.memo(function LogsPanel({
   const isFiltering = minutesFilter !== null || dateSelected;
 
   // pull shared SSE events
-  const { events: sseEvents } = useSSE();
+  const { events: sseEvents, clearEvents } = useSSE();
 
   // auto-scroll state
   const [autoScroll, setAutoScroll] = useState(true);
@@ -388,6 +388,7 @@ export const LogsPanel = React.memo(function LogsPanel({
                 checked={isLive}
                 onChange={(e) => {
                   handleClear();
+                  clearEvents();
                   setIsLive(e.target.checked)
                 }}
                 className="form-checkbox h-4 w-4 text-blue-600"
