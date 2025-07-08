@@ -38,12 +38,24 @@ export class LogsApi {
       query.set("offset", String(offset));
       query.set("limit", String(limit));
 
-      if (runId)      query.set("runId", runId);
-      if (search)     query.set("search", search);
+      if (runId) query.set("runId", runId);
+      if (search) query.set("search", search);
 
-      // If a date range is provided, use that; otherwise use 'minutes'
-      if (startDate)  query.set("startDate", startDate);
-      if (endDate)    query.set("endDate", endDate);
+      // normalize date range to full-day ISO windows
+      if (startDate) {
+        // build YYYY-MM-DDT00:00:00.000Z
+        const [y, m, d] = startDate.split("-").map(Number);
+        const sd = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+        query.set("startDate", sd.toISOString());
+      }
+      if (endDate) {
+        // build YYYY-MM-DDT23:59:59.999Z
+        const [y, m, d] = endDate.split("-").map(Number);
+        const ed = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+        query.set("endDate", ed.toISOString());
+      }
+
+      // only use minutes when no explicit date range
       if (!startDate && !endDate) {
         query.set("minutes", String(minutes));
       }
@@ -65,4 +77,5 @@ export class LogsApi {
       handleServerError(router, err);
     }
   }
+
 }

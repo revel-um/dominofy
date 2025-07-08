@@ -63,6 +63,8 @@ export const LogsPanel = React.memo(function LogsPanel({
   const [rangeEnd, setRangeEnd] = useState<string>('');
   const [isLive, setIsLive] = useState<boolean>(true);
 
+  const isPastEndDate = rangeEnd !== '' && rangeEnd < today;
+
   const offset = 0;
   const limit = 50;
   const dateSelected = rangeStart !== '' && rangeEnd !== '';
@@ -169,15 +171,24 @@ export const LogsPanel = React.memo(function LogsPanel({
 
   useEffect(() => {
     if (isLive) return;
-    fetchLogs();
-    if (isFiltering || refreshInterval <= 0) return;
-    const id = setInterval(fetchLogs, refreshInterval * 1000);
-    return () => clearInterval(id);
-  }, [fetchLogs, isFiltering, refreshInterval, isLive]);
 
-  const handleClear = () => { 
+    // always fetch once
+    fetchLogs();
+
+    // if endDate is in the past, skip setting up an interval
+    if (isPastEndDate) return;
+
+    // otherwise start polling
+    if (refreshInterval > 0) {
+      const id = setInterval(fetchLogs, refreshInterval * 1000);
+      return () => clearInterval(id);
+    }
+  }, [fetchLogs, refreshInterval, isLive, isPastEndDate]);
+
+
+  const handleClear = () => {
     setLogs([])
-   };
+  };
 
   // collapse & resize logic
   const px = (v: string) => parseInt(v, 10);
@@ -299,7 +310,7 @@ export const LogsPanel = React.memo(function LogsPanel({
         </div>
 
         <div className="flex items-center space-x-8 text-xs">
-          {!isFiltering && !isLive && (
+          {!isLive && !isPastEndDate && (
             <div className="flex items-center space-x-2 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">
               <label>Refresh:</label>
               <select
@@ -317,6 +328,7 @@ export const LogsPanel = React.memo(function LogsPanel({
               </select>
             </div>
           )}
+
 
           {!dateSelected && !isLive && (
             <div className="flex items-center space-x-2 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">
@@ -404,7 +416,6 @@ export const LogsPanel = React.memo(function LogsPanel({
               setHeight(collapsedHeight);
             }}
             className="p-1.5 rounded-full text-gray-500 hover:text-red-500 hover:bg-gray-200"
-            title="Clear logs"
             disabled={isDragging}
           >
             <FiX size={18} />
@@ -421,7 +432,7 @@ export const LogsPanel = React.memo(function LogsPanel({
         >
           {logs.length === 0 ? (
             <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 shrink-0">
                 <FiFile className="h-6 w-6 text-blue-400" />
               </div>
               <h4 className="mb-1 text-gray-700 dark:text-gray-200 font-medium">
