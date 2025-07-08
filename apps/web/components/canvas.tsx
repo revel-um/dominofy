@@ -34,6 +34,7 @@ import { useRouter } from "next/router";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
+import { createDropHandler, createSearchKeyDownHandler, handleNodeClick } from "@/helpers/canvasUtils";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -109,34 +110,9 @@ export default function Canvas({
   };
 
   /* ──────────────────────────────  DRAG/DROP  ────────────────────────────── */
-  const handleDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
-      const type = event.dataTransfer.getData("application/reactflow");
-      if (!type || !reactFlowInstance) return;
-
-      const position = reactFlowInstance.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
-      const newNode: Node = {
-        id: `${type}-${Date.now()}`,
-        type,
-        position,
-        data: { label: `${type} node`, value: "", workflowId, setNodes, updatePipeline },
-        draggable: true,
-        selected: true,
-      };
-
-      setNodes((nds) => {
-        const cleared = nds.map((n) => ({ ...n, selected: false }));
-        const updated = [...cleared, newNode];
-        updatePipeline(updated, edges);
-        return updated;
-      });
-    },
-    [reactFlowInstance, setNodes, edges, workflowId]
+  const onDrop = useCallback(
+    createDropHandler(reactFlowInstance, setNodes, edges, workflowId, setPipeline),
+    [reactFlowInstance, setNodes, edges, workflowId, setPipeline]
   );
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
@@ -437,42 +413,21 @@ export default function Canvas({
   );
 
   /* ──────────────────────────────  KEYBOARD HANDLER FOR SEARCH  ────────────────────────────── */
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (filteredDominos.length === 0) return;
+  const handleSearchKeyDown = useCallback(
+    createSearchKeyDownHandler(
+      filteredDominos,
+      highlightIndex,
+      setHighlightIndex,
+      onSelectDomino
+    ),
+    [filteredDominos, highlightIndex, onSelectDomino]
+  );
 
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlightIndex((i) => (i + 1) % filteredDominos.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightIndex((i) => (i - 1 + filteredDominos.length) % filteredDominos.length);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      onSelectDomino(filteredDominos[highlightIndex]);
-    }
-  };
-
-  const handleNodeClick = (_: any, node: React.SetStateAction<Node | null> & { id: string }) => {
-    if (connectStart && node.id !== connectStart.nodeId) {
-      setEdges((prev) => {
-        const newEdges = addEdge(
-          {
-            source: connectStart.nodeId,
-            sourceHandle: connectStart.handleId,
-            target: node.id,
-            targetHandle: "exec_in",
-            type: "default",
-          } as Connection,
-          prev
-        );
-        updatePipeline(nodes, newEdges);
-        return newEdges;
-      });
-      setConnectStart(null);
-    } else {
-      setSelectedNode(node);
-    }
-  }
+  const onNodeClick = useCallback(
+    (_: any, node: Node) =>
+      handleNodeClick(connectStart, node, setEdges, nodes, updatePipeline, () => setConnectStart(null), setSelectedNode),
+    [connectStart, nodes]
+  );
 
   /* ──────────────────────────────  RENDER  ────────────────────────────── */
   return (
@@ -483,7 +438,7 @@ export default function Canvas({
         edges={edges}
         onNodesChange={onNodesChangeHandler}
         onEdgesChange={onEdgesChangeHandler}
-        onDrop={handleDrop}
+        onDrop={onDrop}
         onDragOver={handleDragOver}
         onConnectStart={onConnectStart}
         onConnect={onConnect}
@@ -492,7 +447,7 @@ export default function Canvas({
         fitView
         className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
         nodeTypes={nodeTypes}
-        onNodeClick={handleNodeClick}
+        onNodeClick={onNodeClick}
         selectionKeyCode={null}
         proOptions={{ hideAttribution: true }}
         nodesDraggable={!readonly}
