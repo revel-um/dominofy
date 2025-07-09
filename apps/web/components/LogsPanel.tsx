@@ -119,7 +119,7 @@ export const LogsPanel = React.memo(function LogsPanel({
     setLogs(
       Object.entries(grouped).map(([runId, data]) => ({
         id: runId,
-        type: data.type as any,
+        type: data.type ?? 'log',
         message: data.messages.join('\n'),
         timestamp: data.timestamp,
         source: runId,
@@ -142,7 +142,7 @@ export const LogsPanel = React.memo(function LogsPanel({
         if (!incoming[runId]) {
           incoming[runId] = {
             id: runId,
-            type: 'log',
+            type: 'info',
             message: msg,
             timestamp: ts,
             source: runId,
@@ -266,7 +266,7 @@ export const LogsPanel = React.memo(function LogsPanel({
       className={cn(
         'fixed bottom-0 left-0 right-0 z-50 flex flex-col',
         'bg-white dark:bg-gray-900 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95',
-        'border-t border-gray-200 dark:border-gray-700 shadow-xl',
+        'border-t border-l border-gray-200 dark:border-gray-700 shadow-xl',
         'transform transition-transform duration-300 ease-in-out',
         className
       )}
@@ -299,13 +299,11 @@ export const LogsPanel = React.memo(function LogsPanel({
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <span
               className={cn(
-                'inline-flex h-2.5 w-2.5 rounded-full bg-blue-500',
+                'inline-flex h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0',
                 !isDragging && 'animate-pulse'
               )}
             />
-            <span className="text-gray-800 dark:text-gray-100">
-              Workflow Logs
-            </span>
+            <span className="text-gray-800 dark:text-gray-100">Workflow Logs</span>
           </h3>
         </div>
 
@@ -328,7 +326,6 @@ export const LogsPanel = React.memo(function LogsPanel({
               </select>
             </div>
           )}
-
 
           {!dateSelected && !isLive && (
             <div className="flex items-center space-x-2 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">
@@ -363,7 +360,6 @@ export const LogsPanel = React.memo(function LogsPanel({
                 onChange={(e) => setRangeStart(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
               />
-
               <label>To:</label>
               <input
                 type="date"
@@ -374,7 +370,6 @@ export const LogsPanel = React.memo(function LogsPanel({
                 onChange={(e) => setRangeEnd(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
               />
-
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -389,11 +384,7 @@ export const LogsPanel = React.memo(function LogsPanel({
             </div>
           )}
 
-          {/* Live checkbox container now stops propagation */}
-          <div
-            className="flex items-center space-x-2"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
             <label className="flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -401,7 +392,7 @@ export const LogsPanel = React.memo(function LogsPanel({
                 onChange={(e) => {
                   handleClear();
                   clearEvents();
-                  setIsLive(e.target.checked)
+                  setIsLive(e.target.checked);
                 }}
                 className="form-checkbox h-4 w-4 text-blue-600"
               />
@@ -427,7 +418,7 @@ export const LogsPanel = React.memo(function LogsPanel({
         <div
           ref={containerRef}
           onScroll={onScroll}
-          className="flex-grow w-full overflow-y-scroll bg-white dark:bg-gray-900 relative z-0"
+          className="flex-grow w-full overflow-y-scroll bg-white dark:bg-gray-900 relative z-0 border-l border-gray-200 dark:border-gray-700"
           style={{ maxHeight: 'calc(100vh - 56px)' }}
         >
           {logs.length === 0 ? (
@@ -435,9 +426,7 @@ export const LogsPanel = React.memo(function LogsPanel({
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 shrink-0">
                 <FiFile className="h-6 w-6 text-blue-400" />
               </div>
-              <h4 className="mb-1 text-gray-700 dark:text-gray-200 font-medium">
-                No logs yet
-              </h4>
+              <h4 className="mb-1 text-gray-700 dark:text-gray-200 font-medium">No logs yet</h4>
               <p className="max-w-md text-sm text-gray-500 dark:text-gray-400">
                 Run your workflow to see execution logs appear here in real time
               </p>
@@ -448,16 +437,7 @@ export const LogsPanel = React.memo(function LogsPanel({
                 <div
                   key={log.id}
                   className={cn(
-                    'px-4 py-2 text-sm font-mono border-l-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors',
-                    log.type === 'error'
-                      ? 'border-red-500 bg-red-50/50 dark:bg-red-900/10'
-                      : log.type === 'warn'
-                        ? 'border-yellow-500 bg-yellow-50/50 dark:bg-yellow-900/10'
-                        : log.type === 'info'
-                          ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/10'
-                          : log.type === 'success'
-                            ? 'border-green-500 bg-green-50/50 dark:bg-green-900/10'
-                            : 'border-transparent'
+                    'px-4 py-2 text-sm font-mono border-l-4 border-solid hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors',
                   )}
                 >
                   <div className="flex items-start">
@@ -471,9 +451,7 @@ export const LogsPanel = React.memo(function LogsPanel({
                               ? 'text-yellow-700 dark:text-yellow-300'
                               : log.type === 'info'
                                 ? 'text-blue-700 dark:text-blue-300'
-                                : log.type === 'success'
-                                  ? 'text-green-700 dark:text-green-300'
-                                  : 'text-gray-700 dark:text-gray-200'
+                                : 'text-gray-700 dark:text-gray-200'
                         )}
                       >
                         {log.message}
