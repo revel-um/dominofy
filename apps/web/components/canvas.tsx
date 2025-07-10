@@ -22,6 +22,7 @@ import ReadExcelDomino  from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino   from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
+import DelayDomino from "@/dominos/delay";
 
 /* helpers */
 import { buildPipeline }           from "../../../shared/helpers/buildPipeline";
@@ -39,6 +40,7 @@ import {
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
 
+
 const nodeTypes = {
   print: PrintDomino,
   apicall: ApiCallDomino,
@@ -50,6 +52,7 @@ const nodeTypes = {
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
   aggregator: AggregatorDomino,
+  delay: DelayDomino
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
