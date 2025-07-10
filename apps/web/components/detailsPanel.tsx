@@ -9,7 +9,6 @@ import { validateAndMarkErrors } from '../helpers/errorDetector';
 import { useDomino } from '../contexts/dominoContext';
 import { WorkflowsApi } from '../apis/workflow.apis';
 import { useRouter } from 'next/router';
-import { PipelineStep } from '../../../shared/types/pipelineStepType';
 import { useSSE } from '@/contexts/sseContext';
 
 interface DetailsPanelProps {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import ReactFlow, {
   addEdge,
   Background,
@@ -12,22 +12,22 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 /* domino components … */
-import PrintDomino      from "../dominos/print";
-import ApiCallDomino    from "../dominos/apiCall";
+import PrintDomino from "../dominos/print";
+import ApiCallDomino from "../dominos/apiCall";
 import ApiTriggerDomino from "../dominos/apiTrigger";
-import ConditionDomino  from "../dominos/condition";
-import SwitchDomino     from "../dominos/switchCase";
+import ConditionDomino from "../dominos/condition";
+import SwitchDomino from "../dominos/switchCase";
 import ArithmeticDomino from "../dominos/arithmetic";
-import ReadExcelDomino  from "../dominos/readExcel";
+import ReadExcelDomino from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
-import IteratorDomino   from "../dominos/iterator";
+import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
 
 /* helpers */
-import { buildPipeline }           from "../../../shared/helpers/buildPipeline";
+import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnections } from "../helpers/errorDetector";
-import { useDomino }               from "../contexts/dominoContext";
-import { useRouter }               from "next/router";
+import { useDomino } from "../contexts/dominoContext";
+import { useRouter } from "next/router";
 
 import {
   createDropHandler,
@@ -77,11 +77,27 @@ export default function Canvas(props: CanvasProps) {
   const router = useRouter();
   const { setConnectionErrors, clearValidationForDominoId } = useDomino();
 
+  /* fade suggestion nodes */
+  const renderedNodes = useMemo(
+    () => nodes.map(n => {
+      if (n.data?.isSuggestion) {
+        return {
+          ...n,
+          className: n.className
+            ? `${n.className} opacity-50`
+            : 'opacity-50',
+        };
+      }
+      return n;
+    }),
+    [nodes]
+  );
+
   /* local state */
   const [rfInstance, setRfInstance] = useState<any>(null);
-  const [pipeline, setPipeline]     = useState<any[]>([]);
+  const [pipeline, setPipeline] = useState<any[]>([]);
   const [connectStart, setConnectStart] = useState<Parameters<OnConnectStart>[1] | null>(null);
-  const [searchTerm, setSearchTerm]     = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
@@ -103,7 +119,7 @@ export default function Canvas(props: CanvasProps) {
 
   /* search-box keys */
   const AVAILABLE = Object.keys(nodeTypes).filter(t => t !== "apitrigger");
-  const filtered  = AVAILABLE.filter(d => d.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filtered = AVAILABLE.filter(d => d.toLowerCase().includes(searchTerm.toLowerCase()));
   const handleSearchKeyDown = useCallback(
     createSearchKeyDownHandler(filtered, highlightIdx, setHighlightIdx, d => onSelectDomino(d)),
     [filtered, highlightIdx],
@@ -128,14 +144,14 @@ export default function Canvas(props: CanvasProps) {
   };
 
   /* modal spawn */
-  const [dropPos, setDropPos]   = useState<{x:number;y:number}|null>(null);
+  const [dropPos, setDropPos] = useState<{ x: number; y: number } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (!connectStart) return;
     const mu = (e: MouseEvent) => {
       if ((e.target as HTMLElement).closest(".react-flow__pane")) {
-        setDropPos({x: e.clientX, y: e.clientY});
+        setDropPos({ x: e.clientX, y: e.clientY });
         setIsModalOpen(true);
       }
     };
@@ -146,7 +162,7 @@ export default function Canvas(props: CanvasProps) {
   /* select domino from modal */
   const onSelectDomino = (type: string) => {
     if (!dropPos || !rfInstance) return;
-    const id  = `${type}-${Date.now()}`;
+    const id = `${type}-${Date.now()}`;
     const pos = rfInstance.screenToFlowPosition(dropPos);
 
     const newNode: Node = {
@@ -223,7 +239,7 @@ export default function Canvas(props: CanvasProps) {
     <div className="relative w-full h-full">
       <ReactFlow
         id={id}
-        nodes={nodes}
+        nodes={renderedNodes}
         edges={edges}
         nodeTypes={nodeTypes}
         onInit={setRfInstance}
@@ -252,9 +268,9 @@ export default function Canvas(props: CanvasProps) {
       {/* modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-20"
-             onClick={() => { setIsModalOpen(false); setConnectStart(null); }}>
+          onClick={() => { setIsModalOpen(false); setConnectStart(null); }}>
           <div className="bg-white dark:bg-gray-800 p-6 rounded shadow w-80"
-               onClick={e => e.stopPropagation()}>
+            onClick={e => e.stopPropagation()}>
             <h2 className="text-xl mb-4">Insert Domino</h2>
 
             <input
@@ -291,7 +307,7 @@ export default function Canvas(props: CanvasProps) {
             </ul>
 
             <button className="mt-4 text-red-500 underline"
-                    onClick={() => { setIsModalOpen(false); setConnectStart(null); }}>
+              onClick={() => { setIsModalOpen(false); setConnectStart(null); }}>
               Cancel
             </button>
           </div>
