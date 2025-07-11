@@ -64,5 +64,10 @@ export default [
     id: 'delay',
     label: 'Delay',
     icon: FiClock, // ⏳ Represents a delay or timeout
+  },
+  {
+    id: 'mapper',
+    label: 'Mapper',
+    icon: FiLayers, // 🗺️ Maps inputs to outputs
   }
 ];

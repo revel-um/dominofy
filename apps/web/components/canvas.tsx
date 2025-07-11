@@ -39,6 +39,7 @@ import {
   createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
+import MapperDomino from "@/dominos/mapper";
 
 
 const nodeTypes = {
@@ -52,7 +53,8 @@ const nodeTypes = {
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
   aggregator: AggregatorDomino,
-  delay: DelayDomino
+  delay: DelayDomino,
+  mapper: MapperDomino
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
