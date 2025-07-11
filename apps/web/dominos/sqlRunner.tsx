@@ -296,19 +296,25 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md"
+          className="flex items-center justify-between py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
           style={{ 
             backgroundColor: connectionStatus === 'connected' ? '#10b981' : '#6b7280',
             borderBottomColor: connectionStatus === 'connected' ? '#059669' : '#4b5563'
           }}
         >
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 px-3 py-2">
             <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
             <span className="truncate">SQL Runner</span>
           </div>
-          <div className="flex items-center gap-1">
-            <DominoPin id="exec_out_success" pinType={PinType.EXEC_OUT} inline />
-            <DominoPin id="exec_out_error" pinType={PinType.EXEC_OUT} inline />
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-1 text-xs relative px-3">
+              <span>Success</span>
+              <DominoPin id="exec_out_success" pinType={PinType.EXEC_OUT} inline />
+            </div>
+            <div className="flex items-center gap-1 text-xs relative px-3">
+              <span>On Error</span>
+              <DominoPin id="exec_out_error" pinType={PinType.EXEC_OUT} inline />
+            </div>
           </div>
         </div>
 
