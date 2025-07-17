@@ -38,6 +38,7 @@ import {
   createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
+import SlackTriggerDomino from "@/dominos/slackTrigger";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -50,6 +51,7 @@ const nodeTypes = {
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
   aggregator: AggregatorDomino,
+  slacktrigger: SlackTriggerDomino
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
