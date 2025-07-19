@@ -17,29 +17,10 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
 
   /* ─────────── local state ─────────── */
   const [value, setValue] = useState('');
-  const [inputs, setInputs] = useState<string[]>(['']);
-  const [operators, setOperators] = useState<string[]>(() =>
-    inputs.map(() => '+')
-  );
-
-  /* dropdown options */
-  const options: DominoFieldOption[] = [
-    { label: '+', value: '+' },
-    { label: '*', value: '*' },
-    { label: '-', value: '-' },
-    { label: '/', value: '/' },
-    { label: '%', value: '%' },
-    { label: '^', value: '^' },
-  ];
-
-  /* keep operators length in sync with inputs */
-  useEffect(() => {
-    setOperators(prev =>
-      inputs.length > prev.length
-        ? [...prev, ...Array(inputs.length - prev.length).fill('+')]
-        : prev.slice(0, inputs.length)
-    );
-  }, [inputs]);
+  // const [inputs, setInputs] = useState<string[]>(['']);
+  // Change inputs to be an array of string arrays (for key pairs)
+  const [inputs, setInputs] = useState<[string, string][]>([['', '']]);
+  
 
   /* load from saved node data once */
   useEffect(() => {
@@ -56,7 +37,6 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
       .map((f: { value: any; }) => String(f.value ?? '+'));
 
     if (moreInputs.length) setInputs(moreInputs);
-    if (savedOps.length) setOperators(savedOps);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -90,20 +70,12 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
       }),
       ...inputs.flatMap((v, i) => [
         makeField({
-          type: 'dropdown',
-          heading: `Operator_${i + 1}`,
-          value: operators[i],
-          options,
-          required: true,
-          shouldRender: false,
-        }),
-        makeField({
           type: 'textInput',
-          heading: `Input_${i + 2}`,
+          heading: `Input_${i + 1}`,
           value: v,
           required: true,
           shouldRender: false,
-          inPinId: `value_in_${i + 2}`,
+          inPinId: `value_in_${i + 1}`,
         }),
       ]),
     ];
@@ -122,19 +94,17 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
           : n
       )
     );
-  }, [value, inputs, operators, data.setNodes, id]);
+  }, [value, inputs, data.setNodes, id]);
 
   /* ─────────── ui handlers ─────────── */
   const addInput = () => {
     clearValidationForDominoId(id);
-    setInputs(p => [...p, '']);
-    setOperators(p => [...p, '+']);
+    setInputs(p => [...p, ['', '']]);
   };
 
   const removeInput = (i: number) => {
     clearValidationForDominoId(id);
     setInputs(p => p.filter((_, idx) => idx !== i));
-    setOperators(p => p.filter((_, idx) => idx !== i));
   };
 
   const handleMainChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -185,16 +155,16 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
 
             <input
               type="text"
-              value={val}
+              value={val[0]}
               onChange={e => {
                 const nv = e.target.value;
                 setInputs(prev => {
                   const c = [...prev];
-                  c[i] = nv;
+                  c[i] = [nv, c[i][1]];
                   return c;
                 });
               }}
-              placeholder={`initial Key ${i + 2}`}
+              placeholder={`initial key ${i + 2}`}
               className="flex-1 px-2 py-1 text-sm border rounded
                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
                          text-dominofy-light-text dark:text-dominofy-dark-text"
@@ -202,12 +172,12 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
 
             <input
               type="text"
-              value={val}
+              value={val[1]}
               onChange={e => {
                 const nv = e.target.value;
                 setInputs(prev => {
                   const c = [...prev];
-                  c[i] = nv;
+                  c[i] = [c[i][0], nv];
                   return c;
                 });
               }}

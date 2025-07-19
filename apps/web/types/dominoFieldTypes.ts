@@ -29,6 +29,7 @@ export interface DominoFieldOption {
 }
 
 export interface DominoField {
+  outPinId?: any;
   type: WidgetType;
   value: any;
   inPinId?: string;
