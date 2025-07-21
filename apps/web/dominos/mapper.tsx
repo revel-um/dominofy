@@ -25,16 +25,19 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
   /* load from saved node data once */
   useEffect(() => {
     const fields = data.details?.fields ?? [];
-    const f1 = fields.find((f: { heading: string; }) => f.heading === 'Input_1');
+    const f1 = fields.find((f: { heading: string; }) => f.heading === 'Input');
     if (f1 && typeof f1.value === 'string') setValue(f1.value);
 
     const moreInputs = fields
-      .filter((f: { heading: string; }) => f.heading?.startsWith('Input_') && f.heading !== 'Input_1')
-      .map((f: { value: any; }) => String(f.value ?? ''));
-
-    const savedOps = fields
-      .filter((f: { heading: string; }) => f.heading?.startsWith('Operator_'))
-      .map((f: { value: any; }) => String(f.value ?? '+'));
+      .filter((f: { heading: string; }) => f.heading?.startsWith('Input_'))
+      .map((f: { value: any; }) => {
+        // Try to parse as [key, value] pair if possible, fallback to ['', '']
+        if (Array.isArray(f.value) && f.value.length === 2) {
+          return [String(f.value[0] ?? ''), String(f.value[1] ?? '')] as [string, string];
+        }
+        // If value is a string, treat as key, value empty
+        return [String(f.value ?? ''), ''] as [string, string];
+      });
 
     if (moreInputs.length) setInputs(moreInputs);
     // eslint-disable-next-line react-hooks/exhaustive-deps

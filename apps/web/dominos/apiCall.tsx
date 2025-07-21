@@ -145,9 +145,15 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
       {/* Render all fields */}
       <div className="flex flex-col gap-2 px-3 py-2">
         <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+
         {data?.details?.fields?.map((field: DominoField, idx: number) => (
-          <div key={idx} className="flex items-center gap-2 relative">
-            <span>{field.heading}</span>
+          <div key={idx} className="flex flex-col gap-1">
+            {/* Label + Pins */}
+            <div className="flex items-center gap-1 text-xs font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
+              <span>{field.heading}</span>              
+            </div>
+
+            {/* Input types */}
             {field.type === 'textInput' && (
               <input
                 type="text"
@@ -158,9 +164,9 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
                   data.setFieldValue?.(field.heading, e.target.value);
                   clearValidationForDominoId(id);
                 }}
-                className="flex-1 px-2 py-1 text-sm border rounded
-                           bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                           text-dominofy-light-text dark:text-dominofy-dark-text"
+                className="w-full px-2 py-1 text-sm border rounded
+                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                          text-dominofy-light-text dark:text-dominofy-dark-text"
               />
             )}
 
@@ -168,9 +174,9 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
               <select
                 value={field.value}
                 onChange={(e) => data.setFieldValue?.(field.heading, e.target.value)}
-                className="flex-1 px-2 py-1 text-sm border rounded
-                           bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                           text-dominofy-light-text dark:text-dominofy-dark-text"
+                className="w-full px-2 py-1 text-sm border rounded
+                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                          text-dominofy-light-text dark:text-dominofy-dark-text"
               >
                 {field.options?.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -181,7 +187,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
             )}
 
             {field.type === 'json' && (
-              <JsonEditor 
+              <JsonEditor
                 field={field}
                 onChange={(newVal: object | null, rawText: string) => {
                   if (newVal !== null) {
@@ -190,7 +196,6 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
                 }}
               />
             )}
-
           </div>
         ))}
         <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
