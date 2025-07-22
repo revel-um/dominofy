@@ -32,11 +32,9 @@ export interface WorkflowLogDto {
 /* -------------------------------------------------------------------------- */
 
 @Injectable()
-export class WorkflowLoggerService
-  extends BaseService<WorkflowLog>
-  implements OnModuleInit, OnModuleDestroy {
+export class WorkflowLoggerService extends BaseService<WorkflowLog> implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(WorkflowLoggerService.name);
-
+  
   private readonly flushMs = Number(process.env.LOGGER_FLUSH_MS ?? 5_000);
   private readonly cap = Number(process.env.LOGGER_BUFFER_CAP ?? 10_000);
 

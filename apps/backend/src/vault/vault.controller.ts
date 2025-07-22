@@ -23,8 +23,8 @@ export class VaultController extends BaseController<
   string,
   VaultService
 > {
-  constructor(protected readonly vaultService: VaultService) {
-    super(vaultService, CreateVaultDto);
+  constructor(protected readonly service: VaultService) {
+    super(service, CreateVaultDto);
   }
 
   /**
@@ -36,7 +36,7 @@ export class VaultController extends BaseController<
     @Body() dto: CreateVaultDto,
   ): Promise<Vault> {
     const userId = (req as any).user.id;
-    return this.vaultService.create(dto, [userId]);
+    return this.service.create(dto, [userId]);
   }
 
   /**
@@ -57,7 +57,7 @@ export class VaultController extends BaseController<
     const userId = (req as any).user.id;
     const p = parseInt(page, 10)  || 1;
     const l = parseInt(limit, 10) || 10;
-    return this.vaultService.getVaultsByUser(userId, p, l);
+    return this.service.getVaultsByUser(userId, p, l);
   }
 
   /**
@@ -65,7 +65,7 @@ export class VaultController extends BaseController<
    */
   @Get(':id')
   async findOneWithUsers(@Param('id') id: string) {
-    return this.vaultService.findOneWithUsers(id);
+    return this.service.findOneWithUsers(id);
   }
 
   /**
@@ -76,7 +76,7 @@ export class VaultController extends BaseController<
     @Param('id') id: string,
     @Body('userIds') userIds: string[],
   ): Promise<void> {
-    await this.vaultService.addUsers(id, userIds);
+    await this.service.addUsers(id, userIds);
   }
 
   /**
@@ -87,6 +87,6 @@ export class VaultController extends BaseController<
     @Param('id') id: string,
     @Body('userIds') userIds: string[],
   ): Promise<void> {
-    await this.vaultService.removeUsers(id, userIds);
+    await this.service.removeUsers(id, userIds);
   }
 }

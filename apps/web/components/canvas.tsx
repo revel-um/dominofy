@@ -25,6 +25,9 @@ import DatabaseDomino from "../dominos/dbSetup";
 import AggregatorDomino from "../dominos/aggregator";
 import SQLRunnerDomino from "../dominos/sqlRunner";
 import CustomCodeDomino from "../dominos/codeRunner";
+import SlackTriggerDomino from "@/dominos/slackTrigger";
+import EmailSenderDomino from "../dominos/EmailSenderDomino";
+import CSVWriterDomino from "../dominos/CSVWriterDomino";
 import DelayDomino from "@/dominos/delay";
 
 /* helpers */
@@ -44,9 +47,8 @@ import {
 } from "@/helpers/canvasUtils";
 import MapperDomino from "@/dominos/mapper";
 
-import SlackTriggerDomino from "@/dominos/slackTrigger";
-
 const nodeTypes = {
+  csvwriter: CSVWriterDomino,
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
@@ -60,6 +62,7 @@ const nodeTypes = {
   aggregator: AggregatorDomino,
   sqlRunner: SQLRunnerDomino,
   codeRunner: CustomCodeDomino,
+  emailsender: EmailSenderDomino,
   delay: DelayDomino,
   mapper: MapperDomino,
   slacktrigger: SlackTriggerDomino
@@ -227,6 +230,7 @@ export default function Canvas(props: CanvasProps) {
     createEdgesChangeHandler(setEdges, setNodes, getNodes, updatePipeline),
     [nodes, edges],
   );
+
   const handleEdgesChange = (c: EdgeChange[]) => {
     internalEdgeChange(c);
     onEdgesChange?.(c);

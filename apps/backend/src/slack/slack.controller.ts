@@ -63,20 +63,37 @@ export class SlackController {
     return this.slack.listChannels(vaultId);
   }
 
-  /* ────────────────────────── Web-hook receivers ───────────────────────── */
+  /**  Invites / joins the bot to the given channel */
+  @Post('channels/:channelId/invite')
+  async inviteBot(
+    @Query('vaultId') vaultId: string,
+    @Param('channelId') channelId: string,
+  ) {
+    if (!vaultId) throw new BadRequestException('vaultId query param is required');
+    if (!channelId) throw new BadRequestException('channelId param is required');
 
+    await this.slack.joinChannel(vaultId, channelId);
+    return { ok: true };
+  }
+
+  /* ────────────────────────── Web-hook receivers ───────────────────────── */
   @Post('events')
   async events(
-    @Headers('x-slack-signature') sig: string,
-    @Headers('x-slack-request-timestamp') ts: string,
-    @Body() body: any,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
-    if (!this.slack.verifySignature(sig, ts, JSON.stringify(body)))
-      throw new UnauthorizedException('Invalid Slack signature');
+    const sig = req.headers['x-slack-signature'] as string;
+    const ts = req.headers['x-slack-request-timestamp'] as string;
+    const raw = (req as any).rawBody as string;
 
-    if (body.type === 'url_verification')
+    if (!this.slack.verifySignature(sig, ts, raw)) {
+      throw new UnauthorizedException('Invalid Slack signature');
+    }
+
+    const body = JSON.parse(raw);
+    if (body.type === 'url_verification') {
       return res.send({ challenge: body.challenge });
+    }
 
     await this.slack.handleEvent(body);
     return res.sendStatus(200);

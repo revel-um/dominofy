@@ -29,7 +29,7 @@ export default async function heavyTask(
   /* build pipeline & runner */
   const pipeline: PipelineStep[] = Array.isArray(visualJson) ? visualJson : [];
   const total = pipeline.length || 1;
-  const runner = new Runner(pipeline, 20);          // no DB logger inside worker
+  const runner = new Runner(pipeline, 20, visualJson);          // no DB logger inside worker
 
   /* forward events */
   let completed = 0;

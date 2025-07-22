@@ -1,35 +1,51 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { BadRequestException, Global, ValidationPipe, VersioningType } from '@nestjs/common';
+import {
+  BadRequestException,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
+import { json } from 'body-parser'; // ← import the body-parser hook
 import { GlobalExceptionFilter } from './common/exception.handler';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  // turn on validation for every incoming request
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,            // strip properties that don't have decorators
-    forbidNonWhitelisted: true, // throw an error if non-decorated props are present
-    transform: true,            // auto-transform payloads to your DTO classes
-    validationError: { target: false },
-    exceptionFactory: (errors) => {
-      console.error(errors);
-      throw new BadRequestException(errors);
-    },
-  }));
+
+  // 1) Capture the raw body buffer on _all_ JSON requests
+  app.use(
+    json({
+      verify: (req: any, _res, buf: Buffer) => {
+        req.rawBody = buf.toString();   // stash the exact text for signature checking
+      },
+    }),
+  );
+
+  // 2) Your existing global pipes / filters
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      validationError: { target: false },
+      exceptionFactory: (errors) => {
+        console.error(errors);
+        throw new BadRequestException(errors);
+      },
+    }),
+  );
 
   app.enableVersioning({
-    type: VersioningType.URI, // Use URI versioning: /v1/...
+    type: VersioningType.URI,
     defaultVersion: '1',
   });
 
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.enableCors({
-    //enable cors for all origins
-    origin: '*', // or specify specific origins like ['http://localhost:3000']
+    origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type,Authorization',
-    credentials: true,                      // if you need cookies/auth
+    credentials: true,
   });
 
   app.setGlobalPrefix('api');

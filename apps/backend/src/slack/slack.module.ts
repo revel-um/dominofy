@@ -5,19 +5,23 @@ import {
   MiddlewareConsumer,
   RequestMethod,
 } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 
 import { SlackController } from './slack.controller';
 import { SlackService } from './slack.service';
-import { Vault } from 'src/vault/vault.entity';
-import { User } from 'src/user/user.entity';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
+import { VaultModule } from 'src/vault/vault.module';
+import { UserModule } from 'src/user/user.module';
+import { WorkflowModule } from 'src/workflow/workflow.module';
+import { RunnerLauncherModule } from 'src/runner-launcher/runner-launcher.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Vault, User]),
     ConfigModule,
+    VaultModule,
+    UserModule,
+    WorkflowModule,
+    RunnerLauncherModule
   ],
   controllers: [SlackController],
   providers: [SlackService],
@@ -33,7 +37,7 @@ export class SlackModule implements NestModule {
         // allow Events API without auth
         { path: 'slack/events', method: RequestMethod.POST, version: '1' },
         // allow any slash-command without auth
-        { path: 'slack/commands/(.*)', method: RequestMethod.POST, version: '1' },
+        { path: 'slack/commands', method: RequestMethod.POST, version: '1' },
       )
       .forRoutes(SlackController);
   }

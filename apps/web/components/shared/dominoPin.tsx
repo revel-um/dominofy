@@ -34,6 +34,7 @@ export default function DominoPin({
   return (
     <Handle
       id={id}
+      title={id}
       type={isInput ? 'target' : 'source'}
       position={position}
       isConnectable={true}

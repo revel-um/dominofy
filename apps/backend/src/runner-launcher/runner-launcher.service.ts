@@ -1,6 +1,6 @@
 // src/workflow/services/runner-launcher.service.ts
 import { Injectable } from '@nestjs/common';
-import { PipelineStep } from '../../../../shared/types/pipelineStepType';
+import { PipelineStep } from '../types/pipelineStepType';
 import { WorkflowLogStatus } from 'src/workflow-logger/workflow-logger.entity';
 import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import { Runner } from '../domino-engine/runner';
@@ -18,8 +18,9 @@ export class RunnerLauncherService {
     runId: string,
     pipeline: PipelineStep[],
     maxConc = 20,
+    visualJson: any
   ): Runner {
-    const runner = new Runner(pipeline, maxConc);
+    const runner = new Runner(pipeline, maxConc, visualJson);
 
     /* per-run monotonically-increasing sequence counter ––––––––– */
     let seq = 0;                                         // NEW
