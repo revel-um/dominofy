@@ -5,7 +5,8 @@ import {
   FiZap,
   FiFileText,
   FiRepeat,
-  FiLayers
+  FiLayers,
+  FiClock
 } from 'react-icons/fi';
 
 export default [
@@ -60,6 +61,16 @@ export default [
     icon: FiLayers, // ➕ Accumulate values using sum, multiply, min, or max
   },
   {
+    id: 'delay',
+    label: 'Delay',
+    icon: FiClock, // ⏳ Represents a delay or timeout
+  },
+  {
+    id: 'mapper',
+    label: 'Mapper',
+    icon: FiLayers,
+  },
+  { // 🗺️ Maps inputs to outputs
     id: 'slacktrigger',
     label: 'Slack Trigger',
     icon: Slack, // 💬 Listens for new messages in a Slack channel

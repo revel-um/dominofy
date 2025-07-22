@@ -22,6 +22,7 @@ import ReadExcelDomino from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
+import DelayDomino from "@/dominos/delay";
 
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
@@ -38,6 +39,8 @@ import {
   createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
+import MapperDomino from "@/dominos/mapper";
+
 import SlackTriggerDomino from "@/dominos/slackTrigger";
 
 const nodeTypes = {
@@ -51,6 +54,8 @@ const nodeTypes = {
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
   aggregator: AggregatorDomino,
+  delay: DelayDomino,
+  mapper: MapperDomino,
   slacktrigger: SlackTriggerDomino
 };
 
