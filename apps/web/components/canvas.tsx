@@ -41,6 +41,7 @@ import {
 } from "@/helpers/canvasUtils";
 import MapperDomino from "@/dominos/mapper";
 
+import SlackTriggerDomino from "@/dominos/slackTrigger";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -54,7 +55,8 @@ const nodeTypes = {
   iterator: IteratorDomino,
   aggregator: AggregatorDomino,
   delay: DelayDomino,
-  mapper: MapperDomino
+  mapper: MapperDomino,
+  slacktrigger: SlackTriggerDomino
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */

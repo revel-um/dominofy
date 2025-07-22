@@ -1,4 +1,4 @@
-import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon } from 'lucide-react';
+import { BoomBox, Calculator, FileQuestion, Slack, ToggleLeftIcon } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -68,6 +68,11 @@ export default [
   {
     id: 'mapper',
     label: 'Mapper',
-    icon: FiLayers, // 🗺️ Maps inputs to outputs
+    icon: FiLayers,
+  },
+  { // 🗺️ Maps inputs to outputs
+    id: 'slacktrigger',
+    label: 'Slack Trigger',
+    icon: Slack, // 💬 Listens for new messages in a Slack channel
   }
 ];
