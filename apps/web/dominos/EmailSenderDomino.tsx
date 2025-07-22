@@ -195,51 +195,44 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
                      field.charAt(0).toUpperCase() + field.slice(1);
 
     return (
-      <div key={field} className="space-y-1">
-        <div className="flex items-center gap-2 relative px-3">
-          <DominoPin id={`value_in_${field}`} pinType={PinType.VALUE_IN} inline />
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                {fieldLabel}
-                {isRequired && <span className="text-red-500 ml-1">*</span>}
-              </label>
-            </div>
-            {!isConnected ? (
-              isTextArea ? (
-                <textarea
-                  name={field}
-                  value={fieldData.value}
-                  onChange={handleChange}
-                  placeholder={placeholder}
-                  className={`mt-1 w-full px-2 py-1 text-sm border rounded ${
-                    hasError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                  } bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text`}
-                  rows={3}
-                />
-              ) : (
-                <input
-                  type="text"
-                  name={field}
-                  value={fieldData.value}
-                  onChange={handleChange}
-                  placeholder={placeholder}
-                  className={`mt-1 w-full px-2 py-1 text-sm border rounded ${
-                    hasError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                  } bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text`}
-                />
-              )
-            ) : (
-              <div className="mt-1 px-2 py-1 text-sm text-gray-500 italic">
-                Connected
-              </div>
-            )}
-            {hasError && (
-              <p className="mt-1 text-xs text-red-500">
-                This field is required
-              </p>
-            )}
+      <div key={field} className="flex items-center gap-2 relative px-3">
+        <DominoPin id={`value_in_${field}`} pinType={PinType.VALUE_IN} inline />
+        <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              {fieldLabel}
+              {isRequired && <span className="text-red-500 ml-1">*</span>}
+            </label>
           </div>
+          {!isConnected ? (
+            isTextArea ? (
+              <textarea
+                name={field}
+                value={fieldData.value}
+                onChange={handleChange}
+                placeholder={placeholder}
+                className={`mt-1 w-full px-2 py-1 text-sm border rounded ${
+                  hasError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                } bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text`}
+                rows={3}
+              />
+            ) : (
+              <input
+                type="text"
+                name={field}
+                value={fieldData.value}
+                onChange={handleChange}
+                placeholder={placeholder}
+                className={`mt-1 w-full px-2 py-1 text-sm border rounded ${
+                  hasError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                } bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text`}
+              />
+            )
+          ) : (
+            <div className="mt-1 px-2 py-1 text-sm text-gray-500 italic">
+              Connected
+            </div>
+          )}
         </div>
       </div>
     );
@@ -247,58 +240,42 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
 
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-64 overflow-visible shadow-sm ${
-        hasError
-          ? 'error-border'
-          : selected
-            ? 'selected-border border-4'
-            : 'unselected-border dark:border-gray-600'
-      } bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
+        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
+        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      style={{ minWidth: '13rem' }}
     >
-      {/* Header with exec pins */}
+      {/* header */}
       <div
-        className="flex justify-between text-sm font-semibold text-white border-b rounded-t-md"
-        style={{
-          backgroundColor: '#10b981',
-          borderBottomColor: '#059669',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
+        style={{ backgroundColor: '#10b981', borderBottomColor: '#059669', borderRadius: '0.23rem 0.23rem 0 0' }}
       >
-        <div className="flex items-center gap-1 px-3 py-2">
+        <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <svg 
-            className="w-4 h-4" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-          >
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-            <polyline points="22,6 12,13 2,6" />
-          </svg>
           <span>Email Sender</span>
-        </div>
-        <div className="flex items-center pr-2">
           <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
         </div>
       </div>
 
       {/* Form fields */}
-      <div className="space-y-2 p-2">
+      <div className="flex flex-col gap-2">
         {renderField('from', 'sender@example.com')}
+        
         {renderField('to', 'recipient@example.com')}
+        
         {renderField('subject', 'Email subject')}
+        
         {renderField('body', 'Email body (supports HTML)', true)}
+        
         {renderField('cc', 'cc@example.com')}
+        
         {renderField('bcc', 'bcc@example.com')}
       </div>
 
       {/* Error message */}
       {hasError && (
         <p className="px-3 pb-2 text-xs text-red-500">
-          ⚠️ Please fill in all required fields
+          ⚠️ Execution pin is missing or required fields are empty.
         </p>
       )}
 
