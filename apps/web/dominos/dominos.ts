@@ -6,11 +6,28 @@ import {
   FiFileText,
   FiRepeat,
   FiLayers,
+  FiMail,
   FiDownload,
   FiClock,
 } from 'react-icons/fi';
 
 export default [
+  {
+    id: 'emailsender',
+    label: 'Email Sender',
+    icon: FiMail,
+    description: 'Send emails via SMTP or API providers',
+    category: 'Communication',
+    color: 'red',
+    fields: [
+      { heading: 'From', type: 'text', required: true },
+      { heading: 'To', type: 'text', required: true },
+      { heading: 'Subject', type: 'text', required: false },
+      { heading: 'Body', type: 'text', required: true, multiline: true },
+      { heading: 'CC', type: 'text', required: false },
+      { heading: 'BCC', type: 'text', required: false }
+    ]
+  },
   {
     id: 'csvwriter',
     label: 'CSV Writer',
@@ -19,52 +36,82 @@ export default [
   {
     id: 'print',
     label: 'Print',
-    icon: FiPrinter, // 🖨️ Prints output
+    icon: FiPrinter,
+    description: 'Print values to the console',
+    category: 'Utility',
+    color: 'blue'
   },
   {
     id: 'apicall',
     label: 'API Call',
-    icon: FiGlobe, // ⬇️ Represents fetching data
+    icon: FiGlobe,
+    description: 'Make HTTP requests to external APIs',
+    category: 'Integration',
+    color: 'green'
   },
   {
     id: 'apitrigger',
     label: 'API Trigger',
-    icon: FiZap, // ⚡️ Represents an active trigger or webhook
+    icon: FiZap,
+    description: 'Trigger workflows via HTTP requests',
+    category: 'Integration',
+    color: 'purple'
   },
   {
     id: 'readexcel',
     label: 'Read Excel',
-    icon: FiFileText, // 📄 Represents reading a local file
+    icon: FiFileText,
+    description: 'Read data from Excel files',
+    category: 'Data',
+    color: 'green'
   },
   {
     id: 'condition',
-    label: 'Condition Operator',
-    icon: FileQuestion, // 📄 Represents reading a local file
+    label: 'Condition',
+    icon: FileQuestion,
+    description: 'Conditional logic and branching',
+    category: 'Logic',
+    color: 'yellow'
   },
   {
     id: 'switchcase',
-    label: 'Switch Operator',
-    icon: ToggleLeftIcon, // 📄 Represents reading a local file
+    label: 'Switch',
+    icon: ToggleLeftIcon,
+    description: 'Multi-branch conditional logic',
+    category: 'Logic',
+    color: 'yellow'
   },
   {
     id: 'arithmetic',
-    label: 'Arithmetic Operator',
-    icon: Calculator, // 📄 Represents reading a local file
+    label: 'Arithmetic',
+    icon: Calculator,
+    description: 'Mathematical operations',
+    category: 'Math',
+    color: 'blue'
   },
   {
     id: 'deconstructor',
     label: 'Deconstruct',
-    icon: BoomBox, // 📄 Represents reading a local file
+    icon: BoomBox,
+    description: 'Extract values from objects and arrays',
+    category: 'Data',
+    color: 'purple'
   },
   {
     id: 'iterator',
     label: 'Iterator',
-    icon: FiRepeat,           // 🔁 Iterate over list
+    icon: FiRepeat,
+    description: 'Loop over arrays or objects',
+    category: 'Data',
+    color: 'green'
   },
   {
     id: 'aggregator',
     label: 'Aggregator',
     icon: FiLayers, // ➕ Accumulate values using sum, multiply, min, or max
+    description: 'Combine multiple values into one',
+    category: 'Data',
+    color: 'blue'
   },
   {
     id: 'delay',

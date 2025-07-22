@@ -22,6 +22,7 @@ import ReadExcelDomino from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
+import EmailSenderDomino from "../dominos/EmailSenderDomino";
 import CSVWriterDomino from "../dominos/CSVWriterDomino";
 import DelayDomino from "@/dominos/delay";
 
@@ -56,6 +57,7 @@ const nodeTypes = {
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
   aggregator: AggregatorDomino,
+  emailsender: EmailSenderDomino,
   delay: DelayDomino,
   mapper: MapperDomino,
   slacktrigger: SlackTriggerDomino
