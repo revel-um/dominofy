@@ -13,7 +13,7 @@ import {
 
 export default [
   {
-    id: 'scheduler',
+    id: 'SchedulerDomino',
     label: 'Scheduler',
     icon: FiClock, // ⏰ Represents scheduling and timing
   },

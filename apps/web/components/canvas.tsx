@@ -62,7 +62,8 @@ const nodeTypes = {
   emailsender: EmailSenderDomino,
   delay: DelayDomino,
   mapper: MapperDomino,
-  slacktrigger: SlackTriggerDomino
+  slacktrigger: SlackTriggerDomino,
+  SchedulerDomino: SchedulerDomino,
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
