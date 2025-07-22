@@ -18,10 +18,10 @@ import { encrypt, decrypt } from 'src/helper/encryption';
  * ─────────────────────────────── */
 export enum VaultType {
   POSTGRES = 'postgres',
-  MONGODB  = 'mongodb',
-  AWS      = 'aws',
-  CUSTOM   = 'custom',
-  SLACK    = 'slack'
+  MONGODB = 'mongodb',
+  AWS = 'aws',
+  CUSTOM = 'custom',
+  SLACK = 'slack'
 }
 
 /* ───────────────────────────────
@@ -43,12 +43,15 @@ export class Vault extends BaseEntity {
   /** Decrypted JSON kept only in memory */
   connection!: Record<string, any>;
 
+  @Column({ nullable: true, type: 'jsonb' })
+  lookupIds?: any;
+
   /* ---------- access control (users) ---------- */
-  @ManyToMany(() => User, (u) => u.vaults, {cascade: false, eager: true})
+  @ManyToMany(() => User, (u) => u.vaults, { cascade: false, eager: true })
   @JoinTable({
     name: 'vault_users',
-    joinColumn:       { name: 'vault_id', referencedColumnName: 'id' },
-    inverseJoinColumn:{ name: 'user_id',  referencedColumnName: 'id' },
+    joinColumn: { name: 'vault_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'user_id', referencedColumnName: 'id' },
   })
   users: User[];
 

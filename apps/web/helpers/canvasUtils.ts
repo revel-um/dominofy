@@ -27,7 +27,7 @@ export function detectCycle(src: string, tgt: string, edgeList: Edge[]): boolean
   graph.set(src, [...(graph.get(src) || []), tgt]);
 
   const visited = new Set<string>();
-  const stack   = new Set<string>();
+  const stack = new Set<string>();
 
   const dfs = (n: string): boolean => {
     if (!visited.has(n)) {
@@ -50,7 +50,7 @@ export function createIsValidConnection(getEdges: () => Edge[]) {
     if (!source || !target || source === target) return false;
 
     const handlesMatch =
-      (sourceHandle?.startsWith("exec")  && targetHandle?.startsWith("exec")) ||
+      (sourceHandle?.startsWith("exec") && targetHandle?.startsWith("exec")) ||
       (sourceHandle?.startsWith("value") && targetHandle?.startsWith("value"));
 
     if (!handlesMatch) return false;
@@ -170,8 +170,8 @@ export function createOnConnectHandler(
       let working = prevEdges;
 
       const existing = working.filter(e => e.target === params.target);
-      const hasAgg   = existing.some(e => nodes.find(n => n.id === e.source)?.type === "aggregator");
-      const hasNon   = existing.some(e => nodes.find(n => n.id === e.source)?.type !== "aggregator");
+      const hasAgg = existing.some(e => nodes.find(n => n.id === e.source)?.type === "aggregator");
+      const hasNon = existing.some(e => nodes.find(n => n.id === e.source)?.type !== "aggregator");
 
       const wipeAll =
         (sourceIsAgg && hasNon) ||
@@ -257,50 +257,69 @@ export function createEdgesChangeHandler(
   setEdges: Dispatch<React.SetStateAction<Edge[]>>,
   setNodes: Dispatch<React.SetStateAction<Node[]>>,
   getNodes: () => Node[],
-  updatePipeline: (n: Node[], e: Edge[]) => void,
+  updatePipeline: (nodes: Node[], edges: Edge[]) => void,
 ) {
   return (changes: EdgeChange[]) => {
-    const removedIds = changes
-      .filter((c): c is EdgeChange & { id: string } => c.type === "remove" && "id" in c)
-      .map(c => c.id);
+    let removedEdges: Edge[] = [];
+    let newEdges: Edge[] = [];
 
-    let after: Edge[] = [];
+    // 1) In the setEdges callback, capture the edges you're about to remove
     setEdges(prev => {
-      after = applyEdgeChanges(changes, prev);
-      return after;
+      // find which edge-IDs are marked for removal
+      const idsToRemove = changes
+        .filter(c => c.type === 'remove' && 'id' in c)
+        .map((c: EdgeChange & { id: string }) => c.id);
+
+      // look up the full Edge objects in the old array
+      removedEdges = prev.filter(e => idsToRemove.includes(e.id));
+
+      // now apply the changes to produce the new edge list
+      newEdges = applyEdgeChanges(changes, prev);
+      return newEdges;
     });
 
-    if (removedIds.length) {
-      setTimeout(() => {
-        const removedVal = after.filter(
-          e => removedIds.includes(e.id) && e.targetHandle?.startsWith("value_in"),
-        );
-        if (removedVal.length) {
-          setNodes(pn =>
-            pn.map(node => {
-              const match = removedVal.find(e => e.target === node.id);
-              if (!match || !node.data?.details?.fields) return node;
+    // 2) If any of those removed edges were for a value_in pin, clear the matching field
+    if (removedEdges.length) {
+      setNodes(nodes =>
+        nodes.map(node => {
+          let mutated = false;
+          const updatedFields = node.data.details.fields.map((f: any) => {
+            // does one of the removed edges target this node & pin?
+            const edge = removedEdges.find(
+              e => e.target === node.id && e.targetHandle === f.inPinId
+            );
+            if (edge) {
+              mutated = true;
               return {
-                ...node,
-                data: {
-                  ...node.data,
-                  valueConnected: false,
-                  details: {
-                    ...node.data.details,
-                    fields: node.data.details.fields.map((f: any) =>
-                      f.inPinId === match.targetHandle ? { ...f, connectedValue: undefined } : f,
-                    ),
-                  },
-                },
+                ...f,
+                connectedValue: undefined,
+                connectedPin: undefined,
               };
-            }),
-          );
-        }
-        updatePipeline(getNodes(), after);
-      }, 0);
+            }
+            return f;
+          });
+
+          if (!mutated) return node;
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              valueConnected: false,
+              details: {
+                ...node.data.details,
+                fields: updatedFields,
+              },
+            },
+          };
+        })
+      );
     }
+
+    // 3) Finally, persist your clean graph
+    updatePipeline(getNodes(), newEdges);
   };
 }
+
 
 /* ───────────────────────  NODE CHANGES  ─────────────────────── */
 export function createNodesChangeHandler(

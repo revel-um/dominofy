@@ -11,6 +11,7 @@ import { AwsServicesModule } from './aws-services/aws-services.module';
 import { WorkflowLoggerModule } from './workflow-logger/workflow-logger.module';
 import { VaultModule } from './vault/vault.module';
 import { SlackModule } from './slack/slack.module';
+import { RunnerLauncherModule } from './runner-launcher/runner-launcher.module';
 
 @Module({
   imports: [
@@ -36,7 +37,8 @@ import { SlackModule } from './slack/slack.module';
     AwsServicesModule,
     WorkflowLoggerModule,
     VaultModule,
-    SlackModule
+    SlackModule,
+    RunnerLauncherModule
   ],
   controllers: [AppController],
   providers: [AppService, VerifyTokenMiddleware],

@@ -58,7 +58,7 @@ export class WorkflowController extends BaseController<
     if (!workflow) {
       throw new NotFoundException(`Workflow with id ${id} not found`);
     }
-
+    
     workflow.visualJson = JSON.parse(visualJson);
     return this.workflowService.update(id, workflow);
   }
@@ -111,8 +111,7 @@ export class WorkflowController extends BaseController<
     @Param('workflowId') workflowId: string,
     @Param('functionName') functionName: string,
   ) {
-    const input: Record<string, any> = {}; // empty input
-    await this.workflowService.handleTrigger(workflowId, functionName, input);
+    await this.workflowService.handleTrigger(workflowId, functionName);
 
     return {
       success: true,

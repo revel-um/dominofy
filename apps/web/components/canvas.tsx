@@ -22,6 +22,7 @@ import ReadExcelDomino from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
+import SlackTriggerDomino from "@/dominos/slackTrigger";
 
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
@@ -38,7 +39,6 @@ import {
   createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
-import SlackTriggerDomino from "@/dominos/slackTrigger";
 
 const nodeTypes = {
   print: PrintDomino,
@@ -216,6 +216,7 @@ export default function Canvas(props: CanvasProps) {
     createEdgesChangeHandler(setEdges, setNodes, getNodes, updatePipeline),
     [nodes, edges],
   );
+
   const handleEdgesChange = (c: EdgeChange[]) => {
     internalEdgeChange(c);
     onEdgesChange?.(c);

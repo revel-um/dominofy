@@ -63,6 +63,19 @@ export class SlackController {
     return this.slack.listChannels(vaultId);
   }
 
+  /**  Invites / joins the bot to the given channel */
+  @Post('channels/:channelId/invite')
+  async inviteBot(
+    @Query('vaultId') vaultId: string,
+    @Param('channelId') channelId: string,
+  ) {
+    if (!vaultId) throw new BadRequestException('vaultId query param is required');
+    if (!channelId) throw new BadRequestException('channelId param is required');
+
+    await this.slack.joinChannel(vaultId, channelId);
+    return { ok: true };
+  }
+
   /* ────────────────────────── Web-hook receivers ───────────────────────── */
 
   @Post('events')

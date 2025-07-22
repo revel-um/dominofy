@@ -18,7 +18,7 @@ export class PrintDomino implements DominoExecutable {
     const dynamicTemplate = ctx.input.Text;
     const rawTemplate = typeof dynamicTemplate === "string" ? dynamicTemplate : this.literalTemplate;
     const msg = this.render(rawTemplate, ctx.input);
-    // console.log(`[PrintDomino:${this.id}] ${msg}`);
+    console.log(`[PrintDomino:${this.id}] ${msg}`);
     return {
       id: this.id,
       output: msg,

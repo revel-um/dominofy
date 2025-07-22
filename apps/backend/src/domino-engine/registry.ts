@@ -12,6 +12,7 @@ import { IteratorDomino } from "./dominos/iterator";
 // Import each domino implementation class:
 import { PrintDomino } from "./dominos/print";
 import { ReadExcelDomino } from "./dominos/readExcel";
+import { SlackTriggerDomino } from "./dominos/slackTrigger";
 import { SwitchCaseDomino } from "./dominos/switchCase";
 // … import other dominos here …
 
@@ -32,6 +33,7 @@ class DominoRegistry {
     this.register("iterator", IteratorDomino);
     this.register("deconstructor", DeconstructorDomino);
     this.register("aggregator", AggregatorDomino);
+    this.register("slacktrigger", SlackTriggerDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {

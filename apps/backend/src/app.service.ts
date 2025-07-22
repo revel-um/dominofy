@@ -12,11 +12,10 @@ import { WorkflowLogStatus } from 'src/workflow-logger/workflow-logger.entity';
 import {
   execPool,
   MAX_QUEUE_LEN,
-  HeavyTaskInput,
   progressEmitter,
 } from './heavy-lifter/exec-pool.util';
 import { isWorkflowBlocking } from './heavy-lifter/block-checker';
-import { RunnerLauncherService } from './workflow-logger/runner-launcher';
+import { RunnerLauncherService } from './runner-launcher/runner-launcher.service';
 
 @Injectable()
 export class AppService {
@@ -99,7 +98,8 @@ export class AppService {
         workflowId,
         runId,
         pipeline,
-        20
+        20,
+        wf.visualJson
       );
 
       runner.on('done', (res) => {
