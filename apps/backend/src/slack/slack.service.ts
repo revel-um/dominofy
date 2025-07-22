@@ -136,7 +136,7 @@ export class SlackService {
       vaultId,
       VaultType.SLACK,
     );
-    if (!vault) throw new BadRequestException('Unknown Slack vault');
+    if (!vault) return [];
 
     // 2) Instantiate Slack WebClient and fetch channels
     const web = new WebClient((vault.connection as any).accessToken);
@@ -145,6 +145,7 @@ export class SlackService {
       types: 'public_channel,private_channel',
       limit: 1000,
     });
+
     if (!resp.ok || !resp.channels) {
       throw new BadRequestException(`Slack API error: ${resp.error}`);
     }
@@ -173,7 +174,9 @@ export class SlackService {
     const teamId = body.team_id;
     const channelId = body?.event?.channel;
 
+    console.log(teamId, channelId)
     const workflows = await this.workflowService.findWorkflowsBySlackTrigger(teamId, channelId);
+    console.log(workflows.length)
     workflows.forEach((workflow) => {
       const { nodes, edges } = workflow.visualJson;
       const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
@@ -186,7 +189,7 @@ export class SlackService {
         20,
         workflow.visualJson
       );
-
+      console.log(body.event)
       return runner.run(runId, body.event);
     });
   }

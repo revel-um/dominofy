@@ -110,10 +110,12 @@ export default function SlackTriggerDomino({
       setLoadingCh(true);
       try {
         const list = await SlackApi.getChannels(token, router, vaultId);
+        console.log(list)
         if (mounted) {
           setChannels(list ?? []);
+          const selectedChannel = (list ?? []).find(c => c.id === slackChannelId) || null
           setSelectedCh(
-            (list ?? []).find(c => c.id === slackChannelId) || null
+            selectedChannel
           );
         }
       } catch (err) {
@@ -132,7 +134,9 @@ export default function SlackTriggerDomino({
   };
 
   const updateVaultId = (newVaultId: string) => {
-    const sel = connections.find(c => c.id === newVaultId);
+    // Find the full connection object from the state
+    const selectedConnection = connections.find(c => c.id === newVaultId);
+
     data.setNodes((nodes: any[]) =>
       nodes.map((n: { id: string; data: SlackTriggerData; }) =>
         n.id === id
@@ -141,7 +145,8 @@ export default function SlackTriggerDomino({
             data: {
               ...n.data,
               vaultId: newVaultId,
-              slackTeamId: sel?.slackTeamId || '',
+              // Add the slackTeamId from the selected connection
+              slackTeamId: selectedConnection?.slackTeamId || '',
             } as SlackTriggerData,
           }
           : n
@@ -214,14 +219,19 @@ export default function SlackTriggerDomino({
         {loadingConns ? (
           <p className="text-sm">Loading Slack connections…</p>
         ) : connections.length === 0 ? (
-          <button
-            className="px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
-            onClick={startOAuth}
-          >
-            Connect to Slack
-          </button>
+          <div className="px-3">
+            <button
+              type="button"
+              className="w-full px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
+              onClick={startOAuth}
+            >
+              Connect to Slack
+            </button>
+          </div>
         ) : (
-          <div className="flex px-3 flex-col gap-1">
+          <div
+            className={`flex flex-col gap-1 ${connections.length > 0 ? 'px-3' : ''}`}
+          >
             <label className="text-xs font-medium">Slack Connection</label>
             <SearchableSelect
               value={vaultId}
@@ -233,7 +243,7 @@ export default function SlackTriggerDomino({
         )}
 
         {/* 2. Channel selection */}
-        {vaultId && (
+        {vaultId && connections.length > 0 && (
           <div className="flex flex-col gap-1 px-3 py-2">
             <label className="text-xs font-medium">Channel to Watch</label>
             {loadingCh ? (
