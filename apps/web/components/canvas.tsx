@@ -22,6 +22,7 @@ import ReadExcelDomino from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
+import CSVWriterDomino from "../dominos/CSVWriterDomino";
 import DelayDomino from "@/dominos/delay";
 
 /* helpers */
@@ -44,6 +45,7 @@ import MapperDomino from "@/dominos/mapper";
 import SlackTriggerDomino from "@/dominos/slackTrigger";
 
 const nodeTypes = {
+  csvwriter: CSVWriterDomino,
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
