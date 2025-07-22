@@ -168,7 +168,7 @@ export default function SqlRunnerPopup({
         {/* Main content */}
         <div className="flex-1 flex overflow-hidden">
           {/* Database sidebar */}
-          <div className="w-56 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto">
+          <div className="border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto">
             <div className="p-3">
               <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-2">
                 Database Tables
