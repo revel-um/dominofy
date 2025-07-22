@@ -211,27 +211,75 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         )}
       </div>
 
-      {/* Function name + (optional) output pin row */}
-        <div className="flex items-center gap-2 relative px-3 py-2">
-          {/* input field */}
-          <input
-            type="text"
-            placeholder="Enter trigger name…"
-            value={fnName}
-            onChange={onFnChange}
-            className="flex-1 px-2 py-1 text-sm border rounded
-                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                       text-dominofy-light-text dark:text-dominofy-dark-text"
-          />
-          {/* optional value_out pin (right-aligned) */}
-          {showValueOutPin && (
-            <DominoPin
-              id="value_out"
-              pinType={PinType.VALUE_OUT}
-              inline
-            />
-          )}
-        </div>
+      {/* Render all fields */}
+      <div className="flex flex-col gap-3 px-3 py-2">
+        {data?.details?.fields?.map((field: DominoField, idx: number) => (
+          <div key={idx} className="flex flex-col gap-1">
+            <div className="flex items-center gap-1 text-xs font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
+              {field.inPinId && <DominoPin id={field.inPinId} pinType={PinType.VALUE_IN} inline />}
+              <span>{field.heading}</span>
+              {(field.outPinId || (field.heading === 'Function' && showValueOutPin)) && (
+                <DominoPin
+                  id="value_out"
+                  pinType={PinType.VALUE_OUT}
+                  inline
+                />
+              )}
+            </div>
+
+            {field.type === 'textInput' && (
+              <input
+                type="text"
+                placeholder={field.placeholder || ''}
+                value={field.heading === 'Function' ? fnName : field.value ?? ''}
+                onChange={(e) => {
+                  if (field.heading === 'Function') {
+                    let v = e.target.value.replace(/\s+/g, '').replace(/[^a-zA-Z0-9_]/g, '');
+                    if (/^[0-9]/.test(v)) v = v.slice(1);
+                    setFnName(v);
+                    data.setFieldValue?.('Function', v);
+                  } else {
+                    data.setFieldValue?.(field.heading, e.target.value);
+                  }
+                  clearValidationForDominoId(id);
+                }}
+                className="w-full px-2 py-1 text-sm border rounded
+                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                          text-dominofy-light-text dark:text-dominofy-dark-text"
+              />
+            )}
+
+            {/* {field.type === 'copy' && (
+              <div
+                className="px-2 py-1 text-sm border rounded break-all cursor-pointer select-all
+                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                          text-dominofy-light-text dark:text-dominofy-dark-text"
+                title="Click to copy"
+                onClick={() => navigator.clipboard.writeText(field.value ?? '')}
+              >
+                {field.value}
+              </div>
+            )} */}
+
+            {field.type === 'checkbox' && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={field.value ?? false}
+                  onChange={(e) =>
+                    data.setFieldValue?.(field.heading, e.target.checked)
+                  }
+                  className="accent-dominofy-accent"
+                />
+                <span>{field.heading}</span>
+              </label>
+            )}
+          </div>
+        ))}
+      </div>
+
+     
+
         {hasError && (
           <p className="mt-1 text-xs text-red-500">
             ⚠️ Value input pin is connected but execution pin is missing.

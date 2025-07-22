@@ -174,13 +174,6 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
         </button>
       </div>
 
-      {/* output row (combined true/false not needed; just single value_out) */}
-      <div className="px-3 py-2 flex items-center relative justify-between">
-        <div></div>
-        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">Output</span>
-        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
-      </div>
-
       {hasError && (
         <p className="px-3 pb-2 text-xs text-red-500">⚠️ Value input pin is connected but execution pin is missing.</p>
       )}

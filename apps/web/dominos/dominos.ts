@@ -1,4 +1,4 @@
-import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon } from 'lucide-react';
+import { BoomBox, Calculator, FileQuestion, Slack, ToggleLeftIcon } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -7,7 +7,8 @@ import {
   FiRepeat,
   FiDatabase,
   FiLayers,
-  FiCode
+  FiCode,
+  FiClock
 } from 'react-icons/fi';
 
 export default [
@@ -76,4 +77,19 @@ export default [
     label: 'Code Runner',
     icon: FiCode, // ➕ Accumulate values using sum, multiply, min, or max
   },
+  {
+    id: 'delay',
+    label: 'Delay',
+    icon: FiClock, // ⏳ Represents a delay or timeout
+  },
+  {
+    id: 'mapper',
+    label: 'Mapper',
+    icon: FiLayers,
+  },
+  { // 🗺️ Maps inputs to outputs
+    id: 'slacktrigger',
+    label: 'Slack Trigger',
+    icon: Slack, // 💬 Listens for new messages in a Slack channel
+  }
 ];

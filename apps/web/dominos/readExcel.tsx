@@ -50,33 +50,35 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
       if (!res) return toast.error('File upload failed');
 
       const { key, location } = res;
+      const size = file.size; // file size in bytes
+
       data.setNodes?.((nodes: any[]) =>
         nodes.map((n: any) =>
           n.id === id
             ? {
-              ...n,
-              data: {
-                ...n.data,
-                details: {
-                  type: 'Read Excel',
-                  description: 'Reads data from an Excel file',
-                  fields: [
-                    {
-                      inPinId: 'value_in',
-                      type: 'file',
-                      heading: 'File',
-                      value: file.name,
-                      file: { key, url: location },
-                      required: true,
-                      shouldRender: false,
-                      needsUpload: false,
-                      exportOverride: 'file',
-                    },
-                  ],
-                } as DominoNodeData,
-                exportFields: ['File'],
-              },
-            }
+                ...n,
+                data: {
+                  ...n.data,
+                  details: {
+                    type: 'Read Excel',
+                    description: 'Reads data from an Excel file',
+                    fields: [
+                      {
+                        inPinId: 'value_in',
+                        type: 'file',
+                        heading: 'File',
+                        value: file.name,
+                        file: { key, url: location, size },
+                        required: true,
+                        shouldRender: false,
+                        needsUpload: false,
+                        exportOverride: 'file',
+                      },
+                    ],
+                  } as DominoNodeData,
+                  exportFields: ['File'],
+                },
+              }
             : n
         )
       );
@@ -107,40 +109,6 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
       nodes.map((n: any) =>
         n.id === id
           ? {
-            ...n,
-            data: {
-              ...n.data,
-              details: {
-                type: 'Read Excel',
-                description: 'Reads data from an Excel file',
-                fields: [
-                  {
-                    inPinId: 'value_in',
-                    type: 'file',
-                    heading: 'File',
-                    value: '',
-                    required: true,
-                    shouldRender: false,
-                    needsUpload: true,
-                    exportOverride: 'file',
-                  },
-                ],
-              } as DominoNodeData,
-            },
-          }
-          : n
-      )
-    );
-  };
-
-  /* one-time bootstrap */
-  useEffect(() => {
-    if (!data.details && data.setNodes) {
-      data.setNodes((prev: any[]) =>
-        prev.map((n: any) =>
-          n.id !== id
-            ? n
-            : {
               ...n,
               data: {
                 ...n.data,
@@ -160,9 +128,43 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
                     },
                   ],
                 } as DominoNodeData,
-                exportFields: ['File'],
               },
             }
+          : n
+      )
+    );
+  };
+
+  /* one-time bootstrap */
+  useEffect(() => {
+    if (!data.details && data.setNodes) {
+      data.setNodes((prev: any[]) =>
+        prev.map((n: any) =>
+          n.id !== id
+            ? n
+            : {
+                ...n,
+                data: {
+                  ...n.data,
+                  details: {
+                    type: 'Read Excel',
+                    description: 'Reads data from an Excel file',
+                    fields: [
+                      {
+                        inPinId: 'value_in',
+                        type: 'file',
+                        heading: 'File',
+                        value: '',
+                        required: true,
+                        shouldRender: false,
+                        needsUpload: true,
+                        exportOverride: 'file',
+                      },
+                    ],
+                  } as DominoNodeData,
+                  exportFields: ['File'],
+                },
+              }
         )
       );
     }
@@ -200,7 +202,7 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
           {/* Always-visible input pin */}
           <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
 
-          {/* Swap upload UI vs. connected indicator */}
+          {/* Swap upload UI vs. connected indicator */}  
           {!isValueConnected ? (
             fileName ? (
               <div className="flex-1 flex items-center gap-2 px-3 py-2">
