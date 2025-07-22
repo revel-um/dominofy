@@ -149,7 +149,7 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
 
       {/* Input */}
       <div className="flex items-center gap-2 relative px-3 py-1">
-        <DominoPin id="array_in" pinType={PinType.VALUE_IN} inline />
+        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
         <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
           Input
         </span>
@@ -157,7 +157,7 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
 
       {/* Property input */}
       <div className="flex items-center gap-2 relative px-3 py-1">
-        <DominoPin id="property_in" pinType={PinType.VALUE_IN} inline />
+        <DominoPin id="value_in_2" pinType={PinType.VALUE_IN} inline />
         <input
           name="Property"
           value={values.property}
@@ -187,7 +187,7 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
 
       {/* Value input */}
       <div className="flex items-center gap-2 relative px-3 pb-2">
-        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+        <DominoPin id="value_in_3" pinType={PinType.VALUE_IN} inline />
         <input
           name="Filter Value"
           value={values.filterValue}
