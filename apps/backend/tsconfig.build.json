@@ -1,4 +1,24 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  "compilerOptions": {
+    /* emit compiled JS right here: apps/backend/dist/** */
+    "outDir": "./dist",
+
+    /* allow imports from shared without relocating them */
+    "rootDirs": [
+      "./src",              // backend app code
+      "../../shared"        // workspace-level helpers & types
+    ]
+  },
+    "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts"
+  ],
+  "include": [
+    "src/**/*.ts",
+    "../../shared/**/*.ts",
+    "src/heavy-lifter/heavyTask.ts"
+  ]
 }

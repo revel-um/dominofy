@@ -65,15 +65,12 @@ export function useDominofySSE(
       esRef.current = es;
 
       es.onopen = () => {
-        console.log('SSE connection opened for id=', id);
         setConnected(true);
       };
 
       es.onmessage = (e) => {
         try {
           const parsed = JSON.parse(e.data);
-          // const parsed = e.data;
-          console.log('SSE message received:', parsed);
           setEvents((prev) => [...prev, parsed]);
         } catch {
           if (e.data == 'terminate') {

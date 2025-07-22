@@ -91,12 +91,6 @@ async function executeQuery(
     const result = await client.query(query, params);
     const duration = Date.now() - start;
     
-    console.log('Executed query', { 
-      query: query.substring(0, 100) + (query.length > 100 ? '...' : ''),
-      duration, 
-      rows: result.rowCount 
-    });
-    
     return result;
   } catch (error) {
     console.error('Error executing query:', { 

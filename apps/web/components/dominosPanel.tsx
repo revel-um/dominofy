@@ -1,3 +1,5 @@
+// DominosPanel.tsx
+
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -12,7 +14,7 @@ const MIN_WIDTH = 240;
 const MAX_WIDTH = 480;
 
 export default function DominosPanel({
-  bottomOffset = 60,               // ← parameterised
+  bottomOffset = 0,               // ← parameterised
 }: DominosPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const isDragging = useRef(false);
@@ -41,8 +43,9 @@ export default function DominosPanel({
   /* ───────── render ───────── */
   return (
     <div
-      className="absolute top-0 left-0 z-10 bg-dominofy-light-panel dark:bg-dominofy-dark-panel p-4 overflow-y-auto"
-      style={{ width, bottom: `${bottomOffset}px` }}  // uses the prop
+      className="relative z-10 bg-dominofy-light-panel dark:bg-dominofy-dark-panel p-4 overflow-y-auto
+      flex flex-col" // Only flex flex-col needed here now
+      style={{ width, height: `calc(100% - ${bottomOffset}px)` }} // Explicitly calculate height
     >
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
@@ -67,23 +70,25 @@ export default function DominosPanel({
         className="w-full px-3 py-2 mb-4 rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-sm"
       />
 
-      {/* Domino list */}
-      {dominos.map(({ id, label, icon: Icon }) => (
-        <div
-          key={id}
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.setData('application/reactflow', id);
-            e.dataTransfer.effectAllowed = 'move';
-          }}
-          className="flex items-center gap-2 p-3 mb-3 bg-dominofy-light-surface dark:bg-dominofy-dark-surface rounded cursor-move hover:opacity-90 transition"
-        >
-          <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text" />
-          <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
-            {label}
-          </span>
-        </div>
-      ))}
+      {/* Domino list - this part should flex-grow to fill remaining space */}
+      <div className="flex-grow overflow-y-auto">
+        {dominos.map(({ id, label, icon: Icon }) => (
+          <div
+            key={id}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/reactflow', id);
+              e.dataTransfer.effectAllowed = 'move';
+            }}
+            className="flex items-center gap-2 p-3 mb-3 bg-dominofy-light-surface dark:bg-dominofy-dark-surface rounded cursor-move hover:opacity-90 transition"
+          >
+            <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text" />
+            <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
+              {label}
+            </span>
+          </div>
+        ))}
+      </div>
 
       {/* Resize handle */}
       <div

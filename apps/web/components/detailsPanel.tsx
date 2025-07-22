@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { FiPlay } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
 import { DominoField, fieldWidgetMap } from '../types/dominoFieldTypes';
@@ -9,9 +9,7 @@ import { validateAndMarkErrors } from '../helpers/errorDetector';
 import { useDomino } from '../contexts/dominoContext';
 import { WorkflowsApi } from '../apis/workflow.apis';
 import { useRouter } from 'next/router';
-import { PipelineStep } from '../../../shared/types/pipelineStepType';
-import { useDominofySSE } from '../hooks/useDominofySSE';
-import { config } from '../config/config';
+import { useSSE } from '@/contexts/sseContext';
 
 interface DetailsPanelProps {
   selectedNode?: Node;
@@ -36,22 +34,19 @@ export default function DetailsPanel({
   setEdges,
   updatePipeline,
   workflowId,
-  bottomOffset = 60,                      // ← new prop with default
+  bottomOffset = 60,
 }: DetailsPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const isDragging = useRef(false);
 
   const router = useRouter();
   const { setValidationErrors, clearValidationForDominoId } = useDomino();
-  const [currentPipeline, setCurrentPipeline] = useState<PipelineStep[]>([]);
 
+  // use shared SSE from context
   const {
-    events: sseEvents,
-    connected: sseConnected,
-    error: sseError,
     start: startSSE,
     stop: stopSSE,
-  } = useDominofySSE(config.backendBaseUrl);
+  } = useSSE();
 
   /* ───────── resize logic ───────── */
   const handleMouseDown = () => {
@@ -63,7 +58,10 @@ export default function DetailsPanel({
 
   const handleMouseMove = (e: MouseEvent) => {
     if (!isDragging.current) return;
-    const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, window.innerWidth - e.clientX));
+    const newWidth = Math.min(
+      MAX_WIDTH,
+      Math.max(MIN_WIDTH, window.innerWidth - e.clientX)
+    );
     setWidth(newWidth);
   };
 
@@ -74,11 +72,9 @@ export default function DetailsPanel({
     document.removeEventListener('mouseup', handleMouseUp);
   };
 
-  /* ───────── workflow validation / actions (unchanged) ───────── */
-  // ... (the rest of your existing logic remains exactly the same)
+  /* ───────── workflow validation / actions ───────── */
 
   const isWorkflowValid = () => {
-    // (validation code unchanged)
     const nodes = getNodes();
     const edges = getEdges();
     if (!nodes || !edges) return false;
@@ -89,14 +85,19 @@ export default function DetailsPanel({
     const errorIds = validateAndMarkErrors(nodes);
     setValidationErrors(errorIds);
     if (errorIds.length > 0) return false;
+
     const adjacencyList: Record<string, string[]> = {};
     nodes.forEach((n) => (adjacencyList[n.id] = []));
     edges.forEach((e) => {
-      if (e.sourceHandle?.startsWith('exec') || e.targetHandle?.startsWith('exec')) {
+      if (
+        e.sourceHandle?.startsWith('exec') ||
+        e.targetHandle?.startsWith('exec')
+      ) {
         adjacencyList[e.source].push(e.target);
         adjacencyList[e.target].push(e.source);
       }
     });
+
     const visited = new Set<string>();
     const queue: string[] = [nodes[0].id];
     visited.add(nodes[0].id);
@@ -109,8 +110,11 @@ export default function DetailsPanel({
         }
       });
     }
+
     if (visited.size !== nodes.length) {
-      alert('Disconnected dominos found. Please connect all or remove unused dominos before deploying.');
+      alert(
+        'Disconnected dominos found. Please connect all or remove unused dominos before deploying.'
+      );
       return false;
     }
     return true;
@@ -118,9 +122,16 @@ export default function DetailsPanel({
 
   const onSave = async () => {
     const exported = exportWorkflow(getNodes(), getEdges(), workflowId);
-    if (!workflowId) return alert('Workflow ID is not set. Cannot save.');
+    if (!workflowId)
+      return alert('Workflow ID is not set. Cannot save.');
     alert('Saved Successfully!');
-    await WorkflowsApi.saveWorkflow(workflowId, exported, localStorage.getItem('token') || '', router);
+    const token = localStorage.getItem('token') || '';
+    await WorkflowsApi.saveWorkflow(
+      workflowId,
+      exported,
+      token,
+      router
+    );
   };
 
   const onDeploy = () => {
@@ -131,15 +142,28 @@ export default function DetailsPanel({
     if (!isWorkflowValid() || !workflowId) return;
     const exported = exportWorkflow(getNodes(), getEdges(), workflowId);
     const token = localStorage.getItem('token') || '';
-    await WorkflowsApi.saveWorkflow(workflowId, exported, token, router);
+    // save before streaming
+    await WorkflowsApi.saveWorkflow(
+      workflowId,
+      exported,
+      token,
+      router
+    );
+    // start SSE via shared context
     startSSE(workflowId, token);
-  }, [isWorkflowValid, workflowId, startSSE]);
+  }, [isWorkflowValid, workflowId, startSSE, router]);
+
+  /* ───────── cleanup on unmount ───────── */
+  useEffect(() => {
+    return () => {
+      stopSSE();
+    };
+  }, [stopSSE]);
 
   /* ───────── render ───────── */
   return (
     <div
       className="absolute top-0 right-0 z-10 bg-dominofy-light-panel dark:bg-dominofy-dark-panel flex flex-col"
-      /* keep off LogsPanel by bottomOffset */
       style={{ width, bottom: `${bottomOffset}px` }}
     >
       {/* Header */}
@@ -169,7 +193,6 @@ export default function DetailsPanel({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-        {/* (existing field / raw JSON rendering unchanged) */}
         {selectedNode?.data?.details && (
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-dominofy-light-text dark:text-dominofy-dark-text">
@@ -179,30 +202,38 @@ export default function DetailsPanel({
               {selectedNode.data.details.description}
             </p>
             <div className="space-y-5 pt-2">
-              {selectedNode.data.details.fields.map((f: DominoField, i: number) => {
-                const Widget = fieldWidgetMap[f.type as keyof typeof fieldWidgetMap];
-                if (!Widget || f.shouldRender === false) return null;
-                return (
-                  <div key={i} className="flex flex-col space-y-1">
-                    {f.heading && (
-                      <label className="font-medium text-sm text-dominofy-light-text dark:text-dominofy-dark-text">
-                        {f.heading}
-                      </label>
-                    )}
-                    <Widget
-                      value={f.value}
-                      options={f.options}
-                      placeholder={f.placeholder}
-                      required={f.required}
-                      onChange={(val: any) => {
-                        if (f.onChange) val = f.onChange(val);
-                        clearValidationForDominoId(selectedNode.id);
-                        selectedNode.data.setFieldValue(f.heading, val);
-                      }}
-                    />
-                  </div>
-                );
-              })}
+              {selectedNode.data.details.fields.map(
+                (f: DominoField, i: number) => {
+                  const Widget =
+                    fieldWidgetMap[f.type as keyof typeof fieldWidgetMap];
+                  if (!Widget || f.shouldRender === false) return null;
+                  return (
+                    <div key={i} className="flex flex-col space-y-1">
+                      {f.heading && (
+                        <label className="font-medium text-sm text-dominofy-light-text dark:text-dominofy-dark-text">
+                          {f.heading}
+                        </label>
+                      )}
+                      <Widget
+                        value={f.value}
+                        options={f.options}
+                        placeholder={f.placeholder}
+                        required={f.required}
+                        onChange={(val: any) => {
+                          if (f.onChange) val = f.onChange(val);
+                          clearValidationForDominoId(
+                            selectedNode.id
+                          );
+                          selectedNode.data.setFieldValue(
+                            f.heading,
+                            val
+                          );
+                        }}
+                      />
+                    </div>
+                  );
+                }
+              )}
             </div>
           </div>
         )}

@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, MoreThanOrEqual, LessThanOrEqual, Between } from 'typeorm';
 
 import { BaseService } from 'src/common/base.service';
 import { WorkflowLog, WorkflowLogStatus } from './workflow-logger.entity';
@@ -96,10 +96,52 @@ export class WorkflowLoggerService
     limit = 50,
     offset = 0,
     search?: string,
-  ) {
+    minutes = 0,
+  ): Promise<[WorkflowLog[], number]> {
     const where: any = { workflow: { id: workflowId } };
-    if (runId) where.runId = runId;
-    if (search) where.output = ILike(`%${search}%`);
+
+    if (runId) {
+      where.runId = runId;
+    }
+    if (search) {
+      where.output = ILike(`%${search}%`);
+    }
+    if (minutes > 0) {
+      const since = new Date(Date.now() - minutes * 60 * 1000);
+      where.createdAt = MoreThanOrEqual(since);
+    }
+
+    return this.logsRepo.findAndCount({
+      where,
+      order: { createdAt: 'ASC' },
+      take: limit,
+      skip: offset,
+    });
+  }
+
+  /**
+   * Fetch logs between an explicit date range [startDate, endDate].
+   */
+  async findAllByDateRange(
+    workflowId: string,
+    runId: string | undefined,
+    limit = 50,
+    offset = 0,
+    search: string | undefined,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<[WorkflowLog[], number]> {
+    const where: any = { workflow: { id: workflowId } };
+
+    if (runId) {
+      where.runId = runId;
+    }
+    if (search) {
+      where.output = ILike(`%${search}%`);
+    }
+
+    // Filter logs whose createdAt is between startDate and endDate (inclusive)
+    where.createdAt = Between(startDate, endDate);
 
     return this.logsRepo.findAndCount({
       where,

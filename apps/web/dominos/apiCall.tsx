@@ -6,6 +6,7 @@ import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { FiAlertCircle } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
+import JsonEditor from '@/components/code-editor/JsonEditor';
 
 export default function ApiCallDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
@@ -19,7 +20,6 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
     return typeof f?.value === 'string' ? f.value : data.url ?? '';
   };
   const [url, setUrl] = useState(getInitialUrl());
-  const isValueConnected = data?.valueConnected ?? false;
 
   /* ————————————————————— sync url when workflow imported */
   useEffect(() => {
@@ -35,88 +35,81 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
       const setFieldValue = (heading: string, v: any) => {
         if (heading === 'Url') setUrl(v);
         data.setNodes((nodes: any[]) =>
-          nodes.map((n: { id: string; data: { details: { fields: DominoField[]; }; }; }) =>
+          nodes.map((n: { id: string; data: { details: { fields: DominoField[] } } }) =>
             n.id === id
               ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  [heading.toLowerCase()]: v,
-                  details: {
-                    ...n.data.details,
-                    fields: n.data.details.fields.map((f: DominoField) =>
-                      f.heading === heading ? { ...f, value: v } : f
-                    ),
+                  ...n,
+                  data: {
+                    ...n.data,
+                    [heading.toLowerCase()]: v,
+                    details: {
+                      ...n.data.details,
+                      fields: n.data.details.fields.map((f: DominoField) =>
+                        f.heading === heading ? { ...f, value: v } : f
+                      ),
+                    },
                   },
-                },
-              }
+                }
               : n
           )
         );
       };
 
       data.setNodes((prev: any[]) =>
-        prev.map((node: { id: string; data: { details: any; }; }) =>
+        prev.map((node: { id: string; data: { details: any } }) =>
           node.id !== id
             ? node
             : {
-              ...node,
-              data: {
-                ...node.data,
-                setFieldValue,
-                exportFields: ['Url', 'Method', 'Headers', 'Body'],
-                details:
-                  node.data.details ??
-                  ({
-                    type: 'ApiCall',
-                    description: 'Sends an HTTP request.',
-                    fields: [
-                      {
-                        type: 'textInput',
-                        heading: 'Url',
-                        placeholder: 'https://api.example.com',
-                        value: url,
-                        required: true,
-                        inPinId: 'value_in',
-                      },
-                      {
-                        type: 'dropdown',
-                        heading: 'Method',
-                        value: data.method ?? 'GET',
-                        required: true,
-                        options: [
-                          { label: 'GET', value: 'GET' },
-                          { label: 'POST', value: 'POST' },
-                          { label: 'PUT', value: 'PUT' },
-                          { label: 'DELETE', value: 'DELETE' },
-                        ],
-                      },
-                      {
-                        type: 'json',
-                        heading: 'Headers',
-                        value: data.headers ?? {},
-                      },
-                      {
-                        type: 'json',
-                        heading: 'Body',
-                        value: data.body ?? {},
-                      },
-                    ],
-                  } as DominoNodeData),
-              },
-            }
+                ...node,
+                data: {
+                  ...node.data,
+                  setFieldValue,
+                  exportFields: ['Url', 'Method', 'Headers', 'Body'],
+                  details:
+                    node.data.details ??
+                    ({
+                      type: 'ApiCall',
+                      description: 'Sends an HTTP request.',
+                      fields: [
+                        {
+                          type: 'textInput',
+                          heading: 'Url',
+                          placeholder: 'https://api.example.com',
+                          value: url,
+                          required: true,
+                          inPinId: 'value_in',
+                          outPinId: 'value_out',
+                        },
+                        {
+                          type: 'dropdown',
+                          heading: 'Method',
+                          value: data.method ?? 'GET',
+                          required: true,
+                          options: [
+                            { label: 'GET', value: 'GET' },
+                            { label: 'POST', value: 'POST' },
+                            { label: 'PUT', value: 'PUT' },
+                            { label: 'DELETE', value: 'DELETE' },
+                          ],
+                        },
+                        {
+                          type: 'json',
+                          heading: 'Headers',
+                          value: data.headers ?? {},
+                        },
+                        {
+                          type: 'json',
+                          heading: 'Body',
+                          value: data.body ?? {},
+                        },
+                      ],
+                    } as DominoNodeData),
+                },
+              }
         )
       );
     }
   }, [data, id, url]);
-
-  /* ————————————————————— handlers */
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    setUrl(v);
-    data.setFieldValue?.('Url', v);
-    clearValidationForDominoId(id);
-  };
 
   /* ————————————————————— render */
   return (
@@ -149,22 +142,67 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
         )}
       </div>
 
-      {/* URL input row with value_in pin */}
-      <div className="flex items-center gap-2 relative px-3 py-2">
+      {/* Render all fields */}
+      <div className="flex flex-col gap-2 px-3 py-2">
         <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
-        <input
-          type="text"
-          placeholder="https://api.example.com"
-          value={url}
-          onChange={handleChange}
-          className="flex-1 px-2 py-1 text-sm border rounded
-                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                       text-dominofy-light-text dark:text-dominofy-dark-text"
-        />
+
+        {data?.details?.fields?.map((field: DominoField, idx: number) => (
+          <div key={idx} className="flex flex-col gap-1">
+            {/* Label + Pins */}
+            <div className="flex items-center gap-1 text-xs font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
+              <span>{field.heading}</span>              
+            </div>
+
+            {/* Input types */}
+            {field.type === 'textInput' && (
+              <input
+                type="text"
+                placeholder={field.placeholder || ''}
+                value={field.value ?? ''}
+                onChange={(e) => {
+                  if (field.heading === 'Url') setUrl(e.target.value);
+                  data.setFieldValue?.(field.heading, e.target.value);
+                  clearValidationForDominoId(id);
+                }}
+                className="w-full px-2 py-1 text-sm border rounded
+                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                          text-dominofy-light-text dark:text-dominofy-dark-text"
+              />
+            )}
+
+            {field.type === 'dropdown' && (
+              <select
+                value={field.value}
+                onChange={(e) => data.setFieldValue?.(field.heading, e.target.value)}
+                className="w-full px-2 py-1 text-sm border rounded
+                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                          text-dominofy-light-text dark:text-dominofy-dark-text"
+              >
+                {field.options?.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {field.type === 'json' && (
+              <JsonEditor
+                field={field}
+                onChange={(newVal: object | null, rawText: string) => {
+                  if (newVal !== null) {
+                    data.setFieldValue?.(field.heading, newVal);
+                  }
+                }}
+              />
+            )}
+          </div>
+        ))}
         <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
       </div>
+
       {hasError && (
-        <p className="mt-1 text-xs text-red-500">
+        <p className="mt-1 text-xs text-red-500 px-3 pb-2">
           ⚠️ Value input pin is connected but execution pin is missing.
         </p>
       )}

@@ -37,7 +37,11 @@ export function importWorkflow(
             throw new Error('Invalid workflow format');
         }
 
+        // let num = -1; 
         const enhancedNodes = nodes.map((node: Node, index: number) => {
+            // num += 1;
+            // if (num % 2 == 0)
+                // node.data.isSuggestion = true;
             return ({
                 ...node,
                 data: {

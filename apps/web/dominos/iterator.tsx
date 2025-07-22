@@ -35,7 +35,12 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
   const [order, setOrder] = useState<'forward' | 'reverse'>(
     (getField('Order')?.value as 'forward' | 'reverse') ?? 'forward'
   );
-  const [limit, setLimit] = useState<string>((getField('Limit')?.value as string) ?? '');
+  const [rangeStart, setRangeStart] = useState<string>(
+    (getField('Range Start')?.value as string) ?? '0'
+  );
+  const [rangeEnd, setRangeEnd] = useState<string>(
+    (getField('Range End')?.value as string) ?? '0'
+  );
   const [isMax, setIsMax] = useState<boolean>(
     getField('Max')?.value !== undefined ? Boolean(getField('Max')?.value) : false
   );
@@ -49,17 +54,18 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
     if (isInputConnected && !prevConnected.current) {
       setIsMax(true);
       updateFieldValue('Max', true);
-      if (limit) {
-        setLimit('');
-        updateFieldValue('Limit', '');
-      }
+      // reset range to defaults
+      setRangeStart('0');
+      setRangeEnd('0');
+      updateFieldValue('Range Start', '0');
+      updateFieldValue('Range End', '0');
     }
     if (!isInputConnected && prevConnected.current) {
       setIsMax(false);
       updateFieldValue('Max', false);
     }
     prevConnected.current = isInputConnected;
-  }, [isInputConnected, limit, updateFieldValue]);
+  }, [isInputConnected, updateFieldValue]);
 
   /* ───────── first-time bootstrap */
   useEffect(() => {
@@ -89,28 +95,35 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
                         value: 'forward',
                         options: [
                           { label: 'Forward', value: 'forward' },
-                          { label: 'Reverse', value: 'reverse' },
+                          { label: 'Reverse', value: 'reverse' }
                         ],
                         required: true,
-                        shouldRender: false,
+                        shouldRender: false
                       } as DominoField,
                       {
                         type: 'textInput',
-                        heading: 'Limit',
-                        value: '',
+                        heading: 'Range Start',
+                        value: '0',
                         required: false,
-                        shouldRender: false,
+                        shouldRender: false
+                      } as DominoField,
+                      {
+                        type: 'textInput',
+                        heading: 'Range End',
+                        value: '0',
+                        required: false,
+                        shouldRender: false
                       } as DominoField,
                       {
                         type: 'checkbox',
                         heading: 'Max',
                         value: false,
                         required: false,
-                        shouldRender: false,
-                      } as DominoField,
+                        shouldRender: false
+                      } as DominoField
                     ],
                   } as DominoNodeData,
-                  exportFields: ['Input', 'Order', 'Limit', 'Max'],
+                  exportFields: ['Input', 'Order', 'Range Start', 'Range End', 'Max'],
                 },
               }
         )
@@ -126,10 +139,16 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
     updateFieldValue('Order', val);
   };
 
-  const onLimitChange = (val: string) => {
+  const onRangeStartChange = (val: string) => {
     clearValidationForDominoId(id);
-    setLimit(val);
-    updateFieldValue('Limit', val);
+    setRangeStart(val);
+    updateFieldValue('Range Start', val);
+  };
+
+  const onRangeEndChange = (val: string) => {
+    clearValidationForDominoId(id);
+    setRangeEnd(val);
+    updateFieldValue('Range End', val);
   };
 
   const onMaxToggle = (checked: boolean) => {
@@ -137,8 +156,10 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
     setIsMax(checked);
     updateFieldValue('Max', checked);
     if (checked) {
-      setLimit('');
-      updateFieldValue('Limit', '');
+      setRangeStart('0');
+      setRangeEnd('0');
+      updateFieldValue('Range Start', '0');
+      updateFieldValue('Range End', '0');
     }
   };
 
@@ -156,7 +177,7 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
         style={{
           backgroundColor: '#6366f1',
           borderBottomColor: '#4f46e5',
-          borderRadius: '0.23rem 0.23rem 0 0',
+          borderRadius: '0.23rem 0.23rem 0 0'
         }}
       >
         <div className="flex items-center gap-1 px-3 py-2">
@@ -201,28 +222,41 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
         </select>
       </div>
 
-      {/* limit + max row */}
+      {/* range + max row */}
       <div className="px-3 py-2 flex items-center gap-2">
         <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
-          Limit
+          Range
         </span>
-
         {!isMax && (
-          <input
-            type="text"
-            value={limit}
-            inputMode="numeric"
-            placeholder="Count"
-            className="w-20 px-2 py-1 text-sm border rounded w-full
-                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                       text-dominofy-light-text dark:text-dominofy-dark-text"
-            onChange={e => {
-              const raw = e.target.value;
-              if (raw === '' || /^[1-9]\d*$/.test(raw)) onLimitChange(raw);
-            }}
-          />
+          <>
+            <input
+              type="text"
+              value={rangeStart}
+              inputMode="numeric"
+              placeholder="Start"
+              className="w-16 px-2 py-1 text-sm border rounded
+                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                         text-dominofy-light-text dark:text-dominofy-dark-text"
+              onChange={e => {
+                const raw = e.target.value;
+                if (raw === '' || /^[0-9]\d*$/.test(raw)) onRangeStartChange(raw);
+              }}
+            />
+            <input
+              type="text"
+              value={rangeEnd}
+              inputMode="numeric"
+              placeholder="End"
+              className="w-16 px-2 py-1 text-sm border rounded
+                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                         text-dominofy-light-text dark:text-dominofy-dark-text"
+              onChange={e => {
+                const raw = e.target.value;
+                if (raw === '' || /^[0-9]\d*$/.test(raw)) onRangeEndChange(raw);
+              }}
+            />
+          </>
         )}
-
         {isInputConnected && (
           <label className="flex items-center gap-1 text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
             <input type="checkbox" checked={isMax} onChange={e => onMaxToggle(e.target.checked)} />

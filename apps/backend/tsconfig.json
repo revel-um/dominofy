@@ -1,21 +1,38 @@
 {
   "compilerOptions": {
+    /* ------------- core settings ------------- */
     "module": "commonjs",
+    "target": "ES2023",
     "declaration": true,
-    "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "allowSyntheticDefaultImports": true,
-    "target": "ES2023",
     "sourceMap": true,
-    "outDir": "./dist",
-    "baseUrl": "./",
+
+    /* ------------- output paths -------------- */
+    "outDir": "./dist",               // compiled JS ends up here
+
+    /* ------------- workspace sharing --------- */
+    "rootDirs": [                     // allow imports from shared/
+      "./src",
+      "../../shared"
+    ],
+
+    /* ------------- misc flags --------------- */
+    "removeComments": true,
+    "allowSyntheticDefaultImports": true,
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
-  }
+    "noFallthroughCasesInSwitch": false,
+    "baseUrl": "./"
+  },
+
+  /* compile both app code and shared helpers */
+  "include": [
+    "src/**/*.ts",
+    "../../shared/**/*.ts"
+  ]
 }
