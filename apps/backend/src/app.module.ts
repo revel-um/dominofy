@@ -8,7 +8,9 @@ import { UserModule } from './user/user.module';
 import { WorkflowModule } from './workflow/workflow.module';
 import { VerifyTokenMiddleware } from './middlewares/auth.middleware';
 import { AwsServicesModule } from './aws-services/aws-services.module';
+import { WorkflowLoggerModule } from './workflow-logger/workflow-logger.module';
 import { VaultModule } from './vault/vault.module';
+import { SlackModule } from './slack/slack.module';
 
 @Module({
   imports: [
@@ -32,7 +34,9 @@ import { VaultModule } from './vault/vault.module';
     UserModule,
     WorkflowModule,
     AwsServicesModule,
-    VaultModule
+    WorkflowLoggerModule,
+    VaultModule,
+    SlackModule
   ],
   controllers: [AppController],
   providers: [AppService, VerifyTokenMiddleware],

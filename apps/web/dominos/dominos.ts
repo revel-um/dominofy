@@ -1,4 +1,4 @@
-import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon } from 'lucide-react';
+import { BoomBox, Calculator, FileQuestion, Slack, ToggleLeftIcon } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -6,7 +6,9 @@ import {
   FiFileText,
   FiRepeat,
   FiLayers,
-  FiMail
+  FiMail,
+  FiDownload,
+  FiClock,
 } from 'react-icons/fi';
 
 export default [
@@ -25,6 +27,11 @@ export default [
       { heading: 'CC', type: 'text', required: false },
       { heading: 'BCC', type: 'text', required: false }
     ]
+  },
+  {
+    id: 'csvwriter',
+    label: 'CSV Writer',
+    icon: FiDownload, // 📥 Represents downloading data
   },
   {
     id: 'print',
@@ -101,9 +108,24 @@ export default [
   {
     id: 'aggregator',
     label: 'Aggregator',
-    icon: FiLayers,
+    icon: FiLayers, // ➕ Accumulate values using sum, multiply, min, or max
     description: 'Combine multiple values into one',
     category: 'Data',
     color: 'blue'
+  },
+  {
+    id: 'delay',
+    label: 'Delay',
+    icon: FiClock, // ⏳ Represents a delay or timeout
+  },
+  {
+    id: 'mapper',
+    label: 'Mapper',
+    icon: FiLayers,
+  },
+  { // 🗺️ Maps inputs to outputs
+    id: 'slacktrigger',
+    label: 'Slack Trigger',
+    icon: Slack, // 💬 Listens for new messages in a Slack channel
   }
 ];

@@ -12,7 +12,7 @@ import { UserService } from 'src/user/user.service';
 import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../../../../shared/types/pipelineStepType';
 import { v4 as uuidv4 } from 'uuid';
-import { Runner } from 'src/domino-engine/runner';
+import { RunnerLauncherService } from 'src/workflow-logger/runner-launcher';
 
 @Injectable()
 export class WorkflowService extends BaseService<Workflow> {
@@ -20,6 +20,7 @@ export class WorkflowService extends BaseService<Workflow> {
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
     private readonly userService: UserService,
+    private readonly runnerLauncherService: RunnerLauncherService,
   ) {
     super(workflowRepository);
   }
@@ -97,7 +98,12 @@ export class WorkflowService extends BaseService<Workflow> {
     const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
 
     const runId = uuidv4();
-    const runner = new Runner(pipeline, 20); // adjust concurrency if needed
+    const runner = this.runnerLauncherService.createRunner(
+      workflowId,
+      runId,
+      pipeline,
+      20
+    );
 
     return runner.run(runId, input); // pass input to the runner
   }

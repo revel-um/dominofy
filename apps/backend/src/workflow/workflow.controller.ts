@@ -75,18 +75,26 @@ export class WorkflowController extends BaseController<
     // Combine body & file into unified input for the workflow
     const input: Record<string, any> = {};
 
+    // capture body if present
     if (body && Object.keys(body).length > 0) {
       input.body = body;
     }
 
+    // capture file + size if present
+    let fileSize: number | null = null;
     if (file) {
+      fileSize = file.size;
+
       input.file = {
         originalname: file.originalname,
         mimetype: file.mimetype,
-        buffer: file.buffer, // stays in RAM
-        size: file.size,
+        buffer: file.buffer,  // stays in RAM
+        size: fileSize,
       };
     }
+
+    // now you can use `fileSize` elsewhere if needed
+    console.log(`Triggering workflow with file size: ${fileSize ?? 'no file'}`);
 
     await this.workflowService.handleTrigger(workflowId, functionName, input);
 
@@ -95,6 +103,7 @@ export class WorkflowController extends BaseController<
       message: 'Workflow is running in the background',
     };
   }
+
 
   @Get(':workflowId/trigger/:functionName')
   @HttpCode(200)
