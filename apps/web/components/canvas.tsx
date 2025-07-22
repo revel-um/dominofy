@@ -23,7 +23,10 @@ import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
 import DelayDomino from "@/dominos/delay";
-
+import MapperDomino from "@/dominos/mapper";
+import SlackTriggerDomino from "@/dominos/slackTrigger";
+import ResponseDomino from "../dominos/response";
+import LLMDomino from "../dominos/llm";
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnections } from "../helpers/errorDetector";
@@ -39,11 +42,10 @@ import {
   createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
-import MapperDomino from "@/dominos/mapper";
-
-import SlackTriggerDomino from "@/dominos/slackTrigger";
 
 const nodeTypes = {
+  llm: LLMDomino,
+  response: ResponseDomino,
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,

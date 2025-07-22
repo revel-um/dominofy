@@ -1,4 +1,4 @@
-import { BoomBox, Calculator, FileQuestion, Slack, ToggleLeftIcon } from 'lucide-react';
+import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon, CheckCircle, Slack } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -6,10 +6,30 @@ import {
   FiFileText,
   FiRepeat,
   FiLayers,
-  FiClock
+  FiClock,
+  FiDownload,
+  FiCheckCircle,
+  FiCpu
 } from 'react-icons/fi';
 
 export default [
+  {
+    id: 'llm',
+    label: 'LLM',
+    icon: FiCpu, // Represents AI/ML processing
+    category: 'AI/LLM',
+  },
+  {
+    id: 'response',
+    label: 'Response',
+    icon: FiCheckCircle, // ✅ Represents successful completion/response
+    category: 'Core',
+  },
+  {
+    id: 'csvwriter',
+    label: 'CSV Writer',
+    icon: FiDownload, // 📥 Represents downloading data
+  },
   {
     id: 'print',
     label: 'Print',
