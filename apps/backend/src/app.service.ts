@@ -15,7 +15,6 @@ import {
   HeavyTaskInput,
   progressEmitter,
 } from './heavy-lifter/exec-pool.util';
-import { Runner } from './domino-engine/runner';
 import { isWorkflowBlocking } from './heavy-lifter/block-checker';
 import { RunnerLauncherService } from './workflow-logger/runner-launcher';
 
@@ -36,29 +35,28 @@ export class AppService {
 
     return new Observable(subscriber => {
       const runId = uuidv4();
-      console.log('started run', { runId });
 
       const isBlocking = isWorkflowBlocking(pipeline);
 
-      //Assign blocking workflows to worker thread
+      // common helper to wrap and JSON-stringify + include runId
+      const send = (payload: any) =>
+        subscriber.next(JSON.stringify({ ...payload, runId }));
+
       if (isBlocking) {
         if (execPool.queueSize >= MAX_QUEUE_LEN) {
           subscriber.error(
-            new HttpException('Server busy – retry soon', HttpStatus.TOO_MANY_REQUESTS),
+            new HttpException('Server busy – retry soon', HttpStatus.TOO_MANY_REQUESTS)
           );
           return;
         }
 
-        const payload: HeavyTaskInput = { workflowId, runId, visualJson: pipeline };
-        execPool.run(payload).catch(err => subscriber.error(err));
+        execPool.run({ workflowId, runId, visualJson: pipeline }).catch(err => subscriber.error(err));
 
-        /* Map worker messages → inline-style SSE & DB logs */
         const sub = fromEvent(progressEmitter, runId).subscribe((msg: any) => {
           switch (msg.type) {
             case 'NODE_DONE': {
               const { domino } = msg;
               const type = domino.id.split('-')[0];
-              /* DB log */
               this.workflowLogger.logLine({
                 workflowId,
                 type,
@@ -67,8 +65,8 @@ export class AppService {
                 status: WorkflowLogStatus.SUCCESS,
                 output: type === 'print' ? domino.output : undefined,
               });
-              /* SSE payload identical to inline path */
-              subscriber.next(JSON.stringify(domino));
+              // include runId on SSE
+              send(domino);
               break;
             }
             case 'NODE_ERROR': {
@@ -82,41 +80,41 @@ export class AppService {
                 status: WorkflowLogStatus.FAILURE,
                 error: { message },
               });
-              subscriber.next(JSON.stringify({ nodeId, error: { message } }));
+              send({ nodeId, error: { message } });
               break;
             }
-            case 'DONE':   // emitted when heavyTask resolves
+            case 'DONE':
               subscriber.complete();
               break;
           }
         });
 
-        /* Immediate ACK so UI shows spinner */
-        subscriber.next(JSON.stringify({ runId, type: 'ACCEPTED' }));
+        // initial ACK with runId
+        send({ type: 'ACCEPTED' });
         return () => sub.unsubscribe();
       }
 
-      /* ─────────── inline path (CPU_INTENSIVE = false) ─────────── */
-      // const runner = new Runner(pipeline, 20);
+      // inline path
       const runner = this.runnerLauncherService.createRunner(
         workflowId,
         runId,
         pipeline,
-        20,
+        20
       );
 
       runner.on('done', (res) => {
-        subscriber.next(JSON.stringify(res));
+        // res usually contains domino info; include runId
+        send(res);
       });
 
       runner.on('error', ({ nodeId, error }) => {
-        subscriber.next(JSON.stringify({ nodeId, error }));
+        send({ nodeId, error });
       });
 
       runner.on('terminate', () => subscriber.complete());
       runner.run(runId).catch(err => subscriber.error(err));
 
-      subscriber.next(JSON.stringify({ runId, type: 'ACCEPTED' }));
+      send({ type: 'ACCEPTED' });
       return () => runner.removeAllListeners();
     });
   }
