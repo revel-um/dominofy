@@ -22,7 +22,6 @@ export class VaultService extends BaseService<Vault> {
      * ────────────────────────────*/
     async create(dto: CreateVaultDto, userIds: string[] = []) {
         return this.dataSource.transaction(async (manager) => {
-            console.log(dto.lookupIds);
             /* ---------- build entity ---------- */
             const vault = manager.create(Vault, {
                 name: dto.name,
@@ -49,6 +48,13 @@ export class VaultService extends BaseService<Vault> {
      * ────────────────────────────*/
     async findOne(id: string, relations: string[] = []): Promise<Vault | null> {
         return this.vaultRepository.findOne({ where: { id }, relations });
+    }
+
+    async findWhere(condition: any, relations: any) {
+        return this.vaultRepository.findOne({
+            where: condition,
+            relations: relations
+        });
     }
 
     async findOneByIdAndType(

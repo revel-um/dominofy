@@ -18,7 +18,9 @@ import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../types/pipelineStepType';
 import { v4 as uuidv4 } from 'uuid';
 import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
-
+import { ConflictException } from '@nestjs/common';
+import { async } from 'rxjs';
+import { Raw } from 'typeorm';
 
 @Injectable()
 export class SlackService {
@@ -60,9 +62,6 @@ export class SlackService {
     return `https://slack.com/oauth/v2/authorize?${params}`;
   }
 
-  /**
-   * Exchange the OAuth code, create / encrypt a Vault row, associate to user.
-   */
   async handleOauthCallback(code: string, state: string): Promise<void> {
     const dominofyUserId = this.validateState(state);
 
@@ -93,18 +92,59 @@ export class SlackService {
 
     /* ------- persist via VaultService ------- */
     const user = await this.userService.findOne(dominofyUserId);
-    if (!user)
+    if (!user) {
       throw new BadRequestException(`User ${dominofyUserId} not found`);
+    }
 
+    /* 🔒  DUPLICATE-CHECK  🔒 */
+
+    const existing = await this.vaultService.findWhere(
+      {
+        type: VaultType.SLACK,
+        // lookupIds ->> 'slackTeamId' = :teamId
+        lookupIds: Raw(
+          alias => `${alias} ->> 'slackTeamId' = :teamId`,
+          { teamId: conn.slackTeamId },
+        ),
+      },
+      { users: true },   // pull in the many-to-many
+    );
+
+    if (existing) {
+      // Is it the same user or someone else?
+      const alreadyOwnedByCaller = existing.users.some(o => o.id === user.id);
+
+      if (alreadyOwnedByCaller) {
+        // same user: nothing to do – return a friendly message or silently succeed
+        this.logger.log(
+          `User ${user.id} tried to reconnect already-linked Slack workspace ${conn.slackTeamId}`,
+        );
+        throw new ConflictException(
+          'This Slack workspace is already connected to your Dominofy account.',
+        );
+      }
+
+      // different user: block the action
+      this.logger.warn(
+        `Slack workspace ${conn.slackTeamId} already connected by another user`,
+      );
+      throw new ConflictException(
+        'This Slack workspace is already connected by another Dominofy user.',
+      );
+    }
+
+    /* ------- create vault because it doesn't exist yet ------- */
     const dto: CreateVaultDto = {
       name: `Slack – ${conn.slackTeamId}`,
       lookupIds: { slackTeamId: conn.slackTeamId },
       type: VaultType.SLACK,
       connection: conn,
     };
+
     await this.vaultService.create(dto, [user.id]);
   }
-  
+
+
   verifySignature(sig: string, ts: string, body: string): boolean {
     const base = `v0:${ts}:${body}`;
     const hmac = crypto
@@ -174,9 +214,8 @@ export class SlackService {
     const teamId = body.team_id;
     const channelId = body?.event?.channel;
 
-    console.log(teamId, channelId)
     const workflows = await this.workflowService.findWorkflowsBySlackTrigger(teamId, channelId);
-    console.log(workflows.length)
+
     workflows.forEach((workflow) => {
       const { nodes, edges } = workflow.visualJson;
       const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
@@ -189,7 +228,6 @@ export class SlackService {
         20,
         workflow.visualJson
       );
-      console.log(body.event)
       return runner.run(runId, body.event);
     });
   }

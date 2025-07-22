@@ -110,7 +110,7 @@ export default function SlackTriggerDomino({
       setLoadingCh(true);
       try {
         const list = await SlackApi.getChannels(token, router, vaultId);
-        console.log(list)
+
         if (mounted) {
           setChannels(list ?? []);
           const selectedChannel = (list ?? []).find(c => c.id === slackChannelId) || null
@@ -214,19 +214,28 @@ export default function SlackTriggerDomino({
       </div>
 
       {/* body */}
-      <div className="flex flex-col gap-3 py-3 text-dominofy-light-text dark:text-dominofy-dark-text">
-        {/* 1. Connection selection */}
+      <div className="flex flex-col gap-3 py-2 text-dominofy-light-text dark:text-dominofy-dark-text">
+        {/* 1. Connection */}
         {loadingConns ? (
           <p className="text-sm">Loading Slack connections…</p>
-        ) : connections.length === 0 ? (
+        ) : (
           <div className="px-3">
             <button
               type="button"
               className="w-full px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
               onClick={startOAuth}
             >
-              Connect to Slack
+              {connections.length === 0 ? 'Connect to Slack' : 'Add connection'}
             </button>
+          </div>
+        )}
+
+        {/* 2. Selection */}
+
+        {loadingConns ? (
+          <p className="text-sm">Loading Slack connections…</p>
+        ) : connections.length === 0 ? (
+          <div>
           </div>
         ) : (
           <div
@@ -242,7 +251,7 @@ export default function SlackTriggerDomino({
           </div>
         )}
 
-        {/* 2. Channel selection */}
+        {/* 3. Channel selection */}
         {vaultId && connections.length > 0 && (
           <div className="flex flex-col gap-1 px-3 py-2">
             <label className="text-xs font-medium">Channel to Watch</label>
