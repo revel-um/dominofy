@@ -29,6 +29,8 @@ import SlackTriggerDomino from "@/dominos/slackTrigger";
 import EmailSenderDomino from "../dominos/EmailSenderDomino";
 import CSVWriterDomino from "../dominos/CSVWriterDomino";
 import DelayDomino from "@/dominos/delay";
+import SchedulerDomino from "../dominos/SchedulerDomino";
+
 
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
@@ -65,7 +67,8 @@ const nodeTypes = {
   emailsender: EmailSenderDomino,
   delay: DelayDomino,
   mapper: MapperDomino,
-  slacktrigger: SlackTriggerDomino
+  slacktrigger: SlackTriggerDomino,
+  SchedulerDomino: SchedulerDomino,
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */

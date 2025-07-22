@@ -1,4 +1,4 @@
-import { BoomBox, Calculator, FileQuestion, Slack, ToggleLeftIcon } from 'lucide-react';
+import { BoomBox, Calculator, FileQuestion, Slack, ToggleLeftIcon, Clock } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -14,6 +14,11 @@ import {
 } from 'react-icons/fi';
 
 export default [
+  {
+    id: 'SchedulerDomino',
+    label: 'Scheduler',
+    icon: FiClock, // ⏰ Represents scheduling and timing
+  },
   {
     id: 'emailsender',
     label: 'Email Sender',
