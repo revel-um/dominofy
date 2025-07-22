@@ -23,6 +23,7 @@ import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import DatabaseDomino from "../dominos/dbSetup";
 import AggregatorDomino from "../dominos/aggregator";
+import FilterDomino from "../dominos/filterDomino";
 import SQLRunnerDomino from "../dominos/sqlRunner";
 import CustomCodeDomino from "../dominos/codeRunner";
 import SlackTriggerDomino from "@/dominos/slackTrigger";
@@ -60,6 +61,7 @@ const nodeTypes = {
   readexcel: ReadExcelDomino,
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
+  filter: FilterDomino,
   dbSetup: DatabaseDomino,
   aggregator: AggregatorDomino,
   sqlRunner: SQLRunnerDomino,
