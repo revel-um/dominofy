@@ -23,6 +23,9 @@ import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
 import SlackTriggerDomino from "@/dominos/slackTrigger";
+import EmailSenderDomino from "../dominos/EmailSenderDomino";
+import CSVWriterDomino from "../dominos/CSVWriterDomino";
+import DelayDomino from "@/dominos/delay";
 
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
@@ -39,8 +42,10 @@ import {
   createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
+import MapperDomino from "@/dominos/mapper";
 
 const nodeTypes = {
+  csvwriter: CSVWriterDomino,
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
@@ -51,6 +56,9 @@ const nodeTypes = {
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
   aggregator: AggregatorDomino,
+  emailsender: EmailSenderDomino,
+  delay: DelayDomino,
+  mapper: MapperDomino,
   slacktrigger: SlackTriggerDomino
 };
 
