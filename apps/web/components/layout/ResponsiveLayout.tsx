@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { useResponsive } from '../../contexts/ResponsiveContext';
+import { useResponsive } from '../../contexts/responsiveContext';
 import SideNavbar from '../navbar';
 import Head from 'next/head';
 import { FiHome, FiGrid, FiHeadphones, FiUser } from 'react-icons/fi';
@@ -11,8 +11,8 @@ interface Props {
   description?: string;
 }
 
-export default function ResponsiveLayout({ 
-  children, 
+export default function ResponsiveLayout({
+  children,
   className = '',
   title = 'Dominofy',
   description = 'Modern project management platform'
@@ -41,11 +41,11 @@ export default function ResponsiveLayout({
         <meta name="description" content={description} />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
       </Head>
-      
+
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
         <SideNavbar />
-        
-        <main 
+
+        <main
           className={`
             flex-1 transition-all duration-300 ease-in-out
             ${isMobile ? 'pt-16' : 'lg:ml-20 lg:group-hover:ml-64'}

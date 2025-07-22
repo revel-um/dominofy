@@ -10,7 +10,6 @@ export class IteratorDomino implements DominoExecutable {
   }
 
   /* ───────── helpers ───────── */
-
   private literal<T = any>(key: string): T | undefined {
     return (this.node.data as any)?.[key]?.value as T | undefined;
   }
@@ -18,24 +17,28 @@ export class IteratorDomino implements DominoExecutable {
   /** Build the iteration list from an input that can be array OR object */
   private buildItems(
     src: any,
-    count: number | undefined,
+    start: number,
+    end: number,
     isMax: boolean,
   ): any[] {
     if (Array.isArray(src)) {
-      // ── array branch ──
-      if (isMax || count === undefined || isNaN(count) || count <= 0) {
+      if (isMax) {
         return src;
       }
-      return src.slice(0, Math.min(count, src.length));
+      // slice from start to end (non-negative, bounded)
+      const from = Math.max(0, start);
+      const to = Math.min(end, src.length);
+      return src.slice(from, to);
     }
 
     if (src !== null && typeof src === "object") {
-      // ── object branch ──
       const entries = Object.entries(src).map(([key, value]) => ({ key, value }));
-      if (isMax || count === undefined || isNaN(count) || count <= 0) {
+      if (isMax) {
         return entries;
       }
-      return entries.slice(0, Math.min(count, entries.length));
+      const from = Math.max(0, start);
+      const to = Math.min(end, entries.length);
+      return entries.slice(from, to);
     }
 
     throw new Error(
@@ -44,32 +47,28 @@ export class IteratorDomino implements DominoExecutable {
   }
 
   /* ───────── execute ───────── */
-
   async execute(ctx: ExecuteContext): Promise<DominoResult> {
     const startedAt = Date.now();
 
     /* ---------- read config ---------- */
-    const rawInput   = ctx.input.Input;
-    const limitRaw   = this.literal<string>("Limit");
-    const count      = limitRaw ? Number(limitRaw) : undefined;
-    const isMax      = this.literal<boolean>("Max") ?? false;
+    const rawInput = ctx.input.Input;
+    const start = Number(this.literal<string>("Range Start") ?? "0");
+    const end = Number(this.literal<string>("Range End") ?? "0");
+    const isMax = this.literal<boolean>("Max") ?? false;
 
     let items: any[];
 
     /* ---------- priority 1: connected value ---------- */
     if (rawInput !== undefined) {
-      items = this.buildItems(rawInput, count, isMax);
+      items = this.buildItems(rawInput, start, end, isMax);
     }
     /* ---------- priority 2: no connected value ---------- */
     else {
-      if (count !== undefined && !isNaN(count) && count > 0) {
-        // no Input, but positive Count ⇒ simple numeric range 0 … count-1
-        items = Array.from({ length: count }, (_, i) => i);
+      if (!isNaN(start) && !isNaN(end) && end > start) {
+        items = Array.from({ length: end - start }, (_, i) => start + i);
       } else {
         throw new Error(
-          `IteratorDomino "${this.id}" requires either:
-  • a connected array/object Input, or
-  • a positive Limit (Count) value`,
+          `IteratorDomino "${this.id}" requires either:\n  • a connected array/object Input, or\n  • Range Start < Range End values`,
         );
       }
     }

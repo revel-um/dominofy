@@ -1,6 +1,5 @@
 import { Repository, DeepPartial, FindOptionsWhere } from 'typeorm';
 import { Injectable } from '@nestjs/common';
-import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { IBaseEntity } from './base.interfaces';
 
 @Injectable()
@@ -15,7 +14,7 @@ export class BaseService<T extends IBaseEntity> {
     return this.repository.save(entity);
   }
 
-  async update(id: string, data: QueryDeepPartialEntity<T>): Promise<T> {
+  async update(id: string, data): Promise<T> {
     await this.repository.update(id, data);
     const updated = await this.findOne(id);
     if (!updated) throw new Error(`Entity with id ${id} not found`);

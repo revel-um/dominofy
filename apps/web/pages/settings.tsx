@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { ResponsiveContainer } from '../components/common/ResponsiveComponents';
-import { FiUser, FiBell, FiShield, FiMonitor } from 'react-icons/fi';
+import { 
+  FiUser, 
+  FiBell, 
+  FiShield, 
+  FiMonitor, 
+  FiSettings, 
+  FiInfo
+} from 'react-icons/fi';
+import { toast } from 'react-toastify';
 import type { Settings as SettingsType } from '../types/settings';
 import GeneralSettings from '../components/settings/GeneralSettings';
 import NotificationSettings from '../components/settings/NotificationSettings';
 import SecuritySettings from '../components/settings/SecuritySettings';
 import AppearanceSettings from '../components/settings/AppearanceSettings';
-import dynamic from 'next/dynamic';
+import ChangePasswordModal from '../components/profile/ChangePasswordModal';
 
 // Default settings to avoid hydration mismatch
 const defaultSettings: SettingsType = {
@@ -21,70 +30,313 @@ const defaultSettings: SettingsType = {
     syncWithSystem: true,
   },
   language: 'en',
-  timezone: 'UTC',
-};
+  timezone: 'UTC',};
+
+interface UserProfile {
+  name: string;
+  email: string;
+  avatar?: string;
+  role: string;
+  createdAt: string;
+  lastLogin: string;
+}
+
+const SectionHeader = ({ 
+  icon, 
+  title, 
+  description 
+}: { 
+  icon: React.ReactNode; 
+  title: string; 
+  description?: string; 
+}) => (
+  <div className="mb-6">
+    <div className="flex items-center space-x-3">
+      <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+        {icon}
+      </div>
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
+        {description && <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>}
+      </div>
+    </div>
+  </div>
+);
 
 function SettingsComponent() {
-  const [settings, setSettings] = useState<SettingsType>(defaultSettings);
-  const [activeTab, setActiveTab] = useState('general');
-  const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [profile, setProfile] = useState<UserProfile>({
+    name: '',
+    email: '',
+    role: '',
+    avatar: '',
+    createdAt: new Date().toISOString(),
+    lastLogin: new Date().toISOString()
+  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [settings, setSettings] = useState<SettingsType>(defaultSettings);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
-  // Only render on client
+  // Fetch user profile and settings
   useEffect(() => {
     setMounted(true);
-    setTimeout(() => {
-      setSettings(defaultSettings);
-      setIsLoading(false);
-    }, 1000);
+    
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        // Simulate API call
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Mock data for demo
+        setProfile({
+          name: 'John Doe',
+          email: 'john@example.com',
+          role: 'Admin',
+          createdAt: new Date('2023-01-01').toISOString(),
+          lastLogin: new Date().toISOString()
+        });
+        
+        setSettings(defaultSettings);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        toast.error('Failed to load user data');
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  if (!mounted) return null; // Prevent SSR mismatch
+  const updateProfile = async (updatedData: Partial<UserProfile>) => {
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setProfile(prev => ({
+        ...prev,
+        ...updatedData
+      }));
+      
+      setIsEditing(false);
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile');
+    }
+  };
 
-  const tabs = [
-    { id: 'general', label: 'General', icon: <FiUser /> },
-    { id: 'notifications', label: 'Notifications', icon: <FiBell /> },
-    { id: 'security', label: 'Security', icon: <FiShield /> },
-    { id: 'appearance', label: 'Appearance', icon: <FiMonitor /> },
-  ];
+  const handlePasswordChange = async (oldPassword: string, newPassword: string): Promise<void> => {
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setShowPasswordModal(false);
+      toast.success('Password changed successfully');
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error('Failed to change password');
+      throw error; // Re-throw to allow the modal to handle the error state
+    }
+  };
+
+  if (!mounted) {
+    return null; // Prevent SSR mismatch
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-dominofy-light-background dark:bg-dominofy-dark-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-dominofy-light-background dark:bg-dominofy-dark-background">
-      <div className="w-full px-2 sm:px-3 py-4">
-        <div className="w-full">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 px-2 sm:px-3">Settings</h1>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-            {isLoading ? (
-              <div className="flex items-center justify-center min-h-[200px]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
-              </div>
-            ) : (
-              <>
-                <div className="flex overflow-x-auto border-b border-gray-200 dark:border-gray-700">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex-shrink-0 flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                        activeTab === tab.id
-                          ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
-                          : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                      }`}
-                    >
-                      <span className="mr-2">{tab.icon}</span>
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="p-3 sm:p-4">
-                  {activeTab === 'general' && <GeneralSettings settings={settings} setSettings={setSettings} />}
-                  {activeTab === 'notifications' && <NotificationSettings settings={settings} setSettings={setSettings} />}
-                  {activeTab === 'security' && <SecuritySettings />}
-                  {activeTab === 'appearance' && <AppearanceSettings settings={settings} setSettings={setSettings} />}
-                </div>
-              </>
-            )}
+      <div className="w-full p-0 m-0">
+        <div className="w-full space-y-2 px-4 sm:px-6">
+          <div className="flex items-center justify-between mb-2 pt-4">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
           </div>
+          
+          <div className="space-y-3">
+            {/* Profile Section */}
+            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                <SectionHeader 
+                  icon={<FiUser className="w-5 h-5" />} 
+                  title="Profile Information"
+                />
+              </div>
+              <div className="p-3">
+                <div className="px-2 sm:px-3 pb-2 space-y-2">
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
+                    <div className="relative">
+                      <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-2xl text-white">
+                        {profile.avatar ? (
+                          <img 
+                            src={profile.avatar} 
+                            alt={profile.name}
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        ) : (
+                          <span>{profile.name?.charAt(0)?.toUpperCase() || 'U'}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1 text-center sm:text-left">
+                      {isEditing ? (
+                        <div className="space-y-3">
+                          <input
+                            type="text"
+                            value={profile.name}
+                            onChange={(e) => setProfile({...profile, name: e.target.value})}
+                            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                            placeholder="Full Name"
+                          />
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => updateProfile(profile)}
+                              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setIsEditing(false)}
+                              className="px-4 py-2 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <h2 className="text-xl font-semibold">{profile.name || 'User'}</h2>
+                          <p className="text-gray-600 dark:text-gray-300">{profile.email || 'user@example.com'}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">{profile.role || 'User'}</p>
+                          <button
+                            onClick={() => setIsEditing(true)}
+                            className="mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                          >
+                            Edit Profile
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* General Settings */}
+            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                <SectionHeader 
+                  icon={<FiSettings className="w-5 h-5" />} 
+                  title="General Settings"
+                />
+              </div>
+              <div className="p-3">
+                <GeneralSettings settings={settings} setSettings={setSettings} />
+              </div>
+            </div>
+
+            {/* Notifications */}
+            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                <SectionHeader 
+                  icon={<FiBell className="w-5 h-5" />} 
+                  title="Notifications"
+                />
+              </div>
+              <div className="p-3">
+                <NotificationSettings settings={settings} setSettings={setSettings} />
+              </div>
+            </div>
+
+            {/* Security */}
+            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                <SectionHeader 
+                  icon={<FiShield className="w-5 h-5" />} 
+                  title="Security"
+                />
+              </div>
+              <div className="p-3">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium">Password</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Last changed 3 months ago</p>
+                    </div>
+                    <button
+                      onClick={() => setShowPasswordModal(true)}
+                      className="px-3 py-1 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                    >
+                      Change
+                    </button>
+                  </div>
+                  <SecuritySettings />
+                </div>
+              </div>
+            </div>
+
+            {/* Appearance */}
+            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                <SectionHeader 
+                  icon={<FiMonitor className="w-5 h-5" />} 
+                  title="Appearance"
+                />
+              </div>
+              <div className="p-3">
+                <AppearanceSettings settings={settings} setSettings={setSettings} />
+              </div>
+            </div>
+
+            {/* Account Info */}
+            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+              <div className="p-4">
+                <SectionHeader 
+                  icon={<FiInfo className="w-5 h-5" />} 
+                  title="Account Information"
+                />
+                <div className="mt-2 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
+                      <p className="text-gray-900 dark:text-white">{profile.email || 'user@example.com'}</p>
+                    </div>
+                    <button className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                      Change
+                    </button>
+                  </div>
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Member Since</p>
+                      <p className="text-gray-900 dark:text-white">
+                        {new Date(profile.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-full">
+                      {profile.role || 'User'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ChangePasswordModal
+            isOpen={showPasswordModal}
+            onClose={() => setShowPasswordModal(false)}
+            onSubmit={handlePasswordChange}
+          />
         </div>
       </div>
     </div>

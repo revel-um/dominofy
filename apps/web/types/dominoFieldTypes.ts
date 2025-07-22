@@ -9,6 +9,7 @@ import { TextWidget } from "../components/widgets/textWidget";
 import { TextInput } from "../components/widgets/textInput";
 import { CopyWidget } from "../components/widgets/copyWidget";
 import { KeyValInput } from "../components/widgets/keyValue";
+import { Button } from "../components/widgets/button";
 
 export type WidgetType =
   | 'text'
@@ -21,7 +22,10 @@ export type WidgetType =
   | 'date'
   | 'file'
   | 'copy'
-  | 'switch';
+  | 'switch'
+  | 'password'
+  | 'textArea'
+  | 'button';
 
 export interface DominoFieldOption {
   label: string;
@@ -29,18 +33,21 @@ export interface DominoFieldOption {
 }
 
 export interface DominoField {
+  outPinId?: any;
   type: WidgetType;
   value: any;
+  label?: string; // For buttons and labels
   inPinId?: string;
   connectedValue?: string;
   onChange?: Function;
+  onClick?: Function; // For buttons
   options?: DominoFieldOption[]; // For dropdown and multi-select
   placeholder?: string;
   required?: boolean;
   heading?: string;
   shouldRender?: boolean; // For conditional rendering
   needsUpload?: boolean; // For file inputs
-  file?: {key: string, url: string}; // For file inputs
+  file?: {key: string, url: string, size: number}; // For file inputs
   exportOverride?: string | string[]
   connectedPin?: string; // For multi-pin connections
 }
@@ -66,5 +73,6 @@ export const fieldWidgetMap = {
   date: DateInput,
   file: FileInput,
   copy: CopyWidget,
+  button: Button,
   keyVal: KeyValInput
 };

@@ -11,6 +11,7 @@ import { Vault } from './vault.entity';
   ],
   controllers: [VaultController],
   providers: [VaultService],
+  exports: [VaultService]
 })
 export class VaultModule implements NestModule {
   configure(consumer: any) {

@@ -2,6 +2,7 @@
 import { IsEnum, IsNotEmpty, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 import { VaultType } from './vault.entity';
+import { Optional } from '@nestjs/common';
 
 /**
  * Payload for creating / saving a new vault-connection record.
@@ -17,6 +18,9 @@ export class CreateVaultDto {
 
   @IsEnum(VaultType)
   type: VaultType;
+
+  @Optional()
+  lookupIds?: any;
 
   /** Arbitrary provider-specific details (will be encrypted at rest). */
   @IsObject()

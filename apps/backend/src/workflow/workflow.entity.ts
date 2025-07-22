@@ -1,9 +1,24 @@
 // src/workflow/entities/workflow.entity.ts
-import { Entity, Column, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  OneToMany,
+  Index,          //  ← add
+} from 'typeorm';
 import { BaseEntity } from 'src/common/base.entity';
 import { Project } from 'src/projects/projects.entity';
 import { User } from 'src/user/user.entity';
+import { WorkflowLog } from 'src/workflow-logger/workflow-logger.entity';
 
+/* ----------------------------------------------- */
+/* b-tree indexes that TypeORM can declare itself  */
+/* ----------------------------------------------- */
+@Index('idx_workflow_user',      ['user'])                                // owner filter
+@Index('idx_workflow_project',   ['project'])                             // project filter
+@Index('idx_workflow_user_proj', (w: Workflow) => [w.user, w.project])    // list user’s wf in project
+@Index('idx_workflow_published', ['isPublished'])                         // gallery / templates
+@Index('idx_workflow_default',   ['isDefault'])                           // default pick
 @Entity('workflows')
 export class Workflow extends BaseEntity {
   @Column()
@@ -18,8 +33,15 @@ export class Workflow extends BaseEntity {
   })
   project: Project;
 
+  @OneToMany(() => WorkflowLog, (log) => log.workflow)
+  logs: WorkflowLog[];
+
+  /**
+   * JSONB column that stores the visual graph.
+   * A GIN index for SlackTrigger look-ups is added in a migration.
+   */
   @Column({ type: 'jsonb', default: { nodes: [], edges: [] } })
-  visualJson: { nodes: any[], edges: any[] };
+  visualJson: { nodes: any[]; edges: any[] };
 
   @Column({ default: false })
   isPublished: boolean;

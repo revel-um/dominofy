@@ -1,20 +1,17 @@
-// src/vault/vault.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
 
 import { BaseService } from 'src/common/base.service';
 import { User } from 'src/user/user.entity';
 import { CreateVaultDto } from './vault.dto';
-import { Vault } from './vault.entity';
+import { Vault, VaultType } from './vault.entity';
 
 @Injectable()
 export class VaultService extends BaseService<Vault> {
     constructor(
         @InjectRepository(Vault)
         private readonly vaultRepository: Repository<Vault>,
-        private readonly configService: ConfigService,
         private readonly dataSource: DataSource,
     ) {
         super(vaultRepository);
@@ -29,6 +26,7 @@ export class VaultService extends BaseService<Vault> {
             const vault = manager.create(Vault, {
                 name: dto.name,
                 type: dto.type,
+                lookupIds: dto.lookupIds,
                 connection: dto.connection, // hooks encrypt on save
             });
             vault.connection = dto.connection; // set decrypted connection
@@ -46,12 +44,36 @@ export class VaultService extends BaseService<Vault> {
     }
 
     /* ─────────────────────────────
-     * Fetch vault with decrypted connection
+     * Generic fetch helpers
      * ────────────────────────────*/
-    async findOneWithUsers(id: string) {
+    async findOne(id: string, relations: string[] = []): Promise<Vault | null> {
+        return this.vaultRepository.findOne({ where: { id }, relations });
+    }
+
+    async findWhere(condition: any, relations: any) {
         return this.vaultRepository.findOne({
-            where: { id },
-            relations: ['users'],
+            where: condition,
+            relations: relations
+        });
+    }
+
+    async findOneByIdAndType(
+        id: string,
+        type: VaultType,
+        relations: string[] = [],
+    ): Promise<Vault | null> {
+        return this.vaultRepository.findOne({
+            where: { id, type } as any,
+            relations,
+        });
+    }
+
+    async findByTypeAndUser(
+        type: VaultType,
+        userId: string,
+    ): Promise<Vault[]> {
+        return this.vaultRepository.find({
+            where: { type, users: { id: userId } as any } as any,
         });
     }
 
@@ -74,13 +96,23 @@ export class VaultService extends BaseService<Vault> {
             .remove(userIds);
     }
 
+    async findOneWithUsers(id: string) {
+        return this.vaultRepository.findOne({
+            where: { id },
+            relations: ['users'],
+        });
+    }
+
+    /* ─────────────────────────────
+     * Pagination
+     * ────────────────────────────*/
     async getVaultsByUser(userId: string, page = 1, limit = 10) {
         const [items, total] = await this.vaultRepository
             .createQueryBuilder('vault')
             .innerJoin('vault.users', 'user', 'user.id = :userId', { userId })
-            .skip((page - 1) * limit)   // offset
-            .take(limit)                // limit
-            .getManyAndCount();         // returns [rows, totalRowCount]
+            .skip((page - 1) * limit)
+            .take(limit)
+            .getManyAndCount();
 
         return {
             items,

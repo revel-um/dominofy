@@ -25,13 +25,13 @@ export abstract class BaseController<
   >,
 > {
   constructor(
-    protected readonly vaultService: Service,
+    protected readonly service: Service,
     private readonly createDto: new () => Create,
   ) { }
 
   @Get(':id')
   findOne(@Param('id') id: Id) {
-    return this.vaultService.findOne(id);
+    return this.service.findOne(id);
   }
 
   @Post()
@@ -49,17 +49,17 @@ export abstract class BaseController<
 
     // now pass req to beforeCreate
     const processed = (await this.beforeCreate(instance as any, req)) ?? instance;
-    return this.vaultService.create(processed as unknown as Create);
+    return this.service.create(processed as unknown as Create);
   }
 
   @Post(':id')
   update(@Param('id') id: Id, @Body() dto: Update) {
-    return this.vaultService.update(id, dto);
+    return this.service.update(id, dto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: Id) {
-    return this.vaultService.remove(id);
+    return this.service.remove(id);
   }
 
   protected beforeCreate(dto: Create, req: Request): Promise<Create | void> | Create | void {
