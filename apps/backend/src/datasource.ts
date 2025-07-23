@@ -18,6 +18,7 @@ export default new DataSource({
   schema: process.env.DATABASE_SCHEMA,
   entities: [User, Project, Workflow],
   migrations: ['src/migrations/*.ts'], // or compiled JS if you're using dist
-  synchronize: false,
+  // synchronize: false,
+  migrationsRun: true,
   logging: true,
 });

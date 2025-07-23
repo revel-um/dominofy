@@ -6,9 +6,10 @@ import { Workflow } from './workflow.entity';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
 import { UserModule } from 'src/user/user.module';
 import { WorkflowLoggerModule } from 'src/workflow-logger/workflow-logger.module';
+import { RunnerLauncherModule } from 'src/runner-launcher/runner-launcher.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Workflow]), UserModule, WorkflowLoggerModule],
+  imports: [TypeOrmModule.forFeature([Workflow]), UserModule, RunnerLauncherModule],
   controllers: [WorkflowController],
   providers: [WorkflowService],
   exports: [WorkflowService],

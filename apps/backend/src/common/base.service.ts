@@ -1,6 +1,5 @@
 import { Repository, DeepPartial, FindOptionsWhere } from 'typeorm';
 import { Injectable } from '@nestjs/common';
-import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { IBaseEntity } from './base.interfaces';
 
 @Injectable()

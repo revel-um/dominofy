@@ -113,17 +113,6 @@ export default function SideNavbar() {
           shadow-xl lg:shadow-none`}
         aria-label="Sidebar"
       >
-        {/* Logo */}
-        <div className="flex items-center px-6 py-4">
-          <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
-            <span className="lg:hidden">Dominofy</span>
-            <span className="hidden lg:block group-hover:hidden text-center w-full">D</span>
-            <span className="hidden lg:hidden group-hover:block">Dominofy</span>
-          </div>
-        </div>
-
-        <hr className="border-t border-gray-200 dark:border-gray-700 mx-4" />
-
         {/* Navigation Items */}
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {

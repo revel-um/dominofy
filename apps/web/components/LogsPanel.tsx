@@ -34,6 +34,7 @@ const timeOptions: { value: number; label: string }[] = [
   { value: 180, label: '3h' },
   { value: 360, label: '6h' },
   { value: 720, label: '12h' },
+  { value: 1440, label: '1d'}
 ];
 
 export const LogsPanel = React.memo(function LogsPanel({
@@ -58,7 +59,7 @@ export const LogsPanel = React.memo(function LogsPanel({
 
   // filters & polling
   const [refreshInterval, setRefreshInterval] = useState(30);
-  const [minutesFilter, setMinutesFilter] = useState<number | null>(null);
+  const [minutesFilter, setMinutesFilter] = useState<number | null>(60);
   const [rangeStart, setRangeStart] = useState<string>('');
   const [rangeEnd, setRangeEnd] = useState<string>('');
   const [isLive, setIsLive] = useState<boolean>(true);
@@ -332,14 +333,13 @@ export const LogsPanel = React.memo(function LogsPanel({
               <label>Last:</label>
               <select
                 className="border px-1 py-0.5 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                value={minutesFilter ?? 'all'}
+                // default to 60 minutes if minutesFilter is null/undefined
+                value={minutesFilter ?? 60}
                 onChange={(e) => {
-                  const v = e.target.value;
-                  setMinutesFilter(v === 'all' ? null : Number(v));
+                  setMinutesFilter(Number(e.target.value));
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <option value="all">All logs</option>
                 {timeOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
@@ -348,6 +348,7 @@ export const LogsPanel = React.memo(function LogsPanel({
               </select>
             </div>
           )}
+
 
           {!isLive && (
             <div className="flex items-center space-x-2 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded">

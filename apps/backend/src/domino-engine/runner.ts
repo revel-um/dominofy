@@ -4,6 +4,7 @@ import { buildGraph } from "./graph";
 import { dominoRegistry } from "./registry";
 import { PipelineStep } from "../../../../shared/types/pipelineStepType";
 import { ExecuteContext, DominoResult } from "./domino-engine.type";
+import { validateWorkflow } from "../../../../shared/helpers/validateWorkflow";
 
 export class Runner extends EventEmitter {
   private queue: PQueue;
@@ -12,7 +13,7 @@ export class Runner extends EventEmitter {
   private multiOut = new Set<string>();                        // multi-pin dominos
   private doneFlags = new Map<string, boolean>();              // cascade flags
 
-  constructor(private pipeline: PipelineStep[], private maxConcurrency = 20) {
+  constructor(private pipeline: PipelineStep[], private maxConcurrency = 20, private visualJson: any) {
     super();
     this.queue = new PQueue({ concurrency: this.maxConcurrency });
   }
@@ -20,6 +21,11 @@ export class Runner extends EventEmitter {
   /* ───────────────────────── run ───────────────────────── */
 
   async run(runId: string, globalInput: Record<string, any> = {}) {
+    
+    //Validate if workflow is invalid
+    const isWorkflowValid = validateWorkflow(this.visualJson);
+    if(!isWorkflowValid) return;
+
     const { children, deps } = buildGraph(this.pipeline);
     const results: Record<string, any> = {};
 

@@ -12,7 +12,7 @@ import { UserService } from 'src/user/user.service';
 import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../../../../shared/types/pipelineStepType';
 import { v4 as uuidv4 } from 'uuid';
-import { RunnerLauncherService } from 'src/workflow-logger/runner-launcher';
+import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
 
 @Injectable()
 export class WorkflowService extends BaseService<Workflow> {
@@ -28,6 +28,33 @@ export class WorkflowService extends BaseService<Workflow> {
   async countAllWorkflows(userId: string) {
     return this.workflowRepository.count({ where: { user: { id: userId } } });
   }
+
+  async findWorkflowsBySlackTrigger(
+    slackTeamId: string,
+    slackChannelId: string
+  ): Promise<Workflow[]> {
+    // Build the JSON fragment Postgres will look for.
+    const matchFragment = {
+      nodes: [
+        {
+          type: 'slacktrigger',
+          data: {
+            slackTeamId,
+            slackChannelId,
+          },
+        },
+      ],
+    };
+
+    const qb = this.workflowRepository
+      .createQueryBuilder('workflow')
+      .where('workflow.visualJson @> :match', {
+        match: JSON.stringify(matchFragment),
+      });
+
+    return qb.getMany();
+  }
+
 
   async getRecentWorkflows(userId: string) {
     const user = await this.userService.findOne(userId);
@@ -60,7 +87,7 @@ export class WorkflowService extends BaseService<Workflow> {
   async handleTrigger(
     workflowId: string,
     functionName: string,
-    input: Record<string, any> = {}, // unified input
+    input: Record<string, any> = {}
   ) {
     const workflow = await this.findOne(workflowId);
     if (!workflow) throw new NotFoundException('Workflow not found');
@@ -102,7 +129,8 @@ export class WorkflowService extends BaseService<Workflow> {
       workflowId,
       runId,
       pipeline,
-      20
+      20,
+      workflow.visualJson
     );
 
     return runner.run(runId, input); // pass input to the runner

@@ -21,12 +21,20 @@ import ArithmeticDomino from "../dominos/arithmetic";
 import ReadExcelDomino from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
+import DatabaseDomino from "../dominos/dbSetup";
 import AggregatorDomino from "../dominos/aggregator";
+import FilterDomino from "../dominos/filterDomino";
+import SQLRunnerDomino from "../dominos/sqlRunner";
+import CustomCodeDomino from "../dominos/codeRunner";
+import SlackTriggerDomino from "@/dominos/slackTrigger";
+import EmailSenderDomino from "../dominos/EmailSenderDomino";
+import CSVWriterDomino from "../dominos/CSVWriterDomino";
 import DelayDomino from "@/dominos/delay";
 import MapperDomino from "@/dominos/mapper";
-import SlackTriggerDomino from "@/dominos/slackTrigger";
 import ResponseDomino from "../dominos/response";
 import LLMDomino from "../dominos/llm";
+import SchedulerDomino from "../dominos/SchedulerDomino";
+        
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnections } from "../helpers/errorDetector";
@@ -44,6 +52,7 @@ import {
 } from "@/helpers/canvasUtils";
 
 const nodeTypes = {
+  csvwriter: CSVWriterDomino,
   llm: LLMDomino,
   response: ResponseDomino,
   print: PrintDomino,
@@ -55,10 +64,16 @@ const nodeTypes = {
   readexcel: ReadExcelDomino,
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
+  filter: FilterDomino,
+  dbSetup: DatabaseDomino,
   aggregator: AggregatorDomino,
+  sqlRunner: SQLRunnerDomino,
+  codeRunner: CustomCodeDomino,
+  emailsender: EmailSenderDomino,
   delay: DelayDomino,
   mapper: MapperDomino,
-  slacktrigger: SlackTriggerDomino
+  slacktrigger: SlackTriggerDomino,
+  SchedulerDomino: SchedulerDomino,
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
@@ -223,6 +238,7 @@ export default function Canvas(props: CanvasProps) {
     createEdgesChangeHandler(setEdges, setNodes, getNodes, updatePipeline),
     [nodes, edges],
   );
+
   const handleEdgesChange = (c: EdgeChange[]) => {
     internalEdgeChange(c);
     onEdgesChange?.(c);

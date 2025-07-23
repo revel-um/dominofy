@@ -10,6 +10,15 @@ import { Button } from '@/components/ui/button';
 import CodeEditor from '@/components/code-editor/CodeEditor';
 import { cn } from '@/lib/utils';
 
+interface EditorPageProps {
+  initialCode?: string;
+  initialLanguage?: 'javascript' | 'sql';
+  onSave?: (code: string) => void;     // called when user clicks “Save”
+  onClose?: () => void;                // optional extra close callback
+  embedded?: boolean;                  // if true, skip full-screen css
+}
+
+
 type ConnectionConfig = {
   host: string;
   port: number;
@@ -25,7 +34,17 @@ const JAVASCRIPT_DEFAULT = `// Welcome to your JavaScript scratchpad!\nfunction 
 
 const SQL_DEFAULT = `-- Welcome to your SQL scratchpad!\nSELECT\n    c.customer_id,\n    c.name,\n    COUNT(o.order_id) AS total_orders\nFROM\n    customers c\nJOIN\n    orders o ON c.customer_id = o.customer_id\nGROUP BY\n    c.customer_id,\n    c.name\nHAVING\n    COUNT(o.order_id) > 5\nORDER BY\n    total_orders DESC;`;
 
-const EditorPage: React.FC = () => {
+
+// Main editor component
+
+const EditorPage: React.FC<EditorPageProps> = ({
+  initialCode,
+  initialLanguage = 'javascript',
+  onSave,
+  onClose,
+  embedded = false
+})  => {
+  
   const [code, setCode] = useState<string>(JAVASCRIPT_DEFAULT);
   const [language, setLanguage] = useState<Language>('javascript');
   const [output, setOutput] = useState<string>('');
