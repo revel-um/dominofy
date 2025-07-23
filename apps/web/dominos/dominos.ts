@@ -1,4 +1,5 @@
-import { BoomBox, Calculator, FileQuestion, Slack, ToggleLeftIcon, Clock, Filter } from 'lucide-react';
+
+import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon, CheckCircle, Slack, Clock, Filter } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -10,10 +11,23 @@ import {
   FiCode,
   FiClock,
   FiMail,
-  FiDownload
+  FiDownload,
+  FiCheckCircle,
+  FiCpu,
 } from 'react-icons/fi';
 
 export default [
+  {
+    id: 'llm',
+    label: 'LLM',
+    icon: FiCpu, // Represents AI/ML processing
+    category: 'AI/LLM',
+  },
+  {
+    id: 'response',
+    label: 'Response',
+    icon: FiCheckCircle, // ✅ Represents successful completion/response
+    category: 'Core',
   {
     id: 'SchedulerDomino',
     label: 'Scheduler',

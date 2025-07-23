@@ -30,9 +30,11 @@ import SlackTriggerDomino from "@/dominos/slackTrigger";
 import EmailSenderDomino from "../dominos/EmailSenderDomino";
 import CSVWriterDomino from "../dominos/CSVWriterDomino";
 import DelayDomino from "@/dominos/delay";
+import MapperDomino from "@/dominos/mapper";
+import ResponseDomino from "../dominos/response";
+import LLMDomino from "../dominos/llm";
 import SchedulerDomino from "../dominos/SchedulerDomino";
-
-
+        
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnections } from "../helpers/errorDetector";
@@ -48,10 +50,11 @@ import {
   createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
-import MapperDomino from "@/dominos/mapper";
 
 const nodeTypes = {
   csvwriter: CSVWriterDomino,
+  llm: LLMDomino,
+  response: ResponseDomino,
   print: PrintDomino,
   apicall: ApiCallDomino,
   apitrigger: ApiTriggerDomino,
