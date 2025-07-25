@@ -206,7 +206,7 @@ export function createOnConnectHandler(
               ...node,
               data: {
                 ...node.data,
-                valueConnected: true,
+                // valueConnected: true,
                 details: { ...node.data.details, fields: patched },
               },
             };
@@ -272,7 +272,7 @@ export function createEdgesChangeHandler(
             ...node,
             data: {
               ...node.data,
-              valueConnected: false,
+              // valueConnected: false,
               details: {
                 ...node.data.details,
                 fields: updatedFields,

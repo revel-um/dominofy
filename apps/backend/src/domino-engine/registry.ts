@@ -15,6 +15,7 @@ import { PrintDomino } from "./dominos/print";
 import { ReadExcelDomino } from "./dominos/readExcel";
 import { SlackTriggerDomino } from "./dominos/slackTrigger";
 import { SwitchCaseDomino } from "./dominos/switchCase";
+import { FilterDomino } from "./dominos/filter";
 // … import other dominos here …
 
 type DominoCtor = new (node: PipelineStep) => DominoExecutable;
@@ -36,6 +37,7 @@ class DominoRegistry {
     this.register("aggregator", AggregatorDomino);
     this.register("slacktrigger", SlackTriggerDomino);
     this.register("connector", ConnectorDomino);
+    this.register("filter", FilterDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {
