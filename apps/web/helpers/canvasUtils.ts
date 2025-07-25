@@ -185,7 +185,7 @@ export function createOnConnectHandler(
       const newEdges = addEdge(params, working);
 
       // bookkeeping for value_in
-      if (params.targetHandle?.startsWith("value_in")) {
+      if (params.targetHandle?.startsWith("value_in") || params.targetHandle?.startsWith("exec_in")) {
         setTimeout(() => params.target && clearValidationForDominoId(params.target), 0);
         setNodes(pn =>
           pn.map(node => {

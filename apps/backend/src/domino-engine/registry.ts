@@ -6,6 +6,7 @@ import { ApiCallDomino } from "./dominos/apiCall";
 import { ApiTriggerDomino } from "./dominos/apiTrigger";
 import { ArithmeticDomino } from "./dominos/arithmetic";
 import { ConditionDomino } from "./dominos/condition";
+import ConnectorDomino from "./dominos/connector";
 import { DeconstructorDomino } from "./dominos/deconstructor";
 import { IteratorDomino } from "./dominos/iterator";
 
@@ -34,6 +35,7 @@ class DominoRegistry {
     this.register("deconstructor", DeconstructorDomino);
     this.register("aggregator", AggregatorDomino);
     this.register("slacktrigger", SlackTriggerDomino);
+    this.register("connector", ConnectorDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {
