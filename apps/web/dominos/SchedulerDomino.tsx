@@ -1,5 +1,5 @@
 import { NodeProps } from 'reactflow';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FiClock, FiPlay } from 'react-icons/fi';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
@@ -33,6 +33,195 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     nextRun: null,
     timeZone: 'local'
   });
+
+  // Update node fields in the React Flow graph
+  const updateNodeFields = useCallback((updatedSchedule: ScheduleConfig) => {
+    if (!data.setNodes) return;
+
+    const updatedFields = [
+      {
+        type: 'select',
+        heading: 'Frequency',
+        value: updatedSchedule.frequency,
+        options: [
+          { label: 'Once', value: 'once' },
+          { label: 'Minutes', value: 'minute' },
+          { label: 'Hours', value: 'hour' },
+          { label: 'Days', value: 'day' },
+          { label: 'Weeks', value: 'week' },
+          { label: 'Months', value: 'month' },
+        ],
+        inPinId: 'value_in_1',
+        required: true,
+        shouldRender: true,
+      },
+      {
+        type: 'number',
+        heading: 'Interval',
+        value: updatedSchedule.interval,
+        inPinId: 'value_in_2',
+        required: true,
+        shouldRender: true,
+      },
+      {
+        type: 'time',
+        heading: 'Time',
+        value: updatedSchedule.time,
+        inPinId: 'value_in_3',
+        required: true,
+        shouldRender: updatedSchedule.frequency !== 'minute' && updatedSchedule.frequency !== 'hour',
+      },
+      {
+        type: 'select',
+        heading: 'Days of Week',
+        value: updatedSchedule.daysOfWeek.join(','),
+        options: [
+          { label: 'Sunday', value: '0' },
+          { label: 'Monday', value: '1' },
+          { label: 'Tuesday', value: '2' },
+          { label: 'Wednesday', value: '3' },
+          { label: 'Thursday', value: '4' },
+          { label: 'Friday', value: '5' },
+          { label: 'Saturday', value: '6' },
+        ],
+        inPinId: 'value_in_4',
+        required: false,
+        multiple: true,
+        shouldRender: updatedSchedule.frequency === 'week',
+      },
+      {
+        type: 'text',
+        heading: 'Time Zone',
+        value: updatedSchedule.timeZone,
+        inPinId: 'value_in_5',
+        required: false,
+        shouldRender: true,
+      },
+    ];
+
+    data.setNodes((nodes: any[]) =>
+      nodes.map((n: any) =>
+        n.id === id
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                details: { ...n.data.details, fields: updatedFields },
+                exportFields: ['Frequency', 'Interval', 'Time', 'Days of Week', 'Time Zone'],
+              },
+            }
+          : n
+      )
+    );
+  }, [data.setNodes, id]);
+
+  // Initialize node data on mount
+  useEffect(() => {
+    if (!data.setNodes) return;
+
+    // Only initialize if fields don't exist yet
+    if (!data.details?.fields || data.details.fields.length === 0) {
+      const initialFields = [
+        {
+          type: 'select',
+          heading: 'Frequency',
+          value: schedule.frequency,
+          options: [
+            { label: 'Once', value: 'once' },
+            { label: 'Minutes', value: 'minute' },
+            { label: 'Hours', value: 'hour' },
+            { label: 'Days', value: 'day' },
+            { label: 'Weeks', value: 'week' },
+            { label: 'Months', value: 'month' },
+          ],
+          inPinId: 'value_in_1',
+          required: true,
+          shouldRender: true,
+        },
+        {
+          type: 'number',
+          heading: 'Interval',
+          value: schedule.interval,
+          inPinId: 'value_in_2',
+          required: true,
+          shouldRender: true,
+        },
+        {
+          type: 'time',
+          heading: 'Time',
+          value: schedule.time,
+          inPinId: 'value_in_3',
+          required: true,
+          shouldRender: schedule.frequency !== 'minute' && schedule.frequency !== 'hour',
+        },
+        {
+          type: 'select',
+          heading: 'Days of Week',
+          value: schedule.daysOfWeek.join(','),
+          options: [
+            { label: 'Sunday', value: '0' },
+            { label: 'Monday', value: '1' },
+            { label: 'Tuesday', value: '2' },
+            { label: 'Wednesday', value: '3' },
+            { label: 'Thursday', value: '4' },
+            { label: 'Friday', value: '5' },
+            { label: 'Saturday', value: '6' },
+          ],
+          inPinId: 'value_in_4',
+          required: false,
+          multiple: true,
+          shouldRender: schedule.frequency === 'week',
+        },
+        {
+          type: 'text',
+          heading: 'Time Zone',
+          value: schedule.timeZone,
+          inPinId: 'value_in_5',
+          required: false,
+          shouldRender: true,
+        },
+      ];
+
+      data.setNodes((nodes: any[]) =>
+        nodes.map((n: any) =>
+          n.id === id
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  details: { ...n.data.details, fields: initialFields },
+                  exportFields: ['Frequency', 'Interval', 'Time', 'Days of Week', 'Time Zone'],
+                },
+              }
+            : n
+        )
+      );
+    } else {
+      // Update local state from existing node data
+      const fields = data.details.fields || [];
+      const getFieldValue = (heading: string, defaultValue: any) => 
+        fields.find((f: any) => f.heading === heading)?.value ?? defaultValue;
+
+      const frequency = getFieldValue('Frequency', schedule.frequency) as Frequency;
+      const interval = parseInt(getFieldValue('Interval', schedule.interval), 10);
+      const time = getFieldValue('Time', schedule.time);
+      const daysOfWeek = getFieldValue('Days of Week', schedule.daysOfWeek.join(','))
+        .split(',')
+        .filter(Boolean)
+        .map(Number);
+      const timeZone = getFieldValue('Time Zone', schedule.timeZone);
+
+      setSchedule({
+        frequency,
+        interval,
+        time,
+        daysOfWeek: daysOfWeek.length ? daysOfWeek : schedule.daysOfWeek,
+        lastRun: schedule.lastRun,
+        nextRun: schedule.nextRun,
+        timeZone,
+      });
+    }
+  }, [data.setNodes, id]);
 
   const frequencyOptions = [
     { value: 'once', label: 'Once' },
@@ -114,64 +303,55 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
       ...prev,
       ...update
     }));
-    
-    // Update the corresponding field in the node data
-    const fieldMap: Record<string, string> = {
-      timeZone: 'Time Zone',
-      frequency: 'Frequency',
-      interval: 'Interval',
-      time: 'Time',
-      daysOfWeek: 'DaysOfWeek'
-    };
-    
-    const fieldName = fieldMap[field] || field;
-    data.setFieldValue?.(fieldName, value);
+
+    updateNodeFields({ ...schedule, ...update });
     clearValidationForDominoId(id);
   };
 
-  // Handle schedule changes
   const handleFrequencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newFrequency = e.target.value as Frequency;
-    setSchedule(prev => ({
-      ...prev,
+    const updatedSchedule = {
+      ...schedule,
       frequency: newFrequency,
-      // Reset interval for certain frequency changes
-      interval: newFrequency === 'week' || newFrequency === 'month' ? 1 : prev.interval
-    }));
+      daysOfWeek: newFrequency === 'week' ? schedule.daysOfWeek : []
+    };
+
+    setSchedule(updatedSchedule);
+    updateNodeFields(updatedSchedule);
+    clearValidationForDominoId(id);
   };
 
   const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Math.max(1, Math.min(999, parseInt(e.target.value) || 1));
-    setSchedule(prev => ({
-      ...prev,
-      interval: value
-    }));
+    const interval = Math.max(1, parseInt(e.target.value, 10) || 1);
+    const updatedSchedule = { ...schedule, interval };
+    setSchedule(updatedSchedule);
+    updateNodeFields(updatedSchedule);
+    clearValidationForDominoId(id);
   };
 
   const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSchedule(prev => ({
-      ...prev,
-      time: e.target.value
-    }));
+    const updatedSchedule = { ...schedule, time: e.target.value };
+    setSchedule(updatedSchedule);
+    updateNodeFields(updatedSchedule);
+    clearValidationForDominoId(id);
   };
 
-  const toggleDayOfWeek = (day: number) => {
-    setSchedule(prev => {
-      const newDays = [...prev.daysOfWeek];
-      const index = newDays.indexOf(day);
-      
-      if (index === -1) {
-        newDays.push(day);
-      } else if (newDays.length > 1) { // Ensure at least one day is selected
-        newDays.splice(index, 1);
-      }
-      
-      return {
-        ...prev,
-        daysOfWeek: newDays.sort((a, b) => a - b)
-      };
-    });
+  const handleDayToggle = (day: number) => {
+    const days = [...schedule.daysOfWeek];
+    const index = days.indexOf(day);
+    if (index === -1) {
+      days.push(day);
+    } else if (days.length > 1) { // Ensure at least one day is selected
+      days.splice(index, 1);
+    }
+    const updatedSchedule = { ...schedule, daysOfWeek: days.sort((a, b) => a - b) };
+    setSchedule(updatedSchedule);
+    updateNodeFields(updatedSchedule);
+    clearValidationForDominoId(id);
   };
+
+  // Alias for toggleDayOfWeek to maintain compatibility with existing code
+  const toggleDayOfWeek = handleDayToggle;
 
   // Format date for display
   const formatDate = (date: Date | null | undefined) => {
