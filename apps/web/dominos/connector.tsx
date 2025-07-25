@@ -9,7 +9,7 @@ import { DominoField } from '../types/dominoFieldTypes';
 
 /* ───────────────────────── Types */
 type CaseRow = {
-  id: number;
+  id: any;
   value: string;
 };
 
@@ -21,7 +21,7 @@ export default function ConnectorDomino({ data, id, selected }: NodeProps) {
   /* hydrate cases from node data */
   const [cases, setCases] = useState<CaseRow[]>(() => {
     const saved: any[] = data?.details?.fields ?? [];
-    const rows: CaseRow[] = [{ id: 0, value: '' }];
+    const rows: CaseRow[] = [{ id: '', value: '' }];
     saved.forEach(f => {
       
       const m = /^Case_(\d+)$/.exec(f.heading);
