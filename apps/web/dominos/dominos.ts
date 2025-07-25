@@ -1,5 +1,5 @@
 
-import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon, CheckCircle, Slack, Clock, Filter } from 'lucide-react';
+import { BoomBox, Calculator, FileQuestion, ToggleLeftIcon, CheckCircle, Slack, Clock, Filter, Plug } from 'lucide-react';
 import {
   FiPrinter,
   FiGlobe,
@@ -28,6 +28,7 @@ export default [
     label: 'Response',
     icon: FiCheckCircle, // ✅ Represents successful completion/response
     category: 'Core',
+  },
   {
     id: 'SchedulerDomino',
     label: 'Scheduler',
@@ -168,5 +169,10 @@ export default [
     id: 'slacktrigger',
     label: 'Slack Trigger',
     icon: Slack, // 💬 Listens for new messages in a Slack channel
+  },
+  {
+    id: 'connector',
+    label: 'Connector',
+    icon: Plug, // 🔗 Connects multiple inputs and outputs
   }
 ];

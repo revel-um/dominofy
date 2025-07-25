@@ -50,6 +50,7 @@ import {
   createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
+import ConnectorDomino from "@/dominos/connector";
 
 const nodeTypes = {
   csvwriter: CSVWriterDomino,
@@ -74,6 +75,7 @@ const nodeTypes = {
   mapper: MapperDomino,
   slacktrigger: SlackTriggerDomino,
   SchedulerDomino: SchedulerDomino,
+  connector: ConnectorDomino
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
