@@ -21,7 +21,7 @@ export default function ConnectorDomino({ data, id, selected }: NodeProps) {
   /* hydrate cases from node data */
   const [cases, setCases] = useState<CaseRow[]>(() => {
     const saved: any[] = data?.details?.fields ?? [];
-    const rows: CaseRow[] = [{ id: '', value: '' }];
+    const rows: CaseRow[] = [];
     saved.forEach(f => {
       
       const m = /^Case_(\d+)$/.exec(f.heading);
@@ -119,35 +119,57 @@ export default function ConnectorDomino({ data, id, selected }: NodeProps) {
         <div className="flex items-center gap-1">
           <span>Connector/Merger</span>
         </div>
+        <DominoPin id={`exec_out`} pinType={PinType.EXEC_OUT} inline />
       </div>
 
       {/* cases list */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 py-2">
+        <div className='flex flex-col gap-2 relative px-3'>
+          <DominoPin id={`exec_in_0`} pinType={PinType.EXEC_IN} inline />
+          <input
+            type="text"
+            placeholder={`Input 0`}
+            readOnly
+            disabled
+            className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+          />
+        </div>
+        <div className='flex flex-col gap-2 relative px-3'>
+          <DominoPin id={`exec_in_1`} pinType={PinType.EXEC_IN} inline />
+          <input
+            type="text"
+            placeholder={`Input 1`}
+            readOnly
+            disabled
+            className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+          />
+        </div>
+
         {cases.map((row, idx) => (
           <div key={row.id} className="flex items-center gap-2 relative px-3">
             
-            <DominoPin id={`exec_in_${row.id}`} pinType={PinType.EXEC_IN} inline />
+            <DominoPin id={`exec_in_${row.id + 1}`} pinType={PinType.EXEC_IN} inline />
             
 
             <input
               type="text"
               value={row.value}
-              placeholder={`Input ${row.id}`}
+              placeholder={`Input ${row.id + 1}`}
               readOnly
               disabled
-              onChange={e => handleInputChange(row.id, e.target.value)}
+              // onChange={e => handleInputChange(row.id, e.target.value)}
               className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
             />
 
             
-            {row.id !== 0 && (
+            {/* {row.id !== 1 && row.id !==2 &&( */}
               <button
                 onClick={() => removeInput(row.id as number)}
                 className="p-1 bg-red-500 text-white rounded ml-1"
               >
                 <Trash size={14} />
               </button>
-            )}
+            {/* )}  */}
           </div>
         ))}
       </div>
