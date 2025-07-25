@@ -28,6 +28,7 @@ export default [
     label: 'Response',
     icon: FiCheckCircle, // ✅ Represents successful completion/response
     category: 'Core',
+  },
   {
     id: 'SchedulerDomino',
     label: 'Scheduler',

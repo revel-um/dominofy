@@ -6,7 +6,7 @@ import type { AppProps } from 'next/app';
 import Layout from './layout';
 import { NextRouter, useRouter } from 'next/router';
 import { ToastContainer } from 'react-toastify';
-import { ResponsiveProvider } from '../contexts/responsiveContext';
+import { ResponsiveProvider } from '../contexts/ResponsiveContext';
 
 const EXCLUDED_ROUTES = ['/auth', '/dominofy'];
 

@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { useResponsive } from '../../contexts/responsiveContext';
+import { useResponsive } from '../../contexts/ResponsiveContext';
 import SideNavbar from '../navbar';
 import Head from 'next/head';
 import { FiHome, FiGrid, FiHeadphones, FiUser } from 'react-icons/fi';
