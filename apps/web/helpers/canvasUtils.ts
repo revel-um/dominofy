@@ -163,41 +163,9 @@ export function createOnConnectHandler(
     clearConnectStart();
 
     const nodes = getNodes();
-    const sourceNode = nodes.find(n => n.id === params.source);
-    const sourceIsAgg = sourceNode?.type === "aggregator";
 
     setEdges(prevEdges => {
       let working = prevEdges;
-
-      const existing = working.filter(e => e.target === params.target);
-      const hasAgg = existing.some(e => nodes.find(n => n.id === e.source)?.type === "aggregator");
-      const hasNon = existing.some(e => nodes.find(n => n.id === e.source)?.type !== "aggregator");
-
-      const wipeAll =
-        (sourceIsAgg && hasNon) ||
-        (!sourceIsAgg && hasAgg);
-
-      if (wipeAll) {
-        working = working.filter(e => e.target !== params.target);
-        // clear value pins on target node
-        setNodes(pn =>
-          pn.map(node => {
-            if (node.id !== params.target || !node.data?.details?.fields) return node;
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                valueConnected: false,
-                details: {
-                  ...node.data.details,
-                  fields: node.data.details.fields.map((f: any) => ({ ...f, connectedValue: undefined })),
-                },
-              },
-            };
-          }),
-        );
-      }
-
       // ensure unique per-pin
       working = working.filter(
         e => !(e.target === params.target && e.targetHandle === params.targetHandle),
