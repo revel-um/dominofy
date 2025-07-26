@@ -1,14 +1,20 @@
 // src/dominos/deconstruct.tsx
-import { NodeProps } from 'reactflow';
+import { NodeProps, useReactFlow } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useEffect, useState } from 'react';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
 import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
+import { pruneInvalidEdges } from '@/helpers/pruneEdges';
 
 /* ——————————————————— Component */
 export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
+
+  // React Flow context
+  const { getEdges } = useReactFlow();
+  const edges = getEdges();
+
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
@@ -22,6 +28,23 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
   const [inputs, setInputs] = useState<string[]>(['']);
   const [type,   setType]   = useState(options[0].value);
 
+  // 🔁 clear input if connected (just like SwitchDomino)
+  useEffect(() => {
+    let updated = false;
+    const cleared = inputs.map((val, i) => {
+      const pinId = `value_in_${i + 1}`;
+      const isConnected = edges.some(
+        edge => edge.target === id && edge.targetHandle === pinId
+      );
+      if (isConnected && val !== '') {
+        updated = true;
+        return '';
+      }
+      return val;
+    });
+    if (updated) setInputs(cleared);
+  }, [edges]);
+
   /* ---------- handlers ---------- */
   const addInput = () => {
     clearValidationForDominoId(id);
@@ -31,6 +54,7 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
   const removeInput = (idx: number) => {
     clearValidationForDominoId(id);
     setInputs(p => p.filter((_, i) => i !== idx));
+    // pruneInvalidEdges(getEdges(), id, `value_in_${idx + 1}`, data.setNodes);
   };
 
   const handleInputChange = (idx: number, v: string) => {
@@ -169,34 +193,41 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
 
       {/* Key / Index rows */}
       <div className="flex flex-col gap-2">
-        {inputs.map((val, i) => (
-          <div key={i} className="flex items-center gap-2 relative px-3">
-            {/* left in-pin */}
-            <DominoPin id={`value_in_${i + 1}`} pinType={PinType.VALUE_IN} inline />
+        {inputs.map((val, i) => {
+          const pinId = `value_in_${i + 1}`;
+          const isConnected = edges.some(
+            edge => edge.target === id && edge.targetHandle === pinId
+          );
 
-            <input
-              type="text"
-              value={val}
-              onChange={e => handleInputChange(i, e.target.value)}
-              placeholder={`${type === 'object' ? 'Key' : 'Index'} ${i + 1}`}
-              className="flex-1 px-2 py-1 text-sm border rounded
-                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                         text-dominofy-light-text dark:text-dominofy-dark-text"
-            />
+          return (
+            <div key={i} className="flex items-center gap-2 relative px-3">
+              <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline />
 
-            {/* right out-pin */}
-            <DominoPin id={`value_out_${i + 1}`} pinType={PinType.VALUE_OUT} inline />
+              <input
+                type="text"
+                value={val}
+                placeholder={isConnected ? 'Connected' : `${type === 'object' ? 'Key' : 'Index'} ${i + 1}`}
+                readOnly={isConnected}
+                disabled={isConnected}
+                onChange={e => handleInputChange(i, e.target.value)}
+                className="flex-1 px-2 py-1 text-sm border rounded
+                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                          text-dominofy-light-text dark:text-dominofy-dark-text"
+              />
 
-            {i > 0 && (
-              <button
-                onClick={() => removeInput(i)}
-                className="p-1 bg-red-500 text-white rounded ml-1"
-              >
-                <Trash size={16} />
-              </button>
-            )}
-          </div>
-        ))}
+              <DominoPin id={`value_out_${i + 1}`} pinType={PinType.VALUE_OUT} inline />
+
+              {i > 0 && (
+                <button
+                  onClick={() => removeInput(i)}
+                  className="p-1 bg-red-500 text-white rounded ml-1"
+                >
+                  <Trash size={16} />
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* add key/index */}
