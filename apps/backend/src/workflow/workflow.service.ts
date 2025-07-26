@@ -135,4 +135,15 @@ export class WorkflowService extends BaseService<Workflow> {
 
     return runner.run(runId, input); // pass input to the runner
   }
+
+  async renameWorkflow(id: string, name: string, userId: string) {
+    // Verify user has access to the workflow
+    const workflow = await this.findOneAndVerify(id, userId);
+    
+    // Update the workflow name
+    workflow.name = name;
+    
+    // Save the updated workflow
+    return await this.update(id, workflow);
+  }
 }

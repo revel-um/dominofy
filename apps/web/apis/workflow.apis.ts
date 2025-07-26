@@ -66,4 +66,25 @@ export class WorkflowsApi {
       handleServerError(router, err);
     }
   }
+
+  static async renameWorkflow(workflowId: string, newName: string, token: string, router: NextRouter) {
+    try {
+      const response = await fetch(`${config.backendBaseUrl}/workflow/${workflowId}/rename`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newName }),
+      });
+
+      if (response.status === 401) {
+        handleUnauthorizedError(router);
+      }
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
 }
