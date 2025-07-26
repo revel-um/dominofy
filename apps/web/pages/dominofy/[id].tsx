@@ -134,8 +134,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                     {/*  NEW – global toolbar */}
                     <WorkflowToolbar
                         setWorkflow={setWorkflow}
-                        workflowName={workflow?.name!}
-                        workflowId={workflowId!}
+                        workflow={workflow!}
                         getNodes={() => nodes}
                         getEdges={() => edges}
                     />

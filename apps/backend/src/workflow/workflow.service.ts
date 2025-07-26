@@ -143,7 +143,7 @@ export class WorkflowService extends BaseService<Workflow> {
     // Update the workflow name
     workflow.name = name;
     
-    // Save the updated workflow
-    return await this.update(id, workflow);
+    // Save the updated workflow to database
+    return await this.workflowRepository.save(workflow);
   }
 }
