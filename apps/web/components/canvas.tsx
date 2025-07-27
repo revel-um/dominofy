@@ -21,7 +21,6 @@ import ArithmeticDomino from "../dominos/arithmetic";
 import ReadExcelDomino from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
-import DatabaseDomino from "../dominos/dbSetup";
 import AggregatorDomino from "../dominos/aggregator";
 import FilterDomino from "../dominos/filterDomino";
 import SQLRunnerDomino from "../dominos/sqlRunner";
@@ -66,7 +65,6 @@ const nodeTypes = {
   deconstructor: DeconstrctDomino,
   iterator: IteratorDomino,
   filter: FilterDomino,
-  dbSetup: DatabaseDomino,
   aggregator: AggregatorDomino,
   sqlRunner: SQLRunnerDomino,
   codeRunner: CustomCodeDomino,
