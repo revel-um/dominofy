@@ -36,21 +36,21 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     const collapsedHeight = '60px';
     const defaultLogsHeight = '200px';
 
-    const fakeWf = {
-        id:        'fake-workflow',
-        isActive:  false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        name:      '🌱 Fake Workflow',
-        visualJson: {
-            nodes: fakeworkflow.nodes,
-            edges: fakeworkflow.edges,
-        },
-        isPublished: false,
-        isDefault:   false,
-    };
+    // const fakeWf = {
+    //     id:        'fake-workflow',
+    //     isActive:  false,
+    //     createdAt: new Date(),
+    //     updatedAt: new Date(),
+    //     name:      '🌱 Fake Workflow',
+    //     visualJson: {
+    //         nodes: fakeworkflow.nodes,
+    //         edges: fakeworkflow.edges,
+    //     },
+    //     isPublished: false,
+    //     isDefault:   false,
+    // };
 
-    const [workflow, setWorkflow] = useState(fakeWf);
+    const [workflow, setWorkflow] = useState(currWorkflow);
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
@@ -91,76 +91,76 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     const selectedNode = nodes.find(n => n.selected);
 
     // on mount, load your fake JSON
-    useEffect(() => {
-        // only run in dev so you don’t clobber real data:
-        if (process.env.NODE_ENV !== 'development') return;
-
-        // fakeWorkflow should look like:
-        // { nodes: [{ id, type, position, data: { details:{fields}, suggested, … } }], edges: […] }
-        // 1️⃣ slap the raw nodes/edges into your graph
-        setNodes(fakeworkflow.nodes);
-        setEdges(fakeworkflow.edges);
-
-        // 2️⃣ wrap it in the same shape your real code expects
-        
-        // setWorkflow(fakeWf);
-        // setWorkflowId(fakeWf.id);
-
-        // 3️⃣ if you have a `loading` guard, disable it now:
-        setLoading(false);
-    }, [setNodes, setEdges, setWorkflow, setWorkflowId]);
-
-
     // useEffect(() => {
-    //     const hydrateWorkflow = async () => {
-    //         if (workflow) {
-    //             importWorkflow(JSON.stringify(workflow.visualJson), setNodes, setEdges, setWorkflowId, workflow.id, { setNodes, updatePipeline });
-    //             setLoading(false);
-    //             return;
-    //         }
-    //         if (!id || typeof window === 'undefined') return;
+    //     // only run in dev so you don’t clobber real data:
+    //     if (process.env.NODE_ENV !== 'development') return;
 
-    //         const cached = sessionStorage.getItem('workflow-cache');
-    //         if (cached) {
-    //             try {
-    //                 const parsed = JSON.parse(cached);
-    //                 if (parsed?.id === id) {
-    //                     setWorkflow(parsed);
-    //                     importWorkflow(JSON.stringify(parsed.visualJson), setNodes, setEdges, setWorkflowId, parsed.id, { setNodes, updatePipeline });
-    //                     setLoading(false);
-    //                     return;
-    //                 }
-    //                 sessionStorage.removeItem('workflow-cache');
-    //             } catch {
-    //                 console.warn('Invalid workflow in sessionStorage');
-    //                 sessionStorage.removeItem('workflow-cache');
-    //             }
-    //         }
+    //     // fakeWorkflow should look like:
+    //     // { nodes: [{ id, type, position, data: { details:{fields}, suggested, … } }], edges: […] }
+    //     // 1️⃣ slap the raw nodes/edges into your graph
+    //     setNodes(fakeworkflow.nodes);
+    //     setEdges(fakeworkflow.edges);
 
-    //         try {
-    //             const token = localStorage.getItem('token');
-    //             if (!token) return router.push('/auth');
-    //             const response = await WorkflowsApi.getWorkflowById(id as string, token, router);
-    //             if (response?.ok) {
-    //                 const json = await response.json();
-    //                 setWorkflow(json);
-    //                 importWorkflow(JSON.stringify(json.visualJson), setNodes, setEdges, setWorkflowId, json.id, { setNodes, updatePipeline });
-    //             } else {
-    //                 router.push('/error');
-    //             }
-    //         } catch (err) {
-    //             console.error('Error loading workflow:', err);
-    //             router.push('/error');
-    //         } finally {
-    //             setLoading(false);
-    //         }
-    //     };
-    //     hydrateWorkflow();
-    // }, [id, workflow]);
+    //     // 2️⃣ wrap it in the same shape your real code expects
+        
+    //     // setWorkflow(fakeWf);
+    //     // setWorkflowId(fakeWf.id);
 
-    // if (loading) {
-    //     return <div className="w-screen h-screen flex items-center justify-center text-xl">Loading workflow...</div>;
-    // }
+    //     // 3️⃣ if you have a `loading` guard, disable it now:
+    //     setLoading(false);
+    // }, [setNodes, setEdges, setWorkflow, setWorkflowId]);
+
+
+    useEffect(() => {
+        const hydrateWorkflow = async () => {
+            if (workflow) {
+                importWorkflow(JSON.stringify(workflow.visualJson), setNodes, setEdges, setWorkflowId, workflow.id, { setNodes, updatePipeline });
+                setLoading(false);
+                return;
+            }
+            if (!id || typeof window === 'undefined') return;
+
+            const cached = sessionStorage.getItem('workflow-cache');
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (parsed?.id === id) {
+                        setWorkflow(parsed);
+                        importWorkflow(JSON.stringify(parsed.visualJson), setNodes, setEdges, setWorkflowId, parsed.id, { setNodes, updatePipeline });
+                        setLoading(false);
+                        return;
+                    }
+                    sessionStorage.removeItem('workflow-cache');
+                } catch {
+                    console.warn('Invalid workflow in sessionStorage');
+                    sessionStorage.removeItem('workflow-cache');
+                }
+            }
+
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) return router.push('/auth');
+                const response = await WorkflowsApi.getWorkflowById(id as string, token, router);
+                if (response?.ok) {
+                    const json = await response.json();
+                    setWorkflow(json);
+                    importWorkflow(JSON.stringify(json.visualJson), setNodes, setEdges, setWorkflowId, json.id, { setNodes, updatePipeline });
+                } else {
+                    router.push('/error');
+                }
+            } catch (err) {
+                console.error('Error loading workflow:', err);
+                router.push('/error');
+            } finally {
+                setLoading(false);
+            }
+        };
+        hydrateWorkflow();
+    }, [id, workflow]);
+
+    if (loading) {
+        return <div className="w-screen h-screen flex items-center justify-center text-xl">Loading workflow...</div>;
+    }
 
     console.log(workflow);
     return (
