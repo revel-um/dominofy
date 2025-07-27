@@ -25,7 +25,7 @@
             { "heading": "Message", "value": "Hello from Switch!" }
           ]
         },
-        "suggested": false
+        "suggested": true
       }
     },
     {
@@ -39,7 +39,7 @@
             { "heading": "method", "value": "GET" }
           ]
         },
-        "suggested": false
+        "suggested": true
       }
     }
   ],

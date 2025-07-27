@@ -2,9 +2,9 @@
 import { NodeProps, useReactFlow } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useDomino } from '../contexts/dominoContext';
-import { Trash } from 'lucide-react';
+import { Trash, X } from 'lucide-react';
 import { DominoField } from '../types/dominoFieldTypes';
 
 /* ───────────────────────── Types */
@@ -22,6 +22,7 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
   const { getEdges } = useReactFlow();
   const edges = getEdges();
 
+  // Domino validation context
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
@@ -83,43 +84,56 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
     setCases(prev => prev.map(r => (r.id === rowId ? { ...r, value: v } : r)));
   };
 
-  /* push → node */
+  // Accept (promote) suggested domino to normal
+  const acceptSuggestion = useCallback(() => {
+    if (!data.setNodes) return;
+    data.setNodes((nds: any[]) =>
+      nds.map(n =>
+        n.id === id
+          ? { ...n, data: { ...n.data, suggested: false } }
+          : n
+      )
+    );
+  }, [data.setNodes, id]);
+
+  /* push → node (sync fields) */
   useEffect(() => {
     if (!data.setNodes) return;
 
-    data.setNodes((nodes: any[]) =>
-      nodes.map((n: any) => {
+    data.setNodes((nds: any[]) =>
+      nds.map((n: any) => {
         if (n.id !== id) return n;
-        const existing: Record<string, any> = Object.fromEntries(
-          (n.data.details?.fields ?? []).map((f: any) => [f.heading, f])
-        );
-        const ensureInput = existing['Input'] ?? {
-          type: 'text',
-          heading: 'Input',
-          required: true,
-          inPinId: 'value_in',
-          shouldRender: false,
-        };
+        const existing: any[] = n.data.details?.fields ?? [];
 
+        // build newFields
+        const ensureInput = existing.find(f => f.heading === 'Input') ?? {
+          type: 'text', heading: 'Input', required: true,
+          inPinId: 'value_in', shouldRender: false
+        };
         const newFields = [
           ensureInput,
           ...cases.map(row => {
-            const heading =
-              row.id === 'default' ? 'Case_Default' : `Case_${row.id}`;
-            const old = existing[heading] ?? {};
+            const heading = row.id === 'default'
+              ? 'Case_Default'
+              : `Case_${row.id}`;
+            const old = existing.find(f => f.heading === heading) ?? {};
             return {
               ...old,
               heading,
               value: row.value,
-              inPinId:
-                row.id === 'default'
-                  ? undefined
-                  : old.inPinId ?? `value_in_${row.id}`,
+              inPinId: row.id === 'default'
+                ? undefined
+                : (old.inPinId ?? `value_in_${row.id}`),
               shouldRender: false,
               required: row.id !== 'default',
             };
           }),
         ];
+
+        // guard against unnecessary updates
+        if (JSON.stringify(existing) === JSON.stringify(newFields)) {
+          return n;
+        }
 
         return {
           ...n,
@@ -136,15 +150,16 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
   /* ───────── render */
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
+      className={`relative transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
         ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{
-        minWidth: '13rem',
-        opacity: isGhost ? 0.4 : 1,
-        filter: isGhost ? 'drop-shadow(0 0 8px rgba(0,0,0,0.5))' : undefined,
-        pointerEvents: isGhost ? 'none' : undefined,
-      }}
+        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`
+      }
+      // style={{
+      //   minWidth: '13rem',
+      //   opacity: isGhost ? 0.4 : 1,
+      //   filter: isGhost ? 'drop-shadow(0 0 8px rgba(0,0,0,0.5))' : undefined,
+      //   pointerEvents: isGhost ? 'none' : undefined,
+      // }}
     >
       {/* header */}
       <div
@@ -155,6 +170,15 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
           <span>Switch</span>
         </div>
+        {isGhost && (
+          <button
+            onClick={acceptSuggestion}
+            className="p-1 hover:bg-white/20 rounded-full"
+            title="Accept suggestion"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {/* main input pin row */}
@@ -226,5 +250,3 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
     </div>
   );
 }
-
-
