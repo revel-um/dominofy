@@ -9,7 +9,9 @@ import { useDomino } from '../contexts/dominoContext';
 export default function PrintDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const isValueConnected = data?.valueConnected ?? false;
+  const textField = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text');
+  const isValueConnected = textField?.connectedValue || textField?.value?.length > 0;
+
   const [value, setValue] = useState("");
 
   // Sync value from details field
@@ -119,7 +121,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
           />
         ) : (
           <span className="flex-1 text-xs italic text-gray-500 truncate">
-            dynamic value
+            Connected
           </span>
         )}
 
