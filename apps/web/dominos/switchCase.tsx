@@ -1,5 +1,5 @@
 // src/dominos/switch.tsx
-import { NodeProps } from 'reactflow';
+import { NodeProps, useReactFlow } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useState, useEffect } from 'react';
@@ -15,6 +15,10 @@ type CaseRow = {
 
 /* ───────────────────────── Component */
 export default function SwitchDomino({ data, id, selected }: NodeProps) {
+  // React Flow context
+  const { getEdges } = useReactFlow();
+  const edges = getEdges();
+
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
@@ -33,23 +37,37 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
     return rows;
   });
 
+  /* clear values when a pin becomes connected */
+  useEffect(() => {
+    let updated = false;
+    const cleared = cases.map(r => {
+      const pinId = r.id === 'default' ? 'value_in' : `value_in_${r.id}`;
+      const isConnected = edges.some(
+        edge => edge.target === id && edge.targetHandle === pinId
+      );
+      if (isConnected && r.value !== '') {
+        updated = true;
+        return { ...r, value: '' };
+      }
+      return r;
+    });
+    if (updated) setCases(cleared);
+  }, [edges]);
+
   /* ───────── handlers */
   const addInput = () => {
     clearValidationForDominoId(id);
     setCases(prev => {
-      const nextId = Math.max(0, ...prev.filter(r => typeof r.id === 'number').map(r => r.id as number)) + 1;
+      const nextId =
+        Math.max(0, ...prev.filter(r => typeof r.id === 'number').map(r => r.id as number)) + 1;
       return [...prev, { id: nextId, value: '' }];
     });
   };
 
   const removeInput = (rowId: number) => {
     clearValidationForDominoId(id);
-
     setCases(prev => {
-      // 1️⃣ drop the requested row
       const remaining = prev.filter(r => r.id !== rowId);
-
-      // 2️⃣ renumber non-default rows so they’re 1,2,3…
       let counter = 1;
       return remaining.map(r =>
         r.id === 'default' ? r : { ...r, id: counter++ }
@@ -67,7 +85,7 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
     if (!data.setNodes) return;
 
     data.setNodes((nodes: any[]) =>
-      nodes.map((n: { id: string; data: { details: { fields: any; }; }; }) => {
+      nodes.map((n: any) => {
         if (n.id !== id) return n;
         const existing: Record<string, any> = Object.fromEntries(
           (n.data.details?.fields ?? []).map((f: any) => [f.heading, f])
@@ -80,18 +98,25 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
           shouldRender: false,
         };
 
-        const newFields = [ensureInput, ...cases.map(row => {
-          const heading = row.id === 'default' ? 'Case_Default' : `Case_${row.id}`;
-          const old = existing[heading] ?? {};
-          return {
-            ...old,
-            heading,
-            value: row.value,
-            inPinId: row.id === 'default' ? undefined : old.inPinId ?? `value_in_${row.id}`,
-            shouldRender: false,
-            required: row.id !== 'default',
-          };
-        })];
+        const newFields = [
+          ensureInput,
+          ...cases.map(row => {
+            const heading =
+              row.id === 'default' ? 'Case_Default' : `Case_${row.id}`;
+            const old = existing[heading] ?? {};
+            return {
+              ...old,
+              heading,
+              value: row.value,
+              inPinId:
+                row.id === 'default'
+                  ? undefined
+                  : old.inPinId ?? `value_in_${row.id}`,
+              shouldRender: false,
+              required: row.id !== 'default',
+            };
+          }),
+        ];
 
         return {
           ...n,
@@ -132,36 +157,47 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
 
       {/* cases list */}
       <div className="flex flex-col gap-2">
-        {cases.map((row, idx) => (
-          <div key={row.id} className="flex items-center gap-2 relative px-3">
-            {/* value_in for non‑default */}
-            {row.id !== 'default' && (
-              <DominoPin id={`value_in_${row.id}`} pinType={PinType.VALUE_IN} inline />
-            )}
+        {cases.map(row => {
+          const pinId = row.id === 'default' ? 'value_in' : `value_in_${row.id}`;
+          const connected = edges.some(
+            edge => edge.target === id && edge.targetHandle === pinId
+          );
 
-            <input
-              type="text"
-              value={row.id === 'default' ? 'Default' : row.value}
-              placeholder={row.id === 'default' ? 'Default' : `Case ${row.id}`}
-              readOnly={row.id === 'default'}
-              disabled={row.id === 'default'}
-              onChange={e => handleInputChange(row.id, e.target.value)}
-              className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-            />
+          return (
+            <div key={row.id} className="flex items-center gap-2 relative px-3">
+              {row.id !== 'default' && (
+                <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline />
+              )}
 
-            {/* exec_out pin */}
-            <DominoPin id={`exec_out_${row.id === 'default' ? 'default' : row.id}`} pinType={PinType.EXEC_OUT} inline />
+              <input
+                type="text"
+                value={row.value}
+                placeholder={
+                  connected
+                    ? 'Connected'
+                    : row.id === 'default'
+                    ? 'Default'
+                    : `Case ${row.id}`
+                }
+                readOnly={row.id === 'default' || connected}
+                disabled={row.id === 'default' || connected}
+                onChange={e => handleInputChange(row.id, e.target.value)}
+                className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+              />
 
-            {row.id !== 'default' && (
-              <button
-                onClick={() => removeInput(row.id as number)}
-                className="p-1 bg-red-500 text-white rounded ml-1"
-              >
-                <Trash size={14} />
-              </button>
-            )}
-          </div>
-        ))}
+              <DominoPin id={`exec_out_${row.id}`} pinType={PinType.EXEC_OUT} inline />
+
+              {row.id !== 'default' && (
+                <button
+                  onClick={() => removeInput(row.id as number)}
+                  className="p-1 bg-red-500 text-white rounded ml-1"
+                >
+                  <Trash size={14} />
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* add case */}
@@ -175,7 +211,9 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
       </div>
 
       {hasError && (
-        <p className="px-3 pb-2 text-xs text-red-500">⚠️ Value input pin is connected but execution pin is missing.</p>
+        <p className="px-3 pb-2 text-xs text-red-500">
+          ⚠️ Value input pin is connected but execution pin is missing.
+        </p>
       )}
     </div>
   );
