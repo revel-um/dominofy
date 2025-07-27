@@ -1,10 +1,10 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useState, useCallback } from 'react';
-import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { FiCpu, FiAlertCircle, FiChevronDown, FiSliders, FiCode, FiZap } from 'react-icons/fi';
+import { FiCpu, FiChevronDown, FiSliders, FiZap, FiAlertCircle } from 'react-icons/fi';
 
 type LLMProvider = 'openai' | 'anthropic' | 'google' | 'mistral';
 
@@ -106,168 +106,273 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
     presencePenalty: 0,
     stream: true,
   });
-  
-  // Update selected model when config.model changes
-  useEffect(() => {
-    const model = AVAILABLE_MODELS.find(m => m.id === config.model) || AVAILABLE_MODELS[0];
-    setSelectedModel(model);
-    
-    // Update maxTokens if the model's max is lower than current setting
-    if (config.maxTokens > model.maxTokens) {
-      setConfig(prev => ({
-        ...prev,
-        maxTokens: model.maxTokens
-      }));
-    }
-  }, [config.model]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Sync values from data.details.fields
-  useEffect(() => {
-    const promptField = data?.details?.fields?.find((f: DominoField) => f.heading === 'Prompt');
-    const configField = data?.details?.fields?.find((f: DominoField) => f.heading === 'Config');
-    
-    if (promptField?.value !== undefined) {
-      setPrompt(promptField.value);
-    }
-    
-    if (configField?.value) {
-      try {
-        const parsedConfig = typeof configField.value === 'string' 
-          ? JSON.parse(configField.value) 
-          : configField.value;
-          
-        // Find the model in our available models
-        const model = AVAILABLE_MODELS.find(m => m.id === parsedConfig.model) || AVAILABLE_MODELS[0];
-        
-        setConfig(prev => ({
-          ...prev,
-          ...parsedConfig,
-          model: model.id,
-          temperature: parsedConfig.temperature ?? 0.7,
-          maxTokens: Math.min(parsedConfig.maxTokens ?? 500, model.maxTokens),
-          stream: parsedConfig.stream ?? true,
-        }));
-        
-        setSelectedModel(model);
-      } catch (e) {
-        console.error('Failed to parse LLM config', e);
-      }
-    }
-  }, [data?.details?.fields]);
+  // Update node fields in the React Flow graph
+  const updateNodeFields = useCallback((currentConfig: LLMConfig, currentModel: LLMModel) => {
+    if (!data.setNodes) return;
 
-  // Handle model selection change
-  const handleModelChange = (modelId: string) => {
-    const model = AVAILABLE_MODELS.find(m => m.id === modelId) || AVAILABLE_MODELS[0];
-    setSelectedModel(model);
-    
-    const newConfig = {
-      ...config,
-      model: model.id,
-      maxTokens: Math.min(config.maxTokens, model.maxTokens)
-    };
-    
-    setConfig(newConfig);
-    updateConfig(newConfig);
-  };
-  
-  // Update config in parent
-  const updateConfig = useCallback((newConfig: LLMConfig) => {
-    data.setFieldValue?.('Config', newConfig);
-  }, [data]);
-  
-  // Handle config changes
-  const handleConfigChange = (key: keyof LLMConfig, value: any) => {
-    const newConfig = { ...config, [key]: value };
-    setConfig(newConfig);
-    updateConfig(newConfig);
-  };
-  
-  // Initialize node data if not already set
-  useEffect(() => {
-    if ((!data.setFieldValue || !data.details) && data.setNodes) {
-      const setFieldValue = (heading: string, value: any) => {
-        if (heading === 'Prompt') {
-          setPrompt(value);
-        } else if (heading === 'Config' && value) {
-          try {
-            const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-            setConfig(prev => ({
-              ...prev,
-              ...parsed,
-              model: parsed.model || AVAILABLE_MODELS[0].id,
-            }));
-          } catch (e) {
-            console.error('Invalid config format', e);
-          }
-        }
+    const updatedFields = [
+      {
+        type: 'select',
+        heading: 'Model',
+        value: currentModel.id,
+        options: AVAILABLE_MODELS.map(m => ({
+          label: `${m.name} (${m.provider})`,
+          value: m.id,
+          description: m.description
+        })),
+        inPinId: 'value_in_1',
+        required: true,
+        shouldRender: true,
+      },
+      {
+        type: 'number',
+        heading: 'Temperature',
+        value: currentConfig.temperature,
+        min: 0,
+        max: 2,
+        step: 0.1,
+        inPinId: 'value_in_2',
+        required: true,
+        shouldRender: true,
+      },
+      {
+        type: 'number',
+        heading: 'Max Tokens',
+        value: currentConfig.maxTokens,
+        min: 1,
+        max: currentModel.maxTokens,
+        inPinId: 'value_in_3',
+        required: true,
+        shouldRender: true,
+      },
+      {
+        type: 'number',
+        heading: 'Top P',
+        value: currentConfig.topP,
+        min: 0,
+        max: 1,
+        step: 0.1,
+        inPinId: 'value_in_4',
+        required: false,
+        shouldRender: showAdvanced,
+      },
+      {
+        type: 'number',
+        heading: 'Frequency Penalty',
+        value: currentConfig.frequencyPenalty,
+        min: 0,
+        max: 2,
+        step: 0.1,
+        inPinId: 'value_in_5',
+        required: false,
+        shouldRender: showAdvanced,
+      },
+      {
+        type: 'number',
+        heading: 'Presence Penalty',
+        value: currentConfig.presencePenalty,
+        min: 0,
+        max: 2,
+        step: 0.1,
+        inPinId: 'value_in_6',
+        required: false,
+        shouldRender: showAdvanced,
+      },
+      {
+        type: 'checkbox',
+        heading: 'Stream',
+        value: currentConfig.stream,
+        inPinId: 'value_in_7',
+        required: false,
+        shouldRender: showAdvanced,
+      },
+    ];
 
-        data.setNodes?.((nodes: any[]) =>
-          nodes.map((n: { id: string; data: { details: { fields: DominoField[]; }; }; }) =>
-            n.id === id
-              ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    details: {
-                      ...n.data.details,
-                      fields: n.data.details.fields.map((f: DominoField) =>
-                        f.heading === heading ? { ...f, value } : f
-                      ),
-                    },
-                  },
-                }
-              : n
-          )
-        );
+    data.setNodes((nodes: any[]) =>
+      nodes.map((n: any) =>
+        n.id === id
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                details: { ...n.data.details, fields: updatedFields },
+                exportFields: [
+                  'Model', 
+                  'Temperature', 
+                  'Max Tokens', 
+                  'Top P', 
+                  'Frequency Penalty', 
+                  'Presence Penalty',
+                  'Stream'
+                ],
+              },
+            }
+          : n
+      )
+    );
+  }, [data.setNodes, id, showAdvanced]);
+
+  // Initialize node data on mount
+  useEffect(() => {
+    if (!data.setNodes) return;
+
+    // Only initialize if fields don't exist yet
+    if (!data.details?.fields || data.details.fields.length === 0) {
+      updateNodeFields(config, selectedModel);
+    } else {
+      // Update local state from existing node data
+      const fields = data.details.fields || [];
+      const getFieldValue = (heading: string, defaultValue: any) => {
+        const field = fields.find((f: any) => f.heading === heading);
+        return field ? field.value : defaultValue;
       };
 
-      data.setNodes((prev: any[]) =>
-        prev.map((node: { id: string; data: { details: any; }; }) =>
-          node.id !== id
-            ? node
-            : {
+      const modelId = getFieldValue('Model', config.model);
+      const newModel = AVAILABLE_MODELS.find(m => m.id === modelId) || selectedModel;
+      
+      // Only update if the model has actually changed
+      if (selectedModel.id !== newModel.id) {
+        setSelectedModel(newModel);
+      }
+      
+      // Create a new config object with updated values
+      const newConfig = {
+        model: modelId,
+        temperature: parseFloat(getFieldValue('Temperature', config.temperature)),
+        maxTokens: parseInt(getFieldValue('Max Tokens', config.maxTokens), 10),
+        topP: parseFloat(getFieldValue('Top P', config.topP)),
+        frequencyPenalty: parseFloat(getFieldValue('Frequency Penalty', config.frequencyPenalty)),
+        presencePenalty: parseFloat(getFieldValue('Presence Penalty', config.presencePenalty)),
+        stream: getFieldValue('Stream', config.stream),
+      };
+      
+      // Only update if the config has actually changed
+      if (JSON.stringify(newConfig) !== JSON.stringify(config)) {
+        setConfig(newConfig);
+      }
+    }
+    // We only want to run this effect when the component mounts or when the node data changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.details?.fields, data.setNodes, id]);
+
+  // Update node fields when config or selected model changes
+  useEffect(() => {
+    if (!data.setNodes) return;
+    
+    const newModel = AVAILABLE_MODELS.find(m => m.id === config.model) || AVAILABLE_MODELS[0];
+    
+    // Only update if the model has actually changed
+    if (selectedModel.id !== newModel.id) {
+      setSelectedModel(newModel);
+    }
+    
+    // Update the node fields with the current config and model
+    updateNodeFields(config, newModel);
+    // We only want to run this effect when the config changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, updateNodeFields]);
+
+  // Handle config changes
+  const handleConfigChange = useCallback((field: keyof LLMConfig, value: any) => {
+    setConfig(prevConfig => {
+      const newConfig = {
+        ...prevConfig,
+        [field]: value
+      };
+      
+      const currentModel = AVAILABLE_MODELS.find(m => m.id === newConfig.model) || AVAILABLE_MODELS[0];
+      updateNodeFields(newConfig, currentModel);
+      clearValidationForDominoId(id);
+      
+      return newConfig;
+    });
+  }, [clearValidationForDominoId, id, updateNodeFields]);
+
+  // Handle model change in the UI (not from details panel)
+  const handleModelSelect = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const modelId = e.target.value;
+    const newModel = AVAILABLE_MODELS.find(m => m.id === modelId) || AVAILABLE_MODELS[0];
+    
+    setConfig(prevConfig => ({
+      ...prevConfig,
+      model: modelId,
+      maxTokens: Math.min(prevConfig.maxTokens, newModel.maxTokens)
+    }));
+    
+    setSelectedModel(newModel);
+    clearValidationForDominoId(id);
+  }, [clearValidationForDominoId, id]);
+
+  // Initialize node data if not already set
+  useEffect(() => {
+    if (data.setNodes && (!data.details?.fields || data.details.fields.length === 0)) {
+      const initialFields = [
+        {
+          type: 'textInput' as const,
+          heading: 'Prompt',
+          placeholder: 'Enter your prompt here...',
+          value: '',
+          required: true,
+          inPinId: 'prompt_in',
+        },
+        {
+          type: 'json' as const,
+          heading: 'Config',
+          value: JSON.stringify(config, null, 2),
+          required: false,
+        },
+      ];
+
+      data.setNodes((nodes: any[]) =>
+        nodes.map(node =>
+          node.id === id
+            ? {
                 ...node,
                 data: {
                   ...node.data,
-                  details: node.data.details ?? {
+                  details: {
                     type: 'LLM',
                     description: 'Sends a prompt to an AI language model and returns the response.',
-                    fields: [
-                      {
-                        type: 'textInput',
-                        heading: 'Prompt',
-                        placeholder: 'Enter your prompt here...',
-                        value: prompt,
-                        required: true,
-                        inPinId: 'prompt_in',
-                      },
-                      {
-                        type: 'json',
-                        heading: 'Config',
-                        value: JSON.stringify(config, null, 2),
-                        required: false,
-                      },
-                    ],
+                    fields: initialFields,
                   },
                   exportFields: ['Prompt', 'Config'],
-                  setFieldValue,
+                  setFieldValue: (heading: string, value: any) => {
+                    if (heading === 'Prompt') {
+                      setPrompt(value);
+                    } else if (heading === 'Config') {
+                      try {
+                        const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+                        setConfig(prev => ({
+                          ...prev,
+                          ...parsed,
+                          model: parsed.model || AVAILABLE_MODELS[0].id,
+                        }));
+                      } catch (e) {
+                        console.error('Invalid config format', e);
+                      }
+                    }
+                  },
                 },
               }
+            : node
         )
       );
     }
-  }, [data, id, prompt, config]);
+  }, [data, id, config]);
 
-  const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    clearValidationForDominoId(id);
+  const handlePromptChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setPrompt(newValue);
     data.setFieldValue?.('Prompt', newValue);
-  };
+    clearValidationForDominoId(id);
+  }, [clearValidationForDominoId, data, id]);
   
-  const toggleAdvanced = () => {
-    setShowAdvanced(!showAdvanced);
-  };
+  const toggleAdvanced = useCallback(() => {
+    setShowAdvanced(prev => !prev);
+  }, []);
   
   // Format model provider name
   const formatProviderName = (provider: string) => {
@@ -312,7 +417,7 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
           <div className="relative">
             <select
               value={selectedModel.id}
-              onChange={(e) => handleModelChange(e.target.value)}
+              onChange={handleModelSelect}
               className="w-full px-3 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
             >
               {AVAILABLE_MODELS.map((model) => (
