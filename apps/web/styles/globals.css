@@ -628,6 +628,16 @@
     background-color: hsla(var(--muted-foreground) / 0.2);
   }
 
+  .dark ::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border: none;
+  }
+
+
   /* Selection styles */
   ::selection {
     background-color: hsla(var(--primary) / 0.2);
