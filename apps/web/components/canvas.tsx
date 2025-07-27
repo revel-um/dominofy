@@ -106,7 +106,7 @@ export default function Canvas(props: CanvasProps) {
   /* fade suggestion nodes */
   const renderedNodes = useMemo(
     () => nodes.map(n => {
-      if (n.data?.isSuggestion) {
+      if (n.data?.suggested) {
         return {
           ...n,
           className: n.className

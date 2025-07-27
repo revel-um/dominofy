@@ -1,0 +1,62 @@
+{
+  "nodes": [
+    {
+      "id": "switch-1",
+      "type": "switchcase",
+      "position": { "x": 200, "y": 150 },
+      "data": {
+        "details": {
+          "fields": [
+            { "heading": "Case_Default", "value": "DefaultVal" },
+            { "heading": "Case_1",       "value": "One" },
+            { "heading": "Case_2",       "value": "Two" }
+          ]
+        },
+        "suggested": true
+      }
+    },
+    {
+      "id": "print-1",
+      "type": "print",
+      "position": { "x": 450, "y": 150 },
+      "data": {
+        "details": {
+          "fields": [
+            { "heading": "Message", "value": "Hello from Switch!" }
+          ]
+        },
+        "suggested": false
+      }
+    },
+    {
+      "id": "api-1",
+      "type": "apicall",
+      "position": { "x": 450, "y": 300 },
+      "data": {
+        "details": {
+          "fields": [
+            { "heading": "url",    "value": "https://api.example.com/data" },
+            { "heading": "method", "value": "GET" }
+          ]
+        },
+        "suggested": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-switch-print",
+      "source": "switch-1",
+      "sourceHandle": "exec_out_default",
+      "target": "print-1",
+      "targetHandle": "exec_in"
+    },
+    {
+      "id": "e-switch-api",
+      "source": "switch-1",
+      "sourceHandle": "exec_out_1",
+      "target": "api-1",
+      "targetHandle": "exec_in"
+    }
+  ]
+}

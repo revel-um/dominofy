@@ -1,6 +1,6 @@
 import React, { createContext, useContext, ReactNode, useState, useMemo } from 'react';
 
-interface DominoContextType {
+export interface DominoContextType {
   erroredNodes: string[];
   setConnectionErrors: (ids: string[]) => void;
   setValidationErrors: (ids: string[]) => void;

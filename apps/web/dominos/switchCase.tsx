@@ -15,6 +15,9 @@ type CaseRow = {
 
 /* ───────────────────────── Component */
 export default function SwitchDomino({ data, id, selected }: NodeProps) {
+  // Ghost/shadow mode for AI-suggested dominos
+  const isGhost = data.suggested === true;
+
   // React Flow context
   const { getEdges } = useReactFlow();
   const edges = getEdges();
@@ -52,7 +55,7 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
       return r;
     });
     if (updated) setCases(cleared);
-  }, [edges]);
+  }, [edges, cases, id]);
 
   /* ───────── handlers */
   const addInput = () => {
@@ -136,7 +139,12 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
       className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
         ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{ minWidth: '13rem' }}
+      style={{
+        minWidth: '13rem',
+        opacity: isGhost ? 0.4 : 1,
+        filter: isGhost ? 'drop-shadow(0 0 8px rgba(0,0,0,0.5))' : undefined,
+        pointerEvents: isGhost ? 'none' : undefined,
+      }}
     >
       {/* header */}
       <div
@@ -218,3 +226,5 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
     </div>
   );
 }
+
+
