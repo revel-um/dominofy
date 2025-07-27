@@ -6,7 +6,6 @@ import {
   FiZap,
   FiFileText,
   FiRepeat,
-  FiDatabase,
   FiLayers,
   FiCode,
   FiClock,
@@ -20,159 +19,111 @@ export default [
   {
     id: 'llm',
     label: 'LLM',
-    icon: FiCpu, // Represents AI/ML processing
-    category: 'AI/LLM',
+    icon: FiCpu,
   },
   {
     id: 'response',
     label: 'Response',
-    icon: FiCheckCircle, // ✅ Represents successful completion/response
-    category: 'Core',
+    icon: FiCheckCircle,
   },
   {
     id: 'SchedulerDomino',
     label: 'Scheduler',
-    icon: FiClock, // ⏰ Represents scheduling and timing
+    icon: FiClock,
   },
   {
     id: 'emailsender',
     label: 'Email Sender',
-    icon: FiMail,
-    description: 'Send emails via SMTP or API providers',
-    category: 'Communication',
-    color: 'red',
-    fields: [
-      { heading: 'From', type: 'text', required: true },
-      { heading: 'To', type: 'text', required: true },
-      { heading: 'Subject', type: 'text', required: false },
-      { heading: 'Body', type: 'text', required: true, multiline: true },
-      { heading: 'CC', type: 'text', required: false },
-      { heading: 'BCC', type: 'text', required: false }
-    ]
+    icon: FiMail
   },
   {
     id: 'csvwriter',
     label: 'CSV Writer',
-    icon: FiDownload, // 📥 Represents downloading data
+    icon: FiDownload
   },
   {
     id: 'print',
     label: 'Print',
-    icon: FiPrinter,
-    description: 'Print values to the console',
-    category: 'Utility',
-    color: 'blue'
+    icon: FiPrinter
   },
   {
     id: 'apicall',
     label: 'API Call',
-    icon: FiGlobe,
-    description: 'Make HTTP requests to external APIs',
-    category: 'Integration',
-    color: 'green'
+    icon: FiGlobe
   },
   {
     id: 'apitrigger',
     label: 'API Trigger',
-    icon: FiZap,
-    description: 'Trigger workflows via HTTP requests',
-    category: 'Integration',
-    color: 'purple'
+    icon: FiZap
   },
   {
     id: 'readexcel',
     label: 'Read Excel',
-    icon: FiFileText,
-    description: 'Read data from Excel files',
-    category: 'Data',
-    color: 'green'
+    icon: FiFileText
   },
   {
     id: 'condition',
     label: 'Condition',
-    icon: FileQuestion,
-    description: 'Conditional logic and branching',
-    category: 'Logic',
-    color: 'yellow'
+    icon: FileQuestion
   },
   {
     id: 'switchcase',
     label: 'Switch',
-    icon: ToggleLeftIcon,
-    description: 'Multi-branch conditional logic',
-    category: 'Logic',
-    color: 'yellow'
+    icon: ToggleLeftIcon
   },
   {
     id: 'arithmetic',
     label: 'Arithmetic',
-    icon: Calculator,
-    description: 'Mathematical operations',
-    category: 'Math',
-    color: 'blue'
+    icon: Calculator
   },
   {
     id: 'deconstructor',
     label: 'Deconstruct',
-    icon: BoomBox,
-    description: 'Extract values from objects and arrays',
-    category: 'Data',
-    color: 'purple'
+    icon: BoomBox
   },
   {
     id: 'iterator',
     label: 'Iterator',
-    icon: FiRepeat,
-    description: 'Loop over arrays or objects',
-    category: 'Data',
-    color: 'green'
-  },
-  {
-    id: 'dbSetup',
-    label: 'Database Setup',
-    icon: FiDatabase,           // 🔁 Iterate over list
+    icon: FiRepeat
   },
   {
     id: 'aggregator',
     label: 'Aggregator',
-    icon: FiLayers, // ➕ Accumulate values using sum, multiply, min, or max
+    icon: FiLayers
   },
   {
     id: 'filter',
     label: 'Filter',
-    icon: Filter, // 🔍 Filter array of objects based on conditions
-    description: 'Combine multiple values into one',
-    category: 'Data',
-    color: 'blue'
+    icon: Filter
   },
   {
     id: 'sqlRunner',
     label: 'SQL Runner',
-    icon: FiCode, // ➕ Accumulate values using sum, multiply, min, or max
+    icon: FiCode
   },
   {
     id: 'codeRunner',
     label: 'Code Runner',
-    icon: FiCode, // ➕ Accumulate values using sum, multiply, min, or max
+    icon: FiCode
   },
   {
     id: 'delay',
     label: 'Delay',
-    icon: FiClock, // ⏳ Represents a delay or timeout
+    icon: FiClock
   },
   {
     id: 'mapper',
     label: 'Mapper',
-    icon: FiLayers,
+    icon: FiLayers
   },
-  { // 🗺️ Maps inputs to outputs
+  {
     id: 'slacktrigger',
     label: 'Slack Trigger',
-    icon: Slack, // 💬 Listens for new messages in a Slack channel
+    icon: Slack
   },
   {
     id: 'connector',
     label: 'Connector',
-    icon: Plug, // 🔗 Connects multiple inputs and outputs
+    icon: Plug
   }
 ];
