@@ -8,6 +8,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Patch,
   Req,
   UploadedFile,
   UseInterceptors,
@@ -104,6 +105,15 @@ export class WorkflowController extends BaseController<
     };
   }
 
+  @Patch(':id/rename')
+  async renameWorkflow(
+    @Param('id') id: string,
+    @Body('name') name: string,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).user.id;
+    return await this.workflowService.renameWorkflow(id, name, userId);
+  }
 
   @Get(':workflowId/trigger/:functionName')
   @HttpCode(200)

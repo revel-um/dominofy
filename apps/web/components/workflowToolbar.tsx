@@ -1,0 +1,334 @@
+'use client';
+
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  FiPlay,
+  FiEdit2,
+  FiRotateCcw,
+  FiRotateCw,
+  FiCheck,
+  FiX,
+  FiLoader,
+} from 'react-icons/fi';
+import { Node, Edge } from 'reactflow';
+import { exportWorkflow } from '../helpers/workflowManager';
+import { validateAndMarkErrors } from '../helpers/errorDetector';
+import { useDomino } from '../contexts/dominoContext';
+import { WorkflowsApi } from '../apis/workflow.apis';
+import { useRouter } from 'next/router';
+import { useSSE } from '@/contexts/sseContext';
+
+/* ───────────────────────── Types */
+interface WorkflowToolbarProps {
+  setWorkflow: (cb: (w: any) => any) => void;
+  workflow: {
+    id: string;
+    name: string;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    visualJson: { edges: any[]; nodes: any[] };
+    isPublished: boolean;
+    isDefault: boolean;
+  };
+  getNodes: () => Node[];
+  getEdges: () => Edge[];
+}
+
+const TOOLBAR_HEIGHT = 56;
+
+/* ───────────────────────── Component */
+export default function WorkflowToolbar({
+  setWorkflow,
+  workflow,
+  getNodes,
+  getEdges,
+}: WorkflowToolbarProps) {
+  const router = useRouter();
+  const { setValidationErrors } = useDomino();
+  const { start: startSSE, stop: stopSSE } = useSSE();
+
+  /* UI state */
+  type SaveState = 'idle' | 'loading' | 'success' | 'error';
+  const [saveStatus, setSaveStatus] = useState<SaveState>('idle');
+  const [justRan, setJustRan] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
+
+  /* keep original name to restore on cancel */
+  const originalNameRef = useRef<string | null>(null);
+
+  /* ───────── validation helper ───────── */
+  const isWorkflowValid = useCallback(() => {
+    const nodes = getNodes();
+    const edges = getEdges();
+    if (nodes.length <= 1) {
+      alert('You must have at least two connected dominos to deploy.');
+      return false;
+    }
+    const errorIds = validateAndMarkErrors(nodes);
+    setValidationErrors(errorIds);
+    if (errorIds.length) return false;
+
+    const adj: Record<string, string[]> = {};
+    nodes.forEach(n => (adj[n.id] = []));
+    edges.forEach(e => {
+      if (e.sourceHandle?.startsWith('exec') || e.targetHandle?.startsWith('exec')) {
+        adj[e.source].push(e.target);
+        adj[e.target].push(e.source);
+      }
+    });
+
+    const seen = new Set<string>([nodes[0].id]);
+    const queue = [nodes[0].id];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      adj[cur].forEach(n => {
+        if (!seen.has(n)) {
+          seen.add(n);
+          queue.push(n);
+        }
+      });
+    }
+    if (seen.size !== nodes.length) {
+      alert('Disconnected dominos found.');
+      return false;
+    }
+    return true;
+  }, [getNodes, getEdges, setValidationErrors]);
+
+  /* ───────── actions ───────── */
+  const onSave = useCallback(async () => {
+    if (!workflow.id) {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 1200);
+      return false;
+    }
+    setSaveStatus('loading');
+    const exported = exportWorkflow(getNodes(), getEdges(), workflow.id);
+    const token = localStorage.getItem('token') || '';
+    try {
+      const resp = await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
+      setSaveStatus(resp?.status === 201 ? 'success' : 'error');
+    } catch {
+      setSaveStatus('error');
+    } finally {
+      setTimeout(() => setSaveStatus('idle'), 1200);
+    }
+    return true;
+  }, [workflow.id, getNodes, getEdges, router]);
+
+  const onRun = useCallback(async () => {
+    if (!isWorkflowValid() || !workflow.id) return false;
+    const exported = exportWorkflow(getNodes(), getEdges(), workflow.id);
+    const token = localStorage.getItem('token') || '';
+    try {
+      await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
+      startSSE(workflow.id, token);
+      setJustRan(true);
+      setTimeout(() => setJustRan(false), 1000);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE]);
+
+  const onDeploy = useCallback(() => {
+    if (isWorkflowValid()) alert('Deploying...');
+  }, [isWorkflowValid]);
+
+  /* ────── name editing ────── */
+  const openNameModal = () => {
+    originalNameRef.current = workflow.name;
+    setShowNameModal(true);
+  };
+
+  const onModalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    setWorkflow(prev => ({ ...prev, name: newName }));
+  };
+
+  const onCancelName = () => {
+    if (originalNameRef.current !== null) {
+      setWorkflow(prev => ({ ...prev, name: originalNameRef.current! }));
+    }
+    setShowNameModal(false);
+  };
+
+  const onSaveName = async () => {
+    const newName = workflow.name.trim();
+    if (!newName || newName === originalNameRef.current) {
+      setShowNameModal(false);
+      return;
+    }
+
+    const token = localStorage.getItem('token') || '';
+    try {
+      const resp = await WorkflowsApi.renameWorkflow(workflow.id, newName, token, router);
+
+      if (resp?.ok) {
+        /* if your API returns the updated workflow, use it; otherwise patch locally */
+        const updated =
+          resp.status === 204 ? { ...workflow, name: newName } : await resp.json();
+
+        /* 1️⃣ lift new name into React state */
+        setWorkflow(updated);
+
+        /* 2️⃣ refresh the cache so a hard-reload sees the new name */
+        sessionStorage.setItem('workflow-cache', JSON.stringify(updated));
+
+        /* 3️⃣ close the modal */
+        setShowNameModal(false);
+      } else {
+        throw new Error('rename failed');
+      }
+    } catch (err) {
+      alert('Failed to rename workflow. Please try again.');
+      onCancelName();
+    }
+  };
+
+
+  /* cleanup */
+  useEffect(() => () => stopSSE(), [stopSSE]);
+
+  /* save button colors */
+  const saveCls =
+    saveStatus === 'success'
+      ? 'bg-emerald-600 text-white'
+      : saveStatus === 'error'
+        ? 'bg-red-500 text-white'
+        : 'bg-[var(--secondary)] text-[var(--text-secondary)]';
+
+  return (
+    <>
+      {/* ───────── Toolbar ───────── */}
+      <header
+        className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between whitespace-nowrap px-6 py-3
+                   bg-dominofy-light-panel dark:bg-dominofy-dark-panel
+                   border-b border-[#b0b3b8] dark:border-[#44474a]"
+        style={{ height: TOOLBAR_HEIGHT }}
+      >
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <svg className="text-[var(--primary)]" width="24" height="24" viewBox="0 0 48 48" fill="none">
+            <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" fill="currentColor" />
+          </svg>
+          <h1 className="text-xl font-bold">Dominofy</h1>
+        </div>
+
+        {/* Center title */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+          <h2 className="text-lg font-medium text-[var(--text-secondary)] truncate max-w-[26vw]">
+            {workflow.name}
+          </h2>
+          <button
+            onClick={openNameModal}
+            className="p-1.5 rounded-md hover:bg-[var(--secondary-hover)]
+                       text-[var(--text-secondary)] hover:text-white transition-colors"
+            title="Rename workflow"
+          >
+            <FiEdit2 className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Right group */}
+        <div className="flex items-center gap-2 pr-4">
+          {/* SAVE */}
+          <button
+            onClick={onSave}
+            disabled={saveStatus === 'loading'}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium`}
+          >
+            {saveStatus === 'loading' && <FiLoader className="w-4 h-4 animate-spin" />}
+            {saveStatus === 'success' && <FiCheck className="w-4 h-4" />}
+            {saveStatus === 'error' && <FiX className="w-4 h-4" />}
+            {saveStatus === 'idle' ? 'Save' : ''}
+          </button>
+
+          {/* DEPLOY */}
+          <button
+            onClick={onDeploy}
+            className="px-4 py-1.5 rounded text-sm font-medium text-white
+                       bg-dominofy-light-accent dark:bg-dominofy-dark-accent hover:opacity-90"
+          >
+            Deploy
+          </button>
+
+          {/* Divider */}
+          <div
+            className="h-6 w-px mx-2"
+            style={{
+              backgroundColor:
+                typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+                  ? 'var(--border-dark, #333)'
+                  : 'var(--border, #e5e7eb)',
+            }}
+          />
+
+          {/* RUN */}
+          <button
+            onClick={onRun}
+            className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium text-white
+                       bg-green-500 hover:bg-green-600 transition-colors"
+          >
+            {justRan ? <FiCheck className="w-4 h-4" /> : <FiPlay className="w-4 h-4" />}
+            Run
+          </button>
+
+          {/* Undo / Redo placeholders */}
+          <button
+            onClick={() => { }}
+            className="p-2 rounded-md hover:bg-[var(--secondary-hover)]
+                       text-[var(--text-secondary)] hover:text-white transition-colors"
+          >
+            <FiRotateCcw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { }}
+            className="p-2 rounded-md hover:bg-[var(--secondary-hover)]
+                       text-[var(--text-secondary)] hover:text-white transition-colors"
+          >
+            <FiRotateCw className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* ───────── Rename modal ───────── */}
+      {showNameModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={onCancelName}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+              Rename Workflow
+            </h3>
+            <input
+              value={workflow.name}
+              onChange={onModalChange}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-4"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={onCancelName}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onSaveName}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

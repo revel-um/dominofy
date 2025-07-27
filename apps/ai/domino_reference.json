@@ -1,0 +1,1021 @@
+[
+    {
+        "id": "llm",
+        "label": "LLM",
+        "category": "AI/LLM",
+        "description": "Large Language Model integration with multiple providers.",
+        "icon": "Cpu",
+        "color": "blue",
+        "fields": [
+            {
+                "heading": "Model",
+                "type": "select",
+                "required": true,
+                "options": [
+                    {
+                        "label": "GPT-4o",
+                        "value": "gpt-4o"
+                    },
+                    {
+                        "label": "GPT-4 Turbo",
+                        "value": "gpt-4-turbo"
+                    },
+                    {
+                        "label": "GPT-3.5 Turbo",
+                        "value": "gpt-3.5-turbo"
+                    },
+                    {
+                        "label": "Claude 3 Opus",
+                        "value": "claude-3-opus"
+                    },
+                    {
+                        "label": "Claude 3 Sonnet",
+                        "value": "claude-3-sonnet"
+                    },
+                    {
+                        "label": "Gemini Pro",
+                        "value": "gemini-pro"
+                    },
+                    {
+                        "label": "Mixtral 8×7B",
+                        "value": "mixtral-8x7b"
+                    }
+                ]
+            },
+            {
+                "heading": "Prompt",
+                "type": "textarea",
+                "required": true,
+                "inPinId": "value_in",
+                "placeholder": "Enter your prompt…"
+            },
+            {
+                "heading": "Temperature",
+                "type": "number",
+                "default": 0.7,
+                "min": 0,
+                "max": 2
+            },
+            {
+                "heading": "Max Tokens",
+                "type": "number",
+                "default": 1000
+            },
+            {
+                "heading": "Top P",
+                "type": "number",
+                "default": 1,
+                "min": 0,
+                "max": 1
+            },
+            {
+                "heading": "Frequency Penalty",
+                "type": "number",
+                "default": 0,
+                "min": -2,
+                "max": 2
+            },
+            {
+                "heading": "Presence Penalty",
+                "type": "number",
+                "default": 0,
+                "min": -2,
+                "max": 2
+            },
+            {
+                "heading": "Stream",
+                "type": "boolean",
+                "default": false
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": "dynamic"
+        }
+    },
+    {
+        "id": "response",
+        "label": "Response",
+        "category": "Core",
+        "description": "Return a value as workflow response / HTTP reply.",
+        "icon": "CheckCircle",
+        "color": "green",
+        "fields": [
+            {
+                "heading": "Response",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in",
+                "placeholder": "Response value…"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": false,
+            "value_in": true,
+            "value_out": true
+        }
+    },
+    {
+        "id": "SchedulerDomino",
+        "label": "Scheduler",
+        "category": "Timing",
+        "description": "Trigger downstream flow on cron, interval or once.",
+        "icon": "Clock",
+        "color": "yellow",
+        "fields": [
+            {
+                "heading": "Schedule Type",
+                "type": "select",
+                "required": true,
+                "options": [
+                    {
+                        "label": "Cron",
+                        "value": "cron"
+                    },
+                    {
+                        "label": "Interval",
+                        "value": "interval"
+                    },
+                    {
+                        "label": "One-time",
+                        "value": "onetime"
+                    }
+                ]
+            },
+            {
+                "heading": "Cron Expression",
+                "type": "textInput",
+                "placeholder": "0 0 * * *"
+            },
+            {
+                "heading": "Interval (seconds)",
+                "type": "number",
+                "default": 60
+            },
+            {
+                "heading": "Start Date",
+                "type": "datetime"
+            }
+        ],
+        "pins": {
+            "exec_out": "EXEC_OUT"
+        },
+        "pinStructure": {
+            "exec_in": false,
+            "exec_out": true,
+            "value_in": false,
+            "value_out": false
+        }
+    },
+    {
+        "id": "emailsender",
+        "label": "Email Sender",
+        "category": "Communication",
+        "description": "Send emails via SMTP or API providers.",
+        "icon": "Mail",
+        "color": "red",
+        "fields": [
+            {
+                "heading": "From",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in_1"
+            },
+            {
+                "heading": "To",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in_2"
+            },
+            {
+                "heading": "Subject",
+                "type": "textInput",
+                "inPinId": "value_in_3"
+            },
+            {
+                "heading": "Body",
+                "type": "textarea",
+                "required": true,
+                "inPinId": "value_in_4"
+            },
+            {
+                "heading": "CC",
+                "type": "textInput",
+                "inPinId": "value_in_5"
+            },
+            {
+                "heading": "BCC",
+                "type": "textInput",
+                "inPinId": "value_in_6"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in_1": "VALUE_IN",
+            "value_in_2": "VALUE_IN",
+            "value_in_3": "VALUE_IN",
+            "value_in_4": "VALUE_IN",
+            "value_in_5": "VALUE_IN",
+            "value_in_6": "VALUE_IN"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": "dynamic",
+            "value_out": false
+        }
+    },
+    {
+        "id": "csvwriter",
+        "label": "CSV Writer",
+        "category": "Data",
+        "description": "Write incoming data rows to a CSV file.",
+        "icon": "Download",
+        "color": "blue",
+        "fields": [
+            {
+                "heading": "Data",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in"
+            },
+            {
+                "heading": "Filename",
+                "type": "textInput",
+                "required": true
+            },
+            {
+                "heading": "Headers",
+                "type": "boolean",
+                "default": true
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": false
+        }
+    },
+    {
+        "id": "print",
+        "label": "Print",
+        "category": "Utility",
+        "description": "Print value(s) to server console or workflow log.",
+        "icon": "Printer",
+        "color": "blue",
+        "fields": [
+            {
+                "heading": "Text",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in",
+                "placeholder": "What to print…"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": false
+        }
+    },
+    {
+        "id": "apicall",
+        "label": "API Call",
+        "category": "Integration",
+        "description": "Make HTTP requests to external services and return response data.",
+        "icon": "Globe",
+        "color": "green",
+        "fields": [
+            {
+                "heading": "URL",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in"
+            },
+            {
+                "heading": "Method",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "DELETE",
+                    "PATCH"
+                ]
+            },
+            {
+                "heading": "Headers",
+                "type": "json"
+            },
+            {
+                "heading": "Body",
+                "type": "json"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": true
+        }
+    },
+    {
+        "id": "apitrigger",
+        "label": "API Trigger",
+        "category": "Integration",
+        "description": "Start a workflow via inbound HTTP request.",
+        "icon": "Zap",
+        "color": "purple",
+        "fields": [
+            {
+                "heading": "Endpoint",
+                "type": "textInput",
+                "required": true
+            },
+            {
+                "heading": "Method",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "DELETE"
+                ]
+            },
+            {
+                "heading": "Authentication",
+                "type": "select",
+                "options": [
+                    "none",
+                    "apikey",
+                    "bearer"
+                ]
+            }
+        ],
+        "pins": {
+            "exec_out": "EXEC_OUT",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": false,
+            "exec_out": true,
+            "value_in": false,
+            "value_out": true
+        }
+    },
+    {
+        "id": "readexcel",
+        "label": "Read Excel",
+        "category": "Data",
+        "description": "Load data from an uploaded XLSX/XLS file.",
+        "icon": "FileText",
+        "color": "green",
+        "fields": [
+            {
+                "heading": "File",
+                "type": "file",
+                "required": true,
+                "accept": ".xlsx,.xls"
+            },
+            {
+                "heading": "Sheet",
+                "type": "textInput"
+            },
+            {
+                "heading": "Range",
+                "type": "textInput",
+                "placeholder": "A1:D10"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": false,
+            "value_out": true
+        }
+    },
+    {
+        "id": "condition",
+        "label": "Condition",
+        "category": "Logic",
+        "description": "Binary branching based on comparison of two values.",
+        "icon": "HelpCircle",
+        "color": "yellow",
+        "fields": [
+            {
+                "heading": "Left Value",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in_1"
+            },
+            {
+                "heading": "Operator",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "equal",
+                    "less_than",
+                    "greater_than",
+                    "less_or_equal",
+                    "greater_or_equal",
+                    "not_equal",
+                    "contains"
+                ]
+            },
+            {
+                "heading": "Right Value",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in_2"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out_true": "EXEC_OUT",
+            "exec_out_false": "EXEC_OUT",
+            "value_in_1": "VALUE_IN",
+            "value_in_2": "VALUE_IN"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": false
+        }
+    },
+    {
+        "id": "switchcase",
+        "label": "Switch",
+        "category": "Logic",
+        "description": "Multi-branch conditional routing by matching value to cases.",
+        "icon": "ToggleLeft",
+        "color": "yellow",
+        "fields": [
+            {
+                "heading": "Input",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in"
+            },
+            {
+                "heading": "Default Case",
+                "type": "textInput"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "value_in": "VALUE_IN"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": "dynamic",
+            "value_in": true,
+            "value_out": false
+        }
+    },
+    {
+        "id": "arithmetic",
+        "label": "Arithmetic",
+        "category": "Math",
+        "description": "Apply mathematical operation(s) to inputs.",
+        "icon": "Calculator",
+        "color": "blue",
+        "fields": [
+            {
+                "heading": "Input 1",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in_1"
+            },
+            {
+                "heading": "Operator",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "+",
+                    "-",
+                    "*",
+                    "/",
+                    "%",
+                    "^"
+                ]
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in_1": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": "dynamic",
+            "value_out": true
+        }
+    },
+    {
+        "id": "deconstructor",
+        "label": "Deconstruct",
+        "category": "Data",
+        "description": "Break objects/arrays into individual values.",
+        "icon": "PackageOpen",
+        "color": "purple",
+        "fields": [
+            {
+                "heading": "Mode",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "array",
+                    "object"
+                ]
+            },
+            {
+                "heading": "Input",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in_1"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in_1": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": "dynamic"
+        }
+    },
+    {
+        "id": "iterator",
+        "label": "Iterator",
+        "category": "Data",
+        "description": "Loop over collection elements; emits each item sequentially.",
+        "icon": "Repeat",
+        "color": "green",
+        "fields": [
+            {
+                "heading": "Input",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in"
+            },
+            {
+                "heading": "Order",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "forward",
+                    "reverse"
+                ]
+            },
+            {
+                "heading": "Range Start",
+                "type": "number",
+                "default": 0
+            },
+            {
+                "heading": "Range End",
+                "type": "number"
+            },
+            {
+                "heading": "Cap Iterations",
+                "type": "number",
+                "placeholder": "0 = unlimited"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": true
+        }
+    },
+    {
+        "id": "dbSetup",
+        "label": "Database Setup",
+        "category": "Database",
+        "description": "Store connection settings for later SQL steps.",
+        "icon": "Database",
+        "color": "blue",
+        "fields": [
+            {
+                "heading": "Driver",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "postgres",
+                    "mysql",
+                    "mssql"
+                ]
+            },
+            {
+                "heading": "Host",
+                "type": "textInput",
+                "required": true,
+                "default": "localhost"
+            },
+            {
+                "heading": "Port",
+                "type": "number",
+                "required": true,
+                "default": 5432
+            },
+            {
+                "heading": "Username",
+                "type": "textInput",
+                "required": true
+            },
+            {
+                "heading": "Password",
+                "type": "password",
+                "required": true
+            },
+            {
+                "heading": "Database",
+                "type": "textInput",
+                "required": true
+            },
+            {
+                "heading": "Timeout",
+                "type": "number",
+                "default": 5000
+            },
+            {
+                "heading": "SSL",
+                "type": "select",
+                "options": [
+                    "disable",
+                    "require"
+                ]
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": false,
+            "value_out": false
+        }
+    },
+    {
+        "id": "aggregator",
+        "label": "Aggregator",
+        "category": "Data",
+        "description": "Accumulate multiple values using sum, multiply, min or max.",
+        "icon": "Layers",
+        "color": "purple",
+        "fields": [
+            {
+                "heading": "Operation",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "sum",
+                    "multiply",
+                    "min",
+                    "max"
+                ]
+            },
+            {
+                "heading": "Initial Value",
+                "type": "number"
+            },
+            {
+                "heading": "Accumulated",
+                "type": "number",
+                "readonly": true
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": "dynamic",
+            "exec_out": true,
+            "value_in": "dynamic",
+            "value_out": true
+        }
+    },
+    {
+        "id": "filter",
+        "label": "Filter",
+        "category": "Data",
+        "description": "Filter arrays or object collections by condition.",
+        "icon": "Filter",
+        "color": "blue",
+        "fields": [
+            {
+                "heading": "Input",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in"
+            },
+            {
+                "heading": "Input Type",
+                "type": "select",
+                "required": true,
+                "options": [
+                    {
+                        "label": "Primitive",
+                        "value": "primitive"
+                    },
+                    {
+                        "label": "Object",
+                        "value": "object"
+                    }
+                ]
+            },
+            {
+                "heading": "Property",
+                "type": "textInput",
+                "inPinId": "value_in_1"
+            },
+            {
+                "heading": "Operator",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "equal",
+                    "not_equal",
+                    "contains",
+                    "not_contains",
+                    "greater_than",
+                    "less_than",
+                    "greater_or_equal",
+                    "less_or_equal"
+                ]
+            },
+            {
+                "heading": "Filter Value",
+                "type": "textInput",
+                "inPinId": "value_in_2"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_in_1": "VALUE_IN",
+            "value_in_2": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": "dynamic",
+            "value_out": true
+        }
+    },
+    {
+        "id": "sqlRunner",
+        "label": "SQL Runner",
+        "category": "Database",
+        "description": "Execute SQL query against a configured DB connection.",
+        "icon": "Terminal",
+        "color": "green",
+        "fields": [
+            {
+                "heading": "Query",
+                "type": "textarea",
+                "required": true,
+                "inPinId": "value_in"
+            },
+            {
+                "heading": "Connection",
+                "type": "select",
+                "required": true
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": true
+        }
+    },
+    {
+        "id": "codeRunner",
+        "label": "Code Runner",
+        "category": "Development",
+        "description": "Execute custom code snippet inside Node, Python, or Ruby sandbox.",
+        "icon": "Code2",
+        "color": "purple",
+        "fields": [
+            {
+                "heading": "Environment",
+                "type": "select",
+                "required": true,
+                "options": [
+                    "nodejs",
+                    "python",
+                    "ruby"
+                ]
+            },
+            {
+                "heading": "Code",
+                "type": "textarea",
+                "required": true,
+                "inPinId": "value_in"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": true
+        }
+    },
+    {
+        "id": "delay",
+        "label": "Delay",
+        "category": "Timing",
+        "description": "Pause execution for a fixed duration.",
+        "icon": "Clock3",
+        "color": "yellow",
+        "fields": [
+            {
+                "heading": "Duration (ms)",
+                "type": "number",
+                "required": true,
+                "inPinId": "value_in",
+                "placeholder": "e.g. 5000"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": true,
+            "value_out": false
+        }
+    },
+    {
+        "id": "mapper",
+        "label": "Mapper",
+        "category": "Data",
+        "description": "Transform an object/array by mapping or renaming keys.",
+        "icon": "ListOrdered",
+        "color": "blue",
+        "fields": [
+            {
+                "heading": "Input",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in"
+            },
+            {
+                "heading": "Rule 1",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in_1",
+                "placeholder": "e.g. name->fullName"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_in_1": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": true,
+            "exec_out": true,
+            "value_in": "dynamic",
+            "value_out": true
+        }
+    },
+    {
+        "id": "slacktrigger",
+        "label": "Slack Trigger",
+        "category": "Communication",
+        "description": "Start workflow on Slack message or event.",
+        "icon": "Slack",
+        "color": "purple",
+        "fields": [
+            {
+                "heading": "Connection",
+                "type": "select",
+                "required": true
+            },
+            {
+                "heading": "Channel",
+                "type": "select",
+                "required": true
+            }
+        ],
+        "pins": {
+            "exec_out": "EXEC_OUT",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": false,
+            "exec_out": true,
+            "value_in": false,
+            "value_out": true
+        }
+    },
+    {
+        "id": "connector",
+        "label": "Connector",
+        "category": "Flow",
+        "description": "Wait for multiple execs then continue; optionally label each branch.",
+        "icon": "Plug",
+        "color": "gray",
+        "fields": [
+            {
+                "heading": "Case_0",
+                "type": "textInput"
+            },
+            {
+                "heading": "Case_1",
+                "type": "textInput"
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_in_1": "EXEC_IN",
+            "exec_out": "EXEC_OUT"
+        },
+        "pinStructure": {
+            "exec_in": "dynamic",
+            "exec_out": true,
+            "value_in": false,
+            "value_out": false
+        }
+    }
+]

@@ -1,5 +1,5 @@
 import { NodeProps } from 'reactflow';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FiDownload, FiFileText } from 'react-icons/fi';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
@@ -25,45 +25,109 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
     lastExport: null
   });
 
+  // Update node fields in the React Flow graph
+  const updateNodeFields = useCallback((updatedConfig: CSVWriterConfig) => {
+    if (!data.setNodes) return;
+
+    const updatedFields = [
+      {
+        type: 'text',
+        heading: 'File Name',
+        value: updatedConfig.fileName,
+        inPinId: 'value_in_1',
+        required: true,
+        shouldRender: true,
+      },
+      {
+        type: 'checkbox',
+        heading: 'Include Header',
+        value: updatedConfig.includeHeader,
+        inPinId: 'value_in_2',
+        required: false,
+        shouldRender: true,
+      },
+      {
+        type: 'select',
+        heading: 'Delimiter',
+        value: updatedConfig.delimiter,
+        options: [
+          { label: 'Comma (,)', value: ',' },
+          { label: 'Semicolon (;)', value: ';' },
+          { label: 'Tab (\t)', value: '\t' },
+          { label: 'Pipe (|)', value: '|' },
+        ],
+        inPinId: 'value_in_3',
+        required: true,
+        shouldRender: true,
+      },
+    ];
+
+    data.setNodes((nodes: any[]) =>
+      nodes.map((n: any) =>
+        n.id === id
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                details: { ...n.data.details, fields: updatedFields },
+                exportFields: ['File Name', 'Include Header', 'Delimiter'],
+              },
+            }
+          : n
+      )
+    );
+  }, [data.setNodes, id]);
+
   // Initialize node data
   useEffect(() => {
-    if (!data.setFieldValue || !data.details) return;
+    if (!data.setNodes) return;
 
-    const setFieldValue = (heading: string, value: any) => {
-      data.setFieldValue?.(heading, value);
-      clearValidationForDominoId(id);
-    };
+    // Only initialize if fields don't exist yet
+    if (!data.details?.fields || data.details.fields.length === 0) {
+      updateNodeFields(config);
+    } else {
+      // Update local state from existing node data
+      const fields = data.details.fields || [];
+      const getFieldValue = (heading: string, defaultValue: any) => 
+        fields.find((f: any) => f.heading === heading)?.value ?? defaultValue;
 
-    // Set initial values if they exist in node data
-    if (data.details['File Name']) {
-      setConfig(prev => ({
-        ...prev,
-        fileName: data.details['File Name'] || 'export',
-        includeHeader: data.details['Include Header'] !== false,
-        delimiter: data.details['Delimiter'] || ',',
-        data: data.details['Data'] || []
-      }));
+      setConfig({
+        fileName: getFieldValue('File Name', config.fileName),
+        includeHeader: getFieldValue('Include Header', config.includeHeader),
+        delimiter: getFieldValue('Delimiter', config.delimiter),
+        data: config.data, // Keep existing data
+        lastExport: config.lastExport, // Keep existing lastExport
+      });
     }
-  }, [data, id]);
+  }, [data.details?.fields, data.setNodes, id, updateNodeFields]);
 
   // Handle field changes
+  const handleFileNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newConfig = { ...config, fileName: e.target.value };
+    setConfig(newConfig);
+    updateNodeFields(newConfig);
+    clearValidationForDominoId(id);
+  };
+
+  const handleIncludeHeaderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newConfig = { ...config, includeHeader: e.target.checked };
+    setConfig(newConfig);
+    updateNodeFields(newConfig);
+    clearValidationForDominoId(id);
+  };
+
+  const handleDelimiterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newConfig = { ...config, delimiter: e.target.value };
+    setConfig(newConfig);
+    updateNodeFields(newConfig);
+    clearValidationForDominoId(id);
+  };
+
+  // Alias for handleFieldChange to maintain compatibility with existing code
   const handleFieldChange = (field: keyof CSVWriterConfig, value: any) => {
-    const update = { [field]: value };
-    setConfig(prev => ({
-      ...prev,
-      ...update
-    }));
-    
-    // Update the corresponding field in the node data
-    const fieldMap: Record<string, string> = {
-      fileName: 'File Name',
-      includeHeader: 'Include Header',
-      delimiter: 'Delimiter',
-      data: 'Data'
-    };
-    
-    const fieldName = fieldMap[field] || field;
-    data.setFieldValue?.(fieldName, value);
+    const newConfig = { ...config, [field]: value };
+    setConfig(newConfig);
+    updateNodeFields(newConfig);
     clearValidationForDominoId(id);
   };
 
