@@ -261,9 +261,58 @@ export default function Canvas(props: CanvasProps) {
     e.preventDefault(); e.dataTransfer.dropEffect = "move";
   };
 
+
+  // find all suggested nodes
+  const suggestedNodes = useMemo(
+    () => nodes.filter(n => n.data?.suggested),
+    [nodes]
+  );
+
+  // Accept all suggested dominoes
+  const acceptAllSuggestions = useCallback(() => {
+    setNodes(nds =>
+      nds.map(n =>
+        n.data?.suggested
+          ? { ...n, data: { ...n.data, suggested: false } }
+          : n
+      )
+    );
+  }, [setNodes]);
+
+  // Reject (remove) all suggested dominoes  their edges
+  const rejectAllSuggestions = useCallback(() => {
+    const toRemove = new Set(suggestedNodes.map(n => n.id));
+    setNodes(nds => nds.filter(n => !toRemove.has(n.id)));
+    setEdges(eds =>
+      eds.filter(e => !toRemove.has(e.source) && !toRemove.has(e.target))
+    );
+  }, [setNodes, setEdges, suggestedNodes]);
+
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   return (
     <div className="relative w-full h-full">
+      
+      {/* ─── accept/reject ALL suggestions ─── */}
+      {suggestedNodes.length > 0 && (
+        <div
+          className="absolute top-2 z-20 flex gap-2"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <button
+            onClick={acceptAllSuggestions}
+            className="px-2 py-1 bg-green-600 text-white rounded text-sm shadow"
+          >
+            Accept All
+          </button>
+          <button
+            onClick={rejectAllSuggestions}
+            className="px-2 py-1 bg-red-600 text-white rounded text-sm shadow"
+          >
+            Reject All
+          </button>
+        </div>
+      )}
+
       <ReactFlow
         id={id}
         nodes={renderedNodes}

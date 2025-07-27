@@ -1,62 +1,403 @@
 {
+  "edges": [
+    {
+      "id": "reactflow__edge-emailsender-1753652015555exec_out-apicall-1753652053277exec_in",
+      "source": "emailsender-1753652015555",
+      "target": "apicall-1753652053277",
+      "sourceHandle": "exec_out",
+      "targetHandle": "exec_in"
+    },
+    {
+      "id": "reactflow__edge-apitrigger-1753655076164exec_out-emailsender-1753652015555exec_in",
+      "source": "apitrigger-1753655076164",
+      "target": "emailsender-1753652015555",
+      "sourceHandle": "exec_out",
+      "targetHandle": "exec_in"
+    },
+    {
+      "id": "reactflow__edge-apicall-1753652053277exec_out-readexcel-1753655088303exec_in",
+      "source": "apicall-1753652053277",
+      "target": "readexcel-1753655088303",
+      "sourceHandle": "exec_out",
+      "targetHandle": "exec_in"
+    },
+    {
+      "id": "reactflow__edge-apicall-1753652053277value_out-readexcel-1753655088303value_in",
+      "source": "apicall-1753652053277",
+      "target": "readexcel-1753655088303",
+      "sourceHandle": "value_out",
+      "targetHandle": "value_in"
+    },
+    {
+      "id": "reactflow__edge-readexcel-1753655088303exec_out-switchcase-1753655103027exec_in",
+      "source": "readexcel-1753655088303",
+      "target": "switchcase-1753655103027",
+      "sourceHandle": "exec_out",
+      "targetHandle": "exec_in"
+    },
+    {
+      "id": "reactflow__edge-readexcel-1753655088303value_out-switchcase-1753655103027value_in_2",
+      "source": "readexcel-1753655088303",
+      "target": "switchcase-1753655103027",
+      "sourceHandle": "value_out",
+      "targetHandle": "value_in_2"
+    },
+    {
+      "id": "reactflow__edge-switchcase-1753655103027exec_out_2-response-1753655116726exec_in",
+      "source": "switchcase-1753655103027",
+      "target": "response-1753655116726",
+      "sourceHandle": "exec_out_2",
+      "targetHandle": "exec_in"
+    },
+    {
+      "id": "reactflow__edge-switchcase-1753655103027exec_out_default-print-1753655123856exec_in",
+      "source": "switchcase-1753655103027",
+      "target": "print-1753655123856",
+      "sourceHandle": "exec_out_default",
+      "targetHandle": "exec_in"
+    },
+    {
+      "id": "reactflow__edge-readexcel-1753655088303value_out-print-1753655123856value_in",
+      "source": "readexcel-1753655088303",
+      "target": "print-1753655123856",
+      "sourceHandle": "value_out",
+      "targetHandle": "value_in"
+    }
+  ],
   "nodes": [
     {
-      "id": "switch-1",
-      "type": "switchcase",
-      "position": { "x": 200, "y": 150 },
+      "id": "emailsender-1753652015555",
       "data": {
+        "label": "emailsender node",
+        "value": "",
         "details": {
           "fields": [
-            { "heading": "Case_Default", "value": "DefaultVal" },
-            { "heading": "Case_1",       "value": "One" },
-            { "heading": "Case_2",       "value": "Two" }
+            {
+              "type": "textInput",
+              "value": "",
+              "heading": "From",
+              "inPinId": "value_in_1",
+              "required": true,
+              "shouldRender": false,
+              "connectedValue": ""
+            },
+            {
+              "type": "textInput",
+              "value": "",
+              "heading": "To",
+              "inPinId": "value_in_2",
+              "required": true,
+              "shouldRender": false,
+              "connectedValue": ""
+            },
+            {
+              "type": "textInput",
+              "value": "",
+              "heading": "Subject",
+              "inPinId": "value_in_3",
+              "required": false,
+              "shouldRender": false,
+              "connectedValue": ""
+            },
+            {
+              "type": "textArea",
+              "value": "",
+              "heading": "Body",
+              "inPinId": "value_in_4",
+              "required": true,
+              "shouldRender": false,
+              "connectedValue": ""
+            }
           ]
         },
-        "suggested": true
+        "selected": false,
+        "workflowId": "c741851d-4950-490a-a9d5-c65123a12d03",
+        "exportFields": [
+          "From",
+          "To",
+          "Subject",
+          "Body"
+        ]
+      },
+      "type": "emailsender",
+      "position": {
+        "x": -29.858049138209765,
+        "y": 248.44275519469568
       }
     },
     {
-      "id": "print-1",
-      "type": "print",
-      "position": { "x": 450, "y": 150 },
+      "id": "apicall-1753652053277",
       "data": {
+        "label": "apicall node",
+        "value": "",
         "details": {
+          "type": "ApiCall",
           "fields": [
-            { "heading": "Message", "value": "Hello from Switch!" }
-          ]
+            {
+              "type": "textInput",
+              "value": "",
+              "heading": "Url",
+              "inPinId": "value_in",
+              "outPinId": "value_out",
+              "required": true,
+              "placeholder": "https://api.example.com"
+            },
+            {
+              "type": "dropdown",
+              "value": "GET",
+              "heading": "Method",
+              "options": [
+                {
+                  "label": "GET",
+                  "value": "GET"
+                },
+                {
+                  "label": "POST",
+                  "value": "POST"
+                },
+                {
+                  "label": "PUT",
+                  "value": "PUT"
+                },
+                {
+                  "label": "DELETE",
+                  "value": "DELETE"
+                }
+              ],
+              "required": true
+            },
+            {
+              "type": "json",
+              "value": {},
+              "heading": "Headers"
+            },
+            {
+              "type": "json",
+              "value": {},
+              "heading": "Body"
+            }
+          ],
+          "description": "Sends an HTTP request."
         },
-        "suggested": true
-      }
-    },
-    {
-      "id": "api-1",
+        "selected": false,
+        "workflowId": "c741851d-4950-490a-a9d5-c65123a12d03",
+        "exportFields": [
+          "Url",
+          "Method",
+          "Headers",
+          "Body"
+        ]
+      },
       "type": "apicall",
-      "position": { "x": 450, "y": 300 },
+      "position": {
+        "x": 312.4083360016234,
+        "y": 258.6784322694864
+      }
+    },
+    {
+      "id": "apitrigger-1753655076164",
       "data": {
+        "label": "apitrigger node",
+        "value": "",
+        "details": {
+          "type": "ApiTrigger",
+          "fields": [
+            {
+              "type": "copy",
+              "value": "http://localhost:3001/api/v1/workflow/c741851d-4950-490a-a9d5-c65123a12d03/trigger/",
+              "heading": "Api Url",
+              "required": true
+            },
+            {
+              "type": "textInput",
+              "value": "",
+              "heading": "Function",
+              "required": true,
+              "placeholder": "Enter trigger name…"
+            },
+            {
+              "type": "checkbox",
+              "value": false,
+              "heading": "Require File Upload"
+            },
+            {
+              "type": "checkbox",
+              "value": false,
+              "heading": "Require Body"
+            }
+          ],
+          "isTrigger": true,
+          "description": "Invoke this workflow via HTTP using the generated URL."
+        },
+        "selected": false,
+        "workflowId": "c741851d-4950-490a-a9d5-c65123a12d03",
+        "exportFields": [
+          "Function",
+          "Require File Upload",
+          "Require Body"
+        ]
+      },
+      "type": "apitrigger",
+      "position": {
+        "x": -327.27615109072497,
+        "y": 269.949730587515
+      }
+    },
+    {
+      "id": "readexcel-1753655088303",
+      "data": {
+        "label": "readexcel node",
+        "value": "",
+        "details": {
+          "type": "Read Excel",
+          "fields": [
+            {
+              "type": "file",
+              "heading": "File",
+              "inPinId": "value_in",
+              "required": true,
+              "needsUpload": true,
+              "connectedPin": "value_out",
+              "shouldRender": false,
+              "connectedValue": "apicall-1753652053277",
+              "exportOverride": "file"
+            }
+          ],
+          "description": "Reads data from an Excel file"
+        },
+        "selected": false,
+        "workflowId": "c741851d-4950-490a-a9d5-c65123a12d03",
+        "exportFields": [
+          "File"
+        ],
+        "valueConnected": true
+      },
+      "type": "readexcel",
+      "position": {
+        "x": 628.4566863836434,
+        "y": 350.67945214985605
+      }
+    },
+    {
+      "id": "switchcase-1753655103027",
+      "data": {
+        "label": "switchcase node",
+        "value": "",
         "details": {
           "fields": [
-            { "heading": "url",    "value": "https://api.example.com/data" },
-            { "heading": "method", "value": "GET" }
+            {
+              "type": "text",
+              "heading": "Input",
+              "inPinId": "value_in",
+              "required": true,
+              "shouldRender": false
+            },
+            {
+              "value": "",
+              "heading": "Case_Default",
+              "required": false,
+              "shouldRender": false
+            },
+            {
+              "value": "esfwwef",
+              "heading": "Case_1",
+              "inPinId": "value_in_1",
+              "required": true,
+              "shouldRender": false
+            },
+            {
+              "heading": "Case_2",
+              "inPinId": "value_in_2",
+              "required": true,
+              "connectedPin": "value_out",
+              "shouldRender": false,
+              "connectedValue": "readexcel-1753655088303"
+            }
           ]
         },
+        "selected": false,
+        "workflowId": "c741851d-4950-490a-a9d5-c65123a12d03",
+        "exportFields": [
+          "Input",
+          "Case_Default",
+          "Case_1",
+          "Case_2"
+        ],
+        "valueConnected": true
+      },
+      "type": "switchcase",
+      "position": {
+        "x": 821.465174077808,
+        "y": 247.6546512860789
+      }
+    },
+    {
+      "id": "response-1753655116726",
+      "data": {
+        "label": "response node",
+        "value": "",
+        "details": {
+          "type": "Response",
+          "fields": [
+            {
+              "type": "textInput",
+              "value": "",
+              "heading": "Response",
+              "inPinId": "value_in",
+              "required": true,
+              "placeholder": "Response value…"
+            }
+          ],
+          "description": "Terminates and returns result/output of workflow"
+        },
+        "selected": true,
+        "isTerminal": true,
+        "workflowId": "c741851d-4950-490a-a9d5-c65123a12d03",
+        "exportFields": [
+          "Response"
+        ],
         "suggested": true
+      },
+      "type": "response",
+      "position": {
+        "x": 1140.4710602360474,
+        "y": 457.86590441907595
+      }
+    },
+    {
+      "id": "print-1753655123856",
+      "data": {
+        "label": "print node",
+        "value": "",
+        "details": {
+          "type": "Print",
+          "fields": [
+            {
+              "type": "textInput",
+              "heading": "Text",
+              "inPinId": "value_in",
+              "required": true,
+              "placeholder": "What to print …",
+              "connectedPin": "value_out",
+              "connectedValue": "readexcel-1753655088303"
+            }
+          ],
+          "description": "This domino prints a given value."
+        },
+        "selected": false,
+        "workflowId": "c741851d-4950-490a-a9d5-c65123a12d03",
+        "exportFields": [
+          "Text"
+        ],
+        "valueConnected": true,
+        "suggested": true
+      },
+      "type": "print",
+      "position": {
+        "x": 1130.3239627208984,
+        "y": 94.59981337673422
       }
     }
   ],
-  "edges": [
-    {
-      "id": "e-switch-print",
-      "source": "switch-1",
-      "sourceHandle": "exec_out_default",
-      "target": "print-1",
-      "targetHandle": "exec_in"
-    },
-    {
-      "id": "e-switch-api",
-      "source": "switch-1",
-      "sourceHandle": "exec_out_1",
-      "target": "api-1",
-      "targetHandle": "exec_in"
-    }
-  ]
+  "workflowId": "c741851d-4950-490a-a9d5-c65123a12d03"
 }

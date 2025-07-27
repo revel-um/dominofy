@@ -42,15 +42,15 @@ export default function DominofyLayout({ workflow }: Props) {
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     // on mount, load your fake JSON
-    // useEffect(() => {
-    //     // only run in dev so you don’t clobber real data:
-    //     if (process.env.NODE_ENV !== 'development') return;
+    useEffect(() => {
+        // only run in dev so you don’t clobber real data:
+        if (process.env.NODE_ENV !== 'development') return;
 
-    //     // fakeWorkflow should look like:
-    //     // { nodes: [{ id, type, position, data: { details:{fields}, suggested, … } }], edges: […] }
-    //     setNodes(fakeworkflow.nodes);
-    //     setEdges(fakeworkflow.edges);
-    // }, [setNodes, setEdges]);
+        // fakeWorkflow should look like:
+        // { nodes: [{ id, type, position, data: { details:{fields}, suggested, … } }], edges: […] }
+        setNodes(fakeworkflow.nodes);
+        setEdges(fakeworkflow.edges);
+    }, [setNodes, setEdges]);
 
     const [workflowId, setWorkflowId] = useState<string>();
     const [logs, setLogs] = useState<WorkflowLog[]>([]);
@@ -88,56 +88,56 @@ export default function DominofyLayout({ workflow }: Props) {
 
     const selectedNode = nodes.find(n => n.selected);
 
-    useEffect(() => {
-        const hydrateWorkflow = async () => {
-            if (workflow) {
-                importWorkflow(JSON.stringify(workflow.visualJson), setNodes, setEdges, setWorkflowId, workflow.id, { setNodes, updatePipeline });
-                setLoading(false);
-                return;
-            }
-            if (!id || typeof window === 'undefined') return;
+    // useEffect(() => {
+    //     const hydrateWorkflow = async () => {
+    //         if (workflow) {
+    //             importWorkflow(JSON.stringify(workflow.visualJson), setNodes, setEdges, setWorkflowId, workflow.id, { setNodes, updatePipeline });
+    //             setLoading(false);
+    //             return;
+    //         }
+    //         if (!id || typeof window === 'undefined') return;
 
-            const cached = sessionStorage.getItem('workflow-cache');
-            if (cached) {
-                try {
-                    const parsed = JSON.parse(cached);
-                    if (parsed?.id === id) {
-                        importWorkflow(JSON.stringify(parsed.visualJson), setNodes, setEdges, setWorkflowId, parsed.id, { setNodes, updatePipeline });
-                        setLoading(false);
-                        return;
-                    }
-                    sessionStorage.removeItem('workflow-cache');
-                } catch {
-                    console.warn('Invalid workflow in sessionStorage');
-                    sessionStorage.removeItem('workflow-cache');
-                }
-            }
+    //         const cached = sessionStorage.getItem('workflow-cache');
+    //         if (cached) {
+    //             try {
+    //                 const parsed = JSON.parse(cached);
+    //                 if (parsed?.id === id) {
+    //                     importWorkflow(JSON.stringify(parsed.visualJson), setNodes, setEdges, setWorkflowId, parsed.id, { setNodes, updatePipeline });
+    //                     setLoading(false);
+    //                     return;
+    //                 }
+    //                 sessionStorage.removeItem('workflow-cache');
+    //             } catch {
+    //                 console.warn('Invalid workflow in sessionStorage');
+    //                 sessionStorage.removeItem('workflow-cache');
+    //             }
+    //         }
 
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) return router.push('/auth');
-                const response = await WorkflowsApi.getWorkflowById(id as string, token, router);
-                if (response?.ok) {
-                    const json = await response.json();
-                    importWorkflow(JSON.stringify(json.visualJson), setNodes, setEdges, setWorkflowId, json.id, { setNodes, updatePipeline });
-                } else {
-                    router.push('/error');
-                }
-            } catch (err) {
-                console.error('Error loading workflow:', err);
-                router.push('/error');
-            } finally {
-                setLoading(false);
-            }
-        };
-        hydrateWorkflow();
-    }, [id, workflow]);
+    //         try {
+    //             const token = localStorage.getItem('token');
+    //             if (!token) return router.push('/auth');
+    //             const response = await WorkflowsApi.getWorkflowById(id as string, token, router);
+    //             if (response?.ok) {
+    //                 const json = await response.json();
+    //                 importWorkflow(JSON.stringify(json.visualJson), setNodes, setEdges, setWorkflowId, json.id, { setNodes, updatePipeline });
+    //             } else {
+    //                 router.push('/error');
+    //             }
+    //         } catch (err) {
+    //             console.error('Error loading workflow:', err);
+    //             router.push('/error');
+    //         } finally {
+    //             setLoading(false);
+    //         }
+    //     };
+    //     hydrateWorkflow();
+    // }, [id, workflow]);
 
-    if (loading) {
-        return (
-            <div className="w-screen h-screen flex items-center justify-center text-xl">Loading workflow...</div>
-        );
-    }
+    // if (loading) {
+    //     return (
+    //         <div className="w-screen h-screen flex items-center justify-center text-xl">Loading workflow...</div>
+    //     );
+    // }
 
     return (
         <SSEProvider>
