@@ -33,6 +33,7 @@ interface WorkflowToolbarProps {
   };
   getNodes: () => Node[];
   getEdges: () => Edge[];
+  openLogsPanel?: () => void;
 }
 
 const TOOLBAR_HEIGHT = 56;
@@ -43,6 +44,7 @@ export default function WorkflowToolbar({
   workflow,
   getNodes,
   getEdges,
+  openLogsPanel,
 }: WorkflowToolbarProps) {
   const router = useRouter();
   const { setValidationErrors } = useDomino();
@@ -118,6 +120,7 @@ export default function WorkflowToolbar({
   }, [workflow.id, getNodes, getEdges, router]);
 
   const onRun = useCallback(async () => {
+    if (openLogsPanel) openLogsPanel();
     if (!isWorkflowValid() || !workflow.id) return false;
     const exported = exportWorkflow(getNodes(), getEdges(), workflow.id);
     const token = localStorage.getItem('token') || '';
@@ -130,7 +133,7 @@ export default function WorkflowToolbar({
     } catch {
       return false;
     }
-  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE]);
+  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE, openLogsPanel]);
 
   const onDeploy = useCallback(() => {
     if (isWorkflowValid()) alert('Deploying...');
