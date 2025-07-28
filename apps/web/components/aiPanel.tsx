@@ -22,8 +22,7 @@ interface Props {
     getEdges: () => Edge[];
 }
 
-
-export default function AIPanelDocked({ isOpen, width, onClose,setEdges, setNodes, getNodes, getEdges }: Props) {
+export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNodes, getNodes, getEdges }: Props) {
 
     const [inputValue, setInputValue] = useState('');
     const [messages, setMessages] = useState<Message[]>([{
@@ -33,13 +32,15 @@ export default function AIPanelDocked({ isOpen, width, onClose,setEdges, setNode
         timestamp: new Date(),
     }]);
 
-    // const [accept, setAccept] = useState("");
-
     // find all suggested nodes
     const suggestedNodes = useMemo(
         () => getNodes().filter(n => n.data?.suggested),
         [getNodes()]
     );
+    
+    // 📦 keep a ref to the “real” nodes/edges before injecting fake
+    const origNodesRef = useRef<Node[]>([]);
+    const origEdgesRef = useRef<Edge[]>([]);
 
     // Accept all suggested dominoes
     const acceptAllSuggestions = useCallback(() => {
@@ -54,11 +55,10 @@ export default function AIPanelDocked({ isOpen, width, onClose,setEdges, setNode
 
     // Reject (remove) all suggested dominoes  their edges
     const rejectAllSuggestions = useCallback(() => {
-        const toRemove = new Set(suggestedNodes.map(n => n.id));
-        setNodes(nds => nds.filter(n => !toRemove.has(n.id)));
-        setEdges(eds => eds.filter(e => !toRemove.has(e.source) && !toRemove.has(e.target))
-        );
-    }, [setNodes, setEdges, suggestedNodes]);
+        // simply restore the pre-suggestion state
+        setNodes(origNodesRef.current);
+        setEdges(origEdgesRef.current);
+    }, [setNodes, setEdges]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -84,54 +84,22 @@ export default function AIPanelDocked({ isOpen, width, onClose,setEdges, setNode
             setMessages(prev => [...prev, aiMessage]);
 
             if (aiMessage.content.includes('suggested')) {
-                // setAccept("true");
-
+                // Capture current workflow before injecting suggestions
+                origNodesRef.current = getNodes();
+                origEdgesRef.current = getEdges(); {
                 // Here you would handle the AI's suggestion, e.g., updating nodes/edges
                 // setNodes([...]); // Update nodes based on AI suggestion
                 // setEdges([...]); // Update edges based on AI suggestion
                 setNodes(fakeworkflow.nodes);
                 setEdges(fakeworkflow.edges);
             }
+        }
         }, 800);
     };
 
     useEffect(() => {
         if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isOpen]);
-
-    // const fakeWf = {
-    //     id:        'fake-workflow',
-    //     isActive:  false,
-    //     createdAt: new Date(),
-    //     updatedAt: new Date(),
-    //     name:      '🌱 Fake Workflow',
-    //     visualJson: {
-    //         nodes: fakeworkflow.nodes,
-    //         edges: fakeworkflow.edges,
-    //     },
-    //     isPublished: false,
-    //     isDefault:   false,
-    // };
-
-    // on mount, load your fake JSON
-    // useEffect(() => {
-    //     // only run in dev so you don’t clobber real data:
-    //     if (process.env.NODE_ENV !== 'development') return;
-    //     if (!accept) return;
-
-    //     // fakeWorkflow should look like:
-    //     // { nodes: [{ id, type, position, data: { details:{fields}, suggested, … } }], edges: […] }
-    //     // 1️⃣ slap the raw nodes/edges into your graph
-        
-    //     setNodes(fakeworkflow.nodes);
-    //     setEdges(fakeworkflow.edges);
-
-    //     // 2️⃣ We dont need to set workflow since its on same workflow
-
-    //     // 3️⃣ if you have a `loading` guard, disable it now:
-    //     // setLoading(false);
-
-    // }, [accept]);
 
     if (!isOpen) return null;
 

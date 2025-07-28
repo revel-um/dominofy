@@ -8,9 +8,6 @@ import { useDomino } from '../contexts/dominoContext';
 
 export default function PrintDomino({ data, id, selected }: NodeProps) {
 
-  // Ghost/shadow mode for AI-suggested dominos
-  const isGhost = data.suggested === true;
-
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const textField = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text');
@@ -99,12 +96,6 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
             : 'unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
     style={{ minWidth: '13rem' }}
-    // style={{
-    //     minWidth: '13rem',
-    //     opacity: isGhost ? 0.4 : 1,
-    //     filter: isGhost ? 'drop-shadow(0 0 8px rgba(0,0,0,0.5))' : undefined,
-    //     pointerEvents: isGhost ? 'none' : undefined,
-    //   }}
     >
       {/* Header with exec pins */}
       <div
