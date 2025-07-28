@@ -203,6 +203,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                                     selectedNode={selectedNode}
                                     getNodes={() => nodes}
                                     getEdges={() => edges}
+                                    setNodes={setNodes}
+                                    setEdges={setEdges}
                                 />
                             </ReactFlowProvider>
 
