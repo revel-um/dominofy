@@ -19,7 +19,7 @@ interface Props {
   bottomOffset?: number;
 }
 
-export default function DetailsPanel({ selectedNode, bottomOffset = 60, setEdges, setNodes }: Props) {
+export default function DetailsPanel({ selectedNode, bottomOffset = 60, setEdges, setNodes, getEdges, getNodes }: Props) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [isDetailsOpen, setIsDetailsOpen] = useState(!!selectedNode);
   const [isAIOpen, setIsAIOpen] = useState(false);
@@ -129,6 +129,8 @@ export default function DetailsPanel({ selectedNode, bottomOffset = 60, setEdges
           }}
           setEdges={setEdges} 
           setNodes={setNodes}
+          getNodes={getNodes}
+          getEdges={getEdges}
         />
       )}
 

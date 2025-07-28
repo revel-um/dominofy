@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FiSend } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
 import fakeworkflow from '../pages/fakeWorkflow.json';
@@ -18,9 +18,12 @@ interface Props {
     onClose: () => void;
     setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
     setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+    getNodes: () => Node[];
+    getEdges: () => Edge[];
 }
 
-export default function AIPanelDocked({ isOpen, width, onClose,setEdges, setNodes }: Props) {
+
+export default function AIPanelDocked({ isOpen, width, onClose,setEdges, setNodes, getNodes, getEdges }: Props) {
 
     const [inputValue, setInputValue] = useState('');
     const [messages, setMessages] = useState<Message[]>([{
@@ -31,6 +34,31 @@ export default function AIPanelDocked({ isOpen, width, onClose,setEdges, setNode
     }]);
 
     // const [accept, setAccept] = useState("");
+
+    // find all suggested nodes
+    const suggestedNodes = useMemo(
+        () => getNodes().filter(n => n.data?.suggested),
+        [getNodes()]
+    );
+
+    // Accept all suggested dominoes
+    const acceptAllSuggestions = useCallback(() => {
+        setNodes(nds =>
+        nds.map(n =>
+            n.data?.suggested
+            ? { ...n, data: { ...n.data, suggested: false } }
+            : n
+        )
+        );
+    }, [setNodes]);
+
+    // Reject (remove) all suggested dominoes  their edges
+    const rejectAllSuggestions = useCallback(() => {
+        const toRemove = new Set(suggestedNodes.map(n => n.id));
+        setNodes(nds => nds.filter(n => !toRemove.has(n.id)));
+        setEdges(eds => eds.filter(e => !toRemove.has(e.source) && !toRemove.has(e.target))
+        );
+    }, [setNodes, setEdges, suggestedNodes]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -149,6 +177,26 @@ export default function AIPanelDocked({ isOpen, width, onClose,setEdges, setNode
                         <FiSend size={18} />
                     </button>
                 </div>
+                
+                {/* ─── accept/reject ALL suggestions ─── */}
+                {suggestedNodes.length > 0 && (
+                    <div className="relative top-2 z-20 flex gap-2"
+                    style={{ pointerEvents: 'auto' }}
+                    >
+                    <button
+                        onClick={acceptAllSuggestions}
+                        className="px-2 py-1 bg-green-600 text-white rounded text-sm shadow"
+                    >
+                        Accept All
+                    </button>
+                    <button
+                        onClick={rejectAllSuggestions}
+                        className="px-2 py-1 bg-red-600 text-white rounded text-sm shadow"
+                    >
+                        Reject All
+                    </button>
+                    </div>
+                )}
             </form>
         </div>
     );
