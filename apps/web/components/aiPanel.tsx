@@ -136,7 +136,10 @@ export default function AIPanelDocked({ isOpen, width, onClose,setEdges, setNode
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder="Ask me anything..."
-                        className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-dominofy-light-background dark:bg-dominofy-dark-background"
+                        className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600
+                            bg-dominofy-light-background dark:bg-dominofy-dark-background
+                            text-dominofy-light-text dark:text-dominofy-dark-text
+                            focus:outline-none focus:ring-2 focus:ring-dominofy-light-accent/50 dark:focus:ring-dominofy-dark-accent/50"
                     />
                     <button
                         type="submit"
