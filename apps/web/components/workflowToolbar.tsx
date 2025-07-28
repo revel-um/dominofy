@@ -191,14 +191,6 @@ export default function WorkflowToolbar({
   /* cleanup */
   useEffect(() => () => stopSSE(), [stopSSE]);
 
-  /* save button colors */
-  const saveCls =
-    saveStatus === 'success'
-      ? 'bg-emerald-600 text-white'
-      : saveStatus === 'error'
-        ? 'bg-red-500 text-white'
-        : 'bg-[var(--secondary)] text-[var(--text-secondary)]';
-
   return (
     <>
       {/* ───────── Toolbar ───────── */}
