@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import ReactFlow, {
   addEdge,
   Background,
@@ -100,6 +100,19 @@ export default function Canvas(props: CanvasProps) {
 
   const router = useRouter();
   const { setConnectionErrors, clearValidationForDominoId } = useDomino();
+
+  // just inside Canvas(), before any hooks:
+  const undoStack = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
+  const redoStack = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
+
+  // helper to snapshot the current graph
+  const pushHistory = useCallback(() => {
+    // limit to last 50  
+    undoStack.current.push({ nodes, edges });
+    if (undoStack.current.length > 50) undoStack.current.shift();
+    // once you make a new edit, clear the “redo” branch
+    redoStack.current = [];
+  }, [nodes, edges]);
 
   /* fade suggestion nodes */
   const renderedNodes = useMemo(
@@ -240,6 +253,7 @@ export default function Canvas(props: CanvasProps) {
   );
 
   const handleEdgesChange = (c: EdgeChange[]) => {
+    pushHistory(); // save current state before changes
     internalEdgeChange(c);
     onEdgesChange?.(c);
   };
@@ -250,6 +264,7 @@ export default function Canvas(props: CanvasProps) {
     [],
   );
   const handleNodesChange = (c: NodeChange[]) => {
+    pushHistory(); // save current state before changes
     internalNodeChange(c);
     onNodesChange?.(c);
   };
@@ -259,9 +274,61 @@ export default function Canvas(props: CanvasProps) {
     e.preventDefault(); e.dataTransfer.dropEffect = "move";
   };
 
+  const undo = useCallback(() => {
+    if (!undoStack.current.length) return;
+    // move current state into redo stack
+    redoStack.current.push({ nodes, edges });
+    // pop last from undo, restore it
+    const prev = undoStack.current.pop()!;
+    setNodes(prev.nodes);
+    setEdges(prev.edges);
+  }, [nodes, edges, setNodes, setEdges]);
+
+  const redo = useCallback(() => {
+    if (!redoStack.current.length) return;
+    // move current state into undo stack
+    undoStack.current.push({ nodes, edges });
+    // pop last redo state, restore it
+    const next = redoStack.current.pop()!;
+    setNodes(next.nodes);
+    setEdges(next.edges);
+  }, [nodes, edges, setNodes, setEdges]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const z = e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey);
+      const y = e.key.toLowerCase() === 'y' && (e.ctrlKey || e.metaKey);
+      if (z && !e.shiftKey) {
+        undo(); e.preventDefault();
+      } else if ((y) || (z && e.shiftKey)) {
+        redo(); e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo]);
+
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   return (
     <div className="relative w-full h-full">
+
+      {/* ─── Undo/Redo Controls ─── */}
+      <div className="absolute top-2 left-2 z-20 flex gap-2">
+        <button
+          onClick={undo}
+          disabled={!undoStack.current.length}
+          className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm"
+        >
+          Undo
+        </button>
+        <button
+          onClick={redo}
+          disabled={!redoStack.current.length}
+          className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm"
+        >
+          Redo
+        </button>
+      </div>
 
       <ReactFlow
         id={id}
