@@ -34,10 +34,10 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!/\.(xlsx|xls)$/i.test(file.name)) {
-      toast.error('Please upload a valid Excel file (.xlsx / .xls)');
+    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) {
+      toast.error('Please upload a valid Excel or CSV file (.xlsx / .xls / .csv)');
       return;
-    }
+    }    
 
     clearValidationForDominoId(id);
     setIsUploading(true);
@@ -243,7 +243,7 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.csv"
                   className="hidden"
                   onChange={handleFileUpload}
                 />
