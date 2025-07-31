@@ -425,12 +425,13 @@
         "pins": {
             "exec_in": "EXEC_IN",
             "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
             "value_out": "VALUE_OUT"
         },
         "pinStructure": {
             "exec_in": true,
             "exec_out": true,
-            "value_in": false,
+            "value_in": true,
             "value_out": true
         }
     },
