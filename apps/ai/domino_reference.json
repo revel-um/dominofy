@@ -99,7 +99,22 @@
             "exec_out": true,
             "value_in": true,
             "value_out": "dynamic"
-        }
+        },
+        "keywords": [
+            "ai",
+            "chat",
+            "claude",
+            "completion",
+            "gemini",
+            "gpt",
+            "language",
+            "large",
+            "llm",
+            "mixtral",
+            "model",
+            "openai",
+            "prompt"
+        ]
     },
     {
         "id": "response",
@@ -127,7 +142,18 @@
             "exec_out": false,
             "value_in": true,
             "value_out": true
-        }
+        },
+        "keywords": [
+            "http",
+            "output",
+            "reply",
+            "response",
+            "return",
+            "send",
+            "value",
+            "webhook",
+            "workflow"
+        ]
     },
     {
         "id": "SchedulerDomino",
@@ -179,7 +205,21 @@
             "exec_out": true,
             "value_in": false,
             "value_out": false
-        }
+        },
+        "keywords": [
+            "cron",
+            "date",
+            "delay",
+            "interval",
+            "once",
+            "recurring",
+            "schedule",
+            "scheduler",
+            "start",
+            "timer",
+            "timing",
+            "trigger"
+        ]
     },
     {
         "id": "emailsender",
@@ -238,7 +278,21 @@
             "exec_out": true,
             "value_in": "dynamic",
             "value_out": false
-        }
+        },
+        "keywords": [
+            "bcc",
+            "body",
+            "cc",
+            "communication",
+            "email",
+            "from",
+            "mail",
+            "message",
+            "send",
+            "smtp",
+            "subject",
+            "to"
+        ]
     },
     {
         "id": "csvwriter",
@@ -275,7 +329,19 @@
             "exec_out": true,
             "value_in": true,
             "value_out": false
-        }
+        },
+        "keywords": [
+            "comma",
+            "csv",
+            "data",
+            "download",
+            "export",
+            "file",
+            "rows",
+            "save",
+            "values",
+            "write"
+        ]
     },
     {
         "id": "print",
@@ -303,7 +369,18 @@
             "exec_out": true,
             "value_in": true,
             "value_out": false
-        }
+        },
+        "keywords": [
+            "console",
+            "debug",
+            "log",
+            "output",
+            "print",
+            "server",
+            "text",
+            "utility",
+            "workflow"
+        ]
     },
     {
         "id": "apicall",
@@ -351,7 +428,22 @@
             "exec_out": true,
             "value_in": true,
             "value_out": true
-        }
+        },
+        "keywords": [
+            "api",
+            "call",
+            "delete",
+            "endpoint",
+            "get",
+            "headers",
+            "http",
+            "integration",
+            "patch",
+            "post",
+            "put",
+            "request",
+            "response"
+        ]
     },
     {
         "id": "apitrigger",
@@ -396,7 +488,20 @@
             "exec_out": true,
             "value_in": false,
             "value_out": true
-        }
+        },
+        "keywords": [
+            "api",
+            "endpoint",
+            "event",
+            "http",
+            "inbound",
+            "integration",
+            "request",
+            "start",
+            "trigger",
+            "webhook",
+            "workflow"
+        ]
     },
     {
         "id": "readexcel",
@@ -410,7 +515,7 @@
                 "heading": "File",
                 "type": "file",
                 "required": true,
-                "accept": ".xlsx,.xls"
+                "accept": ".xlsx,.xls,.csv"
             },
             {
                 "heading": "Sheet",
@@ -433,7 +538,21 @@
             "exec_out": true,
             "value_in": true,
             "value_out": true
-        }
+        },
+        "keywords": [
+            "data",
+            "excel",
+            "file",
+            "import",
+            "load",
+            "range",
+            "read",
+            "sheet",
+            "spreadsheet",
+            "xlsx",
+            "xls",
+            "csv"
+        ]
     },
     {
         "id": "condition",
@@ -482,7 +601,17 @@
             "exec_out": true,
             "value_in": true,
             "value_out": false
-        }
+        },
+        "keywords": [
+            "branch",
+            "comparison",
+            "condition",
+            "false",
+            "if",
+            "logic",
+            "operator",
+            "true"
+        ]
     },
     {
         "id": "switchcase",
@@ -512,7 +641,18 @@
             "exec_out": "dynamic",
             "value_in": true,
             "value_out": false
-        }
+        },
+        "keywords": [
+            "branch",
+            "case",
+            "conditional",
+            "logic",
+            "match",
+            "multi",
+            "routing",
+            "switch",
+            "value"
+        ]
     },
     {
         "id": "arithmetic",
@@ -553,7 +693,20 @@
             "exec_out": true,
             "value_in": "dynamic",
             "value_out": true
-        }
+        },
+        "keywords": [
+            "add",
+            "arithmetic",
+            "calculate",
+            "divide",
+            "math",
+            "modulo",
+            "multiply",
+            "numbers",
+            "operator",
+            "power",
+            "subtract"
+        ]
     },
     {
         "id": "deconstructor",
@@ -590,7 +743,20 @@
             "exec_out": true,
             "value_in": true,
             "value_out": "dynamic"
-        }
+        },
+        "keywords": [
+            "array",
+            "break",
+            "data",
+            "deconstruct",
+            "elements",
+            "extract",
+            "fields",
+            "object",
+            "split",
+            "unpack",
+            "values"
+        ]
     },
     {
         "id": "iterator",
@@ -641,77 +807,21 @@
             "exec_out": true,
             "value_in": true,
             "value_out": true
-        }
-    },
-    {
-        "id": "dbSetup",
-        "label": "Database Setup",
-        "category": "Database",
-        "description": "Store connection settings for later SQL steps.",
-        "icon": "Database",
-        "color": "blue",
-        "fields": [
-            {
-                "heading": "Driver",
-                "type": "select",
-                "required": true,
-                "options": [
-                    "postgres",
-                    "mysql",
-                    "mssql"
-                ]
-            },
-            {
-                "heading": "Host",
-                "type": "textInput",
-                "required": true,
-                "default": "localhost"
-            },
-            {
-                "heading": "Port",
-                "type": "number",
-                "required": true,
-                "default": 5432
-            },
-            {
-                "heading": "Username",
-                "type": "textInput",
-                "required": true
-            },
-            {
-                "heading": "Password",
-                "type": "password",
-                "required": true
-            },
-            {
-                "heading": "Database",
-                "type": "textInput",
-                "required": true
-            },
-            {
-                "heading": "Timeout",
-                "type": "number",
-                "default": 5000
-            },
-            {
-                "heading": "SSL",
-                "type": "select",
-                "options": [
-                    "disable",
-                    "require"
-                ]
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "exec_out": "EXEC_OUT"
         },
-        "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": false,
-            "value_out": false
-        }
+        "keywords": [
+            "array",
+            "collection",
+            "data",
+            "each",
+            "for",
+            "iterate",
+            "iterator",
+            "items",
+            "loop",
+            "object",
+            "order",
+            "sequential"
+        ]
     },
     {
         "id": "aggregator",
@@ -753,7 +863,19 @@
             "exec_out": true,
             "value_in": "dynamic",
             "value_out": true
-        }
+        },
+        "keywords": [
+            "accumulate",
+            "aggregate",
+            "aggregator",
+            "combine",
+            "data",
+            "max",
+            "min",
+            "multiply",
+            "sum",
+            "values"
+        ]
     },
     {
         "id": "filter",
@@ -823,7 +945,20 @@
             "exec_out": true,
             "value_in": "dynamic",
             "value_out": true
-        }
+        },
+        "keywords": [
+            "array",
+            "collection",
+            "condition",
+            "data",
+            "equal",
+            "filter",
+            "greater",
+            "include",
+            "less",
+            "not",
+            "object"
+        ]
     },
     {
         "id": "sqlRunner",
@@ -856,7 +991,18 @@
             "exec_out": true,
             "value_in": true,
             "value_out": true
-        }
+        },
+        "keywords": [
+            "database",
+            "db",
+            "execute",
+            "query",
+            "run",
+            "select",
+            "sql",
+            "statement",
+            "update"
+        ]
     },
     {
         "id": "codeRunner",
@@ -894,7 +1040,19 @@
             "exec_out": true,
             "value_in": true,
             "value_out": true
-        }
+        },
+        "keywords": [
+            "code",
+            "custom",
+            "development",
+            "execute",
+            "nodejs",
+            "python",
+            "ruby",
+            "sandbox",
+            "script",
+            "snippet"
+        ]
     },
     {
         "id": "delay",
@@ -922,7 +1080,18 @@
             "exec_out": true,
             "value_in": true,
             "value_out": false
-        }
+        },
+        "keywords": [
+            "duration",
+            "execution",
+            "hold",
+            "milliseconds",
+            "pause",
+            "sleep",
+            "timeout",
+            "timing",
+            "wait"
+        ]
     },
     {
         "id": "mapper",
@@ -958,7 +1127,19 @@
             "exec_out": true,
             "value_in": "dynamic",
             "value_out": true
-        }
+        },
+        "keywords": [
+            "array",
+            "convert",
+            "data",
+            "keys",
+            "map",
+            "mapper",
+            "object",
+            "rename",
+            "rule",
+            "transform"
+        ]
     },
     {
         "id": "slacktrigger",
@@ -988,7 +1169,18 @@
             "exec_out": true,
             "value_in": false,
             "value_out": true
-        }
+        },
+        "keywords": [
+            "bot",
+            "channel",
+            "communication",
+            "event",
+            "message",
+            "slack",
+            "start",
+            "trigger",
+            "workflow"
+        ]
     },
     {
         "id": "connector",
@@ -1017,6 +1209,19 @@
             "exec_out": true,
             "value_in": false,
             "value_out": false
-        }
+        },
+        "keywords": [
+            "branches",
+            "combine",
+            "connector",
+            "exec",
+            "flow",
+            "gate",
+            "join",
+            "merge",
+            "multiple",
+            "sync",
+            "wait"
+        ]
     }
 ]
