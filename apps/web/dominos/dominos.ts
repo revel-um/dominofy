@@ -13,6 +13,7 @@ import {
   FiDownload,
   FiCheckCircle,
   FiCpu,
+  FiShoppingBag,
 } from 'react-icons/fi';
 
 export default [
@@ -125,5 +126,15 @@ export default [
     id: 'connector',
     label: 'Connector',
     icon: Plug
-  }
+  },
+  {
+    id: 'shopify',
+    label: 'Shopify',
+    icon: FiShoppingBag
+  },
+  {
+    id: 'webhook',
+    label: 'Webhook',
+    icon: FiGlobe
+  },
 ];

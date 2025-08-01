@@ -50,6 +50,7 @@ import {
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
 import ConnectorDomino from "@/dominos/connector";
+import ShopifyDomino from "@/dominos/shopify";
 
 const nodeTypes = {
   csvwriter: CSVWriterDomino,
@@ -73,7 +74,8 @@ const nodeTypes = {
   mapper: MapperDomino,
   slacktrigger: SlackTriggerDomino,
   SchedulerDomino: SchedulerDomino,
-  connector: ConnectorDomino
+  connector: ConnectorDomino,
+  shopify: ShopifyDomino
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
