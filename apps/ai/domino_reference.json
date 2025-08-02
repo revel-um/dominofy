@@ -6,6 +6,14 @@
         "description": "Large Language Model integration with multiple providers.",
         "icon": "Cpu",
         "color": "blue",
+        "features": [
+            "Generate text completions using various AI models (GPT-4, Claude, Gemini, Mixtral)",
+            "Support for multiple providers: OpenAI, Anthropic, Google, Mistral",
+            "Configurable parameters: temperature, max tokens, top-p, frequency/presence penalties",
+            "Streaming response support",
+            "Dynamic prompt input via pin connection",
+            "Model-specific token limits and capabilities"
+        ],
         "fields": [
             {
                 "heading": "Model",
@@ -123,6 +131,13 @@
         "description": "Return a value as workflow response / HTTP reply.",
         "icon": "CheckCircle",
         "color": "green",
+        "features": [
+            "Return final output from workflow execution",
+            "Support for HTTP response formatting",
+            "Can be used as workflow endpoint response",
+            "Dynamic value input via pin connection",
+            "Terminal node in workflow execution"
+        ],
         "fields": [
             {
                 "heading": "Response",
@@ -162,6 +177,13 @@
         "description": "Trigger downstream flow on cron, interval or once.",
         "icon": "Clock",
         "color": "yellow",
+        "features": [
+            "Schedule workflow execution using cron expressions",
+            "Set up recurring intervals (seconds, minutes, hours)",
+            "One-time scheduled execution",
+            "Start workflow automatically without manual triggers",
+            "Support for complex scheduling patterns"
+        ],
         "fields": [
             {
                 "heading": "Schedule Type",
@@ -228,6 +250,14 @@
         "description": "Send emails via SMTP or API providers.",
         "icon": "Mail",
         "color": "red",
+        "features": [
+            "Send emails with customizable from, to, subject, and body",
+            "Support for CC and BCC recipients",
+            "Dynamic field values via pin connections",
+            "SMTP and API provider support",
+            "HTML and plain text email support",
+            "Email validation and error handling"
+        ],
         "fields": [
             {
                 "heading": "From",
@@ -301,6 +331,14 @@
         "description": "Write incoming data rows to a CSV file.",
         "icon": "Download",
         "color": "blue",
+        "features": [
+            "Write data arrays or objects to CSV format",
+            "Configurable headers inclusion",
+            "Custom filename specification",
+            "Support for various data structures",
+            "File download and storage capabilities",
+            "Data validation and error handling"
+        ],
         "fields": [
             {
                 "heading": "Data",
@@ -350,6 +388,13 @@
         "description": "Print value(s) to server console or workflow log.",
         "icon": "Printer",
         "color": "blue",
+        "features": [
+            "Log values to server console for debugging",
+            "Print dynamic values from pin connections",
+            "Support for various data types (strings, objects, arrays)",
+            "Workflow execution logging",
+            "Debug and monitoring capabilities"
+        ],
         "fields": [
             {
                 "heading": "Text",
@@ -389,6 +434,14 @@
         "description": "Make HTTP requests to external services and return response data.",
         "icon": "Globe",
         "color": "green",
+        "features": [
+            "Make HTTP requests to external APIs and services",
+            "Support for GET, POST, PUT, DELETE, PATCH methods",
+            "Custom headers and request body configuration",
+            "Dynamic URL input via pin connections",
+            "Response data extraction and processing",
+            "Error handling and status code management"
+        ],
         "fields": [
             {
                 "heading": "URL",
@@ -452,6 +505,14 @@
         "description": "Start a workflow via inbound HTTP request.",
         "icon": "Zap",
         "color": "purple",
+        "features": [
+            "Create webhook endpoints for workflow triggers",
+            "Receive HTTP requests to start workflow execution",
+            "Support for GET, POST, PUT, DELETE methods",
+            "Authentication options (none, API key, bearer token)",
+            "Request data extraction and processing",
+            "Workflow initialization with request payload"
+        ],
         "fields": [
             {
                 "heading": "Endpoint",
@@ -510,6 +571,14 @@
         "description": "Load data from an uploaded XLSX/XLS file.",
         "icon": "FileText",
         "color": "green",
+        "features": [
+            "Read data from Excel files (XLSX, XLS, CSV)",
+            "Support for multiple sheets and ranges",
+            "Dynamic file input via pin connections",
+            "Data extraction and transformation",
+            "Support for various Excel formats",
+            "Sheet and range specification"
+        ],
         "fields": [
             {
                 "heading": "File",
@@ -561,6 +630,14 @@
         "description": "Binary branching based on comparison of two values.",
         "icon": "HelpCircle",
         "color": "yellow",
+        "features": [
+            "Compare two values using various operators",
+            "Support for equality, inequality, and comparison operators",
+            "String and numeric comparisons",
+            "Contains and not-contains operations",
+            "Binary branching (true/false paths)",
+            "Dynamic value input via pin connections"
+        ],
         "fields": [
             {
                 "heading": "Left Value",
@@ -598,8 +675,8 @@
         },
         "pinStructure": {
             "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
+            "exec_out": "dynamic",
+            "value_in": "dynamic",
             "value_out": false
         },
         "keywords": [
@@ -620,6 +697,14 @@
         "description": "Multi-branch conditional routing by matching value to cases.",
         "icon": "ToggleLeft",
         "color": "yellow",
+        "features": [
+            "Multi-branch conditional routing based on value matching",
+            "Support for multiple case scenarios",
+            "Default case handling",
+            "Dynamic case addition and removal",
+            "Value-based workflow branching",
+            "Complex decision tree logic"
+        ],
         "fields": [
             {
                 "heading": "Input",
@@ -661,6 +746,14 @@
         "description": "Apply mathematical operation(s) to inputs.",
         "icon": "Calculator",
         "color": "blue",
+        "features": [
+            "Perform mathematical operations on numeric inputs",
+            "Support for addition, subtraction, multiplication, division",
+            "Modulo and power operations",
+            "Dynamic input values via pin connections",
+            "Numeric result calculation and output",
+            "Mathematical expression evaluation"
+        ],
         "fields": [
             {
                 "heading": "Input 1",
@@ -715,6 +808,14 @@
         "description": "Break objects/arrays into individual values.",
         "icon": "PackageOpen",
         "color": "purple",
+        "features": [
+            "Extract individual values from objects and arrays",
+            "Support for object property extraction",
+            "Array element extraction",
+            "Dynamic output pin generation based on structure",
+            "Data structure breakdown and analysis",
+            "Property and element mapping"
+        ],
         "fields": [
             {
                 "heading": "Mode",
@@ -765,6 +866,14 @@
         "description": "Loop over collection elements; emits each item sequentially.",
         "icon": "Repeat",
         "color": "green",
+        "features": [
+            "Iterate over arrays and collections",
+            "Forward and reverse iteration order",
+            "Range-based iteration with start/end limits",
+            "Maximum iteration count limits",
+            "Sequential item emission for processing",
+            "Loop control and iteration management"
+        ],
         "fields": [
             {
                 "heading": "Input",
@@ -799,12 +908,13 @@
         "pins": {
             "exec_in": "EXEC_IN",
             "exec_out": "EXEC_OUT",
+            "exec_out_1": "EXEC_OUT",
             "value_in": "VALUE_IN",
             "value_out": "VALUE_OUT"
         },
         "pinStructure": {
             "exec_in": true,
-            "exec_out": true,
+            "exec_out_1": true,
             "value_in": true,
             "value_out": true
         },
@@ -830,6 +940,14 @@
         "description": "Accumulate multiple values using sum, multiply, min or max.",
         "icon": "Layers",
         "color": "purple",
+        "features": [
+            "Accumulate multiple input values using mathematical operations",
+            "Support for sum, multiply, min, and max operations",
+            "Configurable initial values",
+            "Dynamic input pin generation based on connections",
+            "Running total and result tracking",
+            "Data aggregation and summarization"
+        ],
         "fields": [
             {
                 "heading": "Operation",
@@ -884,6 +1002,14 @@
         "description": "Filter arrays or object collections by condition.",
         "icon": "Filter",
         "color": "blue",
+        "features": [
+            "Filter arrays and object collections based on conditions",
+            "Support for primitive and object filtering",
+            "Multiple comparison operators (equal, contains, greater than, etc.)",
+            "Property-based filtering for objects",
+            "Dynamic filter value input via pin connections",
+            "Data subset extraction and filtering"
+        ],
         "fields": [
             {
                 "heading": "Input",
@@ -967,6 +1093,14 @@
         "description": "Execute SQL query against a configured DB connection.",
         "icon": "Terminal",
         "color": "green",
+        "features": [
+            "Execute SQL queries against database connections",
+            "Support for various database types (PostgreSQL, MySQL, etc.)",
+            "Database connection management and configuration",
+            "Query result processing and output",
+            "Error handling for database operations",
+            "Success and error execution paths"
+        ],
         "fields": [
             {
                 "heading": "Query",
@@ -983,6 +1117,7 @@
         "pins": {
             "exec_in": "EXEC_IN",
             "exec_out": "EXEC_OUT",
+            "exec_out_1": "EXEC_OUT",
             "value_in": "VALUE_IN",
             "value_out": "VALUE_OUT"
         },
@@ -1011,6 +1146,14 @@
         "description": "Execute custom code snippet inside Node, Python, or Ruby sandbox.",
         "icon": "Code2",
         "color": "purple",
+        "features": [
+            "Execute custom code in sandboxed environments",
+            "Support for Node.js, Python, and Ruby",
+            "Dynamic code input via pin connections",
+            "Sandboxed execution for security",
+            "Custom logic and data processing",
+            "Code execution result handling"
+        ],
         "fields": [
             {
                 "heading": "Environment",
@@ -1061,6 +1204,14 @@
         "description": "Pause execution for a fixed duration.",
         "icon": "Clock3",
         "color": "yellow",
+        "features": [
+            "Pause workflow execution for specified duration",
+            "Millisecond-precision timing control",
+            "Dynamic delay duration via pin connections",
+            "Rate limiting and throttling support",
+            "Execution flow control and timing",
+            "Synchronization and coordination"
+        ],
         "fields": [
             {
                 "heading": "Duration (ms)",
@@ -1100,6 +1251,14 @@
         "description": "Transform an object/array by mapping or renaming keys.",
         "icon": "ListOrdered",
         "color": "blue",
+        "features": [
+            "Transform objects and arrays by mapping keys",
+            "Rename object properties and array elements",
+            "Support for multiple mapping rules",
+            "Dynamic mapping rule input via pin connections",
+            "Data structure transformation",
+            "Key-value mapping and conversion"
+        ],
         "fields": [
             {
                 "heading": "Input",
@@ -1148,6 +1307,14 @@
         "description": "Start workflow on Slack message or event.",
         "icon": "Slack",
         "color": "purple",
+        "features": [
+            "Trigger workflows based on Slack events and messages",
+            "Slack bot integration and connection management",
+            "Channel-based event monitoring",
+            "Message and event data extraction",
+            "Slack API integration",
+            "Real-time workflow triggering"
+        ],
         "fields": [
             {
                 "heading": "Connection",
@@ -1189,6 +1356,14 @@
         "description": "Wait for multiple execs then continue; optionally label each branch.",
         "icon": "Plug",
         "color": "gray",
+        "features": [
+            "Synchronize multiple execution branches",
+            "Wait for all connected inputs before proceeding",
+            "Optional branch labeling for identification",
+            "Flow control and synchronization",
+            "Multi-branch workflow coordination",
+            "Execution gate and join functionality"
+        ],
         "fields": [
             {
                 "heading": "Case_0",

@@ -45,7 +45,7 @@ def generate(prompt: PromptIn):
     """Generate updated workflow JSON + explanation."""
     try:
         # 1️⃣  Retrieve relevant dominos
-        domino_docs = get_domino_snippets(top_k=8, query=prompt.text)
+        domino_docs = get_domino_snippets(top_k=12, query=prompt.text)
         known_ids   = {d["id"] for d in json.loads(domino_docs)}
 
         # 2️⃣  Build prompt

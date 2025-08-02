@@ -83,7 +83,7 @@ SYSTEM_TEMPLATE = (
 # ───────────────────────── 4. Builder ───────────────────────────────────────────────────
 
 def build_prompt(domino_docs: str, p: PromptIn) -> str:
-    print(domino_docs)
+
     """Assemble final prompt text for Gemini Flash."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     parts: List[str] = [
