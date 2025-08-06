@@ -20,7 +20,7 @@ def get_domino_snippets(top_k: int, query: str = "") -> str:
 
     vec   = _embed(query or "dominofy domino")
     hits  = col.query(query_embeddings=[vec], n_results=top_k)
-
+    print(hits)
     # documents is a List[List[str]]  → parse each JSON string back to dict
     docs  = [json.loads(s) for s in hits["documents"][0]]
     return json.dumps(docs)

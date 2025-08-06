@@ -51,7 +51,8 @@ EXAMPLE_BLOCK = (
     "  \"edges\": [\n"
     "    { \"source\": \"slacktrigger-20250729123010\", \"target\": \"emailsender-20250729123010\", \"type\": \"execution\" }\n"
     "  ],\n"
-    "  \"explanation\": \"Slack trigger forwards to email sender.\"\n"
+    "  \"explanation\": \"Slack trigger forwards to email sender.\",\n"
+    "  \"status\": \"completely_generated\"\n"
     "}\n"
 ).strip()
 
@@ -66,7 +67,11 @@ SYSTEM_TEMPLATE = (
     "  5. CURRENT_UTC_TIMESTAMP (ISO suffix for new ids)\n"
     "  6. USER PROMPT\n\n"
     "Return **only** JSON (no markdown fences):\n"
-    "{ \"nodes\": [...], \"edges\": [...], \"explanation\": \"...\" }\n\n"
+    "{ \"nodes\": [...], \"edges\": [...], \"explanation\": \"...\", \"status\": \"...\" }\n\n"
+    "Status Rules:\n"
+    "• \"not_generated\": When you cannot create any workflow nodes/edges (e.g., no suitable dominos available, request unclear, or error)\n"
+    "• \"partially_generated\": When you create some nodes but cannot complete the workflow (e.g., missing connections, incomplete logic, or partial solution)\n"
+    "• \"completely_generated\": When you successfully create a complete, functional workflow with proper nodes and connections\n\n"
     "Rules:\n"
     "• id for any new node = '<domino-id>-<CURRENT_UTC_TIMESTAMP>'.\n"
     "• type = domino-id exactly.\n"
@@ -78,6 +83,7 @@ SYSTEM_TEMPLATE = (
     "If no suitable domino exists, reply with an explanation instead of inventing one."
     "• Create nodes **only** from the DOMINO_DOCS you see."
     "If you cannot satisfy USER PROMPT with those dominos, reply with an error message instead of inventing new types."
+    "• Always include the 'status' field based on the completeness of your workflow generation."
 ).strip()
 
 # ───────────────────────── 4. Builder ───────────────────────────────────────────────────
