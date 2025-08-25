@@ -101,7 +101,7 @@ export default function DetailsPanel({ selectedNode, bottomOffset = 60, setEdges
 
   return (
     <aside
-      className="absolute right-0 top-0 z-10 flex flex-row
+      className="absolute right-0 top-0 z-60 flex flex-row
                  bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
       style={{ width: asideW, bottom: `${bottomOffset}px` }}
     >

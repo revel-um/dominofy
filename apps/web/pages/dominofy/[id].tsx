@@ -58,6 +58,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     const [logs, setLogs] = useState<WorkflowLog[]>([]);
     const logsRef = React.useRef<WorkflowLog[]>([]);
     const [loading, setLoading] = useState(true);
+    const [logsMinimized, setLogsMinimized] = useState(true);
+    const openLogsPanel = () => setLogsMinimized(false);
 
     const addLog = useCallback((message: string, type: 'log' | 'info' | 'warn' | 'error' | 'success' = 'log', source?: string) => {
         const newLog: WorkflowLog = { id: Date.now().toString(), type, message, timestamp: new Date(), source };
@@ -175,6 +177,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                         workflow={workflow!}
                         getNodes={() => nodes}
                         getEdges={() => edges}
+                        openLogsPanel={openLogsPanel}
                     />
 
                     {/* rest of your existing layout below … */}
@@ -214,6 +217,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                                 className="absolute bottom-0 left-0 right-0 z-10 border-t border-gray-200 dark:border-gray-700"
                                 collapsedHeight={collapsedHeight}
                                 defaultHeight={defaultLogsHeight}
+                                isMinimized={logsMinimized}
+                                setIsMinimized={setLogsMinimized}
                             />
                         </div>
                     </div>

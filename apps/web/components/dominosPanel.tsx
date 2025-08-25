@@ -1,25 +1,23 @@
-// DominosPanel.tsx
-
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import dominos from '../dominos/dominos';
+import { ChevronUp, ChevronDown } from 'lucide-react';
+import { FiSearch } from 'react-icons/fi';
 
 interface DominosPanelProps {
-  /** Vertical gap (in px) you want to keep above the LogsPanel */
-  bottomOffset?: number;            // default = 60 px
+  bottomOffset?: number;
 }
 
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 480;
 
-export default function DominosPanel({
-  bottomOffset = 0,               // ← parameterised
-}: DominosPanelProps) {
+export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expanded, setExpanded] = useState<{ [category: string]: boolean }>({});
   const isDragging = useRef(false);
 
-  /* ───────── resize logic ───────── */
   const handleMouseDown = () => {
     isDragging.current = true;
     document.body.classList.add('select-none');
@@ -40,54 +38,83 @@ export default function DominosPanel({
     document.removeEventListener('mouseup', handleMouseUp);
   };
 
-  /* ───────── render ───────── */
+  const toggleCategory = (category: string) => {
+    setExpanded(prev => ({ ...prev, [category]: !prev[category] }));
+  };
+
+  // Memoized categorized + filtered dominos
+  const filteredCategories = useMemo(() => {
+    const result: { [key: string]: typeof dominos } = {};
+
+    dominos.forEach(domino => {
+      const matches = domino.label.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!matches && searchTerm) return;
+
+      domino.categories.forEach(cat => {
+        if (!result[cat]) result[cat] = [];
+        result[cat].push(domino);
+      });
+    });
+
+    return result;
+  }, [searchTerm]);
+
   return (
     <div
-      className="relative z-10 bg-dominofy-light-panel dark:bg-dominofy-dark-panel p-4 overflow-y-auto
-      flex flex-col" // Only flex flex-col needed here now
-      style={{ width, height: `calc(100% - ${bottomOffset}px)` }} // Explicitly calculate height
+      className="relative z-10 bg-dominofy-light-panel dark:bg-dominofy-dark-panel p-4 overflow-y-auto flex flex-col"
+      style={{ width, height: `calc(100% - ${bottomOffset}px)` }}
     >
-      {/* Header */}
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">Dominos</h2>
-        <button
-          className="text-xs px-2 py-1 rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
-          onClick={() => {
-            const root = document.documentElement;
-            const newTheme = root.classList.contains('dark') ? 'light' : 'dark';
-            root.classList.toggle('dark');
-            localStorage.setItem('theme', newTheme);
-          }}
-        >
-          🌓
-        </button>
+      {/* Search */}
+      <div className="relative mb-4">
+        <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white text-sm pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Search dominos..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-9 pr-3 py-2 rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-sm !text-white placeholder-white caret-white border border-transparent focus:border-black dark:focus:border-black focus:outline-none"
+        />
       </div>
 
-      {/* Search */}
-      <input
-        type="text"
-        placeholder="Search dominos..."
-        className="w-full px-3 py-2 mb-4 rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-sm"
-      />
+      <hr className="-mx-4 border-t border-gray-500 dark:border-gray-600 mb-4 mt-2" />
 
-      {/* Domino list - this part should flex-grow to fill remaining space */}
+      {/* Category Groups */}
       <div className="flex-grow overflow-y-auto">
-        {dominos.map(({ id, label, icon: Icon }) => (
-          <div
-            key={id}
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData('application/reactflow', id);
-              e.dataTransfer.effectAllowed = 'move';
-            }}
-            className="flex items-center gap-2 p-3 mb-3 bg-dominofy-light-surface dark:bg-dominofy-dark-surface rounded cursor-move hover:opacity-90 transition"
-          >
-            <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text" />
-            <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
-              {label}
-            </span>
-          </div>
-        ))}
+        {Object.entries(filteredCategories)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([category, items]) => (
+            <div key={category} className="mb-8">
+              <div
+                className="cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex justify-between items-center"
+                onClick={() => toggleCategory(category)}
+              >
+                <span>{category}</span>
+                {expanded[category] || searchTerm ? (
+                  <ChevronUp className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                )}
+              </div>
+
+              {(expanded[category] || searchTerm) &&
+                items.map(({ id, label, icon: Icon }) => (
+                  <div
+                    key={id + category}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/reactflow', id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    className="flex items-center gap-2 p-3 mb-2 bg-dominofy-light-surface dark:bg-dominofy-dark-surface rounded cursor-move hover:opacity-90 transition"
+                  >
+                    <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text" />
+                    <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          ))}
       </div>
 
       {/* Resize handle */}
