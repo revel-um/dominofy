@@ -88,9 +88,13 @@ interface CanvasProps {
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   workflowId?: string;
   readonly?: boolean;
-  /* optional passthrough callbacks (parent wraps these for history) */
+  /* parent-wrapped callbacks (for history) */
   onNodesChange?: (c: NodeChange[]) => void;
   onEdgesChange?: (c: EdgeChange[]) => void;
+
+  /* NEW: parent-provided undo/redo handlers for keyboard shortcuts */
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 /* ─────────────────────────  COMPONENT  ───────────────────────── */
@@ -99,6 +103,7 @@ export default function Canvas(props: CanvasProps) {
     id, nodes, setNodes, edges, setEdges,
     workflowId, readonly = false,
     onNodesChange, onEdgesChange,
+    onUndo, onRedo,
   } = props;
 
   const router = useRouter();
@@ -142,7 +147,7 @@ export default function Canvas(props: CanvasProps) {
   /* drop */
   const onDrop = useCallback(
     createDropHandler(rfInstance, setNodes, getEdges, workflowId, updatePipeline),
-    [rfInstance, workflowId, nodes, edges] // keep deps as in your original
+    [rfInstance, workflowId, nodes, edges]
   );
 
   /* search-box keys */
@@ -282,6 +287,26 @@ export default function Canvas(props: CanvasProps) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
   };
+
+  /* ───── Keyboard: Undo/Redo (delegates to parent) ───── */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+
+      if (key === 'z' && !e.shiftKey) {
+        onUndo?.();
+        e.preventDefault();
+      } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        onRedo?.();
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onUndo, onRedo]);
 
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   return (
