@@ -96,6 +96,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const isRestoring = useRef(false);
   const pushGuard = useRef(false); // prevents double-record within same change “tick”
 
+  const isDraggingRef = useRef(false);
+
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -122,30 +124,73 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [nodes, edges, clone, publishFlags]);
 
   // Wrap setters so ANY change via setNodes/setEdges records (DetailsPanel etc.)
-  const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node[]>>>(
-    (updater) => {
-      if (!isRestoring.current) pushHistory();
-      _setNodes(updater);
-    },
-    [_setNodes, pushHistory]
-  );
+    const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node[]>>>(
+        (updater) => {
+            if (!isRestoring.current && !isDraggingRef.current) pushHistory();
+            _setNodes(updater);
+        },
+        [_setNodes, pushHistory]
+    );
+    const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
+        (updater) => {
+            if (!isRestoring.current && !isDraggingRef.current) pushHistory();
+            _setEdges(updater);
+        },
+        [_setEdges, pushHistory]
+    );
 
-  const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
-    (updater) => {
-      if (!isRestoring.current) pushHistory();
-      _setEdges(updater);
-    },
-    [_setEdges, pushHistory]
-  );
+//   // Wrap React Flow change handlers to record changes originating from Canvas interactions
+//   const onNodesChange = useCallback(
+//     (changes: NodeChange[]) => {
+//       if (!isRestoring.current) pushHistory();
+//       _onNodesChange(changes);
+//     },
+//     [_onNodesChange, pushHistory]
+//   );
 
-  // Wrap React Flow change handlers to record changes originating from Canvas interactions
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      if (!isRestoring.current) pushHistory();
-      _onNodesChange(changes);
-    },
-    [_onNodesChange, pushHistory]
-  );
+    const onNodesChange = useCallback(
+        (changes: NodeChange[]) => {
+            // detect "only position" changes (dragging)
+            const onlyPosition = changes.length > 0 && changes.every(c => c.type === 'position');
+            const anyDraggingTrue  = onlyPosition && changes.some((c: any) => c.dragging === true);
+            const anyDraggingFalse = onlyPosition && changes.some((c: any) => c.dragging === false);
+
+            if (onlyPosition) {
+            // 🔹 First frame of a drag: push PRE-drag snapshot once
+            if (anyDraggingTrue) {
+                if (!isDraggingRef.current) {
+                isDraggingRef.current = true;
+                // PRE-drag snapshot
+                undoStack.current.push({ nodes: clone(nodes), edges: clone(edges) });
+                if (undoStack.current.length > 100) undoStack.current.shift();
+                redoStack.current = [];
+                publishFlags();
+                }
+                _onNodesChange(changes); // apply movement, but don't push per-frame
+                return;
+            }
+
+            // 🔹 Final frame of a drag (dragging:false): push POST-drag snapshot
+            if (isDraggingRef.current && anyDraggingFalse) {
+                _onNodesChange(changes); // apply final position
+                // wait a microtask so nodes/edges reflect the applied change
+                queueMicrotask(() => {
+                undoStack.current.push({ nodes: clone(nodes), edges: clone(edges) }); // POST-drag snapshot
+                if (undoStack.current.length > 100) undoStack.current.shift();
+                redoStack.current = [];
+                publishFlags();
+                isDraggingRef.current = false;
+                });
+                return;
+            }
+            }
+
+            // Non-drag changes: keep your normal one-shot pre-change push
+            if (!isRestoring.current) pushHistory();
+            _onNodesChange(changes);
+        },
+        [nodes, edges, _onNodesChange, clone, publishFlags, pushHistory]
+    );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
