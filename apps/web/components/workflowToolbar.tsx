@@ -33,6 +33,13 @@ interface WorkflowToolbarProps {
   };
   getNodes: () => Node[];
   getEdges: () => Edge[];
+  openLogsPanel?: () => void;
+
+  /** New: undo/redo controls are provided by the parent */
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 const TOOLBAR_HEIGHT = 56;
@@ -43,6 +50,11 @@ export default function WorkflowToolbar({
   workflow,
   getNodes,
   getEdges,
+  openLogsPanel,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
 }: WorkflowToolbarProps) {
   const router = useRouter();
   const { setValidationErrors } = useDomino();
@@ -118,6 +130,7 @@ export default function WorkflowToolbar({
   }, [workflow.id, getNodes, getEdges, router]);
 
   const onRun = useCallback(async () => {
+    if (openLogsPanel) openLogsPanel();
     if (!isWorkflowValid() || !workflow.id) return false;
     const exported = exportWorkflow(getNodes(), getEdges(), workflow.id);
     const token = localStorage.getItem('token') || '';
@@ -130,7 +143,7 @@ export default function WorkflowToolbar({
     } catch {
       return false;
     }
-  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE]);
+  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE, openLogsPanel]);
 
   const onDeploy = useCallback(() => {
     if (isWorkflowValid()) alert('Deploying...');
@@ -187,7 +200,6 @@ export default function WorkflowToolbar({
     }
   };
 
-
   /* cleanup */
   useEffect(() => () => stopSSE(), [stopSSE]);
 
@@ -230,6 +242,7 @@ export default function WorkflowToolbar({
             onClick={onSave}
             disabled={saveStatus === 'loading'}
             className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium`}
+            title="Save workflow"
           >
             {saveStatus === 'loading' && <FiLoader className="w-4 h-4 animate-spin" />}
             {saveStatus === 'success' && <FiCheck className="w-4 h-4" />}
@@ -242,6 +255,7 @@ export default function WorkflowToolbar({
             onClick={onDeploy}
             className="px-4 py-1.5 rounded text-sm font-medium text-white
                        bg-dominofy-light-accent dark:bg-dominofy-dark-accent hover:opacity-90"
+            title="Deploy workflow"
           >
             Deploy
           </button>
@@ -262,23 +276,30 @@ export default function WorkflowToolbar({
             onClick={onRun}
             className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium text-white
                        bg-green-500 hover:bg-green-600 transition-colors"
+            title="Run workflow"
           >
             {justRan ? <FiCheck className="w-4 h-4" /> : <FiPlay className="w-4 h-4" />}
             Run
           </button>
 
-          {/* Undo / Redo placeholders */}
+          {/* Undo */}
           <button
-            onClick={() => { }}
-            className="p-2 rounded-md hover:bg-[var(--secondary-hover)]
-                       text-[var(--text-secondary)] hover:text-white transition-colors"
+            onClick={onUndo}
+            disabled={!canUndo}
+            className={`p-2 rounded-md transition-colors text-[var(--text-secondary)]
+                       ${canUndo ? 'hover:bg-[var(--secondary-hover)] hover:text-white' : 'opacity-50 cursor-not-allowed'}`}
+            title={canUndo ? 'Undo (Ctrl/Cmd+Z)' : 'Nothing to undo'}
           >
             <FiRotateCcw className="w-4 h-4" />
           </button>
+
+          {/* Redo */}
           <button
-            onClick={() => { }}
-            className="p-2 rounded-md hover:bg-[var(--secondary-hover)]
-                       text-[var(--text-secondary)] hover:text-white transition-colors"
+            onClick={onRedo}
+            disabled={!canRedo}
+            className={`p-2 rounded-md transition-colors text-[var(--text-secondary)]
+                       ${canRedo ? 'hover:bg-[var(--secondary-hover)] hover:text-white' : 'opacity-50 cursor-not-allowed'}`}
+            title={canRedo ? 'Redo (Ctrl/Cmd+Y or Shift+Ctrl/Cmd+Z)' : 'Nothing to redo'}
           >
             <FiRotateCw className="w-4 h-4" />
           </button>

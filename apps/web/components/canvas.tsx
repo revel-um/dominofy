@@ -1,7 +1,10 @@
-import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
+'use client';
+
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import ReactFlow, {
   addEdge,
   Background,
+  OnConnect,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -33,7 +36,9 @@ import MapperDomino from "@/dominos/mapper";
 import ResponseDomino from "../dominos/response";
 import LLMDomino from "../dominos/llm";
 import SchedulerDomino from "../dominos/SchedulerDomino";
-        
+import ConnectorDomino from "@/dominos/connector";
+import ShopifyDomino from "@/dominos/shopify";
+
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnections } from "../helpers/errorDetector";
@@ -49,8 +54,7 @@ import {
   createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
-import ConnectorDomino from "@/dominos/connector";
-import ShopifyDomino from "@/dominos/shopify";
+
 
 const nodeTypes = {
   csvwriter: CSVWriterDomino,
@@ -87,9 +91,13 @@ interface CanvasProps {
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   workflowId?: string;
   readonly?: boolean;
-  /* optional passthrough callbacks */
+  /* parent-wrapped callbacks (for history) */
   onNodesChange?: (c: NodeChange[]) => void;
   onEdgesChange?: (c: EdgeChange[]) => void;
+
+  /* NEW: parent-provided undo/redo handlers for keyboard shortcuts */
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 /* ─────────────────────────  COMPONENT  ───────────────────────── */
@@ -98,44 +106,33 @@ export default function Canvas(props: CanvasProps) {
     id, nodes, setNodes, edges, setEdges,
     workflowId, readonly = false,
     onNodesChange, onEdgesChange,
+    onUndo, onRedo,
   } = props;
 
   const router = useRouter();
   const { setConnectionErrors, clearValidationForDominoId } = useDomino();
 
-  // just inside Canvas(), before any hooks:
-  const undoStack = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
-  const redoStack = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
-
-  // helper to snapshot the current graph
-  const pushHistory = useCallback(() => {
-    // limit to last 50  
-    undoStack.current.push({ nodes, edges });
-    if (undoStack.current.length > 50) undoStack.current.shift();
-    // once you make a new edit, clear the “redo” branch
-    redoStack.current = [];
-  }, [nodes, edges]);
-
-  /* fade suggestion nodes */
+  /* fade suggestion nodes for UI */
   const renderedNodes = useMemo(
-    () => nodes.map(n => {
-      if (n.data?.suggested) {
-        return {
-          ...n,
-          className: n.className
-            ? `${n.className} opacity-50`
-            : 'opacity-50',
-        };
-      }
-      return n;
-    }),
+    () =>
+      nodes.map((n) => {
+        if (n.data?.suggested) {
+          return {
+            ...n,
+            className: n.className ? `${n.className} opacity-50` : "opacity-50",
+          };
+        }
+        return n;
+      }),
     [nodes]
   );
 
   /* local state */
   const [rfInstance, setRfInstance] = useState<any>(null);
   const [pipeline, setPipeline] = useState<any[]>([]);
-  const [connectStart, setConnectStart] = useState<Parameters<OnConnectStart>[1] | null>(null);
+  const [connectStart, setConnectStart] = useState<
+    Parameters<OnConnectStart>[1] | null
+  >(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -148,33 +145,42 @@ export default function Canvas(props: CanvasProps) {
   /* validation */
   useEffect(() => {
     setConnectionErrors(validateNodeConnections(nodes, edges));
-  }, [nodes, edges]);
+  }, [nodes, edges, setConnectionErrors]);
 
   /* drop */
   const onDrop = useCallback(
     createDropHandler(rfInstance, setNodes, getEdges, workflowId, updatePipeline),
-    [rfInstance, workflowId, nodes, edges],
+    [rfInstance, workflowId, nodes, edges]
   );
 
   /* search-box keys */
-  const AVAILABLE = Object.keys(nodeTypes).filter(t => t !== "apitrigger");
-  const filtered = AVAILABLE.filter(d => d.toLowerCase().includes(searchTerm.toLowerCase()));
+  const AVAILABLE = Object.keys(nodeTypes).filter((t) => t !== "apitrigger");
+  const filtered = AVAILABLE.filter((d) =>
+    d.toLowerCase().includes(searchTerm.toLowerCase())
+  );
   const handleSearchKeyDown = useCallback(
-    createSearchKeyDownHandler(filtered, highlightIdx, setHighlightIdx, d => onSelectDomino(d)),
-    [filtered, highlightIdx],
+    createSearchKeyDownHandler(
+      filtered,
+      highlightIdx,
+      setHighlightIdx,
+      (d) => onSelectDomino(d)
+    ),
+    [filtered, highlightIdx]
   );
 
   /* node click */
   const onNodeClick = useCallback(
-    createNodeClickHandler(
-      () => connectStart,
-      () => setConnectStart(null),
-      setEdges,
-      getNodes,
-      updatePipeline,
-      setSelectedNode,
-    ),
-    [connectStart, nodes, edges],
+    (event: React.MouseEvent, node: Node) => {
+      return createNodeClickHandler(
+        () => connectStart,
+        () => setConnectStart(null),
+        setEdges,
+        getNodes,
+        updatePipeline,
+        setSelectedNode
+      )(event, node);
+    },
+    [connectStart, setEdges, updatePipeline, setSelectedNode]
   );
 
   /* connect start */
@@ -201,137 +207,113 @@ export default function Canvas(props: CanvasProps) {
   /* select domino from modal */
   const onSelectDomino = (type: string) => {
     if (!dropPos || !rfInstance) return;
+
     const id = `${type}-${Date.now()}`;
     const pos = rfInstance.screenToFlowPosition(dropPos);
 
     const newNode: Node = {
-      id, type, position: pos,
+      id,
+      type,
+      position: pos,
       data: { label: `${type} node`, value: "", workflowId, setNodes, updatePipeline },
       draggable: true,
       selected: false,
     };
 
-    setNodes(prev => {
-      const cleared = prev.map(n => ({ ...n, selected: false }));
+    setNodes((prev) => {
+      const cleared = prev.map((n) => ({ ...n, selected: false }));
       const upd = [...cleared, newNode];
       updatePipeline(upd, edges);
       return upd;
     });
 
     if (connectStart) {
-      setEdges(prev => addEdge(
-        {
-          source: connectStart.nodeId,
-          sourceHandle: connectStart.handleId,
-          target: id,
-          targetHandle: "exec_in",
-          type: "default",
-        } as Connection,
-        prev,
-      ));
+      setEdges((prev) =>
+        addEdge(
+          {
+            source: connectStart.nodeId,
+            sourceHandle: connectStart.handleId,
+            target: id,
+            targetHandle: "exec_in",
+            type: "default",
+          } as Connection,
+          prev
+        )
+      );
     }
     setConnectStart(null);
     setIsModalOpen(false);
     setDropPos(null);
-    setSearchTerm(""); setHighlightIdx(0);
+    setSearchTerm("");
+    setHighlightIdx(0);
   };
 
   /* isValidConnection */
   const isValidConnection = createIsValidConnection(getEdges);
 
   /* onConnect */
-  const onConnect = useCallback(
-    createOnConnectHandler(
-      getNodes, setNodes, setEdges, clearValidationForDominoId,
-      updatePipeline, router, () => setConnectStart(null),
-    ),
-    [nodes, edges],
+  const onConnect: OnConnect = useCallback(
+    (connection) =>
+      createOnConnectHandler(
+        getNodes,
+        setNodes,
+        setEdges,
+        clearValidationForDominoId,
+        updatePipeline,
+        router,
+        () => setConnectStart(null)
+      )(connection),
+    [getNodes, setNodes, setEdges, clearValidationForDominoId, updatePipeline, router]
   );
 
   /* edge changes */
   const internalEdgeChange = useCallback(
     createEdgesChangeHandler(setEdges, setNodes, getNodes, updatePipeline),
-    [nodes, edges],
+    [setEdges, setNodes]
   );
 
   const handleEdgesChange = (c: EdgeChange[]) => {
-    pushHistory(); // save current state before changes
     internalEdgeChange(c);
     onEdgesChange?.(c);
   };
 
   /* node changes */
-  const internalNodeChange = useCallback(
-    createNodesChangeHandler(setNodes),
-    [],
-  );
+  const internalNodeChange = useCallback(createNodesChangeHandler(setNodes), [setNodes]);
+
   const handleNodesChange = (c: NodeChange[]) => {
-    pushHistory(); // save current state before changes
     internalNodeChange(c);
     onNodesChange?.(c);
   };
 
   /* drag-over */
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); e.dataTransfer.dropEffect = "move";
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
   };
 
-  const undo = useCallback(() => {
-    if (!undoStack.current.length) return;
-    // move current state into redo stack
-    redoStack.current.push({ nodes, edges });
-    // pop last from undo, restore it
-    const prev = undoStack.current.pop()!;
-    setNodes(prev.nodes);
-    setEdges(prev.edges);
-  }, [nodes, edges, setNodes, setEdges]);
-
-  const redo = useCallback(() => {
-    if (!redoStack.current.length) return;
-    // move current state into undo stack
-    undoStack.current.push({ nodes, edges });
-    // pop last redo state, restore it
-    const next = redoStack.current.pop()!;
-    setNodes(next.nodes);
-    setEdges(next.edges);
-  }, [nodes, edges, setNodes, setEdges]);
-
+  /* ───── Keyboard: Undo/Redo (delegates to parent) ───── */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const z = e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey);
-      const y = e.key.toLowerCase() === 'y' && (e.ctrlKey || e.metaKey);
-      if (z && !e.shiftKey) {
-        undo(); e.preventDefault();
-      } else if ((y) || (z && e.shiftKey)) {
-        redo(); e.preventDefault();
+      const key = e.key.toLowerCase();
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+
+      if (key === 'z' && !e.shiftKey) {
+        onUndo?.();
+        e.preventDefault();
+      } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        onRedo?.();
+        e.preventDefault();
       }
     };
+
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo]);
+  }, [onUndo, onRedo]);
 
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   return (
     <div className="relative w-full h-full">
-
-      {/* ─── Undo/Redo Controls ─── */}
-      <div className="absolute top-2 left-2 z-20 flex gap-2">
-        <button
-          onClick={undo}
-          disabled={!undoStack.current.length}
-          className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm"
-        >
-          Undo
-        </button>
-        <button
-          onClick={redo}
-          disabled={!redoStack.current.length}
-          className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm"
-        >
-          Redo
-        </button>
-      </div>
-
       <ReactFlow
         id={id}
         nodes={renderedNodes}
@@ -344,7 +326,7 @@ export default function Canvas(props: CanvasProps) {
         onConnect={onConnect}
         onEdgesChange={handleEdgesChange}
         onNodesChange={handleNodesChange}
-        onNodeClick={onNodeClick}
+        onNodeClick={onNodeClick as any}
         isValidConnection={isValidConnection}
         fitView
         nodesDraggable={!readonly}
@@ -354,7 +336,6 @@ export default function Canvas(props: CanvasProps) {
         zoomOnScroll
         selectionKeyCode={null}
         proOptions={{ hideAttribution: true }}
-        /*  dark-mode surface restored ↓  */
         className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
       >
         <Background />
@@ -362,10 +343,17 @@ export default function Canvas(props: CanvasProps) {
 
       {/* modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-20"
-          onClick={() => { setIsModalOpen(false); setConnectStart(null); }}>
-          <div className="bg-white dark:bg-gray-800 p-6 rounded shadow w-80"
-            onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-20"
+          onClick={() => {
+            setIsModalOpen(false);
+            setConnectStart(null);
+          }}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 p-6 rounded shadow w-80"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-xl mb-4">Insert Domino</h2>
 
             <input
@@ -373,7 +361,7 @@ export default function Canvas(props: CanvasProps) {
               type="text"
               placeholder="Search dominos…"
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               className="w-full mb-3 px-3 py-2 border rounded
                          bg-gray-50 dark:bg-gray-700
@@ -386,10 +374,11 @@ export default function Canvas(props: CanvasProps) {
               {filtered.map((d, i) => (
                 <li key={d}>
                   <button
-                    className={`block w-full text-left px-3 py-2 rounded
-                      ${i === highlightIdx
+                    className={`block w-full text-left px-3 py-2 rounded ${
+                      i === highlightIdx
                         ? "bg-gray-200 dark:bg-gray-600"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700"}`}
+                        : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                     onClick={() => onSelectDomino(d)}
                   >
                     {d}
@@ -401,8 +390,13 @@ export default function Canvas(props: CanvasProps) {
               )}
             </ul>
 
-            <button className="mt-4 text-red-500 underline"
-              onClick={() => { setIsModalOpen(false); setConnectStart(null); }}>
+            <button
+              className="mt-4 text-red-500 underline"
+              onClick={() => {
+                setIsModalOpen(false);
+                setConnectStart(null);
+              }}
+            >
               Cancel
             </button>
           </div>

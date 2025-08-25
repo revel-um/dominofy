@@ -22,6 +22,8 @@ interface LogsPanelProps {
   defaultHeight?: string;
   /** Height of the bar when the panel is collapsed (header + grab-handle) */
   collapsedHeight?: string;
+  isMinimized?: boolean;
+  setIsMinimized?: (v: boolean) => void;
 }
 
 const refreshOptions = [0, 5, 10, 30, 60];
@@ -43,6 +45,8 @@ export const LogsPanel = React.memo(function LogsPanel({
   maxHeight = '100vh',
   defaultHeight = '60px',
   collapsedHeight = '60px',
+  isMinimized: controlledMinimized,
+  setIsMinimized: controlledSetMinimized,
 }: LogsPanelProps) {
   const today = new Date().toISOString().split('T')[0];
   const panelRef = useRef<HTMLDivElement>(null);
@@ -54,7 +58,9 @@ export const LogsPanel = React.memo(function LogsPanel({
 
   const [logs, setLogs] = useState<WorkflowLog[]>([]);
   const [height, setHeight] = useState(defaultHeight);
-  const [isMinimized, setIsMinimized] = useState(true);
+  const [internalMinimized, setInternalMinimized] = useState(true);
+  const isMinimized = typeof controlledMinimized === 'boolean' ? controlledMinimized : internalMinimized;
+  const setIsMinimized = controlledSetMinimized || setInternalMinimized;
   const [isDragging, setIsDragging] = useState(false);
 
   // filters & polling
@@ -185,6 +191,12 @@ export const LogsPanel = React.memo(function LogsPanel({
       return () => clearInterval(id);
     }
   }, [fetchLogs, refreshInterval, isLive, isPastEndDate]);
+
+  useEffect(() => {
+    if (!isMinimized) {
+      setHeight(`${Math.max(minOpenPx(), px(previousHeight.current))}px`);
+    }
+  }, [isMinimized]);
 
 
   const handleClear = () => {
