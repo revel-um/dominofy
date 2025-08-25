@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
+'use client';
+
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import ReactFlow, {
   addEdge,
   Background,
@@ -86,7 +88,7 @@ interface CanvasProps {
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   workflowId?: string;
   readonly?: boolean;
-  /* optional passthrough callbacks */
+  /* optional passthrough callbacks (parent wraps these for history) */
   onNodesChange?: (c: NodeChange[]) => void;
   onEdgesChange?: (c: EdgeChange[]) => void;
 }
@@ -102,26 +104,7 @@ export default function Canvas(props: CanvasProps) {
   const router = useRouter();
   const { setConnectionErrors, clearValidationForDominoId } = useDomino();
 
-  // history stacks
-  const undoStack = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
-  const redoStack = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
-
-  // initial snapshot once
-  useEffect(() => {
-    if (undoStack.current.length === 0) {
-      undoStack.current.push({ nodes, edges });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // record helper
-  const record = useCallback(() => {
-    undoStack.current.push({ nodes, edges });
-    if (undoStack.current.length > 50) undoStack.current.shift();
-    redoStack.current = [];
-  }, [nodes, edges]);
-
-  /* fade suggestion nodes */
+  /* fade suggestion nodes for UI */
   const renderedNodes = useMemo(
     () =>
       nodes.map((n) => {
@@ -159,7 +142,7 @@ export default function Canvas(props: CanvasProps) {
   /* drop */
   const onDrop = useCallback(
     createDropHandler(rfInstance, setNodes, getEdges, workflowId, updatePipeline),
-    [rfInstance, workflowId, nodes, edges] // keep as you had
+    [rfInstance, workflowId, nodes, edges] // keep deps as in your original
   );
 
   /* search-box keys */
@@ -178,11 +161,8 @@ export default function Canvas(props: CanvasProps) {
   );
 
   /* node click */
-  // ✅ explicit signature for node click
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
-      // record only if your handler mutates; otherwise you can remove this
-      record();
       return createNodeClickHandler(
         () => connectStart,
         () => setConnectStart(null),
@@ -192,9 +172,9 @@ export default function Canvas(props: CanvasProps) {
         setSelectedNode
       )(event, node);
     },
-    [connectStart, record, setEdges, updatePipeline, setSelectedNode]
+    [connectStart, setEdges, updatePipeline, setSelectedNode]
   );
-  
+
   /* connect start */
   const onConnectStart: OnConnectStart = (_, p) => {
     if (p.handleId?.startsWith("exec")) setConnectStart(p);
@@ -219,9 +199,6 @@ export default function Canvas(props: CanvasProps) {
   /* select domino from modal */
   const onSelectDomino = (type: string) => {
     if (!dropPos || !rfInstance) return;
-
-    // new edit path -> record current state first
-    record();
 
     const id = `${type}-${Date.now()}`;
     const pos = rfInstance.screenToFlowPosition(dropPos);
@@ -267,11 +244,9 @@ export default function Canvas(props: CanvasProps) {
   const isValidConnection = createIsValidConnection(getEdges);
 
   /* onConnect */
-  // ✅ explicit signature for connect
   const onConnect: OnConnect = useCallback(
-    (connection) => {
-      record();
-      return createOnConnectHandler(
+    (connection) =>
+      createOnConnectHandler(
         getNodes,
         setNodes,
         setEdges,
@@ -279,9 +254,8 @@ export default function Canvas(props: CanvasProps) {
         updatePipeline,
         router,
         () => setConnectStart(null)
-      )(connection);
-    },
-    [record, getNodes, setNodes, setEdges, clearValidationForDominoId, updatePipeline, router]
+      )(connection),
+    [getNodes, setNodes, setEdges, clearValidationForDominoId, updatePipeline, router]
   );
 
   /* edge changes */
@@ -291,7 +265,6 @@ export default function Canvas(props: CanvasProps) {
   );
 
   const handleEdgesChange = (c: EdgeChange[]) => {
-    record(); // save current state before changes
     internalEdgeChange(c);
     onEdgesChange?.(c);
   };
@@ -300,7 +273,6 @@ export default function Canvas(props: CanvasProps) {
   const internalNodeChange = useCallback(createNodesChangeHandler(setNodes), [setNodes]);
 
   const handleNodesChange = (c: NodeChange[]) => {
-    record(); // save current state before changes
     internalNodeChange(c);
     onNodesChange?.(c);
   };
@@ -311,73 +283,9 @@ export default function Canvas(props: CanvasProps) {
     e.dataTransfer.dropEffect = "move";
   };
 
-  const undo = useCallback(() => {
-    if (!undoStack.current.length) return;
-
-    console.log("Undoing last action...");
-
-    // move current state into redo stack
-    redoStack.current.push({ nodes, edges });
-
-    // pop last from undo, restore it
-    const prev = undoStack.current.pop()!;
-    setNodes(prev.nodes);
-    setEdges(prev.edges);
-    updatePipeline(prev.nodes, prev.edges);
-  }, [nodes, edges, setNodes, setEdges]);
-
-  const redo = useCallback(() => {
-    if (!redoStack.current.length) return;
-
-    console.log("Redoing last undone action...");
-    
-    // move current state into undo stack
-    undoStack.current.push({ nodes, edges });
-
-    // pop last redo state, restore it
-    const next = redoStack.current.pop()!;
-    setNodes(next.nodes);
-    setEdges(next.edges);
-    updatePipeline(next.nodes, next.edges);
-  }, [nodes, edges, setNodes, setEdges]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const z = e.key.toLowerCase() === "z" && (e.ctrlKey || e.metaKey);
-      const y = e.key.toLowerCase() === "y" && (e.ctrlKey || e.metaKey);
-      if (z && !e.shiftKey) {
-        undo();
-        e.preventDefault();
-      } else if (y || (z && e.shiftKey)) {
-        redo();
-        e.preventDefault();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
-
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   return (
     <div className="relative w-full h-full">
-      {/* ─── Undo/Redo Controls ─── */}
-      <div className="absolute z-20 flex gap-2">
-        <button
-          onClick={undo}
-          // disabled={!undoStack.current.length}
-          className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm"
-        >
-          Undo
-        </button>
-        <button
-          onClick={redo}
-          // disabled={!redoStack.current.length}
-          className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm"
-        >
-          Redo
-        </button>
-      </div>
-
       <ReactFlow
         id={id}
         nodes={renderedNodes}
