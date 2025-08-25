@@ -107,7 +107,7 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
             inPinId: f.pinId,
             type: f.isTextArea ? 'textArea' : f.options ? 'dropdown' : 'textInput',
             required: f.required,
-            shouldRender: false,
+            shouldRender: true,
             connectedValue: connected ? 'connected' : '',
           };
           if (f.options) (df as any).options = f.options;
