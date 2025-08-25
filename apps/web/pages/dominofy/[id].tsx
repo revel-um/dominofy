@@ -304,6 +304,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                   setEdges={setEdges}                 // wrapped setter (records history)
                   onEdgesChange={onEdgesChange}       // wrapped handler (records history)
                   workflowId={workflowId!}
+                  onUndo={undo}
+                  onRedo={redo}
                 />
 
                 {/* details drawer now starts below toolbar */}
