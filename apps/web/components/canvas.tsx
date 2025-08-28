@@ -26,6 +26,7 @@ import FilterDomino from "../dominos/filterDomino";
 import SQLRunnerDomino from "../dominos/sqlRunner";
 import CustomCodeDomino from "../dominos/codeRunner";
 import SlackTriggerDomino from "@/dominos/slackTrigger";
+import SlackActionDomino from "@/dominos/slackAction";
 import EmailSenderDomino from "../dominos/EmailSenderDomino";
 import CSVWriterDomino from "../dominos/CSVWriterDomino";
 import DelayDomino from "@/dominos/delay";
@@ -72,6 +73,7 @@ const nodeTypes = {
   delay: DelayDomino,
   mapper: MapperDomino,
   slacktrigger: SlackTriggerDomino,
+  slackaction: SlackActionDomino,
   SchedulerDomino: SchedulerDomino,
   connector: ConnectorDomino
 };

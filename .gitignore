@@ -58,3 +58,9 @@ apps/**/.env.*.local
 *.zip
 *.bak
 *.tmp
+
+# Chroma
+apps/ai/chroma/
+
+# pycache
+apps/ai/__pycache__/
