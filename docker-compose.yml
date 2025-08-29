@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15
@@ -14,6 +12,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  gcs:
+    image: fsouza/fake-gcs-server:latest
+    container_name: dominofy-gcs
+    restart: always
+    command: ["-scheme","http","-host","0.0.0.0","-public-host","localhost:8000","-backend","memory"]
+    ports:
+      - "8000:8000"
+
   backend:
     build:
       context: .
@@ -22,16 +28,21 @@ services:
     restart: always
     depends_on:
       - postgres
+      - gcs
     ports:
       - "3001:3001"
     environment:
       DATABASE_URL: postgres://dominofy:secret@postgres:5432/dominofy
-    command: npm run start:prod
+      GOOGLE_CLOUD_PROJECT: local-gcp
+      GCLOUD_PROJECT: local-gcp
+      GCS_BUCKET: dominofy-local
+      STORAGE_EMULATOR_HOST: http://gcs:8000     # inside Docker, gcs resolves
+      GCS_PUBLIC_BASE: http://localhost:8000     # host URL for browser links
 
   frontend:
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
+      dockerfile: apps/web/Dockerfile   # <-- moved under build
     container_name: dominofy-frontend
     restart: always
     depends_on:
@@ -40,7 +51,7 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3001/api
-    command: npm run build && npm run start
+    command: sh -c "npm run build && npm run start"
 
 volumes:
   postgres_data:

@@ -7,7 +7,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { UserModule } from './user/user.module';
 import { WorkflowModule } from './workflow/workflow.module';
 import { VerifyTokenMiddleware } from './middlewares/auth.middleware';
-import { AwsServicesModule } from './aws-services/aws-services.module';
+import { GcpServicesModule } from './gcp-services/gcp-services.module';
 import { WorkflowLoggerModule } from './workflow-logger/workflow-logger.module';
 import { VaultModule } from './vault/vault.module';
 import { SlackModule } from './slack/slack.module';
@@ -34,7 +34,7 @@ import { RunnerLauncherModule } from './runner-launcher/runner-launcher.module';
     ProjectsModule,
     UserModule,
     WorkflowModule,
-    AwsServicesModule,
+    GcpServicesModule,
     WorkflowLoggerModule,
     VaultModule,
     SlackModule,
