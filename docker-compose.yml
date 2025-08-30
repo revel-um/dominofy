@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: dominofy
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -16,9 +16,23 @@ services:
     image: fsouza/fake-gcs-server:latest
     container_name: dominofy-gcs
     restart: always
-    command: ["-scheme","http","-host","0.0.0.0","-public-host","localhost:8000","-backend","memory"]
+    command:
+      - -scheme
+      - http
+      - -host
+      - 0.0.0.0
+      - -port
+      - "8000"
+      - -backend
+      - filesystem
+      - -data
+      - /data
+      - -public-host
+      - localhost:8000
     ports:
       - "8000:8000"
+    volumes:
+      - ./gcs-data:/data
 
   backend:
     build:
@@ -32,17 +46,24 @@ services:
     ports:
       - "3001:3001"
     environment:
+      PORT: "3001"
       DATABASE_URL: postgres://dominofy:secret@postgres:5432/dominofy
       GOOGLE_CLOUD_PROJECT: local-gcp
       GCLOUD_PROJECT: local-gcp
       GCS_BUCKET: dominofy-local
-      STORAGE_EMULATOR_HOST: http://gcs:8000     # inside Docker, gcs resolves
-      GCS_PUBLIC_BASE: http://localhost:8000     # host URL for browser links
+      STORAGE_EMULATOR_HOST: http://gcs:8000
+      GCS_PUBLIC_BASE: http://localhost:8000
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: dominofy
+      DATABASE_PASSWORD: secret
+      DATABASE_NAME: dominofy
+      DATABASE_SCHEMA: public
 
   frontend:
     build:
       context: .
-      dockerfile: apps/web/Dockerfile   # <-- moved under build
+      dockerfile: apps/web/Dockerfile
     container_name: dominofy-frontend
     restart: always
     depends_on:
@@ -50,8 +71,9 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # Browser can hit host 3001 directly:
       NEXT_PUBLIC_API_URL: http://localhost:3001/api
-    command: sh -c "npm run build && npm run start"
+      # (Optional for SSR/server calls) INTERNAL_API_URL: http://backend:3001/api
 
 volumes:
   postgres_data:

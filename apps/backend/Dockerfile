@@ -1,24 +1,25 @@
 # apps/backend/Dockerfile
-FROM node:18 AS builder
+FROM node:20 AS builder
 WORKDIR /app
 
-# Bring in the whole repo so relative imports to /shared work
-COPY . .
+# copy lockfiles + manifests first (best cache)
+COPY package.json package-lock.json ./
+COPY apps/backend/package*.json apps/backend/
 
-# Install all workspaces (fast if you have a lockfile)
 RUN npm ci
 
-# Build ONLY the backend workspace (web won't build)
+# now bring the whole repo and build only backend
+COPY . .
 RUN npx turbo run build --filter=backend...
 
-# --- Runtime image ---
-FROM node:18 AS runner
+FROM node:20 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-
-# Copy the built repo
 COPY --from=builder /app ./
 
+RUN rm -f .env apps/backend/.env
+
 EXPOSE 3001
-# Start only the backend workspace
-CMD ["npm", "run", "start:prod", "-w", "backend"]
+
+# use the workspace script so you don't hardcode a path
+CMD ["npm","run","-w","backend","start:prod"]
