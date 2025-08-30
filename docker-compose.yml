@@ -51,6 +51,7 @@ services:
       GOOGLE_CLOUD_PROJECT: local-gcp
       GCLOUD_PROJECT: local-gcp
       GCS_BUCKET: dominofy-local
+
       STORAGE_EMULATOR_HOST: http://gcs:8000
       GCS_PUBLIC_BASE: http://localhost:8000
       DATABASE_HOST: postgres
@@ -59,6 +60,16 @@ services:
       DATABASE_PASSWORD: secret
       DATABASE_NAME: dominofy
       DATABASE_SCHEMA: public
+      
+      ENCRYPTION_KEY: qty43qasdfghjgew23456sdfgh
+      JWT_SECRET: 34tgfdw345tyhgfdsew4r5tgbvcxs
+
+      # ── Slack App credentials ────────────────────────────────────────────────
+      SLACK_CLIENT_ID: '9173438190631.9200848479169'
+      SLACK_CLIENT_SECRET: '41bc611bb92b5fe431c361ad3dcfb5fe'
+      SLACK_SIGNING_SECRET: 'ef61e8875876b6574e5c1de99e76b837'
+      SLACK_REDIRECT_URI: https://overly-organic-bluegill.ngrok-free.app/api/v1/slack
+      SLACK_SCOPES: chat:write,channels:read,im:read,commands
 
   frontend:
     build:
