@@ -170,29 +170,10 @@ export default function Canvas(props: CanvasProps) {
   );
 
   /* node click */
-  // const onNodeClick = useCallback(
-  //   (event: React.MouseEvent, node: Node) => {
-  //     return createNodeClickHandler(
-  //       () => connectStart,
-  //       () => setConnectStart(null),
-  //       setEdges,
-  //       getNodes,
-  //       updatePipeline,
-  //       setSelectedNode
-  //     )(event, node);
-  //   },
-  //   [connectStart, setEdges, updatePipeline, setSelectedNode]
-  // );
-
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
       // Cmd/Ctrl + click → toggle selection (cherry-pick)
       if (event.metaKey || event.ctrlKey) {
-        setNodes((prev) =>
-          prev.map((n) =>
-            n.id === node.id ? { ...n, selected: !n.selected } : n
-          )
-        );
         return; // don't clear other selections or trigger connect logic
       }
 
@@ -229,6 +210,7 @@ export default function Canvas(props: CanvasProps) {
     document.addEventListener("mouseup", mu);
     return () => document.removeEventListener("mouseup", mu);
   }, [connectStart]);
+
 
   /* select domino from modal */
   const onSelectDomino = (type: string) => {
@@ -318,6 +300,12 @@ export default function Canvas(props: CanvasProps) {
     e.dataTransfer.dropEffect = "move";
   };
 
+  const handlePaneClick = useCallback((e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+    setNodes((prev) => prev.map((n) => ({ ...n, selected: false })));
+    // setEdges((prev) => prev.map((ed) => ({ ...ed, selected: false })));
+  }, [setNodes /*, setEdges */]);
+
   /* ───── Keyboard: Undo/Redo (delegates to parent) ───── */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -367,6 +355,8 @@ export default function Canvas(props: CanvasProps) {
         selectionKeyCode={['Shift']}
         multiSelectionKeyCode={['Meta','Control']}
         selectionMode={SelectionMode.Partial}
+        onPaneClick={handlePaneClick}
+        // onSelectionChange={({ nodes }) => console.log('Selected:', nodes.map(n => n.id))} // sanity check
 
         proOptions={{ hideAttribution: true }}
         className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
