@@ -50,7 +50,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
       const matches = domino.label.toLowerCase().includes(searchTerm.toLowerCase());
       if (!matches && searchTerm) return;
 
-      domino.categories.forEach(cat => {
+      domino.categories?.forEach(cat => {
         if (!result[cat]) result[cat] = [];
         result[cat].push(domino);
       });

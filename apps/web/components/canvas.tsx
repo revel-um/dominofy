@@ -5,6 +5,8 @@ import ReactFlow, {
   addEdge,
   Background,
   OnConnect,
+  SelectionMode,
+  applyNodeChanges,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -51,10 +53,9 @@ import {
   createNodeClickHandler,
   createOnConnectHandler,
   createEdgesChangeHandler,
-  createNodesChangeHandler,
+  // ⛔ removed createNodesChangeHandler to ensure selection changes always apply
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
-
 
 const nodeTypes = {
   csvwriter: CSVWriterDomino,
@@ -169,8 +170,33 @@ export default function Canvas(props: CanvasProps) {
   );
 
   /* node click */
+  // const onNodeClick = useCallback(
+  //   (event: React.MouseEvent, node: Node) => {
+  //     return createNodeClickHandler(
+  //       () => connectStart,
+  //       () => setConnectStart(null),
+  //       setEdges,
+  //       getNodes,
+  //       updatePipeline,
+  //       setSelectedNode
+  //     )(event, node);
+  //   },
+  //   [connectStart, setEdges, updatePipeline, setSelectedNode]
+  // );
+
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
+      // Cmd/Ctrl + click → toggle selection (cherry-pick)
+      if (event.metaKey || event.ctrlKey) {
+        setNodes((prev) =>
+          prev.map((n) =>
+            n.id === node.id ? { ...n, selected: !n.selected } : n
+          )
+        );
+        return; // don't clear other selections or trigger connect logic
+      }
+
+      // normal behavior (incl. connect-from-exec flow)
       return createNodeClickHandler(
         () => connectStart,
         () => setConnectStart(null),
@@ -180,7 +206,7 @@ export default function Canvas(props: CanvasProps) {
         setSelectedNode
       )(event, node);
     },
-    [connectStart, setEdges, updatePipeline, setSelectedNode]
+    [connectStart, setEdges, updatePipeline, setSelectedNode, setNodes]
   );
 
   /* connect start */
@@ -277,13 +303,14 @@ export default function Canvas(props: CanvasProps) {
     onEdgesChange?.(c);
   };
 
-  /* node changes */
-  const internalNodeChange = useCallback(createNodesChangeHandler(setNodes), [setNodes]);
-
-  const handleNodesChange = (c: NodeChange[]) => {
-    internalNodeChange(c);
-    onNodesChange?.(c);
-  };
+  /* node changes — use React Flow helper so all `select`/drag changes apply */
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      setNodes((prev) => applyNodeChanges(changes, prev));
+      onNodesChange?.(changes);
+    },
+    [setNodes, onNodesChange]
+  );
 
   /* drag-over */
   const handleDragOver = (e: React.DragEvent) => {
@@ -334,7 +361,13 @@ export default function Canvas(props: CanvasProps) {
         elementsSelectable={!readonly}
         panOnDrag
         zoomOnScroll
-        selectionKeyCode={null}
+
+        /* ✅ MULTI-SELECT via rectangle (hold Shift) */
+        selectionOnDrag
+        selectionKeyCode={['Shift']}
+        multiSelectionKeyCode={['Meta','Control']}
+        selectionMode={SelectionMode.Partial}
+
         proOptions={{ hideAttribution: true }}
         className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
       >
@@ -376,7 +409,7 @@ export default function Canvas(props: CanvasProps) {
                   <button
                     className={`block w-full text-left px-3 py-2 rounded ${
                       i === highlightIdx
-                        ? "bg-gray-200 dark:bg-gray-600"
+                        ? "bg-gray-200 dark:bg-gray-6 00"
                         : "hover:bg-gray-100 dark:hover:bg-gray-700"
                     }`}
                     onClick={() => onSelectDomino(d)}

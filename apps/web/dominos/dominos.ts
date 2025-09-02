@@ -162,11 +162,13 @@ export default [
   {
     id: 'shopify',
     label: 'Shopify',
-    icon: FiShoppingBag
+    icon: FiShoppingBag,
+    categories: ['Shopify']
   },
   {
     id: 'webhook',
     label: 'Webhook',
-    icon: FiGlobe
+    icon: FiGlobe,
+    categories: ['Trigger']
   },
 ];
