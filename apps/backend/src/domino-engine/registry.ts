@@ -17,7 +17,9 @@ import { SlackTriggerDomino } from "./dominos/slackTrigger";
 import { SwitchCaseDomino } from "./dominos/switchCase";
 import { FilterDomino } from "./dominos/filter";
 import { SlackActionDomino } from "./dominos/slackAction";
-// … import other dominos here …
+import { CsvWriterDomino } from "./dominos/csvwriter";
+import { MapperDomino } from "./dominos/mapper";
+import { DelayDomino } from "./dominos/delay";
 
 type DominoCtor = new (node: PipelineStep) => DominoExecutable;
 
@@ -40,6 +42,9 @@ class DominoRegistry {
     this.register("slackaction", SlackActionDomino);
     this.register("connector", ConnectorDomino);
     this.register("filter", FilterDomino);
+    this.register("csvwriter", CsvWriterDomino);
+    this.register("mapper", MapperDomino);
+    this.register("delay", DelayDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {

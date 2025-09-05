@@ -206,7 +206,6 @@ export class ReadExcelDomino implements DominoExecutable {
   async execute(ctx: ExecuteContext): Promise<DominoResult> {
     const startedAt = Date.now();
 
-    console.log(ctx)
     const dyn = this.findFileRef((ctx.input as any) ?? {});
     let buffer: Buffer | undefined;
     let pathUsed:

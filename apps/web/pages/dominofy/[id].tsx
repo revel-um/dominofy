@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Canvas from "../../components/canvas";
 import DominosPanel from "../../components/dominosPanel";
 import DetailsPanel from "../../components/detailsPanel";
-import LogsPanel, { WorkflowLog } from "../../components/LogsPanel";
+import LogsPanel, { WorkflowLog } from "../../components/logs";
 import { ReactFlowProvider, useNodesState, useEdgesState } from 'reactflow';
 import { DominoContext } from "../../contexts/dominoContext";
 import { buildPipeline } from "../../../../shared/helpers/buildPipeline";

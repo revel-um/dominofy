@@ -2,48 +2,44 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { ChangeEvent, useEffect, useState } from 'react';
-import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
+import { useEffect, useState } from 'react';
+import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
 
-/* ───────────────────────── Types */
-type CaseRow = string;
-
-/* ───────────────────────── Component */
 export default function MapperDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
-  /* ─────────── local state ─────────── */
-  const [value, setValue] = useState('');
-  // const [inputs, setInputs] = useState<string[]>(['']);
-  // Change inputs to be an array of string arrays (for key pairs)
+  // pairs: [fromKey, toKey]
   const [inputs, setInputs] = useState<[string, string][]>([['', '']]);
-  
+  const [preserveOtherData, setPreserveOtherData] = useState<boolean>(true);
 
-  /* load from saved node data once */
   useEffect(() => {
     const fields = data.details?.fields ?? [];
-    const f1 = fields.find((f: { heading: string; }) => f.heading === 'Input');
-    if (f1 && typeof f1.value === 'string') setValue(f1.value);
 
+    // load pairs: Input_1, Input_2, ...
     const moreInputs = fields
-      .filter((f: { heading: string; }) => f.heading?.startsWith('Input_'))
-      .map((f: { value: any; }) => {
-        // Try to parse as [key, value] pair if possible, fallback to ['', '']
+      .filter((f: { heading: string }) => f.heading?.startsWith('Input_'))
+      .map((f: { value: any }) => {
         if (Array.isArray(f.value) && f.value.length === 2) {
           return [String(f.value[0] ?? ''), String(f.value[1] ?? '')] as [string, string];
         }
-        // If value is a string, treat as key, value empty
         return [String(f.value ?? ''), ''] as [string, string];
       });
 
     if (moreInputs.length) setInputs(moreInputs);
+
+    // load PreserveOtherData
+    const fp = fields.find((f: { heading: string }) => f.heading === 'PreserveOtherData');
+    if (fp && fp.value !== undefined) {
+      setPreserveOtherData(
+        typeof fp.value === 'boolean' ? fp.value : String(fp.value).toLowerCase() === 'true'
+      );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* sync → node data, preserving connectedValue / file */
   useEffect(() => {
     if (!data.setNodes) return;
 
@@ -54,37 +50,39 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
       base: Omit<DominoField, 'connectedValue' | 'file'> & { heading: string }
     ): DominoField => ({ ...getOld(base.heading), ...base } as DominoField);
 
-    // {
-    //     type: 'text',
-    //     heading: 'Input',
-    //     inPinId: 'value_in',          // <-- runtime-input pin
-    //     shouldRender: false,
-    //     required: true,
-    // },
-
     const newFields: DominoField[] = [
+      // keep runtime Input pin field (hidden)
       makeField({
         type: 'text',
         heading: 'Input',
         required: true,
         shouldRender: false,
         inPinId: 'value_in',
-        value
+        // no visible UI for this; value can remain as-is
+        value: getOld('Input')?.value ?? ''
       }),
-      ...inputs.flatMap((v, i) => [
+      ...inputs.map((v, i) =>
         makeField({
           type: 'textInput',
           heading: `Input_${i + 1}`,
-          value: v,
+          value: v,                 // [fromKey, toKey]
           required: true,
           shouldRender: false,
           inPinId: `value_in_${i + 1}`,
-        }),
-      ]),
+        })
+      ),
+      makeField({
+        // if your schema supports 'boolean', prefer that
+        type: 'text',
+        heading: 'PreserveOtherData',
+        value: preserveOtherData,
+        required: false,
+        shouldRender: false,
+      }),
     ];
 
     data.setNodes((nodes: any[]) =>
-      nodes.map((n: { id: string; data: { details: any; }; }) =>
+      nodes.map((n: { id: string; data: { details: any } }) =>
         n.id === id
           ? {
               ...n,
@@ -97,9 +95,8 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
           : n
       )
     );
-  }, [value, inputs, data.setNodes, id]);
+  }, [inputs, preserveOtherData, data.setNodes, id]);
 
-  /* ─────────── ui handlers ─────────── */
   const addInput = () => {
     clearValidationForDominoId(id);
     setInputs(p => [...p, ['', '']]);
@@ -110,12 +107,6 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
     setInputs(p => p.filter((_, idx) => idx !== i));
   };
 
-  const handleMainChange = (e: ChangeEvent<HTMLInputElement>) => {
-    clearValidationForDominoId(id);
-    setValue(e.target.value);
-  };
-
-  /* ───────────── render ───────────── */
   return (
     <div
       className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
@@ -126,11 +117,7 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
       {/* header with exec pins */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#6366f1',
-          borderBottomColor: '#4f46e5',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={{ backgroundColor: '#6366f1', borderBottomColor: '#4f46e5', borderRadius: '0.23rem 0.23rem 0 0' }}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
@@ -139,23 +126,16 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      {/* Runtime Input pin row (all ops except object) */}
-      {/* {operation !== 'object' && ( */}
-        <div className="relative px-3 py-2 flex items-center gap-2">
-          <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
-          <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
-            Input
-          </span>
-        </div>
-      {/* )} */}
+      {/* Runtime Input pin row */}
+      <div className="relative px-3 py-2 flex items-center gap-2">
+        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">Input</span>
+      </div>
 
-      
-
-      {/* additional rows */}
+      {/* rename pairs */}
       <div className="flex flex-col gap-2">
         {inputs.map((val, i) => (
           <div key={i} className="flex items-center gap-2 relative px-2">
-
             <input
               type="text"
               value={val[0]}
@@ -167,7 +147,7 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
                   return c;
                 });
               }}
-              placeholder={`initial key ${i + 2}`}
+              placeholder={`initial key ${i + 1}`}
               className="flex-1 px-2 py-1 text-sm border rounded
                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
                          text-dominofy-light-text dark:text-dominofy-dark-text"
@@ -184,7 +164,7 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
                   return c;
                 });
               }}
-              placeholder={`renamed key ${i + 2}`}
+              placeholder={`renamed key ${i + 1}`}
               className="flex-1 px-2 py-1 text-sm border rounded
                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
                          text-dominofy-light-text dark:text-dominofy-dark-text"
@@ -194,6 +174,7 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
               <button
                 onClick={() => removeInput(i)}
                 className="p-1 bg-red-500 text-white rounded ml-1"
+                aria-label={`Remove mapping row ${i + 1}`}
               >
                 <Trash size={14} />
               </button>
@@ -202,12 +183,26 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
         ))}
       </div>
 
+      {/* Preserve other data */}
+      <div className="px-3 py-2 pb-2 flex items-center gap-2">
+        <input
+          id={`preserve-${id}`}
+          type="checkbox"
+          checked={preserveOtherData}
+          onChange={(e) => {
+            clearValidationForDominoId(id);
+            setPreserveOtherData(e.target.checked);
+          }}
+          className="h-4 w-4"
+        />
+        <label htmlFor={`preserve-${id}`} className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text select-none">
+          Preserve other data
+        </label>
+      </div>
+
       {/* add button */}
       <div className="px-3 py-2">
-        <button
-          onClick={addInput}
-          className="px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
-        >
+        <button onClick={addInput} className="px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition">
           Add Input
         </button>
       </div>
@@ -215,9 +210,7 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
       {/* output row */}
       <div className="px-3 py-2 flex items-center relative justify-between">
         <div></div>
-        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
-          Output
-        </span>
+        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">Output</span>
         <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
       </div>
 
