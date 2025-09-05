@@ -13,7 +13,7 @@ import {
 import { useRouter } from "next/router";
 import { ReactElement, useState, useEffect } from "react";
 import { handleUnauthorizedError } from "../utils/error.handler";
-import { useResponsive } from "../contexts/responsiveContex";
+import { useResponsive } from "../contexts/responsiveContext";
 
 interface NavItemProps {
   label: string;
