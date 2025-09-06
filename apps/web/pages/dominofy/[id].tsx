@@ -101,6 +101,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
+  const [noteToolActive, setNoteToolActive] = useState(false);
+
   const clone = useCallback(<T,>(x: T): T => JSON.parse(JSON.stringify(x)), []);
 
   const publishFlags = useCallback(() => {
@@ -331,6 +333,9 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             onRedo={redo}
             canUndo={canUndo}
             canRedo={canRedo}
+            isInsertNoteActive={noteToolActive}
+            onStartInsertNote={() => setNoteToolActive(true)}
+            onCancelInsertNote={() => setNoteToolActive(false)}
           />
 
           <div className="flex-1 flex h-full">
@@ -351,6 +356,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                   workflowId={workflowId!}
                   onUndo={undo}
                   onRedo={redo}
+                  noteToolActive={noteToolActive}
+                  onCancelInsertNote={() => setNoteToolActive(false)}
                 />
 
                 {/* details drawer now starts below toolbar */}

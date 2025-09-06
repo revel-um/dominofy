@@ -172,6 +172,12 @@ export default [
     categories: ['Shopify']
   },
   {
+    id: 'note',
+    label: 'Note',
+    icon: FiFileText,
+    categories: ['Utility']
+  },
+  {
     id: 'webhook',
     label: 'Webhook',
     icon: FiGlobe,

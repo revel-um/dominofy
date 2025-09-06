@@ -9,6 +9,7 @@ import {
   FiCheck,
   FiX,
   FiLoader,
+  FiMessageSquare, // NEW: Note icon
 } from 'react-icons/fi';
 import { Node, Edge } from 'reactflow';
 import { exportWorkflow } from '../helpers/workflowManager';
@@ -35,11 +36,16 @@ interface WorkflowToolbarProps {
   getEdges: () => Edge[];
   openLogsPanel?: () => void;
 
-  /** New: undo/redo controls are provided by the parent */
+  /** Undo/redo provided by parent */
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+
+  /** NEW: note insertion control is owned by the Canvas */
+  onStartInsertNote?: () => void;
+  onCancelInsertNote?: () => void;
+  isInsertNoteActive?: boolean;
 }
 
 const TOOLBAR_HEIGHT = 56;
@@ -55,6 +61,9 @@ export default function WorkflowToolbar({
   onRedo,
   canUndo = false,
   canRedo = false,
+  onStartInsertNote,
+  onCancelInsertNote,
+  isInsertNoteActive = false,
 }: WorkflowToolbarProps) {
   const router = useRouter();
   const { setValidationErrors } = useDomino();
@@ -179,17 +188,11 @@ export default function WorkflowToolbar({
       const resp = await WorkflowsApi.renameWorkflow(workflow.id, newName, token, router);
 
       if (resp?.ok) {
-        /* if your API returns the updated workflow, use it; otherwise patch locally */
         const updated =
           resp.status === 204 ? { ...workflow, name: newName } : await resp.json();
 
-        /* 1️⃣ lift new name into React state */
         setWorkflow(updated);
-
-        /* 2️⃣ refresh the cache so a hard-reload sees the new name */
         sessionStorage.setItem('workflow-cache', JSON.stringify(updated));
-
-        /* 3️⃣ close the modal */
         setShowNameModal(false);
       } else {
         throw new Error('rename failed');
@@ -202,6 +205,15 @@ export default function WorkflowToolbar({
 
   /* cleanup */
   useEffect(() => () => stopSSE(), [stopSSE]);
+
+  /* ────── note tool toggle ────── */
+  const toggleNoteTool = useCallback(() => {
+    if (isInsertNoteActive) {
+      onCancelInsertNote?.();
+    } else {
+      onStartInsertNote?.();
+    }
+  }, [isInsertNoteActive, onStartInsertNote, onCancelInsertNote]);
 
   return (
     <>
@@ -280,6 +292,37 @@ export default function WorkflowToolbar({
           >
             {justRan ? <FiCheck className="w-4 h-4" /> : <FiPlay className="w-4 h-4" />}
             Run
+          </button>
+
+          {isInsertNoteActive && (
+            <span
+              className="ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full
+                        text-xs font-medium
+                        bg-amber-100 text-amber-800
+                        dark:bg-amber-500/20 dark:text-amber-200 border border-amber-300/60"
+            >
+              <FiMessageSquare className="w-3 h-3" />
+              Note mode: click canvas
+            </span>
+          )}
+
+          {/* NEW: Note tool (high-contrast active styles) */}
+          <button
+            onClick={toggleNoteTool}
+            className={[
+              "p-2 rounded-md transition-all",
+              "outline-none focus:ring-2 focus:ring-amber-400/70",
+              isInsertNoteActive
+                // ACTIVE: bright background + border + inner shadow so it reads “pressed”
+                ? "bg-amber-500 text-white ring-2 ring-amber-300 shadow-inner"
+                // IDLE: subtle, but contrasts on hover
+                : "text-[var(--text-secondary)] hover:bg-[var(--secondary-hover)] hover:text-white"
+            ].join(" ")}
+            title={isInsertNoteActive ? "Click to cancel note insertion" : "Insert note (N)"}
+            aria-pressed={isInsertNoteActive}
+            data-state={isInsertNoteActive ? "on" : "off"}
+          >
+            <FiMessageSquare className="w-4 h-4" />
           </button>
 
           {/* Undo */}
