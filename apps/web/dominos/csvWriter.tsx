@@ -1,66 +1,145 @@
+// src/dominos/csvWriter.tsx
 import { NodeProps } from 'reactflow';
-import { useCallback, useEffect, useState } from 'react';
-import { FiDownload, FiFileText } from 'react-icons/fi';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { FiFileText } from 'react-icons/fi';
+import { DominoField } from '../types/dominoFieldTypes';
+
+type InputType = 'json' | 'text';
 
 interface CSVWriterConfig {
+  name: string;          // node display name
   fileName: string;
   includeHeader: boolean;
   delimiter: string;
-  data: any[];
+  inputType: InputType;
+  textInput: string;     // freeform box (always visible)
+  data: any[];           // pipeline-fed JSON rows
   lastExport: Date | null;
 }
 
 export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  
+
   const [config, setConfig] = useState<CSVWriterConfig>({
-    fileName: 'export',
+    name: 'CSV Writer',
+    fileName: '',
     includeHeader: true,
     delimiter: ',',
+    inputType: 'json',
+    textInput: '',
     data: [],
-    lastExport: null
+    lastExport: null,
   });
 
-  // Update node fields in the React Flow graph
-  const updateNodeFields = useCallback((updatedConfig: CSVWriterConfig) => {
-    if (!data.setNodes) return;
+  const didInitRef = useRef(false);
+  const lastFieldsHashRef = useRef<string | null>(null);
 
-    const updatedFields = [
+  const sanitizeDelimiter = (v: string) => (v === '\\t' ? '\t' : v);
+
+  /* Build details.fields to sync (no UI coupling here) */
+  const computedFields = useMemo(() => {
+    const isText = config.inputType === 'text';
+    const isJSON = config.inputType === 'json';
+    return [
+      {
+        type: 'text',
+        heading: 'Name',
+        value: config.name,
+        required: false,
+        shouldRender: true,
+        inPinId: 'value_in', // (kept as provided)
+      },
+      {
+        type: 'select',
+        heading: 'Input Type',
+        value: config.inputType,
+        options: [
+          { label: 'JSON (array of objects)', value: 'json' },
+          { label: 'Text (rows/columns)', value: 'text' },
+        ],
+        inPinId: 'value_in_1',
+        required: true,
+        shouldRender: true,
+      },
       {
         type: 'text',
         heading: 'File Name',
-        value: updatedConfig.fileName,
-        inPinId: 'value_in_1',
+        value: config.fileName,
+        inPinId: 'value_in_2',
         required: true,
         shouldRender: true,
       },
       {
         type: 'checkbox',
         heading: 'Include Header',
-        value: updatedConfig.includeHeader,
-        inPinId: 'value_in_2',
+        value: config.includeHeader,
+        inPinId: 'value_in_3',
         required: false,
-        shouldRender: true,
+        shouldRender: isJSON,
       },
       {
         type: 'select',
         heading: 'Delimiter',
-        value: updatedConfig.delimiter,
+        value: config.delimiter === '\t' ? '\\t' : config.delimiter,
         options: [
           { label: 'Comma (,)', value: ',' },
           { label: 'Semicolon (;)', value: ';' },
-          { label: 'Tab (\t)', value: '\t' },
+          { label: 'Tab (\\t)', value: '\\t' },
           { label: 'Pipe (|)', value: '|' },
         ],
-        inPinId: 'value_in_3',
-        required: true,
-        shouldRender: true,
+        inPinId: 'value_in_4',
+        required: isText,
+        shouldRender: isText,
+      },
+      {
+        type: 'textarea',
+        heading: 'Input Box',
+        value: config.textInput,
+        inPinId: 'value_in_5',
+        required: false,
+        shouldRender: true, // always
       },
     ];
+  }, [config]);
+  const computedFieldsHash = JSON.stringify(computedFields);
+
+  const exportFields = useMemo(() => {
+    const list: string[] = ['Name', 'Input Type', 'File Name', 'Input Box'];
+    if (config.inputType === 'json') list.push('Include Header');
+    if (config.inputType === 'text') list.push('Delimiter');
+    return list;
+  }, [config.inputType, config.name]);
+
+  /* One-time init from existing node fields (read-only) */
+  useEffect(() => {
+    if (didInitRef.current) return;
+    const fields: DominoField[] = data.details?.fields ?? [];
+    if (fields.length > 0) {
+      const getFieldValue = (h: string, d: any) =>
+        fields.find((f: any) => f.heading === h)?.value ?? d;
+
+      setConfig((prev) => ({
+        ...prev,
+        name: getFieldValue('Name', 'CSV Writer'),
+        fileName: getFieldValue('File Name', ''),
+        includeHeader: !!getFieldValue('Include Header', true),
+        delimiter: sanitizeDelimiter(getFieldValue('Delimiter', ',')),
+        inputType: (getFieldValue('Input Type', 'json') as InputType) || 'json',
+        textInput: getFieldValue('Input Box', ''),
+      }));
+    }
+    didInitRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.details?.fields]);
+
+  /* Sync local -> graph only when changed (prevents update-depth loops) */
+  useEffect(() => {
+    if (!didInitRef.current || !data.setNodes) return;
+    if (lastFieldsHashRef.current === computedFieldsHash) return;
 
     data.setNodes((nodes: any[]) =>
       nodes.map((n: any) =>
@@ -69,198 +148,110 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
               ...n,
               data: {
                 ...n.data,
-                details: { ...n.data.details, fields: updatedFields },
-                exportFields: ['File Name', 'Include Header', 'Delimiter'],
+                details: { ...n.data.details, fields: computedFields },
+                exportFields,
               },
             }
           : n
       )
     );
-  }, [data.setNodes, id]);
+    lastFieldsHashRef.current = computedFieldsHash;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedFieldsHash, exportFields, data.setNodes, id]);
 
-  // Initialize node data
-  useEffect(() => {
-    if (!data.setNodes) return;
-
-    // Only initialize if fields don't exist yet
-    if (!data.details?.fields || data.details.fields.length === 0) {
-      updateNodeFields(config);
-    } else {
-      // Update local state from existing node data
-      const fields = data.details.fields || [];
-      const getFieldValue = (heading: string, defaultValue: any) => 
-        fields.find((f: any) => f.heading === heading)?.value ?? defaultValue;
-
-      setConfig({
-        fileName: getFieldValue('File Name', config.fileName),
-        includeHeader: getFieldValue('Include Header', config.includeHeader),
-        delimiter: getFieldValue('Delimiter', config.delimiter),
-        data: config.data, // Keep existing data
-        lastExport: config.lastExport, // Keep existing lastExport
+  /* Field mutators */
+  const patchConfig = useCallback(
+    (patch: Partial<CSVWriterConfig>) => {
+      setConfig((prev) => {
+        const next = { ...prev, ...patch };
+        clearValidationForDominoId(id);
+        return next;
       });
-    }
-  }, [data.details?.fields, data.setNodes, id, updateNodeFields]);
+    },
+    [clearValidationForDominoId, id]
+  );
 
-  // Handle field changes
-  const handleFileNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newConfig = { ...config, fileName: e.target.value };
-    setConfig(newConfig);
-    updateNodeFields(newConfig);
-    clearValidationForDominoId(id);
-  };
-
-  const handleIncludeHeaderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newConfig = { ...config, includeHeader: e.target.checked };
-    setConfig(newConfig);
-    updateNodeFields(newConfig);
-    clearValidationForDominoId(id);
-  };
-
-  const handleDelimiterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newConfig = { ...config, delimiter: e.target.value };
-    setConfig(newConfig);
-    updateNodeFields(newConfig);
-    clearValidationForDominoId(id);
-  };
-
-  // Alias for handleFieldChange to maintain compatibility with existing code
   const handleFieldChange = (field: keyof CSVWriterConfig, value: any) => {
-    const newConfig = { ...config, [field]: value };
-    setConfig(newConfig);
-    updateNodeFields(newConfig);
-    clearValidationForDominoId(id);
+    if (field === 'delimiter') value = sanitizeDelimiter(value);
+    patchConfig({ [field]: value } as Partial<CSVWriterConfig>);
   };
 
-  // Convert data to CSV format
-  const convertToCSV = (data: any[]): string => {
-    if (!data || data.length === 0) return '';
-    
-    const headers = config.includeHeader 
-      ? Object.keys(data[0] || {})
-      : [];
-    
-    const csvRows = [];
-    
-    // Add header row if needed
-    if (headers.length > 0) {
-      csvRows.push(headers.join(config.delimiter));
-    }
-    
-    // Add data rows
-    for (const row of data) {
-      const values = headers.map(header => {
-        const value = row[header] || '';
-        // Escape quotes and wrap in quotes if contains delimiter or newline
-        const escaped = ('' + value).replace(/"/g, '""');
-        return `"${escaped}"`;
-      });
-      csvRows.push(values.join(config.delimiter));
-    }
-    
-    return csvRows.join('\n');
-  };
+  /* Preview meta (hidden if empty) */
+  const hasPreview =
+    (config.inputType === 'json' && (config.data?.length ?? 0) > 0) ||
+    !!config.textInput.trim();
 
-  // Handle download
-  const handleDownload = () => {
-    try {
-      const csvContent = convertToCSV(config.data);
-      if (!csvContent) {
-        console.warn('No data to export');
-        return;
-      }
-      
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `${config.fileName}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Update last export time
-      setConfig(prev => ({
-        ...prev,
-        lastExport: new Date()
-      }));
-      
-    } catch (error) {
-      console.error('Error generating CSV:', error);
+  const previewMeta = useMemo(() => {
+    if (!hasPreview) return '';
+    if (config.inputType === 'json' && config.data?.length) {
+      const count = config.data.length;
+      return `${count} row${count !== 1 ? 's' : ''} from JSON`;
     }
-  };
-
-  // Format date for display
-  const formatDate = (date: Date | null | undefined) => {
-    if (!date) return 'Never';
-    return new Date(date).toLocaleString();
-  };
+    const lines = config.textInput.replace(/\r\n/g, '\n').split('\n').length;
+    return `${lines} line${lines !== 1 ? 's' : ''} from input box`;
+  }, [hasPreview, config.inputType, config.data, config.textInput]);
 
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-64 overflow-visible shadow-sm ${
+      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm ${
         hasError
           ? 'error-border'
           : selected
             ? 'selected-border border-4'
             : 'unselected-border dark:border-gray-600'
       } bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      style={{ minWidth: '13rem' }} // parent: no extra padding/margins besides radius/border
     >
-      {/* Header */}
+      {/* Header (child carries its own padding) */}
       <div
-        className="flex justify-between text-sm font-semibold text-white border-b rounded-t-md"
-        style={{
-          backgroundColor: '#8b5cf6',
-          borderBottomColor: '#7c3aed',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        className="relative flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md"
+        style={{ backgroundColor: '#8b5cf6', borderBottomColor: '#7c3aed', borderRadius: '0.23rem 0.23rem 0 0' }}
       >
-        <div className="flex items-center gap-1 px-3 py-2">
-          <FiFileText className="w-4 h-4" />
-          <span>CSV Writer</span>
-        </div>
-        <div className="flex items-center pr-2">
+        <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
-          <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+          <FiFileText className="w-4 h-4" />
+          <span>{config.name?.trim() || 'CSV Writer'}</span>
         </div>
+        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      {/* Form fields */}
-      <div className="space-y-3 p-3">
-        {/* File Name */}
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            File Name
-          </label>
-          <input
-            type="text"
-            value={config.fileName}
-            onChange={(e) => handleFieldChange('fileName', e.target.value)}
-            className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-            placeholder="export"
-          />
-        </div>
+      {/* File Name row with VALUE_IN pin (row carries its own padding) */}
+      <div className="flex items-center gap-2 relative px-3 py-2">
+        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+        <input
+          type="text"
+          value={config.fileName}
+          onChange={(e) => handleFieldChange('fileName', e.target.value)}
+          placeholder="File Name"
+          className="flex-1 px-2 py-1 text-sm border rounded
+                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                     text-dominofy-light-text dark:text-dominofy-dark-text
+                     border-gray-300 dark:border-gray-600"
+          title="File name (without extension)"
+        />
+      </div>
 
-        {/* Delimiter */}
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            Delimiter
-          </label>
-          <select
-            value={config.delimiter}
-            onChange={(e) => handleFieldChange('delimiter', e.target.value)}
-            className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-          >
-            <option value=",">Comma (,)</option>
-            <option value="\t">Tab (\t)</option>
-            <option value=";">Semicolon (;)</option>
-            <option value="|">Pipe (|)</option>
-          </select>
-        </div>
+      {/* Input Type (child-padding) */}
+      <div className="px-3 py-2">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+          Input Type
+        </label>
+        <select
+          value={config.inputType}
+          onChange={(e) => handleFieldChange('inputType', e.target.value as InputType)}
+          className="mt-1 w-full px-2 py-1 text-sm border rounded
+                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                     text-dominofy-light-text dark:text-dominofy-dark-text
+                     border-gray-300 dark:border-gray-600"
+        >
+          <option value="json">JSON (array of objects)</option>
+          <option value="text">Text (rows/columns)</option>
+        </select>
+      </div>
 
-        {/* Include Header */}
-        <div className="flex items-center space-x-2">
+      {/* Include Header (JSON only) */}
+      {config.inputType === 'json' && (
+        <div className="flex items-center gap-2 px-3 py-2">
           <input
             type="checkbox"
             id="includeHeader"
@@ -272,35 +263,62 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
             Include Header Row
           </label>
         </div>
+      )}
 
-        {/* Preview */}
-        <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800/30 rounded border border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-            {config.data.length > 0 
-              ? `${config.data.length} row${config.data.length !== 1 ? 's' : ''} of data`
-              : 'No data available'}
-          </div>
-          {config.lastExport && (
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              Last exported: {formatDate(config.lastExport)}
-            </div>
-          )}
+      {/* Delimiter (Text only) */}
+      {config.inputType === 'text' && (
+        <div className="px-3 py-2">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+            Delimiter
+          </label>
+          <select
+            value={config.delimiter === '\t' ? '\\t' : config.delimiter}
+            onChange={(e) => handleFieldChange('delimiter', e.target.value)}
+            className="mt-1 w-full px-2 py-1 text-sm border rounded
+                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                       text-dominofy-light-text dark:text-dominofy-dark-text
+                       border-gray-300 dark:border-gray-600"
+          >
+            <option value=",">Comma (,)</option>
+            <option value="\\t">Tab (\t)</option>
+            <option value=";">Semicolon (;)</option>
+            <option value="|">Pipe (|)</option>
+          </select>
         </div>
+      )}
 
-        {/* Download Button */}
-        <button
-          onClick={handleDownload}
-          disabled={!config.data || config.data.length === 0}
-          className={`w-full flex items-center justify-center gap-2 mt-2 px-3 py-1.5 text-sm font-medium rounded-md text-white ${
-            config.data && config.data.length > 0
-              ? 'bg-purple-600 hover:bg-purple-700'
-              : 'bg-gray-400 cursor-not-allowed'
-          } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500`}
-        >
-          <FiDownload className="w-4 h-4" />
-          Download CSV
-        </button>
+      {/* Input Box label (child-padding) */}
+      <div className="px-3 pt-1">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+          Input Box
+        </label>
       </div>
+
+      {/* Input Box row with VALUE_IN_5 pin (row carries its own padding) */}
+      <div className="flex items-center gap-2 relative px-3 py-2">
+        <DominoPin id="value_in_5" pinType={PinType.VALUE_IN} inline />
+        <textarea
+          value={config.textInput}
+          onChange={(e) => handleFieldChange('textInput', e.target.value)}
+          placeholder=""
+          rows={4}
+          className="flex-1 px-2 py-1 text-sm border rounded
+                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                     text-dominofy-light-text dark:text-dominofy-dark-text
+                     border-gray-300 dark:border-gray-600"
+        />
+      </div>
+
+      {/* Preview (only when non-empty) */}
+      {hasPreview && (
+        <div className="px-3 py-2">
+          <div className="p-2 bg-gray-50 dark:bg-gray-800/30 rounded border border-gray-200 dark:border-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {previewMeta}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
