@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FiSend } from 'react-icons/fi';
+import { Edge, Node } from 'reactflow';
+import fakeworkflow from '../pages/fakeWorkflow.json';
 
 interface Message {
     id: string;
@@ -14,9 +16,14 @@ interface Props {
     isOpen: boolean;
     width: number;
     onClose: () => void;
+    setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
+    setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+    getNodes: () => Node[];
+    getEdges: () => Edge[];
 }
 
-export default function AIPanelDocked({ isOpen, width, onClose }: Props) {
+export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNodes, getNodes, getEdges }: Props) {
+
     const [inputValue, setInputValue] = useState('');
     const [messages, setMessages] = useState<Message[]>([{
         id: 'init',
@@ -24,6 +31,34 @@ export default function AIPanelDocked({ isOpen, width, onClose }: Props) {
         sender: 'ai',
         timestamp: new Date(),
     }]);
+
+    // find all suggested nodes
+    const suggestedNodes = useMemo(
+        () => getNodes().filter(n => n.data?.suggested),
+        [getNodes()]
+    );
+    
+    // 📦 keep a ref to the “real” nodes/edges before injecting fake
+    const origNodesRef = useRef<Node[]>([]);
+    const origEdgesRef = useRef<Edge[]>([]);
+
+    // Accept all suggested dominoes
+    const acceptAllSuggestions = useCallback(() => {
+        setNodes(nds =>
+        nds.map(n =>
+            n.data?.suggested
+            ? { ...n, data: { ...n.data, suggested: false } }
+            : n
+        )
+        );
+    }, [setNodes]);
+
+    // Reject (remove) all suggested dominoes  their edges
+    const rejectAllSuggestions = useCallback(() => {
+        // simply restore the pre-suggestion state
+        setNodes(origNodesRef.current);
+        setEdges(origEdgesRef.current);
+    }, [setNodes, setEdges]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -47,6 +82,18 @@ export default function AIPanelDocked({ isOpen, width, onClose }: Props) {
                 timestamp: new Date(),
             };
             setMessages(prev => [...prev, aiMessage]);
+
+            if (aiMessage.content.includes('suggested')) {
+                // Capture current workflow before injecting suggestions
+                origNodesRef.current = getNodes();
+                origEdgesRef.current = getEdges(); {
+                // Here you would handle the AI's suggestion, e.g., updating nodes/edges
+                // setNodes([...]); // Update nodes based on AI suggestion
+                // setEdges([...]); // Update edges based on AI suggestion
+                setNodes(fakeworkflow.nodes);
+                setEdges(fakeworkflow.edges);
+            }
+        }
         }, 800);
     };
 
@@ -98,6 +145,26 @@ export default function AIPanelDocked({ isOpen, width, onClose }: Props) {
                         <FiSend size={18} />
                     </button>
                 </div>
+                
+                {/* ─── accept/reject ALL suggestions ─── */}
+                {suggestedNodes.length > 0 && (
+                    <div className="relative top-2 z-20 flex gap-2"
+                    style={{ pointerEvents: 'auto' }}
+                    >
+                    <button
+                        onClick={acceptAllSuggestions}
+                        className="px-2 py-1 bg-green-600 text-white rounded text-sm shadow"
+                    >
+                        Accept All
+                    </button>
+                    <button
+                        onClick={rejectAllSuggestions}
+                        className="px-2 py-1 bg-red-600 text-white rounded text-sm shadow"
+                    >
+                        Reject All
+                    </button>
+                    </div>
+                )}
             </form>
         </div>
     );

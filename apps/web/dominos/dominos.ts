@@ -22,7 +22,8 @@ import {
   FiMail,
   FiDownload,
   FiCheckCircle,
-  FiCpu
+  FiCpu,
+  FiShoppingBag,
 } from 'react-icons/fi';
 
 export default [
@@ -163,5 +164,17 @@ export default [
     label: 'Connector',
     icon: Plug,
     categories: ['Logic']
-  }
+  },
+  {
+    id: 'shopify',
+    label: 'Shopify',
+    icon: FiShoppingBag,
+    categories: ['Shopify']
+  },
+  {
+    id: 'webhook',
+    label: 'Webhook',
+    icon: FiGlobe,
+    categories: ['Trigger']
+  },
 ];

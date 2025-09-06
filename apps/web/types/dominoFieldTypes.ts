@@ -25,7 +25,8 @@ export type WidgetType =
   | 'switch'
   | 'password'
   | 'textArea'
-  | 'button';
+  | 'button'
+  | 'keyVal';
 
 export interface DominoFieldOption {
   label: string;

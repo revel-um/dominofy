@@ -14,10 +14,12 @@ interface Props {
   selectedNode?: Node;
   getNodes: () => Node[];
   getEdges: () => Edge[];
+  setNodes: React.Dispatch<React.SetStateAction<Node[]>>;  
+  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   bottomOffset?: number;
 }
 
-export default function DetailsPanel({ selectedNode, bottomOffset = 60 }: Props) {
+export default function DetailsPanel({ selectedNode, bottomOffset = 60, setEdges, setNodes, getEdges, getNodes }: Props) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [isDetailsOpen, setIsDetailsOpen] = useState(!!selectedNode);
   const [isAIOpen, setIsAIOpen] = useState(false);
@@ -125,6 +127,10 @@ export default function DetailsPanel({ selectedNode, bottomOffset = 60 }: Props)
             setIsDetailsOpen(false);
             setUserClosedDetails(true); // ✅ also mark details as manually closed
           }}
+          setEdges={setEdges} 
+          setNodes={setNodes}
+          getNodes={getNodes}
+          getEdges={getEdges}
         />
       )}
 
