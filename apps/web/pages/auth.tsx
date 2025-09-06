@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
+import Head from 'next/head';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { signIn, useSession } from 'next-auth/react';
 import axios from 'axios';
+import { OAuthButtons } from '../components/auth/OAuthButtons';
 import { FcGoogle } from 'react-icons/fc';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -21,6 +25,27 @@ export default function AuthPage() {
       router.push('/dashboard');
     } else {
       setCheckingAuth(false);
+    }
+
+    // Check for OAuth errors in URL
+    const { error } = router.query;
+    if (error) {
+      let errorMessage = 'Authentication failed. Please try again.';
+      switch (error) {
+        case 'access_denied':
+          errorMessage = 'Access was denied. Please try again.';
+          break;
+        case 'missing_code':
+          errorMessage = 'Authentication code missing. Please try again.';
+          break;
+        case 'oauth_failed':
+          errorMessage = 'OAuth authentication failed. Please try again.';
+          break;
+        case 'no_token':
+          errorMessage = 'No authentication token received. Please try again.';
+          break;
+      }
+      toast.error(errorMessage);
     }
   }, [router]);
 
@@ -134,6 +159,18 @@ export default function AuthPage() {
                     </button>
                   </>
                 )}
+              </div>
+            </div>
+
+            {/* OAuth Buttons */}
+            <OAuthButtons />
+
+            <div className="relative mt-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or sign in with email</span>
               </div>
             </div>
 

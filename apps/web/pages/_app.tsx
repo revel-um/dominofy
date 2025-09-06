@@ -1,16 +1,15 @@
-// pages/_app.tsx or ideally pages/_document.tsx
-import { useEffect } from 'react';
-import '../styles/globals.css';
-
+import { SessionProvider } from 'next-auth/react';
 import type { AppProps } from 'next/app';
-import Layout from './layout';
-import { NextRouter, useRouter } from 'next/router';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { ToastContainer } from 'react-toastify';
 import { ResponsiveProvider } from '../contexts/responsiveContext';
+import Layout from './layout';
+import '../styles/globals.css';
 
 const EXCLUDED_ROUTES = ['/auth', '/dominofy'];
 
-function MyApp({ Component, pageProps }: AppProps) {
+function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -25,7 +24,8 @@ function MyApp({ Component, pageProps }: AppProps) {
   );
 
   return (
-    <ResponsiveProvider>
+    <SessionProvider session={pageProps.session}>
+      <ResponsiveProvider>
       {isExcluded ? (
         <>
           <Component {...pageProps} />
@@ -51,7 +51,8 @@ function MyApp({ Component, pageProps }: AppProps) {
           />
         </Layout>
       )}
-    </ResponsiveProvider>
+      </ResponsiveProvider>
+    </SessionProvider>
   );
 }
 

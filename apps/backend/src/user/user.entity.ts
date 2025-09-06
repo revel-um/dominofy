@@ -13,8 +13,17 @@ export class User extends BaseEntity {
   @Column({ unique: true })
   email: string;
 
-  @Column()
+  @Column({ nullable: true })
   password: string;
+
+  @Column({ nullable: true })
+  oauthProvider: string;
+
+  @Column({ nullable: true })
+  oauthId: string;
+
+  @Column({ nullable: true })
+  profilePicture: string;
 
   @OneToMany(() => Project, (project) => project.user)
   projects: Project[];
