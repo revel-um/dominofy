@@ -41,7 +41,9 @@ import LLMDomino from "../dominos/llm";
 import SchedulerDomino from "../dominos/scheduler";
 import ConnectorDomino from "@/dominos/connector";
 import ShopifyDomino from "@/dominos/shopify";
-        
+/* NEW: Note node */
+import NoteDomino from "../dominos/note";
+
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnections } from "../helpers/errorDetector";
@@ -54,7 +56,6 @@ import {
   createNodeClickHandler,
   createOnConnectHandler,
   createEdgesChangeHandler,
-  // ⛔ removed createNodesChangeHandler to ensure selection changes always apply
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
 
@@ -82,7 +83,9 @@ const nodeTypes = {
   slackaction: SlackActionDomino,
   SchedulerDomino: SchedulerDomino,
   connector: ConnectorDomino,
-  shopify: ShopifyDomino
+  shopify: ShopifyDomino,
+  /* NEW */
+  note: NoteDomino,
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
@@ -101,6 +104,10 @@ interface CanvasProps {
   /* NEW: parent-provided undo/redo handlers for keyboard shortcuts */
   onUndo?: () => void;
   onRedo?: () => void;
+
+  /* NEW: note tool control coming from parent/toolbar */
+  noteToolActive?: boolean;
+  onCancelInsertNote?: () => void;
 }
 
 /* ─────────────────────────  COMPONENT  ───────────────────────── */
@@ -110,6 +117,9 @@ export default function Canvas(props: CanvasProps) {
     workflowId, readonly = false,
     onNodesChange, onEdgesChange,
     onUndo, onRedo,
+    /* NEW */
+    noteToolActive = false,
+    onCancelInsertNote,
   } = props;
 
   const router = useRouter();
@@ -176,10 +186,9 @@ export default function Canvas(props: CanvasProps) {
     (event: React.MouseEvent, node: Node) => {
       // Cmd/Ctrl + click → toggle selection (cherry-pick)
       if (event.metaKey || event.ctrlKey) {
-        return; // don't clear other selections or trigger connect logic
+        return;
       }
 
-      // normal behavior (incl. connect-from-exec flow)
       return createNodeClickHandler(
         () => connectStart,
         () => setConnectStart(null),
@@ -212,7 +221,6 @@ export default function Canvas(props: CanvasProps) {
     document.addEventListener("mouseup", mu);
     return () => document.removeEventListener("mouseup", mu);
   }, [connectStart]);
-
 
   /* select domino from modal */
   const onSelectDomino = (type: string) => {
@@ -302,11 +310,51 @@ export default function Canvas(props: CanvasProps) {
     e.dataTransfer.dropEffect = "move";
   };
 
-  const handlePaneClick = useCallback((e: React.MouseEvent) => {
-    if (e.metaKey || e.ctrlKey || e.shiftKey) return;
-    setNodes((prev) => prev.map((n) => ({ ...n, selected: false })));
-    // setEdges((prev) => prev.map((ed) => ({ ...ed, selected: false })));
-  }, [setNodes /*, setEdges */]);
+  /* pane click behavior:
+     - If note tool is active, drop a note where user clicked and exit note mode.
+     - Otherwise default: clear selection (unless meta/ctrl/shift). */
+  const handlePaneClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Insert note if tool active
+      if (noteToolActive && rfInstance) {
+        const screen = { x: e.clientX, y: e.clientY };
+        const pos = rfInstance.screenToFlowPosition(screen);
+        const id = `note-${Date.now()}`;
+
+        const newNode: Node = {
+          id,
+          type: "note",
+          position: pos,
+          data: {
+            text: "Double-click to edit",
+            color: "#FFF9C4", // soft yellow
+            workflowId,
+            // 👇 important: stable shape expected by rest of app
+            details: { fields: [] },
+          },
+          draggable: true,
+          selectable: true,
+        };
+
+        setNodes((prev) => {
+          const cleared = prev.map((n) => ({ ...n, selected: false }));
+          const upd = [...cleared, newNode];
+          updatePipeline(upd, edges);
+          return upd;
+        });
+
+        // leave insert mode
+        onCancelInsertNote?.();
+        return;
+      }
+
+      // Default selection behavior
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+      setNodes((prev) => prev.map((n) => ({ ...n, selected: false })));
+      
+    },
+    [noteToolActive, rfInstance, setNodes, edges, updatePipeline, onCancelInsertNote, workflowId]
+  );
 
   /* ───── Keyboard: Undo/Redo (delegates to parent) ───── */
   useEffect(() => {
@@ -358,10 +406,9 @@ export default function Canvas(props: CanvasProps) {
         multiSelectionKeyCode={['Meta','Control']}
         selectionMode={SelectionMode.Partial}
         onPaneClick={handlePaneClick}
-        // onSelectionChange={({ nodes }) => console.log('Selected:', nodes.map(n => n.id))} // sanity check
 
         proOptions={{ hideAttribution: true }}
-        className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
+        className={`absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''}`}
       >
         <Background />
       </ReactFlow>
@@ -401,7 +448,7 @@ export default function Canvas(props: CanvasProps) {
                   <button
                     className={`block w-full text-left px-3 py-2 rounded ${
                       i === highlightIdx
-                        ? "bg-gray-200 dark:bg-gray-6 00"
+                        ? "bg-gray-200 dark:bg-gray-600"
                         : "hover:bg-gray-100 dark:hover:bg-gray-700"
                     }`}
                     onClick={() => onSelectDomino(d)}
