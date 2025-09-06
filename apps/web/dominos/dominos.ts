@@ -154,6 +154,12 @@ export default [
     categories: ['Trigger', 'Slack']
   },
   {
+    id: 'slackaction',
+    label: 'Slack Action',
+    icon: Slack,
+    categories: ['Action', 'Slack']
+  },
+  {
     id: 'connector',
     label: 'Connector',
     icon: Plug,

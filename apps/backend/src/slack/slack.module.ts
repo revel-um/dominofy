@@ -4,6 +4,7 @@ import {
   NestModule,
   MiddlewareConsumer,
   RequestMethod,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
@@ -20,8 +21,8 @@ import { RunnerLauncherModule } from 'src/runner-launcher/runner-launcher.module
     ConfigModule,
     VaultModule,
     UserModule,
-    WorkflowModule,
-    RunnerLauncherModule
+    forwardRef(() => WorkflowModule),
+    forwardRef(() => RunnerLauncherModule)
   ],
   controllers: [SlackController],
   providers: [SlackService],

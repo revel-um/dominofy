@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Canvas from "../../components/canvas";
 import DominosPanel from "../../components/dominosPanel";
 import DetailsPanel from "../../components/detailsPanel";
-import LogsPanel, { WorkflowLog } from "../../components/LogsPanel";
 import {
   ReactFlowProvider,
   useNodesState,
@@ -14,6 +13,7 @@ import {
   type NodeChange,
   type EdgeChange,
 } from 'reactflow';
+import LogsPanel, { WorkflowLog } from "../../components/logs";
 import { DominoContext } from "../../contexts/dominoContext";
 import { buildPipeline } from "../../../../shared/helpers/buildPipeline";
 import { useRouter } from "next/router";

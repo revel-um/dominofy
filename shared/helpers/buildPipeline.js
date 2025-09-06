@@ -30,24 +30,12 @@ function buildPipeline(nodes, edges) {
             const field = fields.find((f) => f.heading === fieldHeading);
             if (!field)
                 return;
-            const override = field.connectedValue ? undefined : field.exportOverride;
-            if (Array.isArray(override)) {
-                const overrideObject = {};
-                override.forEach(name => {
-                    overrideObject[name] = field[name];
-                });
-                cleanedData[fieldHeading] = overrideObject;
-            }
-            else if (typeof override === "string") {
-                cleanedData[fieldHeading] = field[override];
-            }
-            else {
-                cleanedData[fieldHeading] = {
-                    value: field.value,
-                    connectedValue: field.connectedValue,
-                    connectedPin: field.connectedPin,
-                };
-            }
+
+            cleanedData[fieldHeading] = {
+                value: field.value,
+                connectedValue: field.connectedValue,
+                connectedPin: field.connectedPin,
+            };
         });
         const next = adjacency[node.id] || {};
         return {

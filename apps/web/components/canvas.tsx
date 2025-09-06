@@ -27,20 +27,21 @@ import ReadExcelDomino from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
-import FilterDomino from "../dominos/filterDomino";
+import FilterDomino from "../dominos/filter";
 import SQLRunnerDomino from "../dominos/sqlRunner";
 import CustomCodeDomino from "../dominos/codeRunner";
 import SlackTriggerDomino from "@/dominos/slackTrigger";
-import EmailSenderDomino from "../dominos/EmailSenderDomino";
-import CSVWriterDomino from "../dominos/CSVWriterDomino";
+import SlackActionDomino from "@/dominos/slackAction";
+import EmailSenderDomino from "../dominos/emailSender";
+import CSVWriterDomino from "../dominos/csvWriter";
 import DelayDomino from "@/dominos/delay";
 import MapperDomino from "@/dominos/mapper";
 import ResponseDomino from "../dominos/response";
 import LLMDomino from "../dominos/llm";
-import SchedulerDomino from "../dominos/SchedulerDomino";
+import SchedulerDomino from "../dominos/scheduler";
 import ConnectorDomino from "@/dominos/connector";
 import ShopifyDomino from "@/dominos/shopify";
-
+        
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnections } from "../helpers/errorDetector";
@@ -78,6 +79,7 @@ const nodeTypes = {
   delay: DelayDomino,
   mapper: MapperDomino,
   slacktrigger: SlackTriggerDomino,
+  slackaction: SlackActionDomino,
   SchedulerDomino: SchedulerDomino,
   connector: ConnectorDomino,
   shopify: ShopifyDomino

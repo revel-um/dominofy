@@ -11,7 +11,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const textField = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text');
-  const isValueConnected = textField?.connectedValue || textField?.value?.length > 0;
+  const isValueConnected = textField?.connectedValue;
 
   const [value, setValue] = useState("");
 

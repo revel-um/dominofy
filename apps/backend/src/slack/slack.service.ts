@@ -13,17 +13,18 @@ import { VaultService } from 'src/vault/vault.service';
 import { VaultType } from 'src/vault/vault.entity';
 import { CreateVaultDto } from 'src/vault/vault.dto';
 import { UserService } from 'src/user/user.service';
+import { Inject, forwardRef } from '@nestjs/common';
 import { WorkflowService } from 'src/workflow/workflow.service';
 import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../types/pipelineStepType';
 import { v4 as uuidv4 } from 'uuid';
 import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
 import { ConflictException } from '@nestjs/common';
-import { async } from 'rxjs';
 import { Raw } from 'typeorm';
 
 @Injectable()
 export class SlackService {
+  private static _instance: SlackService | null = null;
   private readonly logger = new Logger(SlackService.name);
   private stateStore = new Map<string, string>();
 
@@ -31,9 +32,22 @@ export class SlackService {
     private readonly config: ConfigService,
     private readonly vaultService: VaultService,
     private readonly userService: UserService,
-    private readonly workflowService: WorkflowService,
-    private readonly runnerLauncherService: RunnerLauncherService
+    @Inject(forwardRef(() => WorkflowService)) private readonly workflowService: WorkflowService,
+    @Inject(forwardRef(() => RunnerLauncherService)) private readonly runnerLauncherService: RunnerLauncherService
   ) { }
+
+  /** Singleton accessor for non-DI consumers (e.g., domino classes) */
+  static get instance(): SlackService {
+    if (!this._instance) {
+      throw new Error('SlackService instance not initialized yet');
+    }
+    return this._instance;
+  }
+
+  /** Set singleton on first construction by Nest */
+  onModuleInit() {
+    if (!SlackService._instance) SlackService._instance = this;
+  }
 
   /* ───────────────────── helpers ───────────────────── */
 
@@ -207,6 +221,43 @@ export class SlackService {
     const web = new WebClient((vault.connection as any).accessToken);
     const resp = await web.conversations.join({ channel: channelId });
     if (!resp.ok) throw new BadRequestException(`Slack API error: ${resp.error}`);
+  }
+
+  /** Send a message to a channel using a specific Slack vault connection */
+  async sendMessage(
+    vaultId: string,
+    channelId: string,
+    text: string,
+    opts?: { thread_ts?: string; blocks?: any; attachments?: any }
+  ) {
+    const vault = await this.vaultService.findOneByIdAndType(vaultId, VaultType.SLACK);
+    if (!vault) throw new BadRequestException('Unknown Slack vault');
+
+    const web = new WebClient((vault.connection as any).accessToken);
+
+    // Try to post; if not_in_channel for public channels, try to join and retry once
+    const tryPost = async () =>
+      await web.chat.postMessage({
+        channel: channelId,
+        text,
+        thread_ts: opts?.thread_ts,
+        blocks: opts?.blocks,
+        attachments: opts?.attachments,
+      } as any);
+
+    let resp = await tryPost();
+    if (!resp.ok && (resp as any).error === 'not_in_channel') {
+      const info = await web.conversations.info({ channel: channelId });
+      const isPrivate = (info as any)?.channel?.is_private === true;
+      if (!isPrivate) {
+        await web.conversations.join({ channel: channelId });
+        resp = await tryPost();
+      }
+    }
+
+    if (!resp.ok) throw new BadRequestException(`Slack API error: ${(resp as any).error}`);
+
+    return { ts: (resp as any).ts, channel: (resp as any).channel };
   }
 
   /* stubs */
