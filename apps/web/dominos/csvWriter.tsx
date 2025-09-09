@@ -1,10 +1,10 @@
 // src/dominos/csvWriter.tsx
-import { NodeProps } from 'reactflow';
+import { NodeProps, useEdges } from 'reactflow';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { FiFileText } from 'react-icons/fi';
+import { FiFileText, FiX } from 'react-icons/fi';
 import { DominoField } from '../types/dominoFieldTypes';
 
 type InputType = 'json' | 'text';
@@ -18,6 +18,23 @@ interface CSVWriterConfig {
   textInput: string;     // freeform box (always visible)
   data: any[];           // pipeline-fed JSON rows
   lastExport: Date | null;
+}
+
+// Helper: shallow-merge new field with any existing field to preserve connection metadata
+function mergeFieldPreservingConnections(newF: any, oldF?: any) {
+  if (!oldF) return newF;
+  // Keep any unknown props (connectedPin, connectedValue, etc.), but prefer new value/visibility/types
+  const { value, shouldRender, inPinId, type, heading, options, required } = newF;
+  return {
+    ...oldF,
+    type,
+    heading,
+    options,
+    required,
+    shouldRender,
+    inPinId,
+    value,
+  };
 }
 
 export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
@@ -37,21 +54,66 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
 
   const didInitRef = useRef(false);
   const lastFieldsHashRef = useRef<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // 👉 subscribe to React Flow edges so this re-renders when connections change
+  const edges = useEdges();
+
+  // Snapshot existing fields for preservation
+  const existingFieldsByHeading = useMemo(() => {
+    const arr: DominoField[] = data?.details?.fields ?? [];
+    const map = new Map<string, DominoField>();
+    arr.forEach((f) => {
+      if (f?.heading) map.set(f.heading, f);
+    });
+    return map;
+  }, [data?.details?.fields]);
+
+  // Check if the File Name value_in pin is connected (pin id MUST be 'value_in')
+  const isFileNameConnected = useMemo(() => {
+    if (typeof (data as any)?.isHandleConnected === 'function') {
+      try {
+        return (data as any).isHandleConnected(id, 'value_in');
+      } catch {
+        /* fall through to edges */
+      }
+    }
+    return edges.some(
+      (e) => e?.target === id && e?.targetHandle === 'value_in'
+    );
+  }, [edges, data, id]);
+
+  // Check if the Input Box value_in_5 pin is connected
+  const isInputBoxConnected = useMemo(() => {
+    if (typeof (data as any)?.isHandleConnected === 'function') {
+      try {
+        return (data as any).isHandleConnected(id, 'value_in_5');
+      } catch {
+        /* fall through to edges */
+      }
+    }
+    return edges.some(
+      (e) => e?.target === id && e?.targetHandle === 'value_in_5'
+    );
+  }, [edges, data, id]);
 
   const sanitizeDelimiter = (v: string) => (v === '\\t' ? '\t' : v);
 
-  /* Build details.fields to sync (no UI coupling here) */
+  /* Build details.fields to sync (no UI coupling here).
+     IMPORTANT: “File Name” must use inPinId = 'value_in' to match actual connections. */
   const computedFields = useMemo(() => {
     const isText = config.inputType === 'text';
     const isJSON = config.inputType === 'json';
-    return [
+
+    // Construct the fresh definition first
+    const fresh: any[] = [
       {
         type: 'text',
         heading: 'Name',
         value: config.name,
         required: false,
         shouldRender: true,
-        inPinId: 'value_in', // (kept as provided)
+        // NOTE: no inPinId for Name; it’s not meant to be connected
       },
       {
         type: 'select',
@@ -69,7 +131,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         type: 'text',
         heading: 'File Name',
         value: config.fileName,
-        inPinId: 'value_in_2',
+        inPinId: 'value_in', // ← FIXED: this must be 'value_in' to preserve connections
         required: true,
         shouldRender: true,
       },
@@ -104,8 +166,14 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         shouldRender: true, // always
       },
     ];
-  }, [config]);
-  const computedFieldsHash = JSON.stringify(computedFields);
+
+    // Merge with any existing fields to preserve connection metadata
+    return fresh.map((nf) =>
+      mergeFieldPreservingConnections(nf, existingFieldsByHeading.get(nf.heading))
+    );
+  }, [config, existingFieldsByHeading]);
+
+  const computedFieldsHash = useMemo(() => JSON.stringify(computedFields), [computedFields]);
 
   const exportFields = useMemo(() => {
     const list: string[] = ['Name', 'Input Type', 'File Name', 'Input Box'];
@@ -148,7 +216,10 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
               ...n,
               data: {
                 ...n.data,
-                details: { ...n.data.details, fields: computedFields },
+                details: {
+                  ...(n.data.details || {}),
+                  fields: computedFields,
+                },
                 exportFields,
               },
             }
@@ -218,17 +289,23 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
       {/* File Name row with VALUE_IN pin (row carries its own padding) */}
       <div className="flex items-center gap-2 relative px-3 py-2">
         <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
-        <input
-          type="text"
-          value={config.fileName}
-          onChange={(e) => handleFieldChange('fileName', e.target.value)}
-          placeholder="File Name"
-          className="flex-1 px-2 py-1 text-sm border rounded
-                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                     text-dominofy-light-text dark:text-dominofy-dark-text
-                     border-gray-300 dark:border-gray-600"
-          title="File name (without extension)"
-        />
+        {!isFileNameConnected ? (
+          <input
+            type="text"
+            value={config.fileName}
+            onChange={(e) => handleFieldChange('fileName', e.target.value)}
+            placeholder="File Name"
+            className="flex-1 px-2 py-1 text-sm border rounded
+                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
+                       text-dominofy-light-text dark:text-dominofy-dark-text
+                       border-gray-300 dark:border-gray-600"
+            title="File name (without extension)"
+          />
+        ) : (
+          <span className="px-3 flex-1 text-xs italic text-gray-500 truncate">
+            Connected
+          </span>
+        )}
       </div>
 
       {/* Input Type (child-padding) */}
@@ -239,7 +316,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         <select
           value={config.inputType}
           onChange={(e) => handleFieldChange('inputType', e.target.value as InputType)}
-          className="mt-1 w-full px-2 py-1 text-sm border rounded
+          className="mt-1 w-full px-2 py-1 text-sm border rounded select-none
                      bg-dominofy-light-surface dark:bg-dominofy-dark-surface
                      text-dominofy-light-text dark:text-dominofy-dark-text
                      border-gray-300 dark:border-gray-600"
@@ -274,7 +351,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
           <select
             value={config.delimiter === '\t' ? '\\t' : config.delimiter}
             onChange={(e) => handleFieldChange('delimiter', e.target.value)}
-            className="mt-1 w-full px-2 py-1 text-sm border rounded
+            className="mt-1 w-full px-2 py-1 text-sm border rounded select-none
                        bg-dominofy-light-surface dark:bg-dominofy-dark-surface
                        text-dominofy-light-text dark:text-dominofy-dark-text
                        border-gray-300 dark:border-gray-600"
@@ -297,16 +374,18 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
       {/* Input Box row with VALUE_IN_5 pin (row carries its own padding) */}
       <div className="flex items-center gap-2 relative px-3 py-2">
         <DominoPin id="value_in_5" pinType={PinType.VALUE_IN} inline />
-        <textarea
-          value={config.textInput}
-          onChange={(e) => handleFieldChange('textInput', e.target.value)}
-          placeholder=""
-          rows={4}
-          className="flex-1 px-2 py-1 text-sm border rounded
-                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                     text-dominofy-light-text dark:text-dominofy-dark-text
-                     border-gray-300 dark:border-gray-600"
-        />
+        {!isInputBoxConnected ? (
+          <div
+            onClick={() => setIsEditing(true)}
+            className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text cursor-pointer h-20 overflow-hidden text-ellipsis font-mono text-xs"
+          >
+            {config.textInput || <span className="text-gray-400">Click to edit input...</span>}
+          </div>
+        ) : (
+          <span className="px-3 flex-1 text-xs italic text-gray-500 truncate">
+            Connected
+          </span>
+        )}
       </div>
 
       {/* Preview (only when non-empty) */}
@@ -315,6 +394,50 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
           <div className="p-2 bg-gray-50 dark:bg-gray-800/30 rounded border border-gray-200 dark:border-gray-700">
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {previewMeta}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Input Editor Modal */}
+      {isEditing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[600px] h-[400px] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Input Text</h3>
+              <button
+                onClick={() => setIsEditing(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+              >
+                <FiX className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 p-4">
+              <textarea
+                value={config.textInput}
+                onChange={(e) => handleFieldChange('textInput', e.target.value)}
+                placeholder="Enter your text data here..."
+                className="w-full h-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setIsEditing(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setIsEditing(false)}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded transition-colors"
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>

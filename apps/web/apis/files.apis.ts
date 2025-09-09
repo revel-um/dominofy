@@ -24,10 +24,14 @@ export class FilesApi {
     file: File,
     token: string,
     router: NextRouter,
+    workflowId?: string,
   ) {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      if (workflowId) {
+        formData.append('workflowId', workflowId);
+      }
 
       const response = await fetch(
         `${config.backendBaseUrl}/files/upload`,
