@@ -7,7 +7,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { UserModule } from './user/user.module';
 import { WorkflowModule } from './workflow/workflow.module';
 import { VerifyTokenMiddleware } from './middlewares/auth.middleware';
-import { AwsServicesModule } from './aws-services/aws-services.module';
+import { GcsModule } from './gcs/gcs.module';
 import { WorkflowLoggerModule } from './workflow-logger/workflow-logger.module';
 import { VaultModule } from './vault/vault.module';
 import { SlackModule } from './slack/slack.module';
@@ -35,7 +35,7 @@ import { AuthModule } from './auth/auth.module';
     ProjectsModule,
     UserModule,
     WorkflowModule,
-    AwsServicesModule,
+    GcsModule,
     WorkflowLoggerModule,
     VaultModule,
     SlackModule,

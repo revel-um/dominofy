@@ -7,10 +7,11 @@ import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 
 export default function PrintDomino({ data, id, selected }: NodeProps) {
+
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const textField = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text');
-  const isValueConnected = textField?.connectedValue || textField?.value?.length > 0;
+  const isValueConnected = textField?.connectedValue;
 
   const [value, setValue] = useState("");
 
@@ -94,7 +95,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
             ? 'selected-border border-4'
             : 'unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-    // style={{ minWidth: '13rem' }}
+    style={{ minWidth: '13rem' }}
     >
       {/* Header with exec pins */}
       <div

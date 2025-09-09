@@ -47,54 +47,57 @@ export function useDominofySSE(
         return;
       }
 
+      // Force close any existing connection
       if (esRef.current) {
         esRef.current.close();
         esRef.current = null;
       }
 
+      // Reset all state
       setEvents([]);
       setError(null);
       setConnected(false);
 
-      const es = new EventSourcePolyfill(
-        `${backendUrl}/dominofy/event/${encodeURIComponent(id)}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      esRef.current = es;
-
-      es.onopen = () => {
-        setConnected(true);
-      };
-
-      es.onmessage = (e) => {
-        try {
-          const parsed = JSON.parse(e.data);
-          setEvents((prev) => [...prev, parsed]);
-        } catch {
-          if (e.data == 'terminate') {
-            closedDeliberatelyRef.current = true;
-            setConnected(false);
-            es.close();
-            return;
+      // Small delay to ensure cleanup before starting new connection
+      setTimeout(() => {
+        const es = new EventSourcePolyfill(
+          `${backendUrl}/dominofy/event/${encodeURIComponent(id)}`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
           }
-          console.warn('Could not parse SSE data as JSON:', e.data);
-        }
-      };
+        );
+        esRef.current = es;
 
-      es.onerror = (evt) => {
-        if (closedDeliberatelyRef.current) return;
-        if (!connected) {
-          es.close();
-          return;
-        }
-        console.error('SSE error for id=', id, evt);
-        setError('SSE connection error or closed.');
-        setConnected(false);
-        es.close();
-        esRef.current = null;
-      };
+        es.onopen = () => {
+          setConnected(true);
+        };
+
+        es.onmessage = (e) => {
+          try {
+            const parsed = JSON.parse(e.data);
+            setEvents((prev) => [...prev, parsed]);
+          } catch {
+            if (e.data == 'terminate') {
+              closedDeliberatelyRef.current = true;
+              setConnected(false);
+              es.close();
+              return;
+            }
+            console.warn('Could not parse SSE data as JSON:', e.data);
+          }
+        };
+
+        es.onerror = (evt) => {
+          if (closedDeliberatelyRef.current) return;
+          console.error('SSE error for id=', id, evt);
+          setError('SSE connection error or closed.');
+          setConnected(false);
+          if (esRef.current === es) {
+            es.close();
+            esRef.current = null;
+          }
+        };
+      }, 100);
     },
     [backendUrl]
   );
@@ -104,11 +107,13 @@ export function useDominofySSE(
    *   Closes any open EventSource.
    */
   const stop = useCallback(() => {
+    closedDeliberatelyRef.current = true;
     if (esRef.current) {
       esRef.current.close();
       esRef.current = null;
-      setConnected(false);
     }
+    setConnected(false);
+    setError(null);
   }, []);
 
   // Clean up on unmount

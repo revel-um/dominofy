@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15
@@ -10,9 +8,31 @@ services:
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: dominofy
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  gcs:
+    image: fsouza/fake-gcs-server:latest
+    container_name: dominofy-gcs
+    restart: always
+    command:
+      - -scheme
+      - http
+      - -host
+      - 0.0.0.0
+      - -port
+      - "8000"
+      - -backend
+      - filesystem
+      - -data
+      - /data
+      - -public-host
+      - localhost:8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./gcs-data:/data
 
   backend:
     build:
@@ -22,11 +42,34 @@ services:
     restart: always
     depends_on:
       - postgres
+      - gcs
     ports:
       - "3001:3001"
     environment:
+      PORT: "3001"
       DATABASE_URL: postgres://dominofy:secret@postgres:5432/dominofy
-    command: npm run start:prod
+      GOOGLE_CLOUD_PROJECT: local-gcp
+      GCLOUD_PROJECT: local-gcp
+      GCS_BUCKET: dominofy-local
+
+      STORAGE_EMULATOR_HOST: http://gcs:8000
+      GCS_PUBLIC_BASE: http://localhost:8000
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: dominofy
+      DATABASE_PASSWORD: secret
+      DATABASE_NAME: dominofy
+      DATABASE_SCHEMA: public
+      
+      ENCRYPTION_KEY: qty43qasdfghjgew23456sdfgh
+      JWT_SECRET: 34tgfdw345tyhgfdsew4r5tgbvcxs
+
+      # ── Slack App credentials ────────────────────────────────────────────────
+      SLACK_CLIENT_ID: '9173438190631.9200848479169'
+      SLACK_CLIENT_SECRET: '41bc611bb92b5fe431c361ad3dcfb5fe'
+      SLACK_SIGNING_SECRET: 'ef61e8875876b6574e5c1de99e76b837'
+      SLACK_REDIRECT_URI: https://overly-organic-bluegill.ngrok-free.app/api/v1/slack
+      SLACK_SCOPES: chat:write,channels:read,im:read,commands
 
   frontend:
     build:
@@ -39,8 +82,9 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # Browser can hit host 3001 directly:
       NEXT_PUBLIC_API_URL: http://localhost:3001/api
-    command: npm run build && npm run start
+      # (Optional for SSR/server calls) INTERNAL_API_URL: http://backend:3001/api
 
 volumes:
   postgres_data:

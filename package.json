@@ -8,12 +8,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run aws:local && turbo run dev",
+    "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "start": "turbo run start",
-    "aws:local": "docker compose -f aws-local.yml up -d"
+    "start": "turbo run start"
   },
   "devDependencies": {
     "@monaco-editor/react": "^4.7.0",

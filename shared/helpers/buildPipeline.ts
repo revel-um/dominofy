@@ -42,22 +42,12 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
     exportFields.forEach(fieldHeading => {
       const field = fields.find((f: any) => f.heading === fieldHeading);
       if (!field) return;
-      const override = field.connectedValue ? undefined : field.exportOverride;
-      if (Array.isArray(override)) {
-        const overrideObject: Record<string, any> = {};
-        override.forEach(name => {
-          overrideObject[name] = field[name];
-        });
-        cleanedData[fieldHeading] = overrideObject;
-      } else if (typeof override === "string") {
-        cleanedData[fieldHeading] = field[override];
-      } else {
-        cleanedData[fieldHeading] = {
-          value: field.value,
-          connectedValue: field.connectedValue,
-          connectedPin: field.connectedPin,
-        };
-      }
+
+      cleanedData[fieldHeading] = {
+        value: field.value,
+        connectedValue: field.connectedValue,
+        connectedPin: field.connectedPin,
+      };
     });
 
     // next: map of exec-pin IDs to downstream node IDs
@@ -100,6 +90,6 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
       sortedPipeline.push(makeStep(node));
     }
   });
-  // sortedPipeline.forEach((step) => console.log(step));
+
   return sortedPipeline;
 }

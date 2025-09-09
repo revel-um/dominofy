@@ -1,7 +1,12 @@
+'use client';
+
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import ReactFlow, {
   addEdge,
   Background,
+  OnConnect,
+  SelectionMode,
+  applyNodeChanges,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -22,18 +27,23 @@ import ReadExcelDomino from "../dominos/readExcel";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
-import FilterDomino from "../dominos/filterDomino";
+import FilterDomino from "../dominos/filter";
 import SQLRunnerDomino from "../dominos/sqlRunner";
 import CustomCodeDomino from "../dominos/codeRunner";
 import SlackTriggerDomino from "@/dominos/slackTrigger";
-import EmailSenderDomino from "../dominos/EmailSenderDomino";
-import CSVWriterDomino from "../dominos/CSVWriterDomino";
+import SlackActionDomino from "@/dominos/slackAction";
+import EmailSenderDomino from "../dominos/emailSender";
+import CSVWriterDomino from "../dominos/csvWriter";
 import DelayDomino from "@/dominos/delay";
 import MapperDomino from "@/dominos/mapper";
 import ResponseDomino from "../dominos/response";
 import LLMDomino from "../dominos/llm";
-import SchedulerDomino from "../dominos/SchedulerDomino";
-        
+import SchedulerDomino from "../dominos/scheduler";
+import ConnectorDomino from "@/dominos/connector";
+import ShopifyDomino from "@/dominos/shopify";
+/* NEW: Note node */
+import NoteDomino from "../dominos/note";
+
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnections } from "../helpers/errorDetector";
@@ -43,13 +53,10 @@ import { useRouter } from "next/router";
 import {
   createDropHandler,
   createSearchKeyDownHandler,
-  createNodeClickHandler,
   createOnConnectHandler,
   createEdgesChangeHandler,
-  createNodesChangeHandler,
   createIsValidConnection,
 } from "@/helpers/canvasUtils";
-import ConnectorDomino from "@/dominos/connector";
 
 const nodeTypes = {
   csvwriter: CSVWriterDomino,
@@ -72,8 +79,12 @@ const nodeTypes = {
   delay: DelayDomino,
   mapper: MapperDomino,
   slacktrigger: SlackTriggerDomino,
+  slackaction: SlackActionDomino,
   SchedulerDomino: SchedulerDomino,
-  connector: ConnectorDomino
+  connector: ConnectorDomino,
+  shopify: ShopifyDomino,
+  /* NEW */
+  note: NoteDomino,
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
@@ -85,9 +96,17 @@ interface CanvasProps {
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   workflowId?: string;
   readonly?: boolean;
-  /* optional passthrough callbacks */
+  /* parent-wrapped callbacks (for history) */
   onNodesChange?: (c: NodeChange[]) => void;
   onEdgesChange?: (c: EdgeChange[]) => void;
+
+  /* NEW: parent-provided undo/redo handlers for keyboard shortcuts */
+  onUndo?: () => void;
+  onRedo?: () => void;
+
+  /* NEW: note tool control coming from parent/toolbar */
+  noteToolActive?: boolean;
+  onCancelInsertNote?: () => void;
 }
 
 /* ─────────────────────────  COMPONENT  ───────────────────────── */
@@ -96,31 +115,36 @@ export default function Canvas(props: CanvasProps) {
     id, nodes, setNodes, edges, setEdges,
     workflowId, readonly = false,
     onNodesChange, onEdgesChange,
+    onUndo, onRedo,
+    /* NEW */
+    noteToolActive = false,
+    onCancelInsertNote,
   } = props;
 
   const router = useRouter();
   const { setConnectionErrors, clearValidationForDominoId } = useDomino();
 
-  /* fade suggestion nodes */
+  /* fade suggestion nodes for UI */
   const renderedNodes = useMemo(
-    () => nodes.map(n => {
-      if (n.data?.isSuggestion) {
-        return {
-          ...n,
-          className: n.className
-            ? `${n.className} opacity-50`
-            : 'opacity-50',
-        };
-      }
-      return n;
-    }),
+    () =>
+      nodes.map((n) => {
+        if (n.data?.suggested) {
+          return {
+            ...n,
+            className: n.className ? `${n.className} opacity-50` : "opacity-50",
+          };
+        }
+        return n;
+      }),
     [nodes]
   );
 
   /* local state */
   const [rfInstance, setRfInstance] = useState<any>(null);
   const [pipeline, setPipeline] = useState<any[]>([]);
-  const [connectStart, setConnectStart] = useState<Parameters<OnConnectStart>[1] | null>(null);
+  const [connectStart, setConnectStart] = useState<
+    Parameters<OnConnectStart>[1] | null
+  >(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -133,33 +157,68 @@ export default function Canvas(props: CanvasProps) {
   /* validation */
   useEffect(() => {
     setConnectionErrors(validateNodeConnections(nodes, edges));
-  }, [nodes, edges]);
+  }, [nodes, edges, setConnectionErrors]);
 
   /* drop */
   const onDrop = useCallback(
     createDropHandler(rfInstance, setNodes, getEdges, workflowId, updatePipeline),
-    [rfInstance, workflowId, nodes, edges],
+    [rfInstance, workflowId, nodes, edges]
   );
 
   /* search-box keys */
-  const AVAILABLE = Object.keys(nodeTypes).filter(t => t !== "apitrigger");
-  const filtered = AVAILABLE.filter(d => d.toLowerCase().includes(searchTerm.toLowerCase()));
+  const AVAILABLE = Object.keys(nodeTypes).filter((t) => t !== "apitrigger");
+  const filtered = AVAILABLE.filter((d) =>
+    d.toLowerCase().includes(searchTerm.toLowerCase())
+  );
   const handleSearchKeyDown = useCallback(
-    createSearchKeyDownHandler(filtered, highlightIdx, setHighlightIdx, d => onSelectDomino(d)),
-    [filtered, highlightIdx],
+    createSearchKeyDownHandler(
+      filtered,
+      highlightIdx,
+      setHighlightIdx,
+      (d) => onSelectDomino(d)
+    ),
+    [filtered, highlightIdx]
   );
 
   /* node click */
   const onNodeClick = useCallback(
-    createNodeClickHandler(
-      () => connectStart,
-      () => setConnectStart(null),
-      setEdges,
-      getNodes,
-      updatePipeline,
-      setSelectedNode,
-    ),
-    [connectStart, nodes, edges],
+    (event: React.MouseEvent, node: Node) => {
+      // Handle connecting behavior first
+      const cs = connectStart;
+      if (cs && node.id !== cs.nodeId) {
+        setEdges(prev => {
+          const newEdges = addEdge(
+            {
+              source: cs.nodeId,
+              sourceHandle: cs.handleId,
+              target: node.id,
+              targetHandle: "exec_in",
+              type: "default",
+            } as Connection,
+            prev
+          );
+          updatePipeline(getNodes(), newEdges);
+          return newEdges;
+        });
+        setConnectStart(null);
+        return;
+      }
+
+      // Handle selection behavior
+      if (event.metaKey || event.ctrlKey || event.shiftKey) {
+        // Cmd/Ctrl/Shift + click → toggle selection of this node only
+        setNodes(prev => prev.map(n => 
+          n.id === node.id 
+            ? { ...n, selected: !n.selected }
+            : n
+        ));
+      } else {
+        // Simple click → deselect all others and select only this node
+        setNodes(prev => prev.map(n => ({ ...n, selected: n.id === node.id })));
+        setSelectedNode(node);
+      }
+    },
+    [connectStart, setEdges, updatePipeline, setSelectedNode, setNodes, getNodes]
   );
 
   /* connect start */
@@ -186,57 +245,69 @@ export default function Canvas(props: CanvasProps) {
   /* select domino from modal */
   const onSelectDomino = (type: string) => {
     if (!dropPos || !rfInstance) return;
+
     const id = `${type}-${Date.now()}`;
     const pos = rfInstance.screenToFlowPosition(dropPos);
 
     const newNode: Node = {
-      id, type, position: pos,
+      id,
+      type,
+      position: pos,
       data: { label: `${type} node`, value: "", workflowId, setNodes, updatePipeline },
       draggable: true,
       selected: false,
     };
 
-    setNodes(prev => {
-      const cleared = prev.map(n => ({ ...n, selected: false }));
+    setNodes((prev) => {
+      const cleared = prev.map((n) => ({ ...n, selected: false }));
       const upd = [...cleared, newNode];
       updatePipeline(upd, edges);
       return upd;
     });
 
     if (connectStart) {
-      setEdges(prev => addEdge(
-        {
-          source: connectStart.nodeId,
-          sourceHandle: connectStart.handleId,
-          target: id,
-          targetHandle: "exec_in",
-          type: "default",
-        } as Connection,
-        prev,
-      ));
+      setEdges((prev) =>
+        addEdge(
+          {
+            source: connectStart.nodeId,
+            sourceHandle: connectStart.handleId,
+            target: id,
+            targetHandle: "exec_in",
+            type: "default",
+          } as Connection,
+          prev
+        )
+      );
     }
     setConnectStart(null);
     setIsModalOpen(false);
     setDropPos(null);
-    setSearchTerm(""); setHighlightIdx(0);
+    setSearchTerm("");
+    setHighlightIdx(0);
   };
 
   /* isValidConnection */
   const isValidConnection = createIsValidConnection(getEdges);
 
   /* onConnect */
-  const onConnect = useCallback(
-    createOnConnectHandler(
-      getNodes, setNodes, setEdges, clearValidationForDominoId,
-      updatePipeline, router, () => setConnectStart(null),
-    ),
-    [nodes, edges],
+  const onConnect: OnConnect = useCallback(
+    (connection) =>
+      createOnConnectHandler(
+        getNodes,
+        setNodes,
+        setEdges,
+        clearValidationForDominoId,
+        updatePipeline,
+        router,
+        () => setConnectStart(null)
+      )(connection),
+    [getNodes, setNodes, setEdges, clearValidationForDominoId, updatePipeline, router]
   );
 
   /* edge changes */
   const internalEdgeChange = useCallback(
     createEdgesChangeHandler(setEdges, setNodes, getNodes, updatePipeline),
-    [nodes, edges],
+    [setEdges, setNodes]
   );
 
   const handleEdgesChange = (c: EdgeChange[]) => {
@@ -244,20 +315,105 @@ export default function Canvas(props: CanvasProps) {
     onEdgesChange?.(c);
   };
 
-  /* node changes */
-  const internalNodeChange = useCallback(
-    createNodesChangeHandler(setNodes),
-    [],
+  /* node changes — use React Flow helper so all `select`/drag changes apply */
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      // Filter out selection changes since we handle them manually in onNodeClick
+      const nonSelectionChanges = changes.filter(change => change.type !== 'select');
+      
+      // Only apply non-selection changes
+      if (nonSelectionChanges.length > 0) {
+        setNodes((prev) => applyNodeChanges(nonSelectionChanges, prev));
+        onNodesChange?.(nonSelectionChanges);
+      }
+    },
+    [setNodes, onNodesChange]
   );
-  const handleNodesChange = (c: NodeChange[]) => {
-    internalNodeChange(c);
-    onNodesChange?.(c);
-  };
 
   /* drag-over */
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); e.dataTransfer.dropEffect = "move";
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
   };
+
+  /* prevent text selection during shift drag */
+  const handleSelectionStart = useCallback((e: Event) => {
+    // Prevent text selection during shift+drag multiselect
+    if ((e as any).shiftKey) {
+      e.preventDefault();
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('selectstart', handleSelectionStart);
+    return () => document.removeEventListener('selectstart', handleSelectionStart);
+  }, [handleSelectionStart]);
+
+  /* pane click behavior:
+     - If note tool is active, drop a note where user clicked and exit note mode.
+     - Otherwise default: clear selection (unless meta/ctrl/shift). */
+  const handlePaneClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Insert note if tool active
+      if (noteToolActive && rfInstance) {
+        const screen = { x: e.clientX, y: e.clientY };
+        const pos = rfInstance.screenToFlowPosition(screen);
+        const id = `note-${Date.now()}`;
+
+        const newNode: Node = {
+          id,
+          type: "note",
+          position: pos,
+          data: {
+            text: "Double-click to edit",
+            color: "#FFF9C4", // soft yellow
+            workflowId,
+            // 👇 important: stable shape expected by rest of app
+            details: { fields: [] },
+          },
+          draggable: true,
+          selectable: true,
+        };
+
+        setNodes((prev) => {
+          const cleared = prev.map((n) => ({ ...n, selected: false }));
+          const upd = [...cleared, newNode];
+          updatePipeline(upd, edges);
+          return upd;
+        });
+
+        // leave insert mode
+        onCancelInsertNote?.();
+        return;
+      }
+
+      // Default selection behavior
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+      setNodes((prev) => prev.map((n) => ({ ...n, selected: false })));
+      
+    },
+    [noteToolActive, rfInstance, setNodes, edges, updatePipeline, onCancelInsertNote, workflowId]
+  );
+
+  /* ───── Keyboard: Undo/Redo (delegates to parent) ───── */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+
+      if (key === 'z' && !e.shiftKey) {
+        onUndo?.();
+        e.preventDefault();
+      } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        onRedo?.();
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onUndo, onRedo]);
 
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   return (
@@ -274,7 +430,7 @@ export default function Canvas(props: CanvasProps) {
         onConnect={onConnect}
         onEdgesChange={handleEdgesChange}
         onNodesChange={handleNodesChange}
-        onNodeClick={onNodeClick}
+        onNodeClick={onNodeClick as any}
         isValidConnection={isValidConnection}
         fitView
         nodesDraggable={!readonly}
@@ -282,20 +438,34 @@ export default function Canvas(props: CanvasProps) {
         elementsSelectable={!readonly}
         panOnDrag
         zoomOnScroll
-        selectionKeyCode={null}
+
+        /* ✅ MULTI-SELECT via rectangle (hold Shift) */
+        selectionOnDrag
+        selectionKeyCode={['Shift']}
+        multiSelectionKeyCode={null}
+        selectionMode={SelectionMode.Partial}
+        selectNodesOnDrag={false}
+        onPaneClick={handlePaneClick}
+
         proOptions={{ hideAttribution: true }}
-        /*  dark-mode surface restored ↓  */
-        className="absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
+        className={`absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none`}
       >
         <Background />
       </ReactFlow>
 
       {/* modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-20"
-          onClick={() => { setIsModalOpen(false); setConnectStart(null); }}>
-          <div className="bg-white dark:bg-gray-800 p-6 rounded shadow w-80"
-            onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-20"
+          onClick={() => {
+            setIsModalOpen(false);
+            setConnectStart(null);
+          }}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 p-6 rounded shadow w-80"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-xl mb-4">Insert Domino</h2>
 
             <input
@@ -303,7 +473,7 @@ export default function Canvas(props: CanvasProps) {
               type="text"
               placeholder="Search dominos…"
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               className="w-full mb-3 px-3 py-2 border rounded
                          bg-gray-50 dark:bg-gray-700
@@ -316,10 +486,11 @@ export default function Canvas(props: CanvasProps) {
               {filtered.map((d, i) => (
                 <li key={d}>
                   <button
-                    className={`block w-full text-left px-3 py-2 rounded
-                      ${i === highlightIdx
+                    className={`block w-full text-left px-3 py-2 rounded ${
+                      i === highlightIdx
                         ? "bg-gray-200 dark:bg-gray-600"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700"}`}
+                        : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
                     onClick={() => onSelectDomino(d)}
                   >
                     {d}
@@ -331,8 +502,13 @@ export default function Canvas(props: CanvasProps) {
               )}
             </ul>
 
-            <button className="mt-4 text-red-500 underline"
-              onClick={() => { setIsModalOpen(false); setConnectStart(null); }}>
+            <button
+              className="mt-4 text-red-500 underline"
+              onClick={() => {
+                setIsModalOpen(false);
+                setConnectStart(null);
+              }}
+            >
               Cancel
             </button>
           </div>

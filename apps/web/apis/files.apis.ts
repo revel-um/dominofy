@@ -15,7 +15,7 @@ export interface DeleteResponse {
 
 export class FilesApi {
   /**
-   * Uploads a file to S3 via your NestJS API.
+   * Uploads a file to GCS (via your backend API).
    * @param file   The File object from an <input type="file" /> or similar
    * @param token  Bearer token for authorization
    * @param router NextRouter for handling redirects on errors
@@ -24,10 +24,14 @@ export class FilesApi {
     file: File,
     token: string,
     router: NextRouter,
+    workflowId?: string,
   ) {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      if (workflowId) {
+        formData.append('workflowId', workflowId);
+      }
 
       const response = await fetch(
         `${config.backendBaseUrl}/files/upload`,
@@ -56,8 +60,8 @@ export class FilesApi {
   }
 
   /**
-   * Deletes a file from S3 via your NestJS API.
-   * @param key    The S3 object key (including any UUID prefix)
+   * Deletes a file from GCS (via your backend API).
+   * @param key    The object key (including any UUID prefix)
    * @param token  Bearer token for authorization
    * @param router NextRouter for handling redirects on errors
    */

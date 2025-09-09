@@ -22,6 +22,8 @@ interface LogsPanelProps {
   defaultHeight?: string;
   /** Height of the bar when the panel is collapsed (header + grab-handle) */
   collapsedHeight?: string;
+  isMinimized?: boolean;
+  setIsMinimized?: (v: boolean) => void;
 }
 
 const refreshOptions = [0, 5, 10, 30, 60];
@@ -43,6 +45,8 @@ export const LogsPanel = React.memo(function LogsPanel({
   maxHeight = '100vh',
   defaultHeight = '60px',
   collapsedHeight = '60px',
+  isMinimized: controlledMinimized,
+  setIsMinimized: controlledSetMinimized,
 }: LogsPanelProps) {
   const today = new Date().toISOString().split('T')[0];
   const panelRef = useRef<HTMLDivElement>(null);
@@ -54,7 +58,9 @@ export const LogsPanel = React.memo(function LogsPanel({
 
   const [logs, setLogs] = useState<WorkflowLog[]>([]);
   const [height, setHeight] = useState(defaultHeight);
-  const [isMinimized, setIsMinimized] = useState(true);
+  const [internalMinimized, setInternalMinimized] = useState(true);
+  const isMinimized = typeof controlledMinimized === 'boolean' ? controlledMinimized : internalMinimized;
+  const setIsMinimized = controlledSetMinimized || setInternalMinimized;
   const [isDragging, setIsDragging] = useState(false);
 
   // filters & polling
@@ -186,6 +192,12 @@ export const LogsPanel = React.memo(function LogsPanel({
     }
   }, [fetchLogs, refreshInterval, isLive, isPastEndDate]);
 
+  useEffect(() => {
+    if (!isMinimized && !isDragging) {
+      setHeight(`${Math.max(minOpenPx(), px(previousHeight.current))}px`);
+    }
+  }, [isMinimized, isDragging]);
+
 
   const handleClear = () => {
     setLogs([])
@@ -193,7 +205,12 @@ export const LogsPanel = React.memo(function LogsPanel({
 
   // collapse & resize logic
   const px = (v: string) => parseInt(v, 10);
-  const minOpenPx = () => Math.round(window.innerHeight * 0.35);
+  const minOpenPx = () => {
+    const HEADER_HEIGHT = 56;
+    const PADDING = 20;
+    const availableHeight = window.innerHeight - HEADER_HEIGHT - PADDING;
+    return Math.round(Math.min(availableHeight * 0.35, availableHeight - 100));
+  };
   const AUTO_COLLAPSE_THRESHOLD_PX = 120;
 
   const toggleMinimize = useCallback(() => {
@@ -211,12 +228,15 @@ export const LogsPanel = React.memo(function LogsPanel({
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      const startY = e.clientY;
+      let startH = panelRef.current?.offsetHeight ?? px(collapsedHeight);
+      
+      // If minimized, open it but don't set height - let user drag control it
       if (isMinimized) {
         setIsMinimized(false);
-        setHeight(collapsedHeight);
+        // Don't set height here - let the drag handle it smoothly
       }
-      const startY = e.clientY;
-      const startH = panelRef.current?.offsetHeight ?? px(collapsedHeight);
+      
       isResizing.current = true;
       setIsDragging(true);
       document.body.style.cursor = 'row-resize';
@@ -225,7 +245,9 @@ export const LogsPanel = React.memo(function LogsPanel({
         if (!isResizing.current || !panelRef.current) return;
         const newH = startH + (startY - ev.clientY);
         const MIN = px(collapsedHeight);
-        const MAX = window.innerHeight;
+        // Leave space for the header (56px) plus some padding
+        const HEADER_HEIGHT = 55;
+        const MAX = window.innerHeight - HEADER_HEIGHT;
         const h = Math.max(MIN, Math.min(newH, MAX));
         setHeight(`${h}px`);
         previousHeight.current = `${h}px`;

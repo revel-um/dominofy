@@ -56,7 +56,6 @@ export class FilterDomino implements DominoExecutable {
     let output: any = undefined;
     let nextChainKeys: string[] | undefined = undefined;
 
-    console.log({filterType, input})
     if (Array.isArray(input)) {
       // Array filtering (existing behavior)
       if (filterType === "primitive") {
