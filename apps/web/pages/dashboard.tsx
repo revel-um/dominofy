@@ -56,12 +56,14 @@ export default function DominofyDashboard() {
     const [workflowCount, setWorkflowCount] = useState(0);
     const [user, setUser] = useState<User>({ name: "", email: "" });
     const [templates, setTemplates] = useState<any[]>([]);
+    const [isExchanging, setIsExchanging] = useState(false);
 
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const router = useRouter();
-    const { status } = useSession();
+    const { status, data: session } = useSession();
+
 
     // Helpers -------------------------------------------------------------
     const formatDate = (dateString: string): string => {
@@ -78,14 +80,15 @@ export default function DominofyDashboard() {
 
     // Data ----------------------------------------------------------------
     const fetchProjects = async () => {
-        // Wait until NextAuth resolves the session status
-        if (status === "loading") return;
+        // Wait until NextAuth resolves the session (undefined means pending in v5)
+        if (session === undefined) return;
         const token = localStorage.getItem("token");
         let currentToken = token;
         // If user is unauthenticated via NextAuth and also no backend token, redirect to /auth
         if (!token && status === "unauthenticated") return router.push("/auth");
         // If authenticated via NextAuth but backend token is missing, try exchanging for a backend token
         if (!token && status === "authenticated") {
+            setIsExchanging(true);
             try {
                 const resp = await fetch('/api/auth/exchange', { method: 'POST' });
                 if (resp.ok) {
@@ -93,10 +96,12 @@ export default function DominofyDashboard() {
                     if (data?.token) {
                         localStorage.setItem('token', data.token);
                         currentToken = data.token;
+                        setIsExchanging(false);
                     } else {
                         console.warn('Exchange succeeded but no token returned');
                         setProjects([]);
                         setProjectCount(0);
+                        setIsExchanging(false);
                         return;
                     }
                 } else {
@@ -104,12 +109,14 @@ export default function DominofyDashboard() {
                     console.error('Exchange failed:', text);
                     setProjects([]);
                     setProjectCount(0);
+                    setIsExchanging(false);
                     return;
                 }
             } catch (e) {
                 console.error('Exchange error:', e);
                 setProjects([]);
                 setProjectCount(0);
+                setIsExchanging(false);
                 return;
             }
         }
@@ -403,10 +410,10 @@ export default function DominofyDashboard() {
     };
 
     useEffect(() => {
-        if (status === "loading") return;
+        if (session === undefined) return;
         fetchProjects();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, limit, query, status]);
+    }, [page, limit, query, status, session]);
 
     const createProject = async (name: string, description?: string) => {
         const token = localStorage.getItem("token");
@@ -471,6 +478,11 @@ export default function DominofyDashboard() {
     // UI ------------------------------------------------------------------
     return (
         <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-950">
+            {(session === undefined || isExchanging) && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-dominofy-light-background/60 dark:bg-dominofy-dark-background/60">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
+                </div>
+            )}
             {/* Main column */}
             <div className="flex-1 p-4 flex flex-col gap-4 overflow-hidden">
                 {/* Top cards ----------------------------------------------------*/}
