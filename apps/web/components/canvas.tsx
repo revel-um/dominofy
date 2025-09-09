@@ -53,7 +53,6 @@ import { useRouter } from "next/router";
 import {
   createDropHandler,
   createSearchKeyDownHandler,
-  createNodeClickHandler,
   createOnConnectHandler,
   createEdgesChangeHandler,
   createIsValidConnection,
@@ -184,21 +183,42 @@ export default function Canvas(props: CanvasProps) {
   /* node click */
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
-      // Cmd/Ctrl + click → toggle selection (cherry-pick)
-      if (event.metaKey || event.ctrlKey) {
+      // Handle connecting behavior first
+      const cs = connectStart;
+      if (cs && node.id !== cs.nodeId) {
+        setEdges(prev => {
+          const newEdges = addEdge(
+            {
+              source: cs.nodeId,
+              sourceHandle: cs.handleId,
+              target: node.id,
+              targetHandle: "exec_in",
+              type: "default",
+            } as Connection,
+            prev
+          );
+          updatePipeline(getNodes(), newEdges);
+          return newEdges;
+        });
+        setConnectStart(null);
         return;
       }
 
-      return createNodeClickHandler(
-        () => connectStart,
-        () => setConnectStart(null),
-        setEdges,
-        getNodes,
-        updatePipeline,
-        setSelectedNode
-      )(event, node);
+      // Handle selection behavior
+      if (event.metaKey || event.ctrlKey || event.shiftKey) {
+        // Cmd/Ctrl/Shift + click → toggle selection of this node only
+        setNodes(prev => prev.map(n => 
+          n.id === node.id 
+            ? { ...n, selected: !n.selected }
+            : n
+        ));
+      } else {
+        // Simple click → deselect all others and select only this node
+        setNodes(prev => prev.map(n => ({ ...n, selected: n.id === node.id })));
+        setSelectedNode(node);
+      }
     },
-    [connectStart, setEdges, updatePipeline, setSelectedNode, setNodes]
+    [connectStart, setEdges, updatePipeline, setSelectedNode, setNodes, getNodes]
   );
 
   /* connect start */
@@ -298,8 +318,14 @@ export default function Canvas(props: CanvasProps) {
   /* node changes — use React Flow helper so all `select`/drag changes apply */
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      setNodes((prev) => applyNodeChanges(changes, prev));
-      onNodesChange?.(changes);
+      // Filter out selection changes since we handle them manually in onNodeClick
+      const nonSelectionChanges = changes.filter(change => change.type !== 'select');
+      
+      // Only apply non-selection changes
+      if (nonSelectionChanges.length > 0) {
+        setNodes((prev) => applyNodeChanges(nonSelectionChanges, prev));
+        onNodesChange?.(nonSelectionChanges);
+      }
     },
     [setNodes, onNodesChange]
   );
@@ -309,6 +335,19 @@ export default function Canvas(props: CanvasProps) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
   };
+
+  /* prevent text selection during shift drag */
+  const handleSelectionStart = useCallback((e: Event) => {
+    // Prevent text selection during shift+drag multiselect
+    if ((e as any).shiftKey) {
+      e.preventDefault();
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('selectstart', handleSelectionStart);
+    return () => document.removeEventListener('selectstart', handleSelectionStart);
+  }, [handleSelectionStart]);
 
   /* pane click behavior:
      - If note tool is active, drop a note where user clicked and exit note mode.
@@ -403,12 +442,13 @@ export default function Canvas(props: CanvasProps) {
         /* ✅ MULTI-SELECT via rectangle (hold Shift) */
         selectionOnDrag
         selectionKeyCode={['Shift']}
-        multiSelectionKeyCode={['Meta','Control']}
+        multiSelectionKeyCode={null}
         selectionMode={SelectionMode.Partial}
+        selectNodesOnDrag={false}
         onPaneClick={handlePaneClick}
 
         proOptions={{ hideAttribution: true }}
-        className={`absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''}`}
+        className={`absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none`}
       >
         <Background />
       </ReactFlow>
