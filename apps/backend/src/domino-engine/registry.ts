@@ -17,7 +17,7 @@ import { SlackTriggerDomino } from "./dominos/slackTrigger";
 import { SwitchCaseDomino } from "./dominos/switchCase";
 import { FilterDomino } from "./dominos/filter";
 import { SlackActionDomino } from "./dominos/slackAction";
-import { CsvWriterDomino } from "./dominos/csvWriter";
+import { CsvWriterDomino } from "./dominos/excelWriter";
 import { MapperDomino } from "./dominos/mapper";
 import { DelayDomino } from "./dominos/delay";
 
