@@ -212,24 +212,7 @@ export default function AuthPage() {
               </button>
             </form>
 
-            {/* Google Auth */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                // trigger Google OAuth
-              }}
-              className="w-full py-3 flex items-center justify-center bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <FcGoogle className="mr-2 text-lg" />
-              {isSignup ? 'Sign up with Google' : 'Log in with Google'}
-            </button>
+            {/* OAuthButtons already renders providers; removed duplicate Google button */}
           </div>
         </div>
       </div>
