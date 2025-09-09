@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import Canvas from "../components/canvas";
 import { ProjectsApi } from "../apis/projects.apis";
-import { ToastContainer } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import CreateProjectModal from "../components/modals/createProjectModal";
 import DashboardInsightsPanel from "../components/dashbaordInsights";
 import { WorkflowsApi } from "../apis/workflow.apis";
@@ -60,6 +61,7 @@ export default function DominofyDashboard() {
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const router = useRouter();
+    const { status } = useSession();
 
     // Helpers -------------------------------------------------------------
     const formatDate = (dateString: string): string => {
@@ -76,8 +78,43 @@ export default function DominofyDashboard() {
 
     // Data ----------------------------------------------------------------
     const fetchProjects = async () => {
+        // Wait until NextAuth resolves the session status
+        if (status === "loading") return;
         const token = localStorage.getItem("token");
-        if (!token) return router.push("/auth");
+        let currentToken = token;
+        // If user is unauthenticated via NextAuth and also no backend token, redirect to /auth
+        if (!token && status === "unauthenticated") return router.push("/auth");
+        // If authenticated via NextAuth but backend token is missing, try exchanging for a backend token
+        if (!token && status === "authenticated") {
+            try {
+                const resp = await fetch('/api/auth/exchange', { method: 'POST' });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data?.token) {
+                        localStorage.setItem('token', data.token);
+                        currentToken = data.token;
+                    } else {
+                        console.warn('Exchange succeeded but no token returned');
+                        setProjects([]);
+                        setProjectCount(0);
+                        return;
+                    }
+                } else {
+                    const text = await resp.text();
+                    console.error('Exchange failed:', text);
+                    setProjects([]);
+                    setProjectCount(0);
+                    return;
+                }
+            } catch (e) {
+                console.error('Exchange error:', e);
+                setProjects([]);
+                setProjectCount(0);
+                return;
+            }
+        }
+        // If authenticated via NextAuth but no backend token, allow page to render without redirect
+        // (API calls that need the backend token should handle missing token gracefully)
 
         const offset = (page - 1) * limit;
         const cacheKey = `${page}-${limit}-${query}`;
@@ -327,7 +364,7 @@ export default function DominofyDashboard() {
                 }
             ])
             const response = await ProjectsApi.getProjects(
-                token,
+                currentToken ?? "",
                 router,
                 limit,
                 offset,
@@ -349,7 +386,7 @@ export default function DominofyDashboard() {
             setTotalPages(Math.max(1, Math.ceil(count / limit)));
 
             const workflowResponse = await WorkflowsApi.getRecentWorkflowsAndCount(
-                token,
+                currentToken ?? "",
                 router,
             );
             if (!workflowResponse?.ok) return;
@@ -366,14 +403,22 @@ export default function DominofyDashboard() {
     };
 
     useEffect(() => {
+        if (status === "loading") return;
         fetchProjects();
-    }, [page, limit, query]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, limit, query, status]);
 
     const createProject = async (name: string, description?: string) => {
         const token = localStorage.getItem("token");
-        if (!token) return router.push("/auth");
+        if (!token && status === "unauthenticated") return router.push("/auth");
+        if (!token && status === "authenticated") {
+            toast.error("You're signed in, but no backend token was found. Please link your account or log in via email/password.");
+            return;
+        }
 
-        const response = await ProjectsApi.createProject(token, router, {
+        const response = await ProjectsApi.createProject(token ?? "", router, {
+            // token can be null from localStorage, coerce to empty string for API signature
+            // (downstream function should handle missing token accordingly)
             name,
             description,
         });

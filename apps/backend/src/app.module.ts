@@ -12,7 +12,7 @@ import { WorkflowLoggerModule } from './workflow-logger/workflow-logger.module';
 import { VaultModule } from './vault/vault.module';
 import { SlackModule } from './slack/slack.module';
 import { RunnerLauncherModule } from './runner-launcher/runner-launcher.module';
-import { OAuthModule } from './oauth/oauth.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -40,7 +40,7 @@ import { OAuthModule } from './oauth/oauth.module';
     VaultModule,
     SlackModule,
     RunnerLauncherModule,
-    OAuthModule
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService, VerifyTokenMiddleware],

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { signIn, useSession } from 'next-auth/react';
+import { signIn, useSession, signOut } from 'next-auth/react';
 import axios from 'axios';
 import { OAuthButtons } from '../components/auth/OAuthButtons';
 import { FcGoogle } from 'react-icons/fc';
@@ -11,6 +11,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 export default function AuthPage() {
   const router = useRouter();
+  const { status } = useSession();
   const [isSignup, setIsSignup] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -21,6 +22,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
+    // Only auto-redirect when a backend token exists; do not auto-redirect just because NextAuth has a session
     if (token) {
       router.push('/dashboard');
     } else {
@@ -30,20 +32,9 @@ export default function AuthPage() {
     // Check for OAuth errors in URL
     const { error } = router.query;
     if (error) {
-      let errorMessage = 'Authentication failed. Please try again.';
-      switch (error) {
-        case 'access_denied':
-          errorMessage = 'Access was denied. Please try again.';
-          break;
-        case 'missing_code':
-          errorMessage = 'Authentication code missing. Please try again.';
-          break;
-        case 'oauth_failed':
-          errorMessage = 'OAuth authentication failed. Please try again.';
-          break;
-        case 'no_token':
-          errorMessage = 'No authentication token received. Please try again.';
-          break;
+      let errorMessage = 'Authentication failed';
+      if (typeof error === 'string') {
+        errorMessage = decodeURIComponent(error);
       }
       toast.error(errorMessage);
     }

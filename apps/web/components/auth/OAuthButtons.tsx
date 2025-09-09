@@ -1,38 +1,16 @@
 import { FcGoogle } from 'react-icons/fc';
 import { FaGithub } from 'react-icons/fa';
-import { useState, useEffect } from 'react';
+import { signIn } from 'next-auth/react';
+import { useRouter } from 'next/router';
 
 export function OAuthButtons() {
-  const [googleUrl, setGoogleUrl] = useState('');
-  const [githubUrl, setGithubUrl] = useState('');
-
-  useEffect(() => {
-    // Fetch OAuth URLs from backend
-    const fetchOAuthUrls = async () => {
-      try {
-        const [googleResponse, githubResponse] = await Promise.all([
-          fetch('/api/oauth/google/url'),
-          fetch('/api/oauth/github/url')
-        ]);
-        
-        const googleData = await googleResponse.json();
-        const githubData = await githubResponse.json();
-        
-        setGoogleUrl(googleData.url);
-        setGithubUrl(githubData.url);
-      } catch (error) {
-        console.error('Failed to fetch OAuth URLs:', error);
-      }
-    };
-
-    fetchOAuthUrls();
-  }, []);
+  const router = useRouter();
+  const { callbackUrl } = router.query;
 
   const handleOAuthSignIn = (provider: 'google' | 'github') => {
-    const url = provider === 'google' ? googleUrl : githubUrl;
-    if (url) {
-      window.location.href = url;
-    }
+    // Use the callbackUrl from query params or default to '/dashboard'
+    const redirectTo = typeof callbackUrl === 'string' ? callbackUrl : '/dashboard';
+    signIn(provider, { callbackUrl: redirectTo });
   };
 
   return (
