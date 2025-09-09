@@ -13,6 +13,7 @@ export class CsvWriterDomino implements DominoExecutable {
   private name: string;
   private fileName: string;
   private includeHeader: boolean;
+  private considerFirstLineAsHeader: boolean;
   private delimiter: string;
   private inputType: 'json' | 'text';
   private textInput: string;
@@ -28,6 +29,7 @@ export class CsvWriterDomino implements DominoExecutable {
     this.name = this.getFieldValue('Name', 'CSV Writer');
     this.fileName = this.getFieldValue('File Name', 'output.csv');
     this.includeHeader = this.getFieldValue('Include Header', true);
+    this.considerFirstLineAsHeader = this.getFieldValue('Consider First Line As Header', false);
     this.delimiter = this.sanitizeDelimiter(this.getFieldValue('Delimiter', ','));
     this.inputType = this.getFieldValue('Input Type', 'json') as 'json' | 'text';
     this.textInput = this.getFieldValue('Input Box', '');
@@ -42,20 +44,36 @@ export class CsvWriterDomino implements DominoExecutable {
     return delimiter === '\\t' ? '\t' : delimiter;
   }
 
-  private parseTextInput(textInput: string, delimiter: string): any[] {
+  private parseTextInput(textInput: string, delimiter: string, considerFirstLineAsHeader: boolean = false): any[] {
     if (!textInput.trim()) return [];
     
     const lines = textInput.replace(/\r\n/g, '\n').split('\n').filter(line => line.trim());
-    return lines.map(line => {
+    if (lines.length === 0) return [];
+    
+    let headers: string[] = [];
+    let dataLines = lines;
+    
+    // If considering first line as header, extract it
+    if (considerFirstLineAsHeader && lines.length > 0) {
+      const headerLine = lines[0];
+      headers = headerLine.split(delimiter).map(h => h.trim());
+      dataLines = lines.slice(1); // Skip the header line for data processing
+    }
+    
+    return dataLines.map(line => {
       const values = line.split(delimiter).map(val => val.trim());
+      
       // If it's a single column, return the value directly
       if (values.length === 1) {
         return values[0];
       }
-      // Multiple columns - create an object with column1, column2, etc.
+      
+      // Multiple columns - create an object
       const obj: any = {};
       values.forEach((val, index) => {
-        obj[`column${index + 1}`] = val;
+        // Use custom header if available, otherwise use columnN format
+        const key = headers[index] || `column${index + 1}`;
+        obj[key] = val;
       });
       return obj;
     });
@@ -143,6 +161,7 @@ export class CsvWriterDomino implements DominoExecutable {
     const name = ctx.input.Name ?? this.name;
     const fileName = ctx.input['File Name'] ?? this.fileName;
     const includeHeader = ctx.input['Include Header'] ?? this.includeHeader;
+    const considerFirstLineAsHeader = ctx.input['Consider First Line As Header'] ?? this.considerFirstLineAsHeader;
     const delimiter = this.sanitizeDelimiter(ctx.input.Delimiter ?? this.delimiter);
     const inputType = ctx.input['Input Type'] ?? this.inputType;
     const inputData = ctx.input['Input Box'] ?? this.textInput;
@@ -154,7 +173,7 @@ export class CsvWriterDomino implements DominoExecutable {
     try {
       if (inputType === 'text' && inputData.trim()) {
         // Use text input from the Input Box
-        const parsedData = this.parseTextInput(inputData, delimiter);
+        const parsedData = this.parseTextInput(inputData, delimiter, considerFirstLineAsHeader);
         const result = this.generateCSVFromArray(parsedData, delimiter, includeHeader);
         csvContent = result.content;
         rowCount = result.rowCount;

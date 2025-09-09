@@ -13,6 +13,7 @@ interface CSVWriterConfig {
   name: string;          // node display name
   fileName: string;
   includeHeader: boolean;
+  considerFirstLineAsHeader: boolean; // for text input mode
   delimiter: string;
   inputType: InputType;
   textInput: string;     // freeform box (always visible)
@@ -45,6 +46,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
     name: 'CSV Writer',
     fileName: '',
     includeHeader: true,
+    considerFirstLineAsHeader: false,
     delimiter: ',',
     inputType: 'json',
     textInput: '',
@@ -144,6 +146,14 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         shouldRender: isJSON,
       },
       {
+        type: 'checkbox',
+        heading: 'Consider First Line As Header',
+        value: config.considerFirstLineAsHeader,
+        inPinId: 'value_in_6',
+        required: false,
+        shouldRender: isText,
+      },
+      {
         type: 'select',
         heading: 'Delimiter',
         value: config.delimiter === '\t' ? '\\t' : config.delimiter,
@@ -178,7 +188,10 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
   const exportFields = useMemo(() => {
     const list: string[] = ['Name', 'Input Type', 'File Name', 'Input Box'];
     if (config.inputType === 'json') list.push('Include Header');
-    if (config.inputType === 'text') list.push('Delimiter');
+    if (config.inputType === 'text') {
+      list.push('Delimiter');
+      list.push('Consider First Line As Header');
+    }
     return list;
   }, [config.inputType, config.name]);
 
@@ -195,6 +208,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         name: getFieldValue('Name', 'CSV Writer'),
         fileName: getFieldValue('File Name', ''),
         includeHeader: !!getFieldValue('Include Header', true),
+        considerFirstLineAsHeader: !!getFieldValue('Consider First Line As Header', false),
         delimiter: sanitizeDelimiter(getFieldValue('Delimiter', ',')),
         inputType: (getFieldValue('Input Type', 'json') as InputType) || 'json',
         textInput: getFieldValue('Input Box', ''),
@@ -361,6 +375,22 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
             <option value=";">Semicolon (;)</option>
             <option value="|">Pipe (|)</option>
           </select>
+        </div>
+      )}
+
+      {/* Consider First Line As Header (Text only) */}
+      {config.inputType === 'text' && (
+        <div className="flex items-center gap-2 px-3 py-2">
+          <input
+            type="checkbox"
+            id="considerFirstLineAsHeader"
+            checked={config.considerFirstLineAsHeader}
+            onChange={(e) => handleFieldChange('considerFirstLineAsHeader', e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+          />
+          <label htmlFor="considerFirstLineAsHeader" className="text-xs text-gray-700 dark:text-gray-300">
+            Consider First Line As Header
+          </label>
         </div>
       )}
 
