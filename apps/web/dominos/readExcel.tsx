@@ -86,7 +86,7 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
       setFileName(file.name);
 
       const token = localStorage.getItem('token') || '';
-      const res = await FilesApi.uploadFile(file, token, router);
+      const res = await FilesApi.uploadFile(file, token, router, data.workflowId);
       if (!res) {
         toast.error('File upload failed');
         return;

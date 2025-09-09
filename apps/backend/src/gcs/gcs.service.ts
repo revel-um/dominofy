@@ -1,10 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, Like } from 'typeorm';
 import { Storage, GetSignedUrlConfig } from '@google-cloud/storage';
 import fetch from 'node-fetch';
+import { Asset } from './gcs.entity';
+import { CreateAssetDto, UpdateAssetDto, AssetQueryDto, PaginatedAssetQueryDto } from './gcs.dto';
 
 @Injectable()
 export class GcsService {
   private readonly log = new Logger(GcsService.name);
+
+  constructor(
+    @InjectRepository(Asset)
+    private assetRepository: Repository<Asset>,
+  ) { }
 
   private readonly projectId =
     process.env.GOOGLE_CLOUD_PROJECT ||
@@ -137,5 +146,149 @@ export class GcsService {
         expires: Date.now() + expiresInSec * 1000,
       } as GetSignedUrlConfig);
     return url;
+  }
+
+  // ---------- Asset Management ----------
+
+  async createAsset(createAssetDto: CreateAssetDto): Promise<Asset> {
+    const asset = this.assetRepository.create({
+      ...createAssetDto,
+      uploadedBy: { id: createAssetDto.uploadedById } as any,
+      workflow: createAssetDto.workflowId ? { id: createAssetDto.workflowId } as any : undefined,
+    });
+    return await this.assetRepository.save(asset);
+  }
+
+  async findAssetById(id: string): Promise<Asset | null> {
+    return await this.assetRepository.findOne({
+      where: { id },
+      relations: ['uploadedBy', 'workflow'],
+    });
+  }
+
+  async findAssetByKey(key: string): Promise<Asset | null> {
+    return await this.assetRepository.findOne({
+      where: { key },
+      relations: ['uploadedBy', 'workflow'],
+    });
+  }
+
+  async findAssets(query?: AssetQueryDto): Promise<Asset[]> {
+    const where: any = { isActive: true };
+
+    if (query?.userId) {
+      where.uploadedBy = { id: query.userId };
+    }
+
+    if (query?.workflowId) {
+      where.workflow = { id: query.workflowId };
+    }
+
+    if (query?.contentType) {
+      where.contentType = Like(`%${query.contentType}%`);
+    }
+
+    if (query?.isPublic !== undefined) {
+      where.isPublic = query.isPublic;
+    }
+
+    if (query?.search) {
+      where.fileName = Like(`%${query.search}%`);
+      // Note: For more complex search, you might want to use QueryBuilder
+    }
+
+    return await this.assetRepository.find({
+      where,
+      relations: ['uploadedBy', 'workflow'],
+      order: { uploadedAt: 'DESC' },
+    });
+  }
+
+  async findAssetsPaginated(query?: PaginatedAssetQueryDto): Promise<{
+    data: Asset[];
+    total: number;
+  }> {
+    const limit = query?.limit || 10;
+    const offset = query?.offset || 0;
+
+    const where: any = { isActive: true };
+
+    if (query?.userId) {
+      where.uploadedBy = { id: query.userId };
+    }
+
+    if (query?.workflowId) {
+      where.workflow = { id: query.workflowId };
+    }
+
+    if (query?.contentType) {
+      where.contentType = Like(`%${query.contentType}%`);
+    }
+
+    if (query?.isPublic !== undefined) {
+      where.isPublic = query.isPublic;
+    }
+
+    if (query?.search) {
+      where.fileName = Like(`%${query.search}%`);
+      // Note: For more complex search, you might want to use QueryBuilder
+    }
+
+    const [data, total] = await this.assetRepository.findAndCount({
+      where,
+      relations: ['uploadedBy', 'workflow'],
+      order: { uploadedAt: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
+
+    return { data, total };
+  }
+
+  async updateAsset(id: string, updateAssetDto: UpdateAssetDto): Promise<Asset | null> {
+    await this.assetRepository.update(id, updateAssetDto);
+    return await this.findAssetById(id);
+  }
+
+  async deleteAssetRecord(id: string): Promise<boolean> {
+    const result = await this.assetRepository.update(id, { isActive: false });
+    return (result.affected ?? 0) > 0;
+  }
+
+  async hardDeleteAssetRecord(id: string): Promise<boolean> {
+    const result = await this.assetRepository.delete(id);
+    return (result.affected ?? 0) > 0;
+  }
+
+  async getAssetStats(userId?: string): Promise<{
+    totalAssets: number;
+    totalSize: number;
+    totalSizeByContentType: Record<string, { count: number; size: number }>;
+  }> {
+    const where: any = { isActive: true };
+    if (userId) {
+      where.uploadedById = userId;
+    }
+
+    const assets = await this.assetRepository.find({ where });
+
+    const totalAssets = assets.length;
+    const totalSize = assets.reduce((sum, asset) => sum + Number(asset.size), 0);
+
+    const totalSizeByContentType = assets.reduce((acc, asset) => {
+      const contentType = asset.contentType;
+      if (!acc[contentType]) {
+        acc[contentType] = { count: 0, size: 0 };
+      }
+      acc[contentType].count += 1;
+      acc[contentType].size += Number(asset.size);
+      return acc;
+    }, {} as Record<string, { count: number; size: number }>);
+
+    return {
+      totalAssets,
+      totalSize,
+      totalSizeByContentType,
+    };
   }
 }
