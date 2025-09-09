@@ -246,9 +246,24 @@ export class GcsController {
     };
   }
 
+  private isValidUuid(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
   @Delete(':id')
   async deleteAsset(@Param('id') id: string) {
-    const asset = await this.gcs.findAssetById(id);
+    let asset: any = null;
+    
+    // Only try UUID lookup if the ID looks like a valid UUID
+    if (this.isValidUuid(id)) {
+      asset = await this.gcs.findAssetById(id);
+    }
+    
+    if (!asset) {
+      // If not found by ID or ID is not a UUID, try to find by key (for file keys like "uuid-filename.ext")
+      asset = await this.gcs.findAssetByKey(id);
+    }
     
     if (!asset) {
       throw new NotFoundException('Asset not found');
@@ -257,13 +272,13 @@ export class GcsController {
     // Delete from GCS
     await this.gcs.delete(asset.key);
     
-    // Soft delete from database
-    const deleted = await this.gcs.deleteAssetRecord(id);
+    // Soft delete from database using the actual UUID
+    const deleted = await this.gcs.deleteAssetRecord(asset.id);
     
     if (!deleted) {
       throw new NotFoundException('Failed to delete asset record');
     }
 
-    return { message: 'Asset deleted successfully', id, key: asset.key };
+    return { message: 'Asset deleted successfully', id: asset.id, key: asset.key };
   }
 }
