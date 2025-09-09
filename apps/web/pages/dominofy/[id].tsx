@@ -23,6 +23,8 @@ import { SSEProvider } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
 import fakeworkflow from '../fakeWorkflow.json';
 import WorkflowToolbar from "@/components/workflowToolbar";
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 // ⛔️ Removed UndoRedoProvider/context usage
 
 interface Props {
@@ -97,6 +99,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const pushGuard = useRef(false); // prevents double-record within same change “tick”
 
   const isDraggingRef = useRef(false);
+  const dragStartPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -106,8 +109,69 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const clone = useCallback(<T,>(x: T): T => JSON.parse(JSON.stringify(x)), []);
 
   const publishFlags = useCallback(() => {
-    setCanUndo(undoStack.current.length > 0);
+    console.log(undoStack.current.length);
+    // Only enable undo if there are more than 1 items (baseline + actual changes)
+    setCanUndo(undoStack.current.length > 1);
     setCanRedo(redoStack.current.length > 0);
+  }, []);
+
+  // Function to analyze differences between two states
+  const analyzeChanges = useCallback((prevNodes: Node[], newNodes: Node[], prevEdges: Edge[], newEdges: Edge[]) => {
+    const nodeChanges: string[] = [];
+    const edgeChanges: string[] = [];
+    
+    // Create maps for easier lookup
+    const prevNodeMap = new Map(prevNodes.map(n => [n.id, n]));
+    const newNodeMap = new Map(newNodes.map(n => [n.id, n]));
+    
+    // Check for added/removed nodes
+    const addedNodes = newNodes.filter(n => !prevNodeMap.has(n.id));
+    const removedNodes = prevNodes.filter(n => !newNodeMap.has(n.id));
+    
+    if (addedNodes.length > 0) {
+      nodeChanges.push(`${addedNodes.length} node${addedNodes.length > 1 ? 's' : ''} added`);
+    }
+    if (removedNodes.length > 0) {
+      nodeChanges.push(`${removedNodes.length} node${removedNodes.length > 1 ? 's' : ''} removed`);
+    }
+    
+    // Check for moved or modified nodes (only for nodes that exist in both states)
+    let movedCount = 0;
+    let modifiedCount = 0;
+    
+    for (const newNode of newNodes) {
+      const prevNode = prevNodeMap.get(newNode.id);
+      if (prevNode) {
+        // Check position changes
+        if (prevNode.position.x !== newNode.position.x || prevNode.position.y !== newNode.position.y) {
+          movedCount++;
+        }
+        // Check data changes (excluding position)
+        else if (JSON.stringify(prevNode.data) !== JSON.stringify(newNode.data)) {
+          modifiedCount++;
+        }
+      }
+    }
+    
+    if (movedCount > 0) {
+      nodeChanges.push(`${movedCount} node${movedCount > 1 ? 's' : ''} moved`);
+    }
+    if (modifiedCount > 0) {
+      nodeChanges.push(`${modifiedCount} node${modifiedCount > 1 ? 's' : ''} modified`);
+    }
+    
+    // Check for edge changes
+    if (prevEdges.length !== newEdges.length) {
+      const diff = newEdges.length - prevEdges.length;
+      if (diff > 0) {
+        edgeChanges.push(`${diff} connection${diff > 1 ? 's' : ''} added`);
+      } else {
+        edgeChanges.push(`${Math.abs(diff)} connection${Math.abs(diff) > 1 ? 's' : ''} removed`);
+      }
+    }
+    
+    const allChanges = [...nodeChanges, ...edgeChanges];
+    return allChanges.length > 0 ? allChanges.join(', ') : 'State restored';
   }, []);
 
   const pushHistory = useCallback(() => {
@@ -128,14 +192,38 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   // Wrap setters so ANY change via setNodes/setEdges records (DetailsPanel etc.)
     const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node[]>>>(
         (updater) => {
-            if (!isRestoring.current && !isDraggingRef.current) pushHistory();
+            if (!isRestoring.current && !isDraggingRef.current) {
+                // Check if this is a selection-only change
+                const prevNodes = nodes;
+                const newNodes = typeof updater === 'function' ? updater(prevNodes) : updater;
+                
+                // Only push history if there are non-selection differences
+                const hasNonSelectionChanges = prevNodes.some((prevNode, i) => {
+                    const newNode = newNodes[i];
+                    if (!newNode) return true; // node removed
+                    if (prevNode.id !== newNode.id) return true; // different node
+                    if (prevNode.position.x !== newNode.position.x || prevNode.position.y !== newNode.position.y) return true; // moved
+                    if (JSON.stringify(prevNode.data) !== JSON.stringify(newNode.data)) return true; // data changed
+                    return false;
+                }) || prevNodes.length !== newNodes.length; // nodes added/removed
+                
+                if (hasNonSelectionChanges) {
+                    console.log('setNodes: Pushing to history for non-selection changes');
+                    pushHistory();
+                } else {
+                    console.log('setNodes: Ignoring selection-only changes');
+                }
+            }
             _setNodes(updater);
         },
-        [_setNodes, pushHistory]
+        [_setNodes, pushHistory, nodes]
     );
     const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
         (updater) => {
-            if (!isRestoring.current && !isDraggingRef.current) pushHistory();
+            if (!isRestoring.current && !isDraggingRef.current) {
+                console.log('setEdges: Pushing to history');
+                pushHistory();
+            }
             _setEdges(updater);
         },
         [_setEdges, pushHistory]
@@ -152,51 +240,109 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
     const onNodesChange = useCallback(
         (changes: NodeChange[]) => {
+            // filter out selection changes from history tracking
+            const hasNonSelectionChanges = changes.some(c => c.type !== 'select');
+            
             // detect "only position" changes (dragging)
             const onlyPosition = changes.length > 0 && changes.every(c => c.type === 'position');
             const anyDraggingTrue  = onlyPosition && changes.some((c: any) => c.dragging === true);
             const anyDraggingFalse = onlyPosition && changes.some((c: any) => c.dragging === false);
 
             if (onlyPosition) {
-            // 🔹 First frame of a drag: push PRE-drag snapshot once
+            // 🔹 First frame of a drag: just set dragging flag and store start positions
             if (anyDraggingTrue) {
-                if (!isDraggingRef.current) {
-                isDraggingRef.current = true;
-                // PRE-drag snapshot
-                undoStack.current.push({ nodes: clone(nodes), edges: clone(edges) });
-                if (undoStack.current.length > 100) undoStack.current.shift();
-                redoStack.current = [];
-                publishFlags();
+                if (!isDraggingRef.current && !isRestoring.current) {
+                    isDraggingRef.current = true;
+                    // Store initial positions for each node being dragged
+                    changes.forEach((change: any) => {
+                        if (change.type === 'position' && change.dragging && change.id) {
+                            const node = nodes.find(n => n.id === change.id);
+                            if (node && node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number') {
+                                dragStartPositionsRef.current.set(change.id, {
+                                    x: node.position.x,
+                                    y: node.position.y
+                                });
+                            }
+                        }
+                    });
                 }
                 _onNodesChange(changes); // apply movement, but don't push per-frame
                 return;
             }
 
-            // 🔹 Final frame of a drag (dragging:false): push POST-drag snapshot
-            if (isDraggingRef.current && anyDraggingFalse) {
+            // 🔹 Final frame of a drag (dragging:false): only push if there was actual movement
+            if (isDraggingRef.current && anyDraggingFalse && !isRestoring.current) {
                 _onNodesChange(changes); // apply final position
-                // wait a microtask so nodes/edges reflect the applied change
-                queueMicrotask(() => {
-                undoStack.current.push({ nodes: clone(nodes), edges: clone(edges) }); // POST-drag snapshot
-                if (undoStack.current.length > 100) undoStack.current.shift();
-                redoStack.current = [];
-                publishFlags();
-                isDraggingRef.current = false;
+                
+                // Check if any node actually moved a significant distance
+                const DRAG_THRESHOLD = 5; // pixels
+                let actuallyMoved = false;
+                
+                changes.forEach((change: any) => {
+                    if (change.type === 'position' && !change.dragging && change.position) {
+                        const startPos = dragStartPositionsRef.current.get(change.id);
+                        if (startPos && change.position.x !== undefined && change.position.y !== undefined) {
+                            const distance = Math.sqrt(
+                                Math.pow(change.position.x - startPos.x, 2) + 
+                                Math.pow(change.position.y - startPos.y, 2)
+                            );
+                            if (distance > DRAG_THRESHOLD) {
+                                actuallyMoved = true;
+                            }
+                        }
+                    }
                 });
+                
+                // Only record to history if there was actual movement
+                if (actuallyMoved) {
+                    queueMicrotask(() => {
+                        // Push pre-drag snapshot first (if we haven't already)
+                        undoStack.current.push({ 
+                            nodes: clone(nodes.map(node => {
+                                const startPos = dragStartPositionsRef.current.get(node.id);
+                                return startPos ? { ...node, position: startPos } : node;
+                            })), 
+                            edges: clone(edges) 
+                        });
+                        if (undoStack.current.length > 100) undoStack.current.shift();
+                        
+                        // Push post-drag snapshot
+                        undoStack.current.push({ nodes: clone(nodes), edges: clone(edges) });
+                        if (undoStack.current.length > 100) undoStack.current.shift();
+                        
+                        redoStack.current = [];
+                        publishFlags();
+                    });
+                }
+                
+                // Clean up
+                dragStartPositionsRef.current.clear();
+                isDraggingRef.current = false;
                 return;
             }
             }
 
-            // Non-drag changes: keep your normal one-shot pre-change push
-            if (!isRestoring.current) pushHistory();
+            // Apply changes first (this handles the actual selection)
             _onNodesChange(changes);
+            
+            // Only push to history if there are actual content changes (not just selections)
+            if (!isRestoring.current && hasNonSelectionChanges) {
+                console.log('Pushing to history for changes:', changes);
+                pushHistory();
+            } else if (!isRestoring.current) {
+                console.log('Ignoring selection-only changes:', changes);
+            }
         },
         [nodes, edges, _onNodesChange, clone, publishFlags, pushHistory]
     );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      if (!isRestoring.current) pushHistory();
+      console.log('onEdgesChange called with:', changes);
+      if (!isRestoring.current) {
+        console.log('onEdgesChange: Pushing to history');
+        pushHistory();
+      }
       _onEdgesChange(changes);
     },
     [_onEdgesChange, pushHistory]
@@ -214,36 +360,71 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [loading]);
 
   const undo = useCallback(() => {
-    if (!undoStack.current.length) return;
+    // Prevent undo if we're at the baseline (only 1 or fewer items in stack)
+    if (undoStack.current.length <= 1) return;
     isRestoring.current = true;
+    
+    // Reset any drag state to prevent interference
+    isDraggingRef.current = false;
+    dragStartPositionsRef.current.clear();
 
-    // move current to redo
-    redoStack.current.push({ nodes: clone(nodes), edges: clone(edges) });
+    // The current state is actually the top of the undo stack
+    // Move the top of undo stack to redo stack
+    const current = undoStack.current.pop()!;
+    redoStack.current.push(current);
 
-    // restore previous
-    const prev = undoStack.current.pop()!;
+    // Get the previous state (now at the top of undo stack)
+    const prev = undoStack.current[undoStack.current.length - 1];
+    
+    // Analyze changes for toast message
+    const changeDescription = analyzeChanges(nodes, prev.nodes, edges, prev.edges);
+    
     _setNodes(prev.nodes); // use raw setters to avoid re‑push
     _setEdges(prev.edges);
 
+    // Show toast notification only if there are meaningful changes
+    if (changeDescription !== 'State restored') {
+      toast.info(`Undid: ${changeDescription}`, {
+        position: "top-right",
+        autoClose: 2000,
+        hideProgressBar: true,
+      });
+    }
+
     isRestoring.current = false;
     publishFlags();
-  }, [nodes, edges, _setNodes, _setEdges, clone, publishFlags]);
+  }, [nodes, edges, _setNodes, _setEdges, clone, publishFlags, analyzeChanges]);
 
   const redo = useCallback(() => {
     if (!redoStack.current.length) return;
     isRestoring.current = true;
+    
+    // Reset any drag state to prevent interference
+    isDraggingRef.current = false;
+    dragStartPositionsRef.current.clear();
 
-    // move current to undo
-    undoStack.current.push({ nodes: clone(nodes), edges: clone(edges) });
-
-    // restore next
+    // Get the next state from redo stack and move it back to undo
     const next = redoStack.current.pop()!;
+    undoStack.current.push(next);
+    
+    // Analyze changes for toast message
+    const changeDescription = analyzeChanges(nodes, next.nodes, edges, next.edges);
+    
     _setNodes(next.nodes); // raw setters
     _setEdges(next.edges);
 
+    // Show toast notification only if there are meaningful changes
+    if (changeDescription !== 'State restored') {
+      toast.success(`Redid: ${changeDescription}`, {
+        position: "top-right",
+        autoClose: 2000,
+        hideProgressBar: true,
+      });
+    }
+
     isRestoring.current = false;
     publishFlags();
-  }, [nodes, edges, _setNodes, _setEdges, clone, publishFlags]);
+  }, [nodes, edges, _setNodes, _setEdges, clone, publishFlags, analyzeChanges]);
 
   // ──────────────────────────────
   // Hydrate workflow
