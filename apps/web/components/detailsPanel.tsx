@@ -145,8 +145,8 @@ export default function DetailsPanel({ selectedNode, bottomOffset = 60, setEdges
       {(isDetailsOpen || isAIOpen) && (
         <div
           onMouseDown={startDrag}
-          className="absolute top-0"
-          style={{ right: BAR_WIDTH, width: '6px', height: '100%', cursor: 'ew-resize' }}
+          className="absolute top-0 left-0"
+          style={{ width: '6px', height: '100%', cursor: 'ew-resize' }}
         />
       )}
     </aside>

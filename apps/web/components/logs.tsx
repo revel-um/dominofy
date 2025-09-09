@@ -193,10 +193,10 @@ export const LogsPanel = React.memo(function LogsPanel({
   }, [fetchLogs, refreshInterval, isLive, isPastEndDate]);
 
   useEffect(() => {
-    if (!isMinimized) {
+    if (!isMinimized && !isDragging) {
       setHeight(`${Math.max(minOpenPx(), px(previousHeight.current))}px`);
     }
-  }, [isMinimized]);
+  }, [isMinimized, isDragging]);
 
 
   const handleClear = () => {
@@ -223,12 +223,15 @@ export const LogsPanel = React.memo(function LogsPanel({
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      const startY = e.clientY;
+      let startH = panelRef.current?.offsetHeight ?? px(collapsedHeight);
+      
+      // If minimized, open it but don't set height - let user drag control it
       if (isMinimized) {
         setIsMinimized(false);
-        setHeight(collapsedHeight);
+        // Don't set height here - let the drag handle it smoothly
       }
-      const startY = e.clientY;
-      const startH = panelRef.current?.offsetHeight ?? px(collapsedHeight);
+      
       isResizing.current = true;
       setIsDragging(true);
       document.body.style.cursor = 'row-resize';
