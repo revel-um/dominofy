@@ -21,11 +21,9 @@ import { WorkflowsApi } from "../../apis/workflow.apis";
 import { importWorkflow } from "../../helpers/workflowManager";
 import { SSEProvider } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
-import fakeworkflow from '../fakeWorkflow.json';
 import WorkflowToolbar from "@/components/workflowToolbar";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-// ⛔️ Removed UndoRedoProvider/context usage
 
 interface Props {
   currWorkflow?: {

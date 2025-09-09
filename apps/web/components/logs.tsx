@@ -205,7 +205,12 @@ export const LogsPanel = React.memo(function LogsPanel({
 
   // collapse & resize logic
   const px = (v: string) => parseInt(v, 10);
-  const minOpenPx = () => Math.round(window.innerHeight * 0.35);
+  const minOpenPx = () => {
+    const HEADER_HEIGHT = 56;
+    const PADDING = 20;
+    const availableHeight = window.innerHeight - HEADER_HEIGHT - PADDING;
+    return Math.round(Math.min(availableHeight * 0.35, availableHeight - 100));
+  };
   const AUTO_COLLAPSE_THRESHOLD_PX = 120;
 
   const toggleMinimize = useCallback(() => {
@@ -240,7 +245,9 @@ export const LogsPanel = React.memo(function LogsPanel({
         if (!isResizing.current || !panelRef.current) return;
         const newH = startH + (startY - ev.clientY);
         const MIN = px(collapsedHeight);
-        const MAX = window.innerHeight;
+        // Leave space for the header (56px) plus some padding
+        const HEADER_HEIGHT = 55;
+        const MAX = window.innerHeight - HEADER_HEIGHT;
         const h = Math.max(MIN, Math.min(newH, MAX));
         setHeight(`${h}px`);
         previousHeight.current = `${h}px`;
