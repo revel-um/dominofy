@@ -64,7 +64,10 @@ export class WorkflowService extends BaseService<Workflow> {
       where: { user: { id: userId } },
       order: { updatedAt: 'DESC' },
       take: 1,
+      relations: ['project']
     });
+
+    console.log(workflows);
 
     return { workflows, count, user };
   }

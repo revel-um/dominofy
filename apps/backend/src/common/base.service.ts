@@ -10,7 +10,9 @@ export class BaseService<T extends IBaseEntity> {
   }
 
   async create(data: DeepPartial<T>): Promise<T> {
+    console.log('Creating entity with data:', data);
     const entity = this.repository.create(data);
+    console.log('Created entity:', entity);
     return this.repository.save(entity);
   }
 

@@ -8,13 +8,18 @@ import React, {
   Fragment,
 } from 'react';
 import dominos from '../dominos/dominos';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { FiSearch } from 'react-icons/fi';
 import { WorkflowsApi } from '../apis/workflow.apis';
 import { useRouter } from 'next/router';
 
 interface DominosPanelProps {
   bottomOffset?: number;
+  currentProject?: {
+    id: string;
+    name: string;
+    description?: string;
+  };
 }
 
 interface Workflow {
@@ -32,36 +37,46 @@ function HeaderRow({
   collapsed,
   onToggle,
   showTopBorder = true,
+  actionButton,
 }: {
   title: string;
   collapsed: boolean;
   onToggle: () => void;
   showTopBorder?: boolean;
+  actionButton?: React.ReactNode;
 }) {
   return (
     <div
       className={[
-        'flex items-center h-9 px-2 cursor-pointer transition-colors',
-        'hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface',
+        'flex items-center h-9 px-2 transition-colors',
         showTopBorder ? 'border-t border-gray-300 dark:border-gray-700' : '',
       ].join(' ')}
-      onClick={onToggle}
     >
-      <div className="mr-2">
-        {collapsed ? (
-          <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-        )}
+      <div
+        className="flex items-center flex-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors -mx-2 px-2 h-full"
+        onClick={onToggle}
+      >
+        <div className="mr-2">
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+          )}
+        </div>
+        <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+          {title}
+        </h2>
       </div>
-      <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-        {title}
-      </h2>
+      {actionButton && (
+        <div className="ml-2">
+          {actionButton}
+        </div>
+      )}
     </div>
   );
 }
 
-export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
+export default function DominosPanel({ bottomOffset = 0, currentProject }: DominosPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [searchTerm, setSearchTerm] = useState('');
   const [expanded, setExpanded] = useState<{ [category: string]: boolean }>({});
@@ -69,6 +84,8 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
   const [isWorkflowsCollapsed, setIsWorkflowsCollapsed] = useState(false);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [workflowsLoading, setWorkflowsLoading] = useState(false);
+  const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
+  const [newWorkflowName, setNewWorkflowName] = useState('');
   const isDragging = useRef(false);
   const router = useRouter();
 
@@ -140,6 +157,52 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
 
   const navigateToWorkflow = (workflowId: string) => {
     router.push(`/dominofy/${workflowId}`);
+  };
+
+  const startCreatingWorkflow = () => {
+    setIsCreatingWorkflow(true);
+    setNewWorkflowName('');
+  };
+
+  const cancelCreatingWorkflow = () => {
+    setIsCreatingWorkflow(false);
+    setNewWorkflowName('');
+  };
+
+  const createWorkflow = async () => {
+    if (!newWorkflowName.trim()) {
+      cancelCreatingWorkflow();
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      // Use currentProject.id if available, otherwise fallback to "default"
+      const projectId = currentProject?.id || "default";
+      const response = await WorkflowsApi.createWorkflow(newWorkflowName.trim(), projectId, token, router);
+      if (response?.ok) {
+        const newWorkflow = await response.json();
+        setWorkflows(prev => [newWorkflow, ...prev]);
+        cancelCreatingWorkflow();
+        // Navigate to the new workflow
+        navigateToWorkflow(newWorkflow.id);
+      }
+    } catch (error) {
+      console.error('Failed to create workflow:', error);
+      cancelCreatingWorkflow();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      createWorkflow();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelCreatingWorkflow();
+    }
   };
 
   useEffect(() => {
@@ -255,27 +318,49 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
               collapsed={isWorkflowsCollapsed}
               onToggle={() => setIsWorkflowsCollapsed(prev => !prev)}
               showTopBorder={true}
+              actionButton={
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startCreatingWorkflow();
+                  }}
+                  className="p-1 rounded hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors"
+                  title="Add new workflow"
+                >
+                  <Plus className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                </button>
+              }
             />
 
             {/* Workflows content */}
             {!isWorkflowsCollapsed && (
               <div className="pb-4">
-                {/* Create new workflow widget */}
-                <div
-                  onClick={() => router.push('/dashboard')}
-                  className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
-                >
-                  <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text">+</span>
-                    <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
-                      Add
-                    </span>
+                {/* Inline workflow creation input */}
+                {isCreatingWorkflow && (
+                  <div className="w-full box-border flex items-center gap-2 p-2 mb-1 pl-8 pr-0 relative">
+                    <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
+                    <input
+                      type="text"
+                      value={newWorkflowName}
+                      onChange={(e) => setNewWorkflowName(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onBlur={() => {
+                        // Small delay to allow for button clicks
+                        setTimeout(() => {
+                          if (!newWorkflowName.trim()) {
+                            cancelCreatingWorkflow();
+                          }
+                        }, 100);
+                      }}
+                      placeholder="Workflow name..."
+                      className="flex-1 min-w-0 text-sm font-medium bg-transparent border border-gray-400 dark:border-gray-500 rounded px-2 py-1 text-dominofy-light-text dark:text-dominofy-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      autoFocus
+                    />
                   </div>
-                </div>
+                )}
 
                 {/* Existing workflows */}
-                {workflows.length === 0 && !workflowsLoading ? (
+                {workflows.length === 0 && !workflowsLoading && !isCreatingWorkflow ? (
                   <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
                     No workflows found
                   </div>

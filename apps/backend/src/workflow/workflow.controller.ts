@@ -139,4 +139,11 @@ export class WorkflowController extends BaseController<
       message: 'Workflow is running in the background',
     };
   }
+
+  protected beforeCreate(dto: Partial<CreateWorkflowDto>, req: Request): void | Partial<CreateWorkflowDto> | Promise<void | Partial<CreateWorkflowDto>> {
+    const user = (req as any).user.id;
+    dto.userId = user;
+    const data = CreateWorkflowDto.from(dto);
+    return data;
+  }
 }

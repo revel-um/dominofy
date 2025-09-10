@@ -38,6 +38,11 @@ interface Props {
     };
     isPublished: boolean;
     isDefault: boolean;
+    project?: {
+      id: string;
+      name: string;
+      description?: string;
+    };
   };
 }
 
@@ -519,7 +524,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
           <div className="flex-1 flex h-full">
             {/* Sidebar */}
-            <DominosPanel />
+            <DominosPanel currentProject={workflow?.project} />
 
             {/* Main content */}
             <div className="flex-1 flex flex-col relative overflow-hidden">

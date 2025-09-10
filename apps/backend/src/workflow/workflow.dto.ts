@@ -20,4 +20,14 @@ export class CreateWorkflowDto {
   @IsOptional()
   @IsBoolean()
   isPublished?: boolean;
+
+  static from(partial: Partial<CreateWorkflowDto>) {
+    return {
+      name: partial.name,
+      user: partial.userId,
+      project: partial.projectId,
+      visualJson: partial.visualJson,
+      isPublished: partial.isPublished ?? false,
+    }
+  }
 }

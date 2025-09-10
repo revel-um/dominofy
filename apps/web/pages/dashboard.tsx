@@ -36,6 +36,11 @@ interface Workflow {
     visualJson: { nodes: any[]; edges: [] };
     createdAt: Date;
     updatedAt: Date;
+    project?: {
+        id: string;
+        name: string;
+        description?: string;
+    };
 }
 
 interface User {

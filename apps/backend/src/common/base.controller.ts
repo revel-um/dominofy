@@ -38,15 +38,6 @@ export abstract class BaseController<
   async create(@Body() dto: Create, @Req() req: Request) {
     const instance = plainToInstance(this.createDto, dto);
 
-    const errors = await validate(instance, {
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    });
-
-    if (errors.length) {
-      throw new BadRequestException(errors);
-    }
-
     // now pass req to beforeCreate
     const processed = (await this.beforeCreate(instance as any, req)) ?? instance;
     return this.service.create(processed as unknown as Create);
