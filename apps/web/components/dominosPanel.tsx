@@ -6,14 +6,21 @@ import React, {
   useMemo,
   useEffect,
   Fragment,
-  MutableRefObject,
 } from 'react';
 import dominos from '../dominos/dominos';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { FiSearch } from 'react-icons/fi';
+import { WorkflowsApi } from '../apis/workflow.apis';
+import { useRouter } from 'next/router';
 
 interface DominosPanelProps {
   bottomOffset?: number;
+}
+
+interface Workflow {
+  id: string;
+  name: string;
+  updatedAt: string;
 }
 
 const MIN_WIDTH = 240;
@@ -24,9 +31,13 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [expanded, setExpanded] = useState<{ [category: string]: boolean }>({});
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [isWorkflowsCollapsed, setIsWorkflowsCollapsed] = useState(false);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [workflowsLoading, setWorkflowsLoading] = useState(false);
   const isDragging = useRef(false);
+  const router = useRouter();
 
-  // NEW: measure scrollbar width and negate it on the content wrapper
+  // measure scrollbar width and negate it on the content wrapper
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollbarW, setScrollbarW] = useState(0);
 
@@ -35,13 +46,11 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
     if (!el) return;
 
     const measure = () => {
-      // offsetWidth includes the scrollbar gutter; clientWidth excludes it
       const w = el.offsetWidth - el.clientWidth;
       setScrollbarW(w > 0 ? w : 0);
     };
 
     measure();
-    // Re-measure on resize and when fonts/theme/layout change
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     window.addEventListener('resize', measure);
@@ -76,9 +85,34 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
     setExpanded(prev => ({ ...prev, [category]: !prev[category] }));
   };
 
-  const togglePanelCollapse = () => {
-    setIsPanelCollapsed(prev => !prev);
+  const togglePanelCollapse = () => setIsPanelCollapsed(prev => !prev);
+  const toggleWorkflowsCollapse = () => setIsWorkflowsCollapsed(prev => !prev);
+
+  const fetchWorkflows = async () => {
+    try {
+      setWorkflowsLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await WorkflowsApi.getAllUserWorkflows(token, router, 20);
+      if (response?.ok) {
+        const data = await response.json();
+        setWorkflows(data.workflows || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch workflows:', error);
+    } finally {
+      setWorkflowsLoading(false);
+    }
   };
+
+  const navigateToWorkflow = (workflowId: string) => {
+    router.push(`/dominofy/${workflowId}`);
+  };
+
+  useEffect(() => {
+    fetchWorkflows();
+  }, []);
 
   // Memoized categorized + filtered dominos
   const filteredCategories = useMemo(() => {
@@ -116,7 +150,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
       {/* Separator after search */}
       <hr className="border-t border-gray-500 dark:border-gray-600 mx-4 mb-3" />
 
-      {/* Header */}
+      {/* Dominos header */}
       <div
         className="flex items-center p-2 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors px-2"
         onClick={togglePanelCollapse}
@@ -133,17 +167,17 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
         </h2>
       </div>
 
-      {/* Collapsible Content */}
+      {/* Dominos Section (no flex-grow so the Workflows header sits right after it) */}
       {!isPanelCollapsed && (
-        <div className="flex flex-col flex-grow pb-4 overflow-hidden mt-2">
-          {/* Scroll area */}
+        <div className="flex flex-col flex-none overflow-hidden mt-2">
           <div
             ref={scrollRef}
-            className="flex-grow overflow-y-auto"
-            // Keep width stable. We'll also *visually* negate the gutter below.
-            style={{ scrollbarGutter: 'stable both-edges' as any }}
+            className="overflow-y-auto"
+            style={{
+              scrollbarGutter: 'stable both-edges' as any,
+              maxHeight: 'calc(100vh - 300px)',
+            }}
           >
-            {/* Negate scrollbar gutter on the inner wrapper */}
             <div
               className="w-full box-border"
               style={{ marginRight: scrollbarW ? `-${scrollbarW}px` : 0 }}
@@ -154,11 +188,11 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
                   <Fragment key={category}>
                     {/* Category header */}
                     <div
-                      className="sticky top-0 z-20 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-b border-gray-300 dark:border-gray-700"
+                      className="sticky top-0 z-20 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
                       onClick={() => toggleCategory(category)}
                     >
                       <div className="mr-2">
-                        {expanded[category] || searchTerm ? (
+                        {(expanded[category] || searchTerm) ? (
                           <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
                         ) : (
                           <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
@@ -178,7 +212,6 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
                           }}
                           className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
                         >
-                          {/* Vertical indentation line */}
                           <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
                           <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10" />
                           <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
@@ -192,6 +225,62 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
           </div>
         </div>
       )}
+
+      {/* Workflows Section */}
+      <div>
+        <div
+          className="flex items-center p-2 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors px-2 border-t border-gray-300 dark:border-gray-700"
+          onClick={toggleWorkflowsCollapse}
+        >
+          <div className="mr-2">
+            {isWorkflowsCollapsed ? (
+              <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+            )}
+          </div>
+          <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+            Workflows
+            {workflowsLoading && <span className="ml-2 text-xs opacity-60">(Loading...)</span>}
+          </h2>
+        </div>
+
+        {!isWorkflowsCollapsed && (
+          <div className="pb-4">
+            <div
+              className="overflow-y-auto max-h-48"
+              style={{ marginRight: scrollbarW ? `-${scrollbarW}px` : 0 }}
+            >
+              {workflows.length === 0 && !workflowsLoading ? (
+                <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                  No workflows found
+                </div>
+              ) : (
+                workflows.map((workflow) => (
+                  <div
+                    key={workflow.id}
+                    onClick={() => navigateToWorkflow(workflow.id)}
+                    className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
+                  >
+                    <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
+                    <div className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10">
+                      📋
+                    </div>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text truncate">
+                        {workflow.name}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {new Date(workflow.updatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Resize handle */}
       <div

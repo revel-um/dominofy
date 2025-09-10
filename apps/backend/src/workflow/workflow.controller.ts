@@ -44,6 +44,14 @@ export class WorkflowController extends BaseController<
     return this.workflowService.getRecentWorkflows(id);
   }
 
+  @Get('all')
+  async getAllUserWorkflows(@Req() req: Request) {
+    const id = (req as any).user.id;
+    const limit = req.query?.limit ? parseInt(req.query.limit as string) : undefined;
+    const offset = req.query?.offset ? parseInt(req.query.offset as string) : undefined;
+    return this.workflowService.getAllUserWorkflows(id, limit, offset);
+  }
+
   @Get(':id')
   async getWorkflowById(@Param('id') id: string, @Req() req: Request) {
     const userId = (req as any).user.id;

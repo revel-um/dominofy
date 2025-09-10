@@ -69,6 +69,19 @@ export class WorkflowService extends BaseService<Workflow> {
     return { workflows, count, user };
   }
 
+  async getAllUserWorkflows(userId: string, limit?: number, offset?: number) {
+    const user = await this.userService.findOne(userId);
+    if (!user) return;
+    
+    const [workflows, count] = await this.workflowRepository.findAndCount({
+      where: { user: { id: userId } },
+      order: { updatedAt: 'DESC' },
+      take: limit || 50,
+      skip: offset || 0,
+    });
+    return { workflows, count, user };
+  }
+
   async findOneAndVerify(id: string, userId: string) {
     const workflow = await this.workflowRepository.findOne({
       where: { id },
