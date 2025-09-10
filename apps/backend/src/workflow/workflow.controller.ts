@@ -1,14 +1,13 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   HttpCode,
-  HttpStatus,
   NotFoundException,
   Param,
   Post,
   Patch,
+  Query,
   Req,
   UploadedFile,
   UseInterceptors,
@@ -44,12 +43,16 @@ export class WorkflowController extends BaseController<
     return this.workflowService.getRecentWorkflows(id);
   }
 
-  @Get('all')
-  async getAllUserWorkflows(@Req() req: Request) {
+  @Get('user/all')
+  async getAllUserWorkflows(
+    @Req() req: Request,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string
+  ) {
     const id = (req as any).user.id;
-    const limit = req.query?.limit ? parseInt(req.query.limit as string) : undefined;
-    const offset = req.query?.offset ? parseInt(req.query.offset as string) : undefined;
-    return this.workflowService.getAllUserWorkflows(id, limit, offset);
+    const limitNum = limit ? parseInt(limit) : undefined;
+    const offsetNum = offset ? parseInt(offset) : undefined;
+    return this.workflowService.getAllUserWorkflows(id, limitNum, offsetNum);
   }
 
   @Get(':id')

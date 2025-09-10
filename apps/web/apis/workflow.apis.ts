@@ -29,7 +29,7 @@ export class WorkflowsApi {
       if (limit) params.append('limit', limit.toString());
       if (offset) params.append('offset', offset.toString());
       
-      const url = `${config.backendBaseUrl}/workflow/all${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `${config.backendBaseUrl}/workflow/user/all${params.toString() ? '?' + params.toString() : ''}`;
       
       const response = await fetch(url, {
         method: "GET",

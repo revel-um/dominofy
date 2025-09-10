@@ -26,6 +26,41 @@ interface Workflow {
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 480;
 
+/** Uniform header row used for both "Dominos" and "Workflows" */
+function HeaderRow({
+  title,
+  collapsed,
+  onToggle,
+  showTopBorder = true,
+}: {
+  title: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  showTopBorder?: boolean;
+}) {
+  return (
+    <div
+      className={[
+        'flex items-center h-9 px-2 cursor-pointer transition-colors',
+        'hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface',
+        showTopBorder ? 'border-t border-gray-300 dark:border-gray-700' : '',
+      ].join(' ')}
+      onClick={onToggle}
+    >
+      <div className="mr-2">
+        {collapsed ? (
+          <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+        )}
+      </div>
+      <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+        {title}
+      </h2>
+    </div>
+  );
+}
+
 export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [searchTerm, setSearchTerm] = useState('');
@@ -85,9 +120,6 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
     setExpanded(prev => ({ ...prev, [category]: !prev[category] }));
   };
 
-  const togglePanelCollapse = () => setIsPanelCollapsed(prev => !prev);
-  const toggleWorkflowsCollapse = () => setIsWorkflowsCollapsed(prev => !prev);
-
   const fetchWorkflows = async () => {
     try {
       setWorkflowsLoading(true);
@@ -112,6 +144,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
 
   useEffect(() => {
     fetchWorkflows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Memoized categorized + filtered dominos
@@ -134,7 +167,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
       style={{ width, height: `calc(100% - ${bottomOffset}px)` }}
     >
       {/* Search */}
-      <div className="p-4 pb-3">
+      <div className="p-4">
         <div className="relative">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-white text-sm pointer-events-none" />
           <input
@@ -147,10 +180,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
         </div>
       </div>
 
-      {/* Separator after search */}
-      <hr className="border-t border-gray-500 dark:border-gray-600 mx-4 mb-3" />
-
-      {/* Single scrollable container for both Dominos and Workflows */}
+      {/* Scrollable content (Dominos + Workflows) */}
       <div className="flex flex-col flex-grow overflow-hidden">
         <div
           ref={scrollRef}
@@ -161,31 +191,22 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
             className="w-full box-border"
             style={{ marginRight: scrollbarW ? `-${scrollbarW}px` : 0 }}
           >
-            {/* Dominos header - now scrollable */}
-            <div
-              className="flex items-center p-2 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors px-2"
-              onClick={togglePanelCollapse}
-            >
-              <div className="mr-2">
-                {isPanelCollapsed ? (
-                  <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-                )}
-              </div>
-              <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-                Dominos
-              </h2>
-            </div>
+            {/* Dominos header (uniform) */}
+            <HeaderRow
+              title="Dominos"
+              collapsed={isPanelCollapsed}
+              onToggle={() => setIsPanelCollapsed(prev => !prev)}
+              showTopBorder={true}
+            />
 
             {/* Dominos content */}
             {!isPanelCollapsed && (
-              <div className="mt-2">
+              <div>
                 {Object.entries(filteredCategories)
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([category, items]) => (
                     <Fragment key={category}>
-                      {/* Category header */}
+                      {/* Category header (intentionally distinct & sticky) */}
                       <div
                         className="sticky top-0 z-20 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
                         onClick={() => toggleCategory(category)}
@@ -211,6 +232,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
                             }}
                             className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
                           >
+                            {/* Vertical indentation line */}
                             <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
                             <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10" />
                             <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
@@ -223,23 +245,17 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
               </div>
             )}
 
-            {/* Workflows header - now scrollable */}
-            <div
-              className="flex items-center p-2 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors px-2 border-t border-gray-300 dark:border-gray-700 mt-4"
-              onClick={toggleWorkflowsCollapse}
-            >
-              <div className="mr-2">
-                {isWorkflowsCollapsed ? (
-                  <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-                )}
-              </div>
-              <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-                Workflows
-                {workflowsLoading && <span className="ml-2 text-xs opacity-60">(Loading...)</span>}
-              </h2>
-            </div>
+            {/* Workflows header (uniform with Dominos header) */}
+            <HeaderRow
+              title={
+                workflowsLoading
+                  ? 'Workflows (Loading...)'
+                  : 'Workflows'
+              }
+              collapsed={isWorkflowsCollapsed}
+              onToggle={() => setIsWorkflowsCollapsed(prev => !prev)}
+              showTopBorder={true}
+            />
 
             {/* Workflows content */}
             {!isWorkflowsCollapsed && (
@@ -292,6 +308,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
       <div
         onMouseDown={handleMouseDown}
         className="absolute top-0 right-0 h-full w-1.5 cursor-ew-resize bg-transparent"
+        style={{ width: 6 }} // slightly wider hit area without visual change
       />
     </div>
   );
