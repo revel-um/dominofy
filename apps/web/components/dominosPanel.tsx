@@ -154,7 +154,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
                   <Fragment key={category}>
                     {/* Category header */}
                     <div
-                      className="sticky top-0 z-10 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
+                      className="sticky top-0 z-20 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-b border-gray-300 dark:border-gray-700"
                       onClick={() => toggleCategory(category)}
                     >
                       <div className="mr-2">
@@ -176,9 +176,11 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
                             e.dataTransfer.setData('application/reactflow', id);
                             e.dataTransfer.effectAllowed = 'move';
                           }}
-                          className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0"
+                          className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
                         >
-                          <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text" />
+                          {/* Vertical indentation line */}
+                          <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
+                          <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10" />
                           <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
                             {label}
                           </span>
