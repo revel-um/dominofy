@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import dynamic from 'next/dynamic';
 import { ResponsiveContainer } from '../components/common/ResponsiveComponents';
 import { 
@@ -64,6 +65,7 @@ const SectionHeader = ({
 );
 
 function SettingsComponent() {
+  const { data: session, status } = useSession();
   const [mounted, setMounted] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({
     name: '',
@@ -78,38 +80,27 @@ function SettingsComponent() {
   const [isLoading, setIsLoading] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
-  // Fetch user profile and settings
+  // Populate profile from NextAuth session; later we can enrich with backend details
   useEffect(() => {
     setMounted(true);
-    
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
+    if (status === 'loading') return; // wait for session
 
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Mock data for demo
-        setProfile({
-          name: 'John Doe',
-          email: 'john@example.com',
-          role: 'Admin',
-          createdAt: new Date('2023-01-01').toISOString(),
-          lastLogin: new Date().toISOString()
-        });
-        
-        setSettings(defaultSettings);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        toast.error('Failed to load user data');
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+    if (status === 'authenticated' && session?.user) {
+      const user = session.user as any;
+      setProfile(prev => ({
+        ...prev,
+        name: user?.name || prev.name,
+        email: user?.email || prev.email,
+        avatar: user?.image || prev.avatar,
+        // role/createdAt/lastLogin can be filled from backend later
+      }));
+      setSettings(defaultSettings);
+      setIsLoading(false);
+    } else if (status === 'unauthenticated') {
+      // Not signed in; show minimal state
+      setIsLoading(false);
+    }
+  }, [status, session]);
 
   const updateProfile = async (updatedData: Partial<UserProfile>) => {
     try {

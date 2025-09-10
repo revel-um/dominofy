@@ -24,11 +24,15 @@ export class UserService extends BaseService<User> {
   async login(email: string, password: string) {
     // Check if email exists and password matches with the encrypted password
     const user = await this.userRepository.findOne({ where: { email } });
-    if (user && await decryptPassword(user.password) == password) {
+    if (user && user.password && await decryptPassword(user.password) == password) {
       const token = generateJwtToken({ id: user.id, email: user.email }, this.configService.get<string>('JWT_SECRET')!);
       return { token };
     }
     throw new Error('Invalid email or password');
+  }
+
+  async findOneByEmail(email: string): Promise<User | null> {
+    return await this.userRepository.findOne({ where: { email } });
   }
 
   async setupUser(dto: CreateUserDto) {

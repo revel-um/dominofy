@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
+import Head from 'next/head';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { signIn, useSession, signOut } from 'next-auth/react';
 import axios from 'axios';
+import { OAuthButtons } from '../components/auth/OAuthButtons';
 import { FcGoogle } from 'react-icons/fc';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export default function AuthPage() {
   const router = useRouter();
+  const { status } = useSession();
   const [isSignup, setIsSignup] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -17,10 +22,21 @@ export default function AuthPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
+    // Only auto-redirect when a backend token exists; do not auto-redirect just because NextAuth has a session
     if (token) {
       router.push('/dashboard');
     } else {
       setCheckingAuth(false);
+    }
+
+    // Check for OAuth errors in URL
+    const { error } = router.query;
+    if (error) {
+      let errorMessage = 'Authentication failed';
+      if (typeof error === 'string') {
+        errorMessage = decodeURIComponent(error);
+      }
+      toast.error(errorMessage);
     }
   }, [router]);
 
@@ -137,6 +153,18 @@ export default function AuthPage() {
               </div>
             </div>
 
+            {/* OAuth Buttons */}
+            <OAuthButtons />
+
+            <div className="relative mt-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or sign in with email</span>
+              </div>
+            </div>
+
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignup && (
@@ -184,24 +212,7 @@ export default function AuthPage() {
               </button>
             </form>
 
-            {/* Google Auth */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                // trigger Google OAuth
-              }}
-              className="w-full py-3 flex items-center justify-center bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <FcGoogle className="mr-2 text-lg" />
-              {isSignup ? 'Sign up with Google' : 'Log in with Google'}
-            </button>
+            {/* OAuthButtons already renders providers; removed duplicate Google button */}
           </div>
         </div>
       </div>
