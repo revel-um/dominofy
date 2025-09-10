@@ -86,11 +86,12 @@ function SettingsComponent() {
     if (status === 'loading') return; // wait for session
 
     if (status === 'authenticated' && session?.user) {
+      const user = session.user as any;
       setProfile(prev => ({
         ...prev,
-        name: session.user.name || prev.name,
-        email: session.user.email || prev.email,
-        avatar: (session.user as any).image || prev.avatar,
+        name: user?.name || prev.name,
+        email: user?.email || prev.email,
+        avatar: user?.image || prev.avatar,
         // role/createdAt/lastLogin can be filled from backend later
       }));
       setSettings(defaultSettings);
