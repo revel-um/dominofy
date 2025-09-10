@@ -154,7 +154,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
                   <Fragment key={category}>
                     {/* Category header */}
                     <div
-                      className="w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0"
+                      className="sticky top-0 z-10 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
                       onClick={() => toggleCategory(category)}
                     >
                       <div className="mr-2">
