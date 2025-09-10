@@ -150,136 +150,142 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
       {/* Separator after search */}
       <hr className="border-t border-gray-500 dark:border-gray-600 mx-4 mb-3" />
 
-      {/* Dominos header */}
-      <div
-        className="flex items-center p-2 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors px-2"
-        onClick={togglePanelCollapse}
-      >
-        <div className="mr-2">
-          {isPanelCollapsed ? (
-            <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-          )}
-        </div>
-        <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-          Dominos
-        </h2>
-      </div>
-
-      {/* Dominos Section (no flex-grow so the Workflows header sits right after it) */}
-      {!isPanelCollapsed && (
-        <div className="flex flex-col flex-none overflow-hidden mt-2">
-          <div
-            ref={scrollRef}
-            className="overflow-y-auto"
-            style={{
-              scrollbarGutter: 'stable both-edges' as any,
-              maxHeight: 'calc(100vh - 300px)',
-            }}
-          >
-            <div
-              className="w-full box-border"
-              style={{ marginRight: scrollbarW ? `-${scrollbarW}px` : 0 }}
-            >
-              {Object.entries(filteredCategories)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([category, items]) => (
-                  <Fragment key={category}>
-                    {/* Category header */}
-                    <div
-                      className="sticky top-0 z-20 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
-                      onClick={() => toggleCategory(category)}
-                    >
-                      <div className="mr-2">
-                        {(expanded[category] || searchTerm) ? (
-                          <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-                        )}
-                      </div>
-                      <span>{category}</span>
-                    </div>
-
-                    {(expanded[category] || searchTerm) &&
-                      items.map(({ id, label, icon: Icon }) => (
-                        <div
-                          key={`${category}-${id}`}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('application/reactflow', id);
-                            e.dataTransfer.effectAllowed = 'move';
-                          }}
-                          className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
-                        >
-                          <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
-                          <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10" />
-                          <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
-                            {label}
-                          </span>
-                        </div>
-                      ))}
-                  </Fragment>
-                ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Workflows Section */}
-      <div>
+      {/* Single scrollable container for both Dominos and Workflows */}
+      <div className="flex flex-col flex-grow overflow-hidden">
         <div
-          className="flex items-center p-2 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors px-2 border-t border-gray-300 dark:border-gray-700"
-          onClick={toggleWorkflowsCollapse}
+          ref={scrollRef}
+          className="flex-grow overflow-y-auto"
+          style={{ scrollbarGutter: 'stable both-edges' as any }}
         >
-          <div className="mr-2">
-            {isWorkflowsCollapsed ? (
-              <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+          <div
+            className="w-full box-border"
+            style={{ marginRight: scrollbarW ? `-${scrollbarW}px` : 0 }}
+          >
+            {/* Dominos header - now scrollable */}
+            <div
+              className="flex items-center p-2 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors px-2"
+              onClick={togglePanelCollapse}
+            >
+              <div className="mr-2">
+                {isPanelCollapsed ? (
+                  <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                )}
+              </div>
+              <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+                Dominos
+              </h2>
+            </div>
+
+            {/* Dominos content */}
+            {!isPanelCollapsed && (
+              <div className="mt-2">
+                {Object.entries(filteredCategories)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([category, items]) => (
+                    <Fragment key={category}>
+                      {/* Category header */}
+                      <div
+                        className="sticky top-0 z-20 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
+                        onClick={() => toggleCategory(category)}
+                      >
+                        <div className="mr-2">
+                          {(expanded[category] || searchTerm) ? (
+                            <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                          )}
+                        </div>
+                        <span>{category}</span>
+                      </div>
+
+                      {(expanded[category] || searchTerm) &&
+                        items.map(({ id, label, icon: Icon }) => (
+                          <div
+                            key={`${category}-${id}`}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/reactflow', id);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
+                          >
+                            <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
+                            <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10" />
+                            <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
+                              {label}
+                            </span>
+                          </div>
+                        ))}
+                    </Fragment>
+                  ))}
+              </div>
+            )}
+
+            {/* Workflows header - now scrollable */}
+            <div
+              className="flex items-center p-2 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors px-2 border-t border-gray-300 dark:border-gray-700 mt-4"
+              onClick={toggleWorkflowsCollapse}
+            >
+              <div className="mr-2">
+                {isWorkflowsCollapsed ? (
+                  <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                )}
+              </div>
+              <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+                Workflows
+                {workflowsLoading && <span className="ml-2 text-xs opacity-60">(Loading...)</span>}
+              </h2>
+            </div>
+
+            {/* Workflows content */}
+            {!isWorkflowsCollapsed && (
+              <div className="pb-4">
+                {/* Create new workflow widget */}
+                <div
+                  onClick={() => router.push('/dashboard')}
+                  className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
+                >
+                  <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text">+</span>
+                    <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
+                      Add
+                    </span>
+                  </div>
+                </div>
+
+                {/* Existing workflows */}
+                {workflows.length === 0 && !workflowsLoading ? (
+                  <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                    No workflows found
+                  </div>
+                ) : (
+                  workflows.map((workflow) => (
+                    <div
+                      key={workflow.id}
+                      onClick={() => navigateToWorkflow(workflow.id)}
+                      className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
+                    >
+                      <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text truncate">
+                          {workflow.name}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {new Date(workflow.updatedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             )}
           </div>
-          <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-            Workflows
-            {workflowsLoading && <span className="ml-2 text-xs opacity-60">(Loading...)</span>}
-          </h2>
         </div>
-
-        {!isWorkflowsCollapsed && (
-          <div className="pb-4">
-            <div
-              className="overflow-y-auto max-h-48"
-              style={{ marginRight: scrollbarW ? `-${scrollbarW}px` : 0 }}
-            >
-              {workflows.length === 0 && !workflowsLoading ? (
-                <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                  No workflows found
-                </div>
-              ) : (
-                workflows.map((workflow) => (
-                  <div
-                    key={workflow.id}
-                    onClick={() => navigateToWorkflow(workflow.id)}
-                    className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
-                  >
-                    <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
-                    <div className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10">
-                      📋
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text truncate">
-                        {workflow.name}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(workflow.updatedAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Resize handle */}
