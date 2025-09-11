@@ -8,7 +8,7 @@ import ReactFlow, {
   OnConnect,
   SelectionMode,
   applyNodeChanges,
-  useReactFlow,
+  ReactFlowProvider,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -420,8 +420,6 @@ export default function Canvas(props: CanvasProps) {
 
   
   /* ───── Copy/Paste ───── */
-  const rf = useReactFlow();
-
   // If you have your own addAction, pass it into the hook
   const addAction = <T,>(label: string, fn: () => T): T => {
     // wrap your undo/redo system here
@@ -491,6 +489,7 @@ export default function Canvas(props: CanvasProps) {
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   return (
     <div className="relative w-full h-full" onContextMenu={onPaneContextMenu}>
+      <ReactFlowProvider>
       <ReactFlow
         id={id}
         nodes={renderedNodes}
@@ -526,6 +525,7 @@ export default function Canvas(props: CanvasProps) {
         <Background />
         <Controls />
       </ReactFlow>
+      </ReactFlowProvider>
 
       {/* modal */}
       {isModalOpen && (
