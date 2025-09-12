@@ -20,4 +20,5 @@ export class CreateWorkflowDto {
   @IsOptional()
   @IsBoolean()
   isPublished?: boolean;
+  
 }

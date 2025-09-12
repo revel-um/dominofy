@@ -23,6 +23,31 @@ export class WorkflowsApi {
     }
   }
 
+  static async getAllUserWorkflows(token: string, router: NextRouter, limit?: number, offset?: number) {
+    try {
+      const params = new URLSearchParams();
+      if (limit) params.append('limit', limit.toString());
+      if (offset) params.append('offset', offset.toString());
+      
+      const url = `${config.backendBaseUrl}/workflow/user/all${params.toString() ? '?' + params.toString() : ''}`;
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        handleUnauthorizedError(router);
+      }
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
   static async getWorkflowById(id: string, token: string, router: NextRouter) {
     try {
       const response = await fetch(`${config.backendBaseUrl}/workflow/${id}`, {

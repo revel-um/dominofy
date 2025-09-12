@@ -6,27 +6,90 @@ import React, {
   useMemo,
   useEffect,
   Fragment,
-  MutableRefObject,
 } from 'react';
 import dominos from '../dominos/dominos';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { FiSearch } from 'react-icons/fi';
+import { WorkflowsApi } from '../apis/workflow.apis';
+import { useRouter } from 'next/router';
 
 interface DominosPanelProps {
   bottomOffset?: number;
+  currentProject?: {
+    id: string;
+    name: string;
+    description?: string;
+  };
+}
+
+interface Workflow {
+  id: string;
+  name: string;
+  updatedAt: string;
 }
 
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 480;
 
-export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
+/** Uniform header row used for both "Dominos" and "Workflows" */
+function HeaderRow({
+  title,
+  collapsed,
+  onToggle,
+  showTopBorder = true,
+  actionButton,
+}: {
+  title: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  showTopBorder?: boolean;
+  actionButton?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={[
+        'flex items-center h-9 px-2 transition-colors',
+        showTopBorder ? 'border-t border-gray-300 dark:border-gray-700' : '',
+      ].join(' ')}
+    >
+      <div
+        className="flex items-center flex-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors -mx-2 px-2 h-full"
+        onClick={onToggle}
+      >
+        <div className="mr-2">
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+          )}
+        </div>
+        <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+          {title}
+        </h2>
+      </div>
+      {actionButton && (
+        <div className="ml-2">
+          {actionButton}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function DominosPanel({ bottomOffset = 0, currentProject }: DominosPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [searchTerm, setSearchTerm] = useState('');
   const [expanded, setExpanded] = useState<{ [category: string]: boolean }>({});
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [isWorkflowsCollapsed, setIsWorkflowsCollapsed] = useState(false);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [workflowsLoading, setWorkflowsLoading] = useState(false);
+  const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
+  const [newWorkflowName, setNewWorkflowName] = useState('');
   const isDragging = useRef(false);
+  const router = useRouter();
 
-  // NEW: measure scrollbar width and negate it on the content wrapper
+  // measure scrollbar width and negate it on the content wrapper
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollbarW, setScrollbarW] = useState(0);
 
@@ -35,13 +98,11 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
     if (!el) return;
 
     const measure = () => {
-      // offsetWidth includes the scrollbar gutter; clientWidth excludes it
       const w = el.offsetWidth - el.clientWidth;
       setScrollbarW(w > 0 ? w : 0);
     };
 
     measure();
-    // Re-measure on resize and when fonts/theme/layout change
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     window.addEventListener('resize', measure);
@@ -76,9 +137,78 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
     setExpanded(prev => ({ ...prev, [category]: !prev[category] }));
   };
 
-  const togglePanelCollapse = () => {
-    setIsPanelCollapsed(prev => !prev);
+  const fetchWorkflows = async () => {
+    try {
+      setWorkflowsLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await WorkflowsApi.getAllUserWorkflows(token, router, 20);
+      if (response?.ok) {
+        const data = await response.json();
+        setWorkflows(data.workflows || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch workflows:', error);
+    } finally {
+      setWorkflowsLoading(false);
+    }
   };
+
+  const navigateToWorkflow = (workflowId: string) => {
+    router.push(`/dominofy/${workflowId}`);
+  };
+
+  const startCreatingWorkflow = () => {
+    setIsCreatingWorkflow(true);
+    setNewWorkflowName('');
+  };
+
+  const cancelCreatingWorkflow = () => {
+    setIsCreatingWorkflow(false);
+    setNewWorkflowName('');
+  };
+
+  const createWorkflow = async () => {
+    if (!newWorkflowName.trim()) {
+      cancelCreatingWorkflow();
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      // Use currentProject.id if available, otherwise fallback to "default"
+      const projectId = currentProject?.id || "default";
+      const response = await WorkflowsApi.createWorkflow(newWorkflowName.trim(), projectId, token, router);
+      if (response?.ok) {
+        const newWorkflow = await response.json();
+        setWorkflows(prev => [newWorkflow, ...prev]);
+        cancelCreatingWorkflow();
+        // Navigate to the new workflow
+        navigateToWorkflow(newWorkflow.id);
+      }
+    } catch (error) {
+      console.error('Failed to create workflow:', error);
+      cancelCreatingWorkflow();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      createWorkflow();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelCreatingWorkflow();
+    }
+  };
+
+  useEffect(() => {
+    fetchWorkflows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Memoized categorized + filtered dominos
   const filteredCategories = useMemo(() => {
@@ -100,7 +230,7 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
       style={{ width, height: `calc(100% - ${bottomOffset}px)` }}
     >
       {/* Search */}
-      <div className="p-4 pb-3">
+      <div className="p-4">
         <div className="relative">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-white text-sm pointer-events-none" />
           <input
@@ -113,90 +243,157 @@ export default function DominosPanel({ bottomOffset = 0 }: DominosPanelProps) {
         </div>
       </div>
 
-      {/* Separator after search */}
-      <hr className="border-t border-gray-500 dark:border-gray-600 mx-4 mb-3" />
-
-      {/* Header */}
-      <div
-        className="flex items-center p-2 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors px-2"
-        onClick={togglePanelCollapse}
-      >
-        <div className="mr-2">
-          {isPanelCollapsed ? (
-            <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-          )}
-        </div>
-        <h2 className="text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-          Dominos
-        </h2>
-      </div>
-
-      {/* Collapsible Content */}
-      {!isPanelCollapsed && (
-        <div className="flex flex-col flex-grow pb-4 overflow-hidden mt-2">
-          {/* Scroll area */}
+      {/* Scrollable content (Dominos + Workflows) */}
+      <div className="flex flex-col flex-grow overflow-hidden">
+        <div
+          ref={scrollRef}
+          className="flex-grow overflow-y-auto"
+          style={{ scrollbarGutter: 'stable both-edges' as any }}
+        >
           <div
-            ref={scrollRef}
-            className="flex-grow overflow-y-auto"
-            // Keep width stable. We'll also *visually* negate the gutter below.
-            style={{ scrollbarGutter: 'stable both-edges' as any }}
+            className="w-full box-border"
+            style={{ marginRight: scrollbarW ? `-${scrollbarW}px` : 0 }}
           >
-            {/* Negate scrollbar gutter on the inner wrapper */}
-            <div
-              className="w-full box-border"
-              style={{ marginRight: scrollbarW ? `-${scrollbarW}px` : 0 }}
-            >
-              {Object.entries(filteredCategories)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([category, items]) => (
-                  <Fragment key={category}>
-                    {/* Category header */}
-                    <div
-                      className="sticky top-0 z-20 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-b border-gray-300 dark:border-gray-700"
-                      onClick={() => toggleCategory(category)}
-                    >
-                      <div className="mr-2">
-                        {expanded[category] || searchTerm ? (
-                          <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-                        )}
-                      </div>
-                      <span>{category}</span>
-                    </div>
+            {/* Dominos header (uniform) */}
+            <HeaderRow
+              title="Dominos"
+              collapsed={isPanelCollapsed}
+              onToggle={() => setIsPanelCollapsed(prev => !prev)}
+              showTopBorder={true}
+            />
 
-                    {(expanded[category] || searchTerm) &&
-                      items.map(({ id, label, icon: Icon }) => (
-                        <div
-                          key={`${category}-${id}`}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('application/reactflow', id);
-                            e.dataTransfer.effectAllowed = 'move';
-                          }}
-                          className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
-                        >
-                          {/* Vertical indentation line */}
-                          <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
-                          <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10" />
-                          <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
-                            {label}
-                          </span>
+            {/* Dominos content */}
+            {!isPanelCollapsed && (
+              <div>
+                {Object.entries(filteredCategories)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([category, items]) => (
+                    <Fragment key={category}>
+                      {/* Category header (intentionally distinct & sticky) */}
+                      <div
+                        className="sticky top-0 z-20 w-full box-border cursor-pointer font-semibold text-sm text-dominofy-light-text dark:text-dominofy-dark-text mb-2 flex items-center py-2 hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors pl-4 pr-0 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
+                        onClick={() => toggleCategory(category)}
+                      >
+                        <div className="mr-2">
+                          {(expanded[category] || searchTerm) ? (
+                            <ChevronDown className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                          )}
                         </div>
-                      ))}
-                  </Fragment>
-                ))}
-            </div>
+                        <span>{category}</span>
+                      </div>
+
+                      {(expanded[category] || searchTerm) &&
+                        items.map(({ id, label, icon: Icon }) => (
+                          <div
+                            key={`${category}-${id}`}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/reactflow', id);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
+                          >
+                            {/* Vertical indentation line */}
+                            <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
+                            <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10" />
+                            <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
+                              {label}
+                            </span>
+                          </div>
+                        ))}
+                    </Fragment>
+                  ))}
+              </div>
+            )}
+
+            {/* Workflows header (uniform with Dominos header) */}
+            <HeaderRow
+              title={
+                workflowsLoading
+                  ? 'Workflows (Loading...)'
+                  : 'Workflows'
+              }
+              collapsed={isWorkflowsCollapsed}
+              onToggle={() => setIsWorkflowsCollapsed(prev => !prev)}
+              showTopBorder={true}
+              actionButton={
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startCreatingWorkflow();
+                  }}
+                  className="p-1 rounded hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors"
+                  title="Add new workflow"
+                >
+                  <Plus className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                </button>
+              }
+            />
+
+            {/* Workflows content */}
+            {!isWorkflowsCollapsed && (
+              <div className="pb-4">
+                {/* Inline workflow creation input */}
+                {isCreatingWorkflow && (
+                  <div className="w-full box-border flex items-center gap-2 p-2 mb-1 pl-8 pr-0 relative">
+                    <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
+                    <input
+                      type="text"
+                      value={newWorkflowName}
+                      onChange={(e) => setNewWorkflowName(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onBlur={() => {
+                        // Small delay to allow for button clicks
+                        setTimeout(() => {
+                          if (!newWorkflowName.trim()) {
+                            cancelCreatingWorkflow();
+                          }
+                        }, 100);
+                      }}
+                      placeholder="Workflow name..."
+                      className="flex-1 min-w-0 text-sm font-medium bg-transparent border border-gray-400 dark:border-gray-500 rounded px-2 py-1 text-dominofy-light-text dark:text-dominofy-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      autoFocus
+                    />
+                  </div>
+                )}
+
+                {/* Existing workflows */}
+                {workflows.length === 0 && !workflowsLoading && !isCreatingWorkflow ? (
+                  <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                    No workflows found
+                  </div>
+                ) : (
+                  workflows.map((workflow) => (
+                    <div
+                      key={workflow.id}
+                      onClick={() => navigateToWorkflow(workflow.id)}
+                      className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
+                    >
+                      <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text truncate">
+                          {workflow.name}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {new Date(workflow.updatedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Resize handle */}
       <div
         onMouseDown={handleMouseDown}
         className="absolute top-0 right-0 h-full w-1.5 cursor-ew-resize bg-transparent"
+        style={{ width: 6 }} // slightly wider hit area without visual change
       />
     </div>
   );

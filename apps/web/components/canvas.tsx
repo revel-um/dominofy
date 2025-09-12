@@ -4,9 +4,11 @@ import React, { useCallback, useEffect, useState, useMemo } from "react";
 import ReactFlow, {
   addEdge,
   Background,
+  Controls,
   OnConnect,
   SelectionMode,
   applyNodeChanges,
+  ReactFlowProvider,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -49,6 +51,7 @@ import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnections } from "../helpers/errorDetector";
 import { useDomino } from "../contexts/dominoContext";
 import { useRouter } from "next/router";
+import { useCopyPaste } from '../hooks/useCopyPaste';
 
 import {
   createDropHandler,
@@ -415,9 +418,78 @@ export default function Canvas(props: CanvasProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onUndo, onRedo]);
 
+  
+  /* ───── Copy/Paste ───── */
+  // If you have your own addAction, pass it into the hook
+  const addAction = <T,>(label: string, fn: () => T): T => {
+    // wrap your undo/redo system here
+    // e.g., addAction({ label, before: snapshot(), after: ... })
+    return fn();
+  };
+
+  const { copy, cut, pasteAtPoint } = useCopyPaste(nodes, edges, setNodes, setEdges, { addAction });
+
+  // Keyboard handlers
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toLowerCase().includes('mac');
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+
+      if (!mod) return;
+
+      // Avoid interfering with inputs
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case 'c':
+          e.preventDefault();
+          copy();
+          break;
+        case 'x':
+          e.preventDefault();
+          cut();
+          break;
+        case 'v':
+          e.preventDefault();
+          pasteAtPoint(); // paste near original with default offset
+          break;
+        case 'd':
+          // Duplicate shortcut (Ctrl/Cmd + D): copy + paste immediately
+          e.preventDefault();
+          (async () => {
+            await copy();
+            await pasteAtPoint();
+          })();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [copy, cut, pasteAtPoint]);
+
+  // Optional: context menu “Paste here”
+  const onPaneContextMenu = useCallback((e: React.MouseEvent) => {
+    // Example: simple direct paste at cursor if user right-clicks while pressing mod
+    // Replace this with your own context menu trigger if you have one.
+    const isMac = navigator.platform.toLowerCase().includes('mac');
+    const modPressed = isMac ? e.metaKey : e.ctrlKey;
+
+    if (modPressed) {
+      e.preventDefault();
+      pasteAtPoint(e.clientX, e.clientY);
+    }
+  }, [pasteAtPoint]);
+
+
+
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" onContextMenu={onPaneContextMenu}>
+      <ReactFlowProvider>
       <ReactFlow
         id={id}
         nodes={renderedNodes}
@@ -451,7 +523,9 @@ export default function Canvas(props: CanvasProps) {
         className={`absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none`}
       >
         <Background />
+        <Controls />
       </ReactFlow>
+      </ReactFlowProvider>
 
       {/* modal */}
       {isModalOpen && (
