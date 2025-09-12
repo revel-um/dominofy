@@ -3,11 +3,13 @@ import { BaseController } from 'src/common/base.controller';
 import { Project } from './projects.entity';
 import { CreateProjectDto } from './projects.dto';
 import { ProjectsService } from './projects.service';
+import { Request } from 'express';
+import { Param } from '@nestjs/common';
 
 @Controller('projects')
 export class ProjectsController extends BaseController<
     Project,
-    Partial<CreateProjectDto>,
+    CreateProjectDto,
     Partial<CreateProjectDto>,
     string,
     ProjectsService
@@ -19,17 +21,36 @@ export class ProjectsController extends BaseController<
     }
 
     @Get()
-    async findAllProjects(@Req() req: Request, @Query('query') query?: string, @Query('limit') limit?: number, @Query('offset') offset?: number) {
-        const id = (req as any).user.id;
-        const [data, count] = await this.projectsService.findAll(id, limit ?? 10, offset ?? 0, query);
-        return {
-            data,
-            count,
-        }
+    async list(
+        @Req() req: Request,
+        @Query('query') query?: string,
+        @Query('limit') limit?: number,
+        @Query('offset') offset?: number,
+    ) {
+        const id = (req as any).user.id as string;
+        const [data, count] = await this.projectsService.findAll(
+            id,
+            limit ?? 10,
+            offset ?? 0,
+            query,
+        );
+        return { data, count };
     }
 
-    protected async beforeCreate(dto: CreateProjectDto & { user: string }, req: Request) {
-        dto.user = (req as any).user.id;
+    @Get(':id/overview')
+    async overview(@Param('id') projectId: string, @Req() req: Request) {
+        const userId = (req as any).user.id as string;
+        return this.projectsService.getOverview(projectId, userId);
+    }
+
+    @Get('overview')
+    async globalOverview(@Req() req: Request) {
+        const userId = (req as any).user.id as string;
+        return this.projectsService.getGlobalOverview(userId);
+    }
+
+    protected async beforeCreate(dto: CreateProjectDto, req: Request) {      
+        (dto as any).user = (req as any).user.id;
         return dto;
     }
 }

@@ -20,6 +20,7 @@ import {
 } from "react-icons/fi";
 import TemplatesCanvas from "../components/templateCarousel";
 import { useNodesState, useEdgesState } from "reactflow";
+import { config } from "../config/config";
 
 interface Project {
     id: string;
@@ -120,8 +121,13 @@ export default function DominofyDashboard() {
                 return;
             }
         }
-        // If authenticated via NextAuth but no backend token, allow page to render without redirect
-        // (API calls that need the backend token should handle missing token gracefully)
+        // If authenticated via NextAuth but no backend token, use NextAuth session for user card
+        if (!token && status === "authenticated") {
+            if (session?.user) {
+                setUser({ name: session.user.name || "", email: session.user.email || "" });
+            }
+            return; // Skip backend fetches gracefully
+        }
 
         const offset = (page - 1) * limit;
         const cacheKey = `${page}-${limit}-${query}`;
@@ -424,8 +430,6 @@ export default function DominofyDashboard() {
         }
 
         const response = await ProjectsApi.createProject(token ?? "", router, {
-            // token can be null from localStorage, coerce to empty string for API signature
-            // (downstream function should handle missing token accordingly)
             name,
             description,
         });
@@ -443,6 +447,29 @@ export default function DominofyDashboard() {
             setProjectCount(projectCount + 1);
             setPageCache({});
             setPage(1);
+
+            // Create a default workflow for the new project and navigate to canvas
+            try {
+                const wfRes = await fetch(`${config.backendBaseUrl}/workflow`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        name: `${name} Flow`,
+                        projectId: created.id,
+                        visualJson: { nodes: [], edges: [] },
+                    }),
+                });
+                if (wfRes?.ok) {
+                    const wf = await wfRes.json();
+                    const url = `/dominofy/${wf.id}`;
+                    router.push(url);
+                }
+            } catch (e) {
+                console.error("Failed to create default workflow:", e);
+            }
         } else {
             console.error("Error creating project:", response);
         }
@@ -460,7 +487,6 @@ export default function DominofyDashboard() {
 
     const handleRedirect = (e: React.MouseEvent) => {
         if (!recentWorkflow?.id) return;
-
         // Store workflow in sessionStorage
         sessionStorage.setItem("workflow-cache", JSON.stringify(recentWorkflow));
 
@@ -474,6 +500,19 @@ export default function DominofyDashboard() {
         }
     };
 
+    // Open project's default-or-recent workflow in canvas
+    const openProjectEntryWorkflow = async (projectId: string) => {
+        try {
+            const token = localStorage.getItem("token");
+            if (!token && status === "unauthenticated") return router.push("/auth");
+            const res = await WorkflowsApi.getEntryWorkflow(projectId, token ?? "", router);
+            if (!res?.ok) return;
+            const wf = await res.json();
+            router.push(`/dominofy/${wf.id}`);
+        } catch (err) {
+            console.error("Failed to open project entry workflow", err);
+        }
+    };
 
     // UI ------------------------------------------------------------------
     return (
@@ -670,15 +709,14 @@ export default function DominofyDashboard() {
 
                 {/* Project list */}
                 <div className="flex-1 overflow-y-auto">
-                    <h3 className="px-4 pt-2 pb-1 text-sm font-semibold text-gray-600 dark:text-gray-300">
-                        Projects
-                    </h3>
+                    <h3 className="px-4 pt-2 pb-1 text-sm font-semibold text-gray-600 dark:text-gray-300">Projects</h3>
                     {projects.length > 0 ? (
                         <ul className="space-y-1 px-2">
                             {projects.map((project) => (
                                 <li
                                     key={project.id}
                                     className="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer group"
+                                    onClick={() => openProjectEntryWorkflow(project.id)}
                                 >
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-dominofy-primary">
@@ -694,9 +732,7 @@ export default function DominofyDashboard() {
                         </ul>
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center p-4 space-y-2">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                No projects to show.
-                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">No projects to show.</p>
                         </div>
                     )}
                 </div>

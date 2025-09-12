@@ -6,8 +6,8 @@ import {
   Param,
   BadRequestException,
   Req,
-  Request,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { IBaseService } from './base.interfaces';
@@ -27,12 +27,13 @@ export abstract class BaseController<
   constructor(
     protected readonly service: Service,
     private readonly createDto: new () => Create,
-  ) { }
+  ) {}
 
-  @Get(':id')
-  findOne(@Param('id') id: Id) {
-    return this.service.findOne(id);
-  }
+  // Hook for subclasses to modify the DTO (e.g., attach userId)
+  protected beforeCreate(
+    dto: Create,
+    req: Request,
+  ): Promise<Create | void> | Create | void {}
 
   @Post()
   async create(@Body() dto: Create, @Req() req: Request) {
@@ -60,8 +61,5 @@ export abstract class BaseController<
   @Delete(':id')
   remove(@Param('id') id: Id) {
     return this.service.remove(id);
-  }
-
-  protected beforeCreate(dto: Create, req: Request): Promise<Create | void> | Create | void {
   }
 }

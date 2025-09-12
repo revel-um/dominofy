@@ -87,4 +87,23 @@ export class WorkflowsApi {
       handleServerError(router, err);
     }
   }
+
+  static async getEntryWorkflow(projectId: string, token: string, router: NextRouter) {
+    try {
+      const response = await fetch(`${config.backendBaseUrl}/workflow/project/${projectId}/entry`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        handleUnauthorizedError(router);
+      }
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
 }

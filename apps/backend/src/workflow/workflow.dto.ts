@@ -6,8 +6,8 @@ export class CreateWorkflowDto {
   name: string;
 
   @IsString()
-  @IsNotEmpty()
-  userId: string;
+  @IsOptional()
+  userId?: string;
 
   @IsString()
   @IsNotEmpty()

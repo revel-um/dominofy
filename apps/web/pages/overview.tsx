@@ -1,5 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FiChevronLeft, FiChevronRight, FiArrowUp, FiArrowDown } from "react-icons/fi";
+import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
+import { ToastContainer, toast } from "react-toastify";
+import { ProjectsApi } from "../apis/projects.apis";
+import { WorkflowsApi } from "../apis/workflow.apis";
 
 // Update SortField type to include workflow fields
 type SortField = 'name' | 'workflowCount' | 'scheduledCount' | 'deployedCount' | 'description' | 'projectName' | 'isPublished';
@@ -22,26 +27,9 @@ interface Project {
     deployedCount: number;
 }
 
-const mockProjects: Project[] = [
-    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
-    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
-    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
-    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
-    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
-    { id: "p1", name: "Marketing Automation", description: "Automates the email marketing process", workflowCount: 3, scheduledCount: 2, deployedCount: 1 },
-    { id: "p2", name: "Salesforce Sync", description: "Keeps Salesforce in sync with internal DB", workflowCount: 2, scheduledCount: 1, deployedCount: 1 },
-];
-
-const mockWorkflows: Workflow[] = [
-    { id: "w1", name: "Weekly Campaign", projectName: "Marketing Automation", visualJson: { nodes: [], edges: [] }, isPublished: true },
-    { id: "w2", name: "New User Onboarding", projectName: "Marketing Automation", visualJson: { nodes: [], edges: [] }, isPublished: false },
-    { id: "w3", name: "Lead Sync", projectName: "Salesforce Sync", visualJson: { nodes: [], edges: [] }, isPublished: true },
-];
+// Backend-driven data holders
+const EMPTY_PROJECTS: Project[] = [];
+const EMPTY_WORKFLOWS: Workflow[] = [];
 
 function getPaginationRange(
     current: number,
@@ -119,6 +107,153 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const itemsPerPage = 10;
+  const router = useRouter();
+  const { status } = useSession();
+  const qpView = typeof router.query.view === 'string' ? router.query.view : undefined;
+  const activeView: "project" | "workflow" = qpView === 'workflow' ? 'workflow' : view;
+
+  const [overviewCounts, setOverviewCounts] = useState<{ projectCount: number; workflowCount: number; publishedCount: number } | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+
+  // Lists and counts for table
+  const [projects, setProjects] = useState<Project[]>(EMPTY_PROJECTS);
+  const [workflows, setWorkflows] = useState<Workflow[]>(EMPTY_WORKFLOWS);
+  const [totalCount, setTotalCount] = useState(0);
+  const [listLoading, setListLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchGlobalOverview = async () => {
+      try {
+        let token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+        if (!token && status === "unauthenticated") return router.push("/auth");
+        if (!token && status === "authenticated") {
+          try {
+            const resp = await fetch('/api/auth/exchange', { method: 'POST' });
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data?.token) {
+                localStorage.setItem('token', data.token);
+                token = data.token;
+              } else {
+                console.warn('Exchange succeeded but no token returned');
+                setOverviewCounts({ projectCount: 0, workflowCount: 0, publishedCount: 0 });
+                return;
+              }
+            } else {
+              const text = await resp.text();
+              console.error('Exchange failed:', text);
+              return;
+            }
+          } catch (e) {
+            console.error('Exchange error:', e);
+            return;
+          }
+        }
+        const res = await ProjectsApi.getGlobalOverview(token ?? "", router);
+        if (!res?.ok) return;
+        const json = await res.json();
+        if (json?.counts) {
+          setOverviewCounts(json.counts);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setOverviewLoading(false);
+      }
+    };
+    fetchGlobalOverview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  const openProjectEntryWorkflow = async (projectId: string) => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+      if (!token && status === "unauthenticated") return router.push("/auth");
+      const res = await WorkflowsApi.getEntryWorkflow(projectId, token ?? "", router);
+      if (!res?.ok) return;
+      const wf = await res.json();
+      router.push(`/dominofy/${wf.id}`);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Fetch table data when view/search/pagination changes
+  useEffect(() => {
+    const fetchList = async () => {
+      try {
+        setListLoading(true);
+        let token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+        if (!token && status === "unauthenticated") return;
+        if (!token && status === "authenticated") {
+          try {
+            const resp = await fetch('/api/auth/exchange', { method: 'POST' });
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data?.token) {
+                localStorage.setItem('token', data.token);
+                token = data.token;
+              } else {
+                console.warn('Exchange succeeded but no token returned');
+                setProjects([]);
+                setWorkflows([]);
+                setTotalCount(0);
+                return;
+              }
+            } else {
+              const text = await resp.text();
+              console.error('Exchange failed:', text);
+              setProjects([]);
+              setWorkflows([]);
+              setTotalCount(0);
+              return;
+            }
+          } catch (e) {
+            console.error('Exchange error:', e);
+            setProjects([]);
+            setWorkflows([]);
+            setTotalCount(0);
+            return;
+          }
+        }
+
+        if (activeView === 'project') {
+          const response = await ProjectsApi.getProjects(token ?? '', router, itemsPerPage, (currentPage - 1) * itemsPerPage, searchQuery || undefined);
+          if (!response?.ok) return;
+          const { data, count } = await response.json();
+          const mapped: Project[] = (data || []).map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description || '',
+            workflowCount: p.workflowCount ?? 0,
+            scheduledCount: 0,
+            deployedCount: 0,
+          }));
+          setProjects(mapped);
+          setTotalCount(count || 0);
+        } else {
+          const wfRes = await WorkflowsApi.getRecentWorkflowsAndCount(token ?? '', router);
+          if (!wfRes?.ok) return;
+          const { workflows: wf, count } = await wfRes.json();
+          const mapped: Workflow[] = (wf || []).map((w: any) => ({
+            id: w.id,
+            name: w.name,
+            projectName: w.project?.name || '',
+            visualJson: w.visualJson || { nodes: [], edges: [] },
+            isPublished: !!w.isPublished,
+          }));
+          setWorkflows(mapped);
+          setTotalCount(count || mapped.length);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setListLoading(false);
+      }
+    };
+    fetchList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, searchQuery, currentPage, itemsPerPage, status]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -146,38 +281,53 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
     });
   };
 
-  // Filter and sort data
+  // Filter, sort, and slice fetched data
   const filteredProjects = sortData(
-    mockProjects.filter(proj => 
+    projects.filter(proj => 
       proj.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      proj.description.toLowerCase().includes(searchQuery.toLowerCase())
+      (proj.description || '').toLowerCase().includes(searchQuery.toLowerCase())
     )
   );
 
   const filteredWorkflows = sortData(
-    mockWorkflows.filter(wf =>
+    workflows.filter(wf =>
       wf.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      wf.projectName.toLowerCase().includes(searchQuery.toLowerCase())
+      (wf.projectName || '').toLowerCase().includes(searchQuery.toLowerCase())
     )
   );
 
-  const data = view === "project" ? filteredProjects : filteredWorkflows;
-  const totalEntries = data.length;
-  const totalPages = Math.ceil(totalEntries / itemsPerPage);
-
+  const data = activeView === "project" ? filteredProjects : filteredWorkflows;
+  const totalPages = Math.max(1, Math.ceil((activeView === 'project' ? totalCount : data.length) / itemsPerPage));
   const startIdx = (currentPage - 1) * itemsPerPage;
-  const pageData = data.slice(startIdx, startIdx + itemsPerPage);
+  const pageData = activeView === 'project' ? data /* server-paged */ : data.slice(startIdx, startIdx + itemsPerPage);
 
   return (
     <div className="p-6 flex flex-col h-screen bg-white dark:bg-gray-900">
+      <ToastContainer />
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 capitalize">
-          {view} Overview
-        </h1>
+      <div className="flex justify-between items-center mb-4 gap-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 capitalize">
+            {activeView} Overview
+          </h1>
+          <div className="inline-flex rounded-md border border-gray-300 dark:border-gray-700 overflow-hidden">
+            <button
+              className={`px-3 py-1 text-sm ${activeView === 'project' ? 'bg-indigo-600 text-white' : 'bg-transparent text-gray-700 dark:text-gray-200'}`}
+              onClick={() => { router.replace('/overview'); setCurrentPage(1); setSearchQuery(''); }}
+            >
+              Projects
+            </button>
+            <button
+              className={`px-3 py-1 text-sm ${activeView === 'workflow' ? 'bg-indigo-600 text-white' : 'bg-transparent text-gray-700 dark:text-gray-200'}`}
+              onClick={() => { router.replace('/overview?view=workflow'); setCurrentPage(1); setSearchQuery(''); }}
+            >
+              Workflows
+            </button>
+          </div>
+        </div>
         <input
           type="text"
-          placeholder={`Search ${view}s...`}
+          placeholder={`Search ${activeView}s...`}
           className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           value={searchQuery}
           onChange={(e) => {
@@ -185,6 +335,22 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
             setCurrentPage(1);
           }}
         />
+      </div>
+
+      {/* Global Metrics from backend */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="text-sm text-gray-500">Projects</div>
+          <div className="text-2xl font-semibold">{overviewLoading ? '—' : (overviewCounts?.projectCount ?? 0)}</div>
+        </div>
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="text-sm text-gray-500">Workflows</div>
+          <div className="text-2xl font-semibold">{overviewLoading ? '—' : (overviewCounts?.workflowCount ?? 0)}</div>
+        </div>
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="text-sm text-gray-500">Published</div>
+          <div className="text-2xl font-semibold">{overviewLoading ? '—' : (overviewCounts?.publishedCount ?? 0)}</div>
+        </div>
       </div>
 
       {/* Unified list + pagination card */}
@@ -199,7 +365,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
               sortDirection={sortDirection}
               onSort={handleSort}
             />
-            {view === "project" ? (
+            {activeView === "project" ? (
               <>
                 <ColumnHeader
                   field="description"
@@ -257,14 +423,17 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
 
         {/* Data rows */}
         <div className="flex-1 flex flex-col divide-y divide-gray-200 dark:divide-gray-700 overflow-y-auto">
+          {activeView === 'workflow' && !listLoading && workflows.length > 0 && filteredWorkflows.length === 0 && (
+            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">No workflows match your search. Try clearing the search field.</div>
+          )}
           {pageData.map((item) =>
-            view === "project" ? (
+            activeView === "project" ? (
               /* ------------ project row ------------ */
               <div
                 key={(item as Project).id}
                 style={{ height: ROW_H }}
                 className="flex-shrink-0 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                onClick={() => console.log("Project clicked:", (item as Project).id)}
+                onClick={() => openProjectEntryWorkflow((item as Project).id)}
               >
                 <div className="flex-1 px-4 py-2 text-sm text-gray-800 dark:text-gray-100">
                   {(item as Project).name}
@@ -288,7 +457,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
                 key={(item as Workflow).id}
                 style={{ height: ROW_H }}
                 className="flex-shrink-0 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                onClick={() => console.log("Workflow clicked:", (item as Workflow).id)}
+                onClick={() => router.push(`/dominofy/${(item as Workflow).id}`)}
               >
                 <div className="flex-1 px-4 py-2 text-sm text-gray-800 dark:text-gray-100">
                   {(item as Workflow).name}
