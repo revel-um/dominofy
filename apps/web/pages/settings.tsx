@@ -17,6 +17,8 @@ import NotificationSettings from '../components/settings/NotificationSettings';
 import SecuritySettings from '../components/settings/SecuritySettings';
 import AppearanceSettings from '../components/settings/AppearanceSettings';
 import ChangePasswordModal from '../components/profile/ChangePasswordModal';
+import { useRouter } from 'next/router';
+import { WorkflowsApi } from '../apis/workflow.apis';
 
 // Default settings to avoid hydration mismatch
 const defaultSettings: SettingsType = {
@@ -66,6 +68,7 @@ const SectionHeader = ({
 
 function SettingsComponent() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({
     name: '',
@@ -79,28 +82,79 @@ function SettingsComponent() {
   const [settings, setSettings] = useState<SettingsType>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [isExchanging, setIsExchanging] = useState(false);
 
   // Populate profile from NextAuth session; later we can enrich with backend details
   useEffect(() => {
     setMounted(true);
     if (status === 'loading') return; // wait for session
 
-    if (status === 'authenticated' && session?.user) {
-      const user = session.user as any;
-      setProfile(prev => ({
-        ...prev,
-        name: user?.name || prev.name,
-        email: user?.email || prev.email,
-        avatar: user?.image || prev.avatar,
-        // role/createdAt/lastLogin can be filled from backend later
-      }));
-      setSettings(defaultSettings);
-      setIsLoading(false);
-    } else if (status === 'unauthenticated') {
-      // Not signed in; show minimal state
-      setIsLoading(false);
-    }
-  }, [status, session]);
+    const syncProfile = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+        // If authenticated with NextAuth but no backend token, try to exchange it
+        if (!token && status === 'authenticated') {
+          setIsExchanging(true);
+          try {
+            const resp = await fetch('/api/auth/exchange', { method: 'POST' });
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data?.token) {
+                localStorage.setItem('token', data.token);
+              }
+            } else {
+              // If exchange fails, we will fall back to session-only details
+              const text = await resp.text();
+              console.warn('Token exchange failed on settings page:', text);
+            }
+          } catch (e) {
+            console.error('Token exchange error on settings page:', e);
+          } finally {
+            setIsExchanging(false);
+          }
+        }
+
+        const backendToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        if (backendToken) {
+          // Fetch user via same backend call the dashboard uses, to keep data in sync
+          const wfResp = await WorkflowsApi.getRecentWorkflowsAndCount(backendToken, router);
+          if (wfResp?.ok) {
+            const { user } = await wfResp.json();
+            if (user) {
+              setProfile(prev => ({
+                ...prev,
+                name: user.name || prev.name,
+                email: user.email || prev.email,
+              }));
+              setSettings(defaultSettings);
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+
+        // Fallback: use NextAuth session if available
+        if (status === 'authenticated' && session?.user) {
+          const user = session.user as any;
+          setProfile(prev => ({
+            ...prev,
+            name: user?.name || prev.name,
+            email: user?.email || prev.email,
+            avatar: user?.image || prev.avatar,
+          }));
+          setSettings(defaultSettings);
+        }
+
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error syncing profile on settings page:', err);
+        setIsLoading(false);
+      }
+    };
+
+    syncProfile();
+  }, [status, session, router]);
 
   const updateProfile = async (updatedData: Partial<UserProfile>) => {
     try {

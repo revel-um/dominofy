@@ -61,10 +61,10 @@ export class WorkflowService extends BaseService<Workflow> {
     if (!user) return;
 
     const [workflows, count] = await this.workflowRepository.findAndCount({
-      where: { user: { id: userId } },
+      where: { user: { id: userId } } as any,
       order: { updatedAt: 'DESC' },
-      take: 1,
-      relations: ['project']
+      take: 25,
+      relations: ['project'],
     });
 
     console.log(workflows);
@@ -161,5 +161,22 @@ export class WorkflowService extends BaseService<Workflow> {
     
     // Save the updated workflow to database
     return await this.workflowRepository.save(workflow);
+  }
+
+  async getEntryWorkflow(projectId: string, userId: string) {
+    // Try default workflow in this project for this user
+    const defaultWf = await this.workflowRepository.findOne({
+      where: { project: { id: projectId }, user: { id: userId }, isDefault: true } as any,
+      relations: ['project', 'user'],
+    });
+    if (defaultWf) return defaultWf;
+
+    // Fallback to most recently updated workflow in this project for this user
+    const recent = await this.workflowRepository.findOne({
+      where: { project: { id: projectId }, user: { id: userId } } as any,
+      order: { updatedAt: 'DESC' },
+      relations: ['project', 'user'],
+    });
+    return recent;
   }
 }

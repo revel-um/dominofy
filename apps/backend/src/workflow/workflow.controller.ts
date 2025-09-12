@@ -17,17 +17,32 @@ import { Workflow } from './workflow.entity';
 import { CreateWorkflowDto } from './workflow.dto';
 import { WorkflowService } from './workflow.service';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Request } from 'express';
 
 @Controller('workflow')
 export class WorkflowController extends BaseController<
   Workflow,
-  Partial<CreateWorkflowDto>,
+  CreateWorkflowDto,
   Partial<CreateWorkflowDto>,
   string,
   WorkflowService
 > {
   constructor(private readonly workflowService: WorkflowService) {
     super(workflowService, CreateWorkflowDto);
+  }
+
+  protected async beforeCreate(dto: CreateWorkflowDto, req: Request) {
+    const userId = (req as any).user?.id;
+    // map ids to relations expected by Workflow entity
+    const mapped: any = {
+      name: dto.name,
+      visualJson: dto.visualJson ?? { nodes: [], edges: [] },
+      isPublished: dto.isPublished ?? false,
+      isDefault: false,
+      user: { id: userId },
+      project: { id: dto.projectId },
+    };
+    return mapped;
   }
 
   @Get('count')
@@ -140,10 +155,16 @@ export class WorkflowController extends BaseController<
     };
   }
 
-  protected beforeCreate(dto: Partial<CreateWorkflowDto>, req: Request): void | Partial<CreateWorkflowDto> | Promise<void | Partial<CreateWorkflowDto>> {
-    const user = (req as any).user.id;
-    dto.userId = user;
-    const data = CreateWorkflowDto.from(dto);
-    return data;
+  @Get('project/:projectId/entry')
+  async getEntryWorkflow(
+    @Param('projectId') projectId: string,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).user.id;
+    const wf = await this.workflowService.getEntryWorkflow(projectId, userId);
+    if (!wf) {
+      throw new NotFoundException('No workflow found for this project');
+    }
+    return wf;
   }
 }

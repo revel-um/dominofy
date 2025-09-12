@@ -113,19 +113,13 @@ export class WorkflowsApi {
     }
   }
 
-  static async createWorkflow(name: string, projectId: string, token: string, router: NextRouter) {
+  static async getEntryWorkflow(projectId: string, token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/workflow`, {
-        method: "POST",
+      const response = await fetch(`${config.backendBaseUrl}/workflow/project/${projectId}/entry`, {
+        method: "GET",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
-          name,
-          projectId,
-          visualJson: { nodes: [], edges: [] } // Empty workflow
-        }),
       });
 
       if (response.status === 401) {

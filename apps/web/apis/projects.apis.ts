@@ -5,7 +5,12 @@ import { config } from "../config/config";
 export class ProjectsApi {
     static async getProjects(token: string, router: NextRouter, limit=10, offset=0, query?: string) {
         try {
-            const response = await fetch(`${config.backendBaseUrl}/projects?limit=${limit}&offset=${offset}&query=${query}`, {
+            const params = new URLSearchParams();
+            params.set('limit', String(limit));
+            params.set('offset', String(offset));
+            if (query && query.trim().length > 0) params.set('query', query.trim());
+            const url = `${config.backendBaseUrl}/projects?${params.toString()}`;
+            const response = await fetch(url, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -31,6 +36,38 @@ export class ProjectsApi {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify(body),
+            });
+            if (response.status === 401) {
+                handleUnauthorizedError(router);
+            }
+            return response;
+        } catch (err) {
+            handleServerError(router, err);
+        }
+    }
+
+    static async getProjectOverview(token: string, router: NextRouter, projectId: string) {
+        try {
+            const response = await fetch(`${config.backendBaseUrl}/projects/${projectId}/overview`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            if (response.status === 401) {
+                handleUnauthorizedError(router);
+            }
+            return response;
+        } catch (err) {
+            handleServerError(router, err);
+        }
+    }
+
+    static async getGlobalOverview(token: string, router: NextRouter) {
+        try {
+            const response = await fetch(`${config.backendBaseUrl}/projects/overview`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
             });
             if (response.status === 401) {
                 handleUnauthorizedError(router);
