@@ -1,5 +1,5 @@
 import { NextRouter } from "next/router";
-import { Ticket, TicketStatus } from "../types/support";
+import { Ticket, TicketStatus, TicketFormData } from "../types/support";
 import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
 
 const BASE_URL = "http://localhost:3001/api/v1/support";
@@ -7,7 +7,7 @@ const BASE_URL = "http://localhost:3001/api/v1/support";
 export class SupportApi {
   static async getTickets(token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${BASE_URL}/tickets`, {
+      const response = await fetch(`${BASE_URL}/tickets/my`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -21,15 +21,21 @@ export class SupportApi {
     }
   }
 
-  static async createTicket(token: string, router: NextRouter, ticket: Omit<Ticket, 'id' | 'status' | 'createdAt' | 'updatedAt'>) {
+  static async createTicket(token: string, router: NextRouter, formData: TicketFormData) {
     try {
+      const payload = {
+        subject: formData.title,
+        message: formData.description,
+        category: formData.category,
+        priority: formData.priority,
+      };
       const response = await fetch(`${BASE_URL}/tickets`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(ticket),
+        body: JSON.stringify(payload),
       });
       if (response.status === 401) {
         handleUnauthorizedError(router);

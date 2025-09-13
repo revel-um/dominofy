@@ -13,6 +13,7 @@ import { VaultModule } from './vault/vault.module';
 import { SlackModule } from './slack/slack.module';
 import { RunnerLauncherModule } from './runner-launcher/runner-launcher.module';
 import { AuthModule } from './auth/auth.module';
+import { SupportModule } from './support/support.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AuthModule } from './auth/auth.module';
     SlackModule,
     RunnerLauncherModule,
     AuthModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [AppService, VerifyTokenMiddleware],

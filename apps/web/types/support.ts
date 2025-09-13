@@ -1,14 +1,22 @@
 export type TicketStatus = 'open' | 'in_progress' | 'resolved';
+export type TicketCategory = 'billing' | 'technical' | 'general';
 export type TicketPriority = 'low' | 'medium' | 'high';
+
+export interface BaseTicket {
+  subject: string;
+  message: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+}
 
 export interface TicketFormData {
   title: string;
   description: string;
+  category: TicketCategory;
   priority: TicketPriority;
-  category?: string;
 }
 
-export interface Ticket extends TicketFormData {
+export interface Ticket extends BaseTicket {
   id: string;
   status: TicketStatus;
   createdAt: string;
@@ -19,7 +27,7 @@ export interface Ticket extends TicketFormData {
 
 export interface AdminSettings {
   autoAssignment: boolean;
-  defaultPriority: TicketPriority;
+  defaultCategory: TicketCategory;
   notifyOnNewTicket: boolean;
   allowUserDelete: boolean;
 }

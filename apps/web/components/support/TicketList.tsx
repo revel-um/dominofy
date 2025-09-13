@@ -49,10 +49,10 @@ export default function TicketList({
           {tickets.map((ticket) => (
             <tr key={ticket.id}>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                {ticket.title}
+                {ticket.subject}
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <TicketStatus status={ticket.status} priority={ticket.priority} />
+                <TicketStatus status={ticket.status} category={ticket.category} />
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                 {ticket.category}
