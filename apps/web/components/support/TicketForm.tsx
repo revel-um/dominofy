@@ -11,12 +11,19 @@
     const [formData, setFormData] = useState<TicketFormData>({
         title: initialData?.title || '',
         description: initialData?.description || '',
-        priority: initialData?.priority || 'medium',
-        category: initialData?.category || 'general'
+        category: initialData?.category || 'general',
+        priority: initialData?.priority || 'medium'
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Validate minimum length requirements
+        if (formData.description.length < 10) {
+            alert('Description must be at least 10 characters long');
+            return;
+        }
+        
         onSubmit(formData);
     };
 
@@ -58,11 +65,33 @@
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 rows={4}
+                minLength={10}
+                placeholder="Please provide a detailed description (minimum 10 characters)"
                 className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
                         bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100
                         focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 required
             />
+            </div>
+
+            <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Category
+            </label>
+            <select
+                value={formData.category}
+                onChange={(e) => setFormData(prev => ({ 
+                ...prev, 
+                category: e.target.value as 'billing' | 'technical' | 'general' 
+                }))}
+                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
+                        bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100
+                        focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+                <option value="billing">Billing</option>
+                <option value="technical">Technical</option>
+                <option value="general">General</option>
+            </select>
             </div>
 
             <div>
@@ -73,7 +102,7 @@
                 value={formData.priority}
                 onChange={(e) => setFormData(prev => ({ 
                 ...prev, 
-                priority: e.target.value as 'low' | 'medium' | 'high' 
+                priority: e.target.value as 'low' | 'medium' | 'high'
                 }))}
                 className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600
                         bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100
