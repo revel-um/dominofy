@@ -20,12 +20,17 @@ interface DominosPanelProps {
     name: string;
     description?: string;
   };
+  projectWorkflows?: Workflow[];
 }
 
 interface Workflow {
   id: string;
   name: string;
   updatedAt: string;
+  project?: {
+    id: string;
+    name: string;
+  };
 }
 
 const MIN_WIDTH = 240;
@@ -76,14 +81,13 @@ function HeaderRow({
   );
 }
 
-export default function DominosPanel({ bottomOffset = 0, currentProject }: DominosPanelProps) {
+export default function DominosPanel({ bottomOffset = 0, currentProject, projectWorkflows = [] }: DominosPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [searchTerm, setSearchTerm] = useState('');
   const [expanded, setExpanded] = useState<{ [category: string]: boolean }>({});
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [isWorkflowsCollapsed, setIsWorkflowsCollapsed] = useState(false);
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [workflowsLoading, setWorkflowsLoading] = useState(false);
+  const [workflows, setWorkflows] = useState<Workflow[]>(projectWorkflows);
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false);
   const [newWorkflowName, setNewWorkflowName] = useState('');
   const isDragging = useRef(false);
@@ -137,26 +141,16 @@ export default function DominosPanel({ bottomOffset = 0, currentProject }: Domin
     setExpanded(prev => ({ ...prev, [category]: !prev[category] }));
   };
 
-  const fetchWorkflows = async () => {
-    try {
-      setWorkflowsLoading(true);
-      const token = localStorage.getItem('token');
-      if (!token) return;
 
-      const response = await WorkflowsApi.getAllUserWorkflows(token, router, 20);
-      if (response?.ok) {
-        const data = await response.json();
-        setWorkflows(data.workflows || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch workflows:', error);
-    } finally {
-      setWorkflowsLoading(false);
+  const navigateToWorkflow = (workflow: Workflow) => {
+    // Use new routing structure with projectId and workflowId
+    const projectId = currentProject?.id || workflow.project?.id;
+    if (projectId) {
+      router.push(`/dominofy?projectId=${projectId}&workflowId=${workflow.id}`);
+    } else {
+      // Fallback to workflow-only navigation if no project info available
+      router.push(`/dominofy?workflowId=${workflow.id}`);
     }
-  };
-
-  const navigateToWorkflow = (workflowId: string) => {
-    router.push(`/dominofy/${workflowId}`);
   };
 
   const startCreatingWorkflow = () => {
@@ -187,7 +181,7 @@ export default function DominosPanel({ bottomOffset = 0, currentProject }: Domin
         setWorkflows(prev => [newWorkflow, ...prev]);
         cancelCreatingWorkflow();
         // Navigate to the new workflow
-        navigateToWorkflow(newWorkflow.id);
+        navigateToWorkflow(newWorkflow);
       }
     } catch (error) {
       console.error('Failed to create workflow:', error);
@@ -206,9 +200,8 @@ export default function DominosPanel({ bottomOffset = 0, currentProject }: Domin
   };
 
   useEffect(() => {
-    fetchWorkflows();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setWorkflows(projectWorkflows);
+  }, [projectWorkflows]);
 
   // Memoized categorized + filtered dominos
   const filteredCategories = useMemo(() => {
@@ -310,11 +303,7 @@ export default function DominosPanel({ bottomOffset = 0, currentProject }: Domin
 
             {/* Workflows header (uniform with Dominos header) */}
             <HeaderRow
-              title={
-                workflowsLoading
-                  ? 'Workflows (Loading...)'
-                  : 'Workflows'
-              }
+              title="Workflows"
               collapsed={isWorkflowsCollapsed}
               onToggle={() => setIsWorkflowsCollapsed(prev => !prev)}
               showTopBorder={true}
@@ -360,7 +349,7 @@ export default function DominosPanel({ bottomOffset = 0, currentProject }: Domin
                 )}
 
                 {/* Existing workflows */}
-                {workflows.length === 0 && !workflowsLoading && !isCreatingWorkflow ? (
+                {workflows.length === 0 && !isCreatingWorkflow ? (
                   <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
                     No workflows found
                   </div>
@@ -368,7 +357,7 @@ export default function DominosPanel({ bottomOffset = 0, currentProject }: Domin
                   workflows.map((workflow) => (
                     <div
                       key={workflow.id}
-                      onClick={() => navigateToWorkflow(workflow.id)}
+                      onClick={() => navigateToWorkflow(workflow)}
                       className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-4 relative"
                     >
                       <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />

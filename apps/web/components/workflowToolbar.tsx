@@ -16,6 +16,7 @@ import { exportWorkflow } from '../helpers/workflowManager';
 import { validateAndMarkErrors } from '../helpers/errorDetector';
 import { useDomino } from '../contexts/dominoContext';
 import { WorkflowsApi } from '../apis/workflow.apis';
+import { ProjectsApi } from '../apis/projects.apis';
 import { useRouter } from 'next/router';
 import { useSSE } from '@/contexts/sseContext';
 
@@ -36,6 +37,11 @@ interface WorkflowToolbarProps {
       name: string;
       description?: string;
     };
+  };
+  project?: {
+    id: string;
+    name: string;
+    description?: string;
   };
   getNodes: () => Node[];
   getEdges: () => Edge[];
@@ -59,6 +65,7 @@ const TOOLBAR_HEIGHT = 56;
 export default function WorkflowToolbar({
   setWorkflow,
   workflow,
+  project,
   getNodes,
   getEdges,
   openLogsPanel,
@@ -165,45 +172,58 @@ export default function WorkflowToolbar({
 
   /* ────── name editing ────── */
   const openNameModal = () => {
-    originalNameRef.current = workflow.name;
+    originalNameRef.current = project?.name || workflow.project?.name || '';
     setShowNameModal(true);
   };
 
   const onModalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value;
-    setWorkflow(prev => ({ ...prev, name: newName }));
+    setWorkflow(prev => ({ 
+      ...prev, 
+      project: prev.project ? { ...prev.project, name: newName } : { id: '', name: newName }
+    }));
   };
 
   const onCancelName = () => {
     if (originalNameRef.current !== null) {
-      setWorkflow(prev => ({ ...prev, name: originalNameRef.current! }));
+      setWorkflow(prev => ({ 
+        ...prev, 
+        project: prev.project ? { ...prev.project, name: originalNameRef.current! } : undefined
+      }));
     }
     setShowNameModal(false);
   };
 
   const onSaveName = async () => {
-    const newName = workflow.name.trim();
+    const newName = (project?.name || workflow.project?.name || '').trim();
     if (!newName || newName === originalNameRef.current) {
       setShowNameModal(false);
       return;
     }
 
+    const projectId = project?.id || workflow.project?.id;
+    if (!projectId) {
+      alert('No project found to rename.');
+      onCancelName();
+      return;
+    }
+
     const token = localStorage.getItem('token') || '';
     try {
-      const resp = await WorkflowsApi.renameWorkflow(workflow.id, newName, token, router);
+      const resp = await ProjectsApi.updateProject(projectId, { name: newName }, token, router);
 
       if (resp?.ok) {
-        const updated =
-          resp.status === 204 ? { ...workflow, name: newName } : await resp.json();
+        const updatedProject = resp.status === 204 ? { ...(project || workflow.project), name: newName } : await resp.json();
+        const updatedWorkflow = { ...workflow, project: updatedProject };
 
-        setWorkflow(updated);
-        sessionStorage.setItem('workflow-cache', JSON.stringify(updated));
+        setWorkflow(updatedWorkflow as any);
+        sessionStorage.setItem('workflow-cache', JSON.stringify(updatedWorkflow));
         setShowNameModal(false);
       } else {
         throw new Error('rename failed');
       }
     } catch (err) {
-      alert('Failed to rename workflow. Please try again.');
+      alert('Failed to rename project. Please try again.');
       onCancelName();
     }
   };
@@ -241,14 +261,14 @@ export default function WorkflowToolbar({
 
         {/* Center title */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
-          <h2 className="text-lg font-medium text-[var(--text-secondary)] truncate max-w-[26vw]">
-            {workflow.project?.name || 'Untitled Project'}
+          <h2 className="text-lg font-medium text-white truncate max-w-[26vw]">
+            {project?.name || workflow.project?.name || 'Untitled Project'}
           </h2>
           <button
             onClick={openNameModal}
             className="p-1.5 rounded-md hover:bg-[var(--secondary-hover)]
                        text-[var(--text-secondary)] hover:text-white transition-colors"
-            title="Rename workflow"
+            title="Rename project"
           >
             <FiEdit2 className="w-4 h-4" />
           </button>
@@ -367,10 +387,10 @@ export default function WorkflowToolbar({
             onClick={e => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              Rename Workflow
+              Rename Project
             </h3>
             <input
-              value={workflow.name}
+              value={project?.name || workflow.project?.name || ''}
               onChange={onModalChange}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                          bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-4"

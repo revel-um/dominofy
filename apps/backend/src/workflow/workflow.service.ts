@@ -67,8 +67,6 @@ export class WorkflowService extends BaseService<Workflow> {
       relations: ['project'],
     });
 
-    console.log(workflows);
-
     return { workflows, count, user };
   }
 
@@ -81,6 +79,7 @@ export class WorkflowService extends BaseService<Workflow> {
       order: { updatedAt: 'DESC' },
       take: limit || 50,
       skip: offset || 0,
+      relations: ['project'],
     });
     return { workflows, count, user };
   }

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req } from '@nestjs/common';
+import { Controller, Get, Query, Req, Post, Body, Put } from '@nestjs/common';
 import { BaseController } from 'src/common/base.controller';
 import { Project } from './projects.entity';
 import { CreateProjectDto } from './projects.dto';
@@ -47,6 +47,24 @@ export class ProjectsController extends BaseController<
     async globalOverview(@Req() req: Request) {
         const userId = (req as any).user.id as string;
         return this.projectsService.getGlobalOverview(userId);
+    }
+
+    @Get(':id/details-with-workflows')
+    async getProjectDetailsWithWorkflows(@Param('id') projectId: string, @Req() req: Request) {
+        const userId = (req as any).user.id as string;
+        return this.projectsService.getProjectDetailsWithWorkflows(projectId, userId);
+    }
+
+    @Post('create')
+    async createProject(@Body() dto: CreateProjectDto, @Req() req: Request) {
+        const userId = (req as any).user.id as string;
+        return this.projectsService.createProjectWithDefaultWorkflow(dto, userId);
+    }
+
+    @Put(':id')
+    async updateProject(@Param('id') projectId: string, @Body() dto: Partial<CreateProjectDto>, @Req() req: Request) {
+        const userId = (req as any).user.id as string;
+        return this.projectsService.updateProject(projectId, dto, userId);
     }
 
     protected async beforeCreate(dto: CreateProjectDto, req: Request) {      

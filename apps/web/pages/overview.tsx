@@ -16,6 +16,7 @@ interface Workflow {
     projectName: string;
     visualJson: { nodes: any[]; edges: any[] };
     isPublished: boolean;
+    project: { id: string; name: string };
 }
 
 interface Project {
@@ -165,17 +166,8 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  const openProjectEntryWorkflow = async (projectId: string) => {
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
-      if (!token && status === "unauthenticated") return router.push("/auth");
-      const res = await WorkflowsApi.getEntryWorkflow(projectId, token ?? "", router);
-      if (!res?.ok) return;
-      const wf = await res.json();
-      router.push(`/dominofy/${wf.id}`);
-    } catch (e) {
-      console.error(e);
-    }
+  const openProjectEntryWorkflow = (projectId: string) => {
+    router.push(`/dominofy?projectId=${projectId}`);
   };
 
   // Fetch table data when view/search/pagination changes
@@ -457,7 +449,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
                 key={(item as Workflow).id}
                 style={{ height: ROW_H }}
                 className="flex-shrink-0 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                onClick={() => router.push(`/dominofy/${(item as Workflow).id}`)}
+                onClick={() => router.push(`/dominofy?projectId=${(item as Workflow).project.id}&workflowId=${(item as Workflow).id}`)}
               >
                 <div className="flex-1 px-4 py-2 text-sm text-gray-800 dark:text-gray-100">
                   {(item as Workflow).name}

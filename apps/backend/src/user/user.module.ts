@@ -4,10 +4,12 @@ import { UserController } from './user.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
+import { ProjectsModule } from 'src/projects/projects.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User])
+    TypeOrmModule.forFeature([User]),
+    ProjectsModule
   ],
   providers: [UserService],
   controllers: [UserController],

@@ -120,9 +120,6 @@ export class WorkflowController extends BaseController<
       };
     }
 
-    // now you can use `fileSize` elsewhere if needed
-    console.log(`Triggering workflow with file size: ${fileSize ?? 'no file'}`);
-
     await this.workflowService.handleTrigger(workflowId, functionName, input);
 
     return {

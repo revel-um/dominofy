@@ -440,7 +440,9 @@ export default function DominofyDashboard() {
         });
 
         if (response?.ok) {
-            const created = await response.json();
+            const result = await response.json();
+            // Handle new API response structure that returns { project, defaultWorkflow }
+            const created = result.project || result;
             const newProject = {
                 id: created.id,
                 name: created.name,
@@ -450,31 +452,12 @@ export default function DominofyDashboard() {
 
             setProjects((prev) => [newProject, ...prev]);
             setProjectCount(projectCount + 1);
+            // Since we create a default workflow with each project, increment workflow count
+            if (result.defaultWorkflow) {
+                setWorkflowCount(workflowCount + 1);
+            }
             setPageCache({});
             setPage(1);
-
-            // Create a default workflow for the new project and navigate to canvas
-            try {
-                const wfRes = await fetch(`${config.backendBaseUrl}/workflow`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        name: `${name} Flow`,
-                        projectId: created.id,
-                        visualJson: { nodes: [], edges: [] },
-                    }),
-                });
-                if (wfRes?.ok) {
-                    const wf = await wfRes.json();
-                    const url = `/dominofy/${wf.id}`;
-                    router.push(url);
-                }
-            } catch (e) {
-                console.error("Failed to create default workflow:", e);
-            }
         } else {
             console.error("Error creating project:", response);
         }
@@ -495,7 +478,7 @@ export default function DominofyDashboard() {
         // Store workflow in sessionStorage
         sessionStorage.setItem("workflow-cache", JSON.stringify(recentWorkflow));
 
-        const url = `/dominofy/${recentWorkflow.id}`;
+        const url = `/dominofy?projectId=${recentWorkflow.project!.id}&workflowId=${recentWorkflow.id}`;
 
         // If Cmd/Ctrl/Meta or middle-click → open in new tab
         if (e.metaKey || e.ctrlKey || e.button === 1) {
@@ -505,18 +488,9 @@ export default function DominofyDashboard() {
         }
     };
 
-    // Open project's default-or-recent workflow in canvas
-    const openProjectEntryWorkflow = async (projectId: string) => {
-        try {
-            const token = localStorage.getItem("token");
-            if (!token && status === "unauthenticated") return router.push("/auth");
-            const res = await WorkflowsApi.getEntryWorkflow(projectId, token ?? "", router);
-            if (!res?.ok) return;
-            const wf = await res.json();
-            router.push(`/dominofy/${wf.id}`);
-        } catch (err) {
-            console.error("Failed to open project entry workflow", err);
-        }
+    // Open project in dominofy layout with type parameter
+    const openProjectEntryWorkflow = (projectId: string) => {
+        router.push(`/dominofy?projectId=${projectId}`);
     };
 
     // UI ------------------------------------------------------------------

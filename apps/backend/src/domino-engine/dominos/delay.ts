@@ -12,7 +12,6 @@ export class DelayDomino implements DominoExecutable {
   }
 
   async execute(ctx: ExecuteContext): Promise<DominoResult> {
-    console.log(ctx)
     const startedAt = Date.now();
     
     // Accept dynamic delay from input pins if provided

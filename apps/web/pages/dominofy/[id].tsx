@@ -17,7 +17,7 @@ import LogsPanel, { WorkflowLog } from "../../components/logs";
 import { DominoContext } from "../../contexts/dominoContext";
 import { buildPipeline } from "../../../../shared/helpers/buildPipeline";
 import { useRouter } from "next/router";
-import { WorkflowsApi } from "../../apis/workflow.apis";
+import { ProjectsApi } from "../../apis/projects.apis";
 import { importWorkflow } from "../../helpers/workflowManager";
 import { SSEProvider } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
@@ -51,6 +51,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const defaultLogsHeight = '200px';
 
   const [workflow, setWorkflow] = useState(currWorkflow);
+  const [project, setProject] = useState<any>(null);
+  const [projectWorkflows, setProjectWorkflows] = useState<any[]>([]);
   const [nodes, _setNodes, _onNodesChange] = useNodesState<Node>([]);
   const [edges, _setEdges, _onEdgesChange] = useEdgesState<Edge>([]);
 
@@ -76,7 +78,6 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   );
 
   const router = useRouter();
-  const { id } = router.query;
   const contextValue = {
     erroredNodes,
     setConnectionErrors,
@@ -112,7 +113,6 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const clone = useCallback(<T,>(x: T): T => JSON.parse(JSON.stringify(x)), []);
 
   const publishFlags = useCallback(() => {
-    console.log(undoStack.current.length);
     // Only enable undo if there are more than 1 items (baseline + actual changes)
     setCanUndo(undoStack.current.length > 1);
     setCanRedo(redoStack.current.length > 0);
@@ -211,10 +211,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                 }) || prevNodes.length !== newNodes.length; // nodes added/removed
                 
                 if (hasNonSelectionChanges) {
-                    console.log('setNodes: Pushing to history for non-selection changes');
                     pushHistory();
-                } else {
-                    console.log('setNodes: Ignoring selection-only changes');
                 }
             }
             _setNodes(updater);
@@ -224,7 +221,6 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
         (updater) => {
             if (!isRestoring.current && !isDraggingRef.current) {
-                console.log('setEdges: Pushing to history');
                 pushHistory();
             }
             _setEdges(updater);
@@ -330,10 +326,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             
             // Only push to history if there are actual content changes (not just selections)
             if (!isRestoring.current && hasNonSelectionChanges) {
-                console.log('Pushing to history for changes:', changes);
                 pushHistory();
-            } else if (!isRestoring.current) {
-                console.log('Ignoring selection-only changes:', changes);
             }
         },
         [nodes, edges, _onNodesChange, clone, publishFlags, pushHistory]
@@ -341,9 +334,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      console.log('onEdgesChange called with:', changes);
       if (!isRestoring.current) {
-        console.log('onEdgesChange: Pushing to history');
         pushHistory();
       }
       _onEdgesChange(changes);
@@ -430,10 +421,10 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [nodes, edges, _setNodes, _setEdges, clone, publishFlags, analyzeChanges]);
 
   // ──────────────────────────────
-  // Hydrate workflow
+  // Hydrate workflow and fetch project workflows
   // ──────────────────────────────
   useEffect(() => {
-    const hydrateWorkflow = async () => {
+    const hydrateContent = async () => {
       if (workflow) {
         importWorkflow(
           JSON.stringify(workflow.visualJson),
@@ -441,59 +432,34 @@ export default function DominofyLayout({ currWorkflow }: Props) {
           workflow.id,
           { setNodes: _setNodes, updatePipeline } // use raw setter during import
         );
+
+        // If workflow has project info, fetch all project workflows for sidebar
+        if (router.query.projectId) {
+          try {
+            const token = localStorage.getItem('token');
+            if (token) {
+              const response = await ProjectsApi.getProjectDetailsWithWorkflows(router.query.projectId as string, token, router);
+              if (response?.ok) {
+                const data = await response.json();
+                setProject(data.project);
+                setProjectWorkflows(data.workflows || []);
+              }
+            }
+          } catch (err) {
+            console.error('Error loading project workflows:', err);
+          }
+        }
+        
         setLoading(false);
         return;
       }
-      if (!id || typeof window === 'undefined') return;
-
-      const cached = sessionStorage.getItem('workflow-cache');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed?.id === id) {
-            setWorkflow(parsed);
-            importWorkflow(
-              JSON.stringify(parsed.visualJson),
-              _setNodes, _setEdges, setWorkflowId,
-              parsed.id,
-              { setNodes: _setNodes, updatePipeline }
-            );
-            setLoading(false);
-            return;
-          }
-          sessionStorage.removeItem('workflow-cache');
-        } catch {
-          console.warn('Invalid workflow in sessionStorage');
-          sessionStorage.removeItem('workflow-cache');
-        }
-      }
-
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return router.push('/auth');
-        const response = await WorkflowsApi.getWorkflowById(id as string, token, router);
-        if (response?.ok) {
-          const json = await response.json();
-          setWorkflow(json);
-          importWorkflow(
-            JSON.stringify(json.visualJson),
-            _setNodes, _setEdges, setWorkflowId,
-            json.id,
-            { setNodes: _setNodes, updatePipeline }
-          );
-        } else {
-          router.push('/error');
-        }
-      } catch (err) {
-        console.error('Error loading workflow:', err);
-        router.push('/error');
-      } finally {
-        setLoading(false);
-      }
+      
+      // If no workflow provided, we can't proceed
+      setLoading(false);
     };
-    hydrateWorkflow();
+    hydrateContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, workflow]);
+  }, [workflow]);
 
   if (loading) {
     return <div className="w-screen h-screen flex items-center justify-center text-xl">Loading workflow...</div>;
@@ -509,6 +475,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
           <WorkflowToolbar
             setWorkflow={setWorkflow}
             workflow={workflow!}
+            project={project}
             getNodes={() => nodes}
             getEdges={() => edges}
             openLogsPanel={openLogsPanel}
@@ -524,7 +491,10 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
           <div className="flex-1 flex h-full">
             {/* Sidebar */}
-            <DominosPanel currentProject={workflow?.project} />
+            <DominosPanel 
+              currentProject={workflow?.project} 
+              projectWorkflows={projectWorkflows}
+            />
 
             {/* Main content */}
             <div className="flex-1 flex flex-col relative overflow-hidden">
