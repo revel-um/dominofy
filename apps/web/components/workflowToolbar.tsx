@@ -31,6 +31,11 @@ interface WorkflowToolbarProps {
     visualJson: { edges: any[]; nodes: any[] };
     isPublished: boolean;
     isDefault: boolean;
+    project?: {
+      id: string;
+      name: string;
+      description?: string;
+    };
   };
   getNodes: () => Node[];
   getEdges: () => Edge[];
@@ -226,16 +231,18 @@ export default function WorkflowToolbar({
       >
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <svg className="text-[var(--primary)]" width="24" height="24" viewBox="0 0 48 48" fill="none">
-            <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" fill="currentColor" />
-          </svg>
+          <img 
+            src="/dominofy.png" 
+            alt="Dominofy" 
+            className="w-6 h-6"
+          />
           <h1 className="text-xl font-bold">Dominofy</h1>
         </div>
 
         {/* Center title */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
           <h2 className="text-lg font-medium text-[var(--text-secondary)] truncate max-w-[26vw]">
-            {workflow.name}
+            {workflow.project?.name || 'Untitled Project'}
           </h2>
           <button
             onClick={openNameModal}

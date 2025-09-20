@@ -523,7 +523,7 @@ export default function Canvas(props: CanvasProps) {
         className={`absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none`}
       >
         <Background />
-        <Controls />
+        {/* <Controls /> */}
       </ReactFlow>
       </ReactFlowProvider>
 

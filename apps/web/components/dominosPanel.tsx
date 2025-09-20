@@ -293,7 +293,7 @@ export default function DominosPanel({ bottomOffset = 0, currentProject }: Domin
                               e.dataTransfer.setData('application/reactflow', id);
                               e.dataTransfer.effectAllowed = 'move';
                             }}
-                            className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
+                            className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-4 relative"
                           >
                             {/* Vertical indentation line */}
                             <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
@@ -337,7 +337,7 @@ export default function DominosPanel({ bottomOffset = 0, currentProject }: Domin
               <div className="pb-4">
                 {/* Inline workflow creation input */}
                 {isCreatingWorkflow && (
-                  <div className="w-full box-border flex items-center gap-2 p-2 mb-1 pl-8 pr-0 relative">
+                  <div className="w-full box-border flex items-center gap-2 p-2 mb-1 pl-8 pr-4 relative">
                     <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
                     <input
                       type="text"
@@ -369,7 +369,7 @@ export default function DominosPanel({ bottomOffset = 0, currentProject }: Domin
                     <div
                       key={workflow.id}
                       onClick={() => navigateToWorkflow(workflow.id)}
-                      className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-0 relative"
+                      className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-4 relative"
                     >
                       <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
                       <div className="flex flex-col flex-1 min-w-0">

@@ -28,9 +28,9 @@ export class WorkflowsApi {
       const params = new URLSearchParams();
       if (limit) params.append('limit', limit.toString());
       if (offset) params.append('offset', offset.toString());
-      
+
       const url = `${config.backendBaseUrl}/workflow/user/all${params.toString() ? '?' + params.toString() : ''}`;
-      
+
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -120,6 +120,31 @@ export class WorkflowsApi {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+      });
+
+      if (response.status === 401) {
+        handleUnauthorizedError(router);
+      }
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
+  static async createWorkflow(name: string, projectId: string, token: string, router: NextRouter) {
+    try {
+      const response = await fetch(`${config.backendBaseUrl}/workflow`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name,
+          projectId,
+          visualJson: { nodes: [], edges: [] } // Empty workflow
+        }),
       });
 
       if (response.status === 401) {
