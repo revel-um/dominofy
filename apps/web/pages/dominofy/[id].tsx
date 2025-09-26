@@ -22,39 +22,61 @@ import { importWorkflow } from "../../helpers/workflowManager";
 import { SSEProvider } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
 import WorkflowToolbar from "@/components/workflowToolbar";
+import WorkflowTabs from "@/components/WorkflowTabs";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { WorkflowsApi } from "../../apis/workflow.apis";
+
+interface WorkflowData {
+  id: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  name: string;
+  visualJson: {
+    edges: any[];
+    nodes: any[];
+  };
+  isPublished: boolean;
+  isDefault: boolean;
+  project?: {
+    id: string;
+    name: string;
+    description?: string;
+  };
+}
+
+interface WorkflowTabData {
+  id: string;
+  name: string;
+  workflow: WorkflowData;
+  nodes: Node[];
+  edges: Edge[];
+  isModified: boolean;
+  undoStack: { nodes: Node[]; edges: Edge[] }[];
+  redoStack: { nodes: Node[]; edges: Edge[] }[];
+}
 
 interface Props {
-  currWorkflow?: {
-    id: string;
-    isActive: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-    name: string;
-    visualJson: {
-      edges: any[];
-      nodes: any[];
-    };
-    isPublished: boolean;
-    isDefault: boolean;
-    project?: {
-      id: string;
-      name: string;
-      description?: string;
-    };
-  };
+  currWorkflow?: WorkflowData;
 }
 
 export default function DominofyLayout({ currWorkflow }: Props) {
   const collapsedHeight = '60px';
   const defaultLogsHeight = '200px';
 
-  const [workflow, setWorkflow] = useState(currWorkflow);
   const [project, setProject] = useState<any>(null);
   const [projectWorkflows, setProjectWorkflows] = useState<any[]>([]);
-  const [nodes, _setNodes, _onNodesChange] = useNodesState<Node>([]);
-  const [edges, _setEdges, _onEdgesChange] = useEdgesState<Edge>([]);
+  
+  // Multi-tab workflow state
+  const [openWorkflowTabs, setOpenWorkflowTabs] = useState<WorkflowTabData[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  
+  // Current active workflow data
+  const activeTab = openWorkflowTabs.find(tab => tab.id === activeTabId);
+  const workflow = activeTab?.workflow;
+  const [nodes, _setNodes, _onNodesChange] = useNodesState<Node>(activeTab?.nodes || []);
+  const [edges, _setEdges, _onEdgesChange] = useEdgesState<Edge>(activeTab?.edges || []);
 
   const [workflowId, setWorkflowId] = useState<string>();
   const [logs, setLogs] = useState<WorkflowLog[]>([]);
@@ -91,14 +113,34 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     buildPipeline(currentNodes, currentEdges);
   }, [nodes, edges]);
 
+  // Update active tab's nodes and edges
+  const updateActiveTabState = useCallback((newNodes?: Node[], newEdges?: Edge[]) => {
+    if (!activeTabId) return;
+    
+    setOpenWorkflowTabs(prevTabs => 
+      prevTabs.map(tab => 
+        tab.id === activeTabId
+          ? {
+              ...tab,
+              nodes: newNodes || nodes,
+              edges: newEdges || edges,
+              undoStack: undoStack.current,
+              redoStack: redoStack.current,
+              isModified: true
+            }
+          : tab
+      )
+    );
+  }, [activeTabId, nodes, edges]);
+
   const selectedNode = nodes.find(n => n.selected);
 
   // ──────────────────────────────
-  // Parent‑managed UNDO/REDO
+  // Parent‑managed UNDO/REDO (per tab)
   // ──────────────────────────────
   type Snapshot = { nodes: Node[]; edges: Edge[] };
-  const undoStack = useRef<Snapshot[]>([]);
-  const redoStack = useRef<Snapshot[]>([]);
+  const undoStack = useRef<Snapshot[]>(activeTab?.undoStack || []);
+  const redoStack = useRef<Snapshot[]>(activeTab?.redoStack || []);
   const isRestoring = useRef(false);
   const pushGuard = useRef(false); // prevents double-record within same change “tick”
 
@@ -342,16 +384,25 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     [_onEdgesChange, pushHistory]
   );
 
+  // Sync undo/redo stacks when active tab changes
+  useEffect(() => {
+    if (activeTab) {
+      undoStack.current = [...activeTab.undoStack];
+      redoStack.current = [...activeTab.redoStack];
+      publishFlags();
+    }
+  }, [activeTab, publishFlags]);
+
   // Initialize a baseline snapshot once after graph is hydrated
   useEffect(() => {
-    if (!loading && (nodes.length || edges.length)) {
+    if (!loading && (nodes.length || edges.length) && activeTabId) {
       if (undoStack.current.length === 0) {
         undoStack.current.push({ nodes: clone(nodes), edges: clone(edges) });
         publishFlags();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [loading, activeTabId]);
 
   const undo = useCallback(() => {
     // Prevent undo if we're at the baseline (only 1 or fewer items in stack)
@@ -421,45 +472,113 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [nodes, edges, _setNodes, _setEdges, clone, publishFlags, analyzeChanges]);
 
   // ──────────────────────────────
-  // Hydrate workflow and fetch project workflows
+  // Tab management functions
+  // ──────────────────────────────
+  
+  const openWorkflowInTab = useCallback(async (workflowData: WorkflowData) => {
+    // Check if workflow is already open
+    const existingTab = openWorkflowTabs.find(tab => tab.id === workflowData.id);
+    if (existingTab) {
+      setActiveTabId(workflowData.id);
+      return;
+    }
+
+    // Create new tab with workflow data
+    const newTab: WorkflowTabData = {
+      id: workflowData.id,
+      name: workflowData.name,
+      workflow: workflowData,
+      nodes: [],
+      edges: [],
+      isModified: false,
+      undoStack: [],
+      redoStack: []
+    };
+
+    // Import workflow nodes and edges
+    if (workflowData.visualJson?.nodes && workflowData.visualJson?.edges) {
+      const enhancedNodes = workflowData.visualJson.nodes.map((node: Node, index: number) => ({
+        ...node,
+        data: {
+          ...node.data,
+          setNodes: _setNodes,
+          updatePipeline
+        },
+        draggable: true,
+        selected: index === 0,
+      }));
+      
+      newTab.nodes = enhancedNodes;
+      newTab.edges = workflowData.visualJson.edges;
+      newTab.undoStack = [{ nodes: enhancedNodes, edges: workflowData.visualJson.edges }];
+    }
+
+    setOpenWorkflowTabs(prev => [...prev, newTab]);
+    setActiveTabId(workflowData.id);
+  }, [openWorkflowTabs, _setNodes, updatePipeline]);
+  
+  const closeWorkflowTab = useCallback((tabId: string) => {
+    setOpenWorkflowTabs(prev => {
+      const newTabs = prev.filter(tab => tab.id !== tabId);
+      
+      // If closing active tab, switch to another tab
+      if (activeTabId === tabId) {
+        const currentIndex = prev.findIndex(tab => tab.id === tabId);
+        const newActiveTab = newTabs[Math.min(currentIndex, newTabs.length - 1)];
+        setActiveTabId(newActiveTab?.id || null);
+      }
+      
+      return newTabs;
+    });
+  }, [activeTabId]);
+  
+  const switchToTab = useCallback((tabId: string) => {
+    const tab = openWorkflowTabs.find(t => t.id === tabId);
+    if (!tab) return;
+    
+    setActiveTabId(tabId);
+    
+    // Update React Flow state
+    _setNodes(tab.nodes);
+    _setEdges(tab.edges);
+    undoStack.current = [...tab.undoStack];
+    redoStack.current = [...tab.redoStack];
+    setWorkflowId(tabId);
+    publishFlags();
+  }, [openWorkflowTabs, _setNodes, _setEdges, setWorkflowId, publishFlags]);
+
+  // ──────────────────────────────
+  // Hydrate initial workflow and fetch project workflows
   // ──────────────────────────────
   useEffect(() => {
     const hydrateContent = async () => {
-      if (workflow) {
-        importWorkflow(
-          JSON.stringify(workflow.visualJson),
-          _setNodes, _setEdges, setWorkflowId,
-          workflow.id,
-          { setNodes: _setNodes, updatePipeline } // use raw setter during import
-        );
-
-        // If workflow has project info, fetch all project workflows for sidebar
-        if (router.query.projectId) {
-          try {
-            const token = localStorage.getItem('token');
-            if (token) {
-              const response = await ProjectsApi.getProjectDetailsWithWorkflows(router.query.projectId as string, token, router);
-              if (response?.ok) {
-                const data = await response.json();
-                setProject(data.project);
-                setProjectWorkflows(data.workflows || []);
-              }
-            }
-          } catch (err) {
-            console.error('Error loading project workflows:', err);
-          }
-        }
-        
-        setLoading(false);
-        return;
+      if (currWorkflow) {
+        // Open the initial workflow in a tab
+        await openWorkflowInTab(currWorkflow);
       }
       
-      // If no workflow provided, we can't proceed
+      // If workflow has project info, fetch all project workflows for sidebar
+      if (router.query.projectId) {
+        try {
+          const token = localStorage.getItem('token');
+          if (token) {
+            const response = await ProjectsApi.getProjectDetailsWithWorkflows(router.query.projectId as string, token, router);
+            if (response?.ok) {
+              const data = await response.json();
+              setProject(data.project);
+              setProjectWorkflows(data.workflows || []);
+            }
+          }
+        } catch (err) {
+          console.error('Error loading project workflows:', err);
+        }
+      }
+      
       setLoading(false);
     };
     hydrateContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflow]);
+  }, [currWorkflow]);
 
   if (loading) {
     return <div className="w-screen h-screen flex items-center justify-center text-xl">Loading workflow...</div>;
@@ -472,21 +591,46 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         <div className="w-screen h-screen flex flex-col pt-14 bg-dominofy-light-background dark:bg-dominofy-dark-background text-dominofy-light-text dark:text-dominofy-dark-text">
 
           {/* Global toolbar */}
-          <WorkflowToolbar
-            setWorkflow={setWorkflow}
-            workflow={workflow!}
-            project={project}
-            getNodes={() => nodes}
-            getEdges={() => edges}
-            openLogsPanel={openLogsPanel}
-            // undo/redo from parent
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={canUndo}
-            canRedo={canRedo}
-            isInsertNoteActive={noteToolActive}
-            onStartInsertNote={() => setNoteToolActive(true)}
-            onCancelInsertNote={() => setNoteToolActive(false)}
+          {workflow && (
+            <WorkflowToolbar
+              setWorkflow={(updatedWorkflow) => {
+                // Update the workflow in the active tab
+                if (activeTabId) {
+                  setOpenWorkflowTabs(prevTabs => 
+                    prevTabs.map(tab => 
+                      tab.id === activeTabId
+                        ? { ...tab, workflow: updatedWorkflow }
+                        : tab
+                    )
+                  );
+                }
+              }}
+              workflow={workflow}
+              project={project}
+              getNodes={() => nodes}
+              getEdges={() => edges}
+              openLogsPanel={openLogsPanel}
+              // undo/redo from parent
+              onUndo={undo}
+              onRedo={redo}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              isInsertNoteActive={noteToolActive}
+              onStartInsertNote={() => setNoteToolActive(true)}
+              onCancelInsertNote={() => setNoteToolActive(false)}
+            />
+          )}
+
+          {/* Workflow Tabs */}
+          <WorkflowTabs
+            tabs={openWorkflowTabs.map(tab => ({
+              id: tab.id,
+              name: tab.name,
+              isModified: tab.isModified
+            }))}
+            activeTabId={activeTabId}
+            onTabClick={switchToTab}
+            onTabClose={closeWorkflowTab}
           />
 
           <div className="flex-1 flex h-full">
@@ -494,6 +638,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             <DominosPanel 
               currentProject={workflow?.project} 
               projectWorkflows={projectWorkflows}
+              onWorkflowOpen={openWorkflowInTab}
             />
 
             {/* Main content */}

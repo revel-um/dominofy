@@ -21,6 +21,7 @@ interface DominosPanelProps {
     description?: string;
   };
   projectWorkflows?: Workflow[];
+  onWorkflowOpen?: (workflow: any) => void;
 }
 
 interface Workflow {
@@ -81,7 +82,7 @@ function HeaderRow({
   );
 }
 
-export default function DominosPanel({ bottomOffset = 0, currentProject, projectWorkflows = [] }: DominosPanelProps) {
+export default function DominosPanel({ bottomOffset = 0, currentProject, projectWorkflows = [], onWorkflowOpen }: DominosPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [searchTerm, setSearchTerm] = useState('');
   const [expanded, setExpanded] = useState<{ [category: string]: boolean }>({});
@@ -142,13 +143,29 @@ export default function DominosPanel({ bottomOffset = 0, currentProject, project
   };
 
 
-  const navigateToWorkflow = (workflow: Workflow) => {
-    // Use new routing structure with projectId and workflowId
+  const navigateToWorkflow = async (workflow: Workflow) => {
+    if (onWorkflowOpen) {
+      // Fetch full workflow data and open in tab
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const response = await WorkflowsApi.getWorkflowById(workflow.id, token, router);
+          if (response?.ok) {
+            const fullWorkflowData = await response.json();
+            onWorkflowOpen(fullWorkflowData);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load workflow:', error);
+      }
+    }
+    
+    // Fallback to traditional navigation if onWorkflowOpen not provided or failed
     const projectId = currentProject?.id || workflow.project?.id;
     if (projectId) {
       router.push(`/dominofy?projectId=${projectId}&workflowId=${workflow.id}`);
     } else {
-      // Fallback to workflow-only navigation if no project info available
       router.push(`/dominofy?workflowId=${workflow.id}`);
     }
   };
