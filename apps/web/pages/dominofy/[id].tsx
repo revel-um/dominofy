@@ -492,7 +492,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
           <div className="flex-1 flex h-full">
             {/* Sidebar */}
             <DominosPanel 
-              currentProject={workflow?.project} 
+              currentProject={project} 
               projectWorkflows={projectWorkflows}
             />
 

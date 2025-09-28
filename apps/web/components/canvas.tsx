@@ -401,6 +401,7 @@ export default function Canvas(props: CanvasProps) {
   /* ───── Keyboard: Undo/Redo (delegates to parent) ───── */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (!e.key) return;
       const key = e.key.toLowerCase();
       const meta = e.metaKey || e.ctrlKey;
       if (!meta) return;
@@ -432,6 +433,7 @@ export default function Canvas(props: CanvasProps) {
   // Keyboard handlers
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      if (!e.key) return;
       const isMac = navigator.platform.toLowerCase().includes('mac');
       const mod = isMac ? e.metaKey : e.ctrlKey;
 
