@@ -1,16 +1,18 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateSupportDto, SupportCategory, TicketPriority } from './dto/create-support.dto';
 import { SupportTicket } from './entities/support-ticket.entity';
 
 @Injectable()
 export class SupportService {
-  private tickets: SupportTicket[] = [];
+  constructor(
+    @InjectRepository(SupportTicket)
+    private readonly supportTicketRepository: Repository<SupportTicket>,
+  ) {}
 
-  create(userId: string, dto: CreateSupportDto): SupportTicket {
-    const now = new Date().toISOString();
-    const ticket: SupportTicket = {
-      id: randomUUID(),
+  async create(userId: string, dto: CreateSupportDto): Promise<SupportTicket> {
+    const ticket = this.supportTicketRepository.create({
       userId,
       subject: dto.subject,
       message: dto.message,
@@ -18,26 +20,38 @@ export class SupportService {
       priority: dto.priority ?? TicketPriority.Medium,
       status: 'open',
       attachments: dto.attachments ?? [],
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.tickets.unshift(ticket);
+    });
+    
+    return await this.supportTicketRepository.save(ticket);
+  }
+
+  async findMine(userId: string): Promise<SupportTicket[]> {
+    return await this.supportTicketRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findOne(id: string, userId: string): Promise<SupportTicket> {
+    const ticket = await this.supportTicketRepository.findOne({
+      where: { id, userId },
+    });
+    
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+    
     return ticket;
   }
 
-  findMine(userId: string): SupportTicket[] {
-    return this.tickets.filter(t => t.userId === userId);
-  }
-
-  findOne(id: string, userId: string): SupportTicket {
-    const t = this.tickets.find(tt => tt.id === id && tt.userId === userId);
-    if (!t) throw new NotFoundException('Ticket not found');
-    return t;
-  }
-
-  delete(id: string, userId: string): void {
-    const index = this.tickets.findIndex(t => t.id === id && t.userId === userId);
-    if (index === -1) throw new NotFoundException('Ticket not found');
-    this.tickets.splice(index, 1);
+  async delete(id: string, userId: string): Promise<void> {
+    const result = await this.supportTicketRepository.delete({
+      id,
+      userId,
+    });
+    
+    if (result.affected === 0) {
+      throw new NotFoundException('Ticket not found');
+    }
   }
 }

@@ -7,7 +7,7 @@ const BASE_URL = "http://localhost:3001/api/v1/support";
 export class SupportApi {
   static async getTickets(token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${BASE_URL}/tickets/my`, {
+      const response = await fetch(`${BASE_URL}/tickets`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
