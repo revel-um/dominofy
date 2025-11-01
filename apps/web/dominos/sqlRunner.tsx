@@ -9,10 +9,12 @@ import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { v4 as uuidv4 } from 'uuid';
+import { useRouter } from 'next/router';
 
 export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const router = useRouter();
 
   // Connection state
   const [connectionId, setConnectionId] = useState<string>('');
@@ -27,6 +29,7 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'code' | 'output'>('code');
+
 
   // Connection config & status
   const [connectionConfig, setConnectionConfig] = useState<ConnectionConfig>({
@@ -277,6 +280,53 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
     );
   }, [id, data.setNodes, query, connectionStatus]);
 
+  // Listen for code editor results
+  useEffect(() => {
+    const checkForEditorResult = () => {
+      const result = sessionStorage.getItem('codeEditorResult');
+      if (result) {
+        try {
+          const parsedResult = JSON.parse(result);
+          if (parsedResult.saved) {
+            console.log('SQL editor result found:', parsedResult.code);
+            setQuery(parsedResult.code);
+            data.setFieldValue?.('Query', parsedResult.code);
+          }
+          sessionStorage.removeItem('codeEditorResult');
+        } catch (e) {
+          console.error('Failed to parse code editor result:', e);
+        }
+      }
+    };
+
+    // Check immediately when component mounts
+    checkForEditorResult();
+
+    // Also poll every 500ms to catch results
+    const interval = setInterval(checkForEditorResult, 500);
+    
+    // Listen for when the window gains focus (user returns from code editor page)
+    window.addEventListener('focus', checkForEditorResult);
+    window.addEventListener('visibilitychange', checkForEditorResult);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', checkForEditorResult);
+      window.removeEventListener('visibilitychange', checkForEditorResult);
+    };
+  }, [data.setFieldValue]);
+
+  // Handle opening code editor
+  const handleOpenCodeEditor = () => {
+    const queryParams = new URLSearchParams({
+      code: query,
+      language: 'sql',
+      title: 'SQL Query Editor'
+    });
+    
+    router.push(`/editor?${queryParams.toString()}`);
+  };
+
   // Clean up connection on unmount
   useEffect(() => {
     return () => {
@@ -343,14 +393,35 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
           </div>
         </div>
 
-        {/* Query preview */}
+        {/* Query editor */}
         <div className="px-3 py-2">
-          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Query Preview</label>
+          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Query Editor</label>
           <div 
-            onClick={() => setIsPopupOpen(true)}
-            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-dominofy-light-surface dark:bg-gray-800 text-dominofy-light-text dark:text-gray-200 cursor-pointer h-20 overflow-hidden text-ellipsis font-mono text-xs"
+            onClick={handleOpenCodeEditor}
+            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-dominofy-light-surface dark:bg-gray-800 text-dominofy-light-text dark:text-gray-200 cursor-pointer hover:border-blue-400 transition-colors h-20 overflow-hidden font-mono text-xs relative"
           >
-            {query || <span className="text-gray-400">Click to edit query...</span>}
+            {query ? (
+              <div className="h-full overflow-hidden">
+                <div 
+                  className="whitespace-pre-wrap break-words text-xs leading-relaxed h-full"
+                  style={{
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {query}
+                </div>
+                {query.length > 100 && (
+                  <div className="absolute bottom-1 right-1 text-xs text-gray-500 bg-white dark:bg-gray-800 px-1 rounded shadow-sm">
+                    ...
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="text-gray-400 italic">Click to open SQL editor...</span>
+            )}
           </div>
         </div>
 

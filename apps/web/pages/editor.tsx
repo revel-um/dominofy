@@ -1,22 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { 
   FiPlay, FiCode, FiDatabase, FiTerminal, FiServer, 
-  FiUser, FiKey, FiLink, FiRefreshCw, FiSun, FiMoon, FiSettings,
-  FiChevronDown, FiChevronUp, FiX, FiCheck, FiSave
+  FiUser, FiKey, FiLink, FiRefreshCw, FiArrowLeft
 } from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
 import CodeEditor from '@/components/code-editor/CodeEditor';
 import { cn } from '@/lib/utils';
-
-interface EditorPageProps {
-  initialCode?: string;
-  initialLanguage?: 'javascript' | 'sql';
-  onSave?: (code: string) => void;     // called when user clicks “Save”
-  onClose?: () => void;                // optional extra close callback
-  embedded?: boolean;                  // if true, skip full-screen css
-}
 
 
 type ConnectionConfig = {
@@ -34,19 +26,14 @@ const JAVASCRIPT_DEFAULT = `// Welcome to your JavaScript scratchpad!\nfunction 
 
 const SQL_DEFAULT = `-- Welcome to your SQL scratchpad!\nSELECT\n    c.customer_id,\n    c.name,\n    COUNT(o.order_id) AS total_orders\nFROM\n    customers c\nJOIN\n    orders o ON c.customer_id = o.customer_id\nGROUP BY\n    c.customer_id,\n    c.name\nHAVING\n    COUNT(o.order_id) > 5\nORDER BY\n    total_orders DESC;`;
 
-
-// Main editor component
-
-const EditorPage: React.FC<EditorPageProps> = ({
-  initialCode,
-  initialLanguage = 'javascript',
-  onSave,
-  onClose,
-  embedded = false
-})  => {
+export default function EditorPage() {
+  const router = useRouter();
   
-  const [code, setCode] = useState<string>(JAVASCRIPT_DEFAULT);
+  const [code, setCode] = useState<string>('');
   const [language, setLanguage] = useState<Language>('javascript');
+  const [title, setTitle] = useState('Code Editor');
+  const [hasChanges, setHasChanges] = useState(false);
+  const [initialCode, setInitialCode] = useState('');
   const [output, setOutput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
@@ -63,15 +50,31 @@ const EditorPage: React.FC<EditorPageProps> = ({
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [connectionError, setConnectionError] = useState<string>('');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-    document.documentElement.classList.toggle('dark', newMode);
-    localStorage.setItem('theme', newMode ? 'dark' : 'light');
-  };
+  // Extract query parameters on mount
+  useEffect(() => {
+    if (router.isReady) {
+      const { 
+        code: queryCode = '', 
+        language: queryLanguage = 'javascript', 
+        title: queryTitle = 'Code Editor' 
+      } = router.query;
+      
+      const codeValue = Array.isArray(queryCode) ? queryCode[0] : queryCode;
+      const langValue = Array.isArray(queryLanguage) ? queryLanguage[0] : queryLanguage;
+      const titleValue = Array.isArray(queryTitle) ? queryTitle[0] : queryTitle;
+      
+      setCode(codeValue || (langValue === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT));
+      setInitialCode(codeValue || (langValue === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT));
+      setLanguage(langValue as 'javascript' | 'sql');
+      setTitle(titleValue);
+    }
+  }, [router.isReady, router.query]);
+
+  // Track changes
+  useEffect(() => {
+    setHasChanges(code !== initialCode);
+  }, [code, initialCode]);
 
   // Initialize dark mode from system preference or localStorage
   useEffect(() => {
@@ -83,30 +86,48 @@ const EditorPage: React.FC<EditorPageProps> = ({
     document.documentElement.classList.toggle('dark', isDark);
   }, []);
 
-  // Load saved connection from localStorage
-  useEffect(() => {
-    const savedConnection = localStorage.getItem('dbConnection');
-    if (savedConnection) {
-      try {
-        const config = JSON.parse(savedConnection);
-        setConnectionConfig(config);
-      } catch (e) {
-        console.error('Failed to load saved connection', e);
-      }
-    }
-  }, []);
-
-  // Save connection to localStorage when it changes
-  useEffect(() => {
-    if (connectionStatus === 'connected' && connectionConfig) {
-      localStorage.setItem('dbConnection', JSON.stringify(connectionConfig));
-    }
-  }, [connectionConfig, connectionStatus]);
-
-  const handleLanguageChange = (newLanguage: Language) => {
-    setLanguage(newLanguage);
-    setCode(newLanguage === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT);
+  // Save/Cancel handlers
+  const handleSave = () => {
+    const resultData = {
+      code,
+      saved: true,
+      timestamp: Date.now()
+    };
+    console.log('Saving code editor result:', resultData);
+    sessionStorage.setItem('codeEditorResult', JSON.stringify(resultData));
+    router.back();
   };
+
+  const handleCancel = () => {
+    if (hasChanges) {
+      const shouldCancel = confirm('You have unsaved changes. Are you sure you want to cancel?');
+      if (!shouldCancel) return;
+    }
+    
+    sessionStorage.setItem('codeEditorResult', JSON.stringify({
+      code: initialCode,
+      saved: false,
+      timestamp: Date.now()
+    }));
+    router.back();
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleSave();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [code]);
 
   const handleCodeChange = (newCode: string | undefined) => {
     setCode(newCode || '');
@@ -274,10 +295,6 @@ const EditorPage: React.FC<EditorPageProps> = ({
     }
   };
 
-  // Reset code to default for the current language
-  const resetCode = () => {
-    setCode(language === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT);
-  };
 
   return (
     <div className={cn(
@@ -289,49 +306,72 @@ const EditorPage: React.FC<EditorPageProps> = ({
         'border-b p-4 flex justify-between items-center transition-colors duration-200',
         isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
       )}>
-        <div className="flex items-center">
-          <h1 className={cn(
-            'text-xl font-bold',
-            isDarkMode ? 'text-white' : 'text-black'
-          )}>
-            Code Editor
-          </h1>
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={() => router.back()}
+            className={cn(
+              'flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
+              isDarkMode 
+                ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+            )}
+          >
+            <FiArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </button>
+          <div>
+            <h1 className={cn(
+              'text-xl font-bold flex items-center gap-2',
+              isDarkMode ? 'text-white' : 'text-black'
+            )}>
+              <span>{language === 'javascript' ? '🟨' : '🗃️'}</span>
+              {title}
+            </h1>
+            <p className={cn(
+              'text-sm',
+              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            )}>
+              {language === 'javascript' ? 'JavaScript' : 'SQL'} Editor
+              {hasChanges && <span className="ml-2 text-orange-500">• Unsaved changes</span>}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <span className={cn(
-            'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-            connectionStatus === 'connected' 
-              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-          )}>
-            {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-          </span>
-          {connectionStatus === 'connected' ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDisconnect}
-              disabled={isLoading}
-            >
-              Disconnect
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowConnectionForm(true)}
-              disabled={isLoading}
-              className={cn(
-                'border',
-                isDarkMode 
-                  ? 'border-gray-600 hover:bg-gray-700 hover:border-gray-500 text-gray-200' 
-                  : 'border-gray-300 hover:bg-gray-100 text-gray-700'
-              )}
-            >
-              Connect to Database
-            </Button>
+        <div className="flex items-center space-x-3">
+          {language === 'sql' && (
+            <span className={cn(
+              'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+              connectionStatus === 'connected' 
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+            )}>
+              {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+            </span>
           )}
+          
+          <button
+            onClick={handleCancel}
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded-md border transition-colors',
+              isDarkMode 
+                ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className={cn(
+              'px-4 py-2 text-sm font-medium rounded-md text-white transition-colors',
+              hasChanges
+                ? 'bg-green-600 hover:bg-green-700'
+                : 'bg-gray-400 cursor-not-allowed'
+            )}
+            disabled={!hasChanges}
+          >
+            Done
+          </button>
         </div>
       </header>
 
@@ -485,34 +525,31 @@ const EditorPage: React.FC<EditorPageProps> = ({
         {/* Editor Section */}
         <div className="flex-1 flex flex-col border-r border-gray-200 bg-white">
           <div className="flex items-center justify-between p-2 border-b border-gray-200">
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setLanguage('javascript')}
-                className={`px-3 py-1 rounded-md text-sm font-medium ${
-                  language === 'javascript'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <FiCode className="inline mr-1" /> JavaScript
-              </button>
-              <button
-                onClick={() => {
-                  if (connectionStatus !== 'connected') {
-                    setConnectionError('Please connect to a database first');
-                    setShowConnectionForm(true);
-                    return;
-                  }
-                  setLanguage('sql');
-                }}
-                className={`px-3 py-1 rounded-md text-sm font-medium ${
-                  language === 'sql'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <FiDatabase className="inline mr-1" /> SQL
-              </button>
+            <div className="flex items-center space-x-2">
+              <div className={cn(
+                'px-3 py-1 rounded-md text-sm font-medium',
+                'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+              )}>
+                {language === 'javascript' ? (
+                  <>
+                    <FiCode className="inline mr-1" /> JavaScript
+                  </>
+                ) : (
+                  <>
+                    <FiDatabase className="inline mr-1" /> SQL
+                  </>
+                )}
+              </div>
+              {language === 'sql' && connectionStatus !== 'connected' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowConnectionForm(true)}
+                  disabled={isLoading}
+                >
+                  Connect to Database
+                </Button>
+              )}
             </div>
             <Button
               onClick={handleRunCode}
@@ -664,6 +701,4 @@ const EditorPage: React.FC<EditorPageProps> = ({
       </div>
     </div>
   );
-};
-
-export default EditorPage;
+}
