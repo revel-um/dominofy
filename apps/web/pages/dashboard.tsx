@@ -84,6 +84,30 @@ export default function DominofyDashboard() {
         return `${month}-${day}-${year}`;
     };
 
+    // Helper function to merge cached workflow data with database workflow
+    const mergeCachedWorkflow = (workflow: Workflow): Workflow & { isCached?: boolean } => {
+        const cachedWorkflowData = sessionStorage.getItem(`workflow-${workflow.id}`);
+        
+        if (cachedWorkflowData) {
+            try {
+                const cached = JSON.parse(cachedWorkflowData);
+                return {
+                    ...workflow,
+                    visualJson: {
+                        nodes: cached.nodes || workflow.visualJson.nodes,
+                        edges: cached.edges || workflow.visualJson.edges
+                    },
+                    isCached: true
+                };
+            } catch (error) {
+                console.error('Error parsing cached workflow data:', error);
+                return workflow;
+            }
+        }
+        
+        return workflow;
+    };
+
     // Data ----------------------------------------------------------------
     const fetchProjects = async () => {
         // Wait until NextAuth resolves the session (undefined means pending in v5)
@@ -413,7 +437,8 @@ export default function DominofyDashboard() {
             setUser({ name: user.name, email: user.email });
             setWorkflowCount(wfCount);
             if (count > 0) {
-                setRecentWorkflow(workflows[0]);
+                const recentWorkflowWithCache = mergeCachedWorkflow(workflows[0]);
+                setRecentWorkflow(recentWorkflowWithCache);
             }
         } catch (err) {
             console.error("Error fetching projects:", err);
@@ -566,6 +591,12 @@ export default function DominofyDashboard() {
                                 <p className="text-sm font-medium">
                                     {(recentWorkflow?.isDefault && recentWorkflow.createdAt === recentWorkflow.updatedAt) ? 'Default' : 'Recent'}
                                 </p>
+                                {(recentWorkflow as any)?.isCached && (
+                                    <div className="flex items-center gap-1 ml-2 px-2 py-1 bg-amber-500/20 rounded-full">
+                                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                        <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Unsaved</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

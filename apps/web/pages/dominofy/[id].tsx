@@ -91,6 +91,20 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     buildPipeline(currentNodes, currentEdges);
   }, [nodes, edges]);
 
+  // Auto-save workflow to cache whenever nodes or edges change
+  const autoSaveWorkflow = useCallback((currentNodes = nodes, currentEdges = edges) => {
+    if (workflowId && !isRestoring.current) {
+      setTimeout(() => {
+        const workflowData = {
+          workflowId,
+          nodes: currentNodes,
+          edges: currentEdges,
+        };
+        sessionStorage.setItem(`workflow-${workflowId}`, JSON.stringify(workflowData));
+      }, 100);
+    }
+  }, [workflowId, nodes, edges]);
+
   const selectedNode = nodes.find(n => n.selected);
 
   // ──────────────────────────────
@@ -212,20 +226,25 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                 
                 if (hasNonSelectionChanges) {
                     pushHistory();
+                    // Auto-save after node changes
+                    setTimeout(() => autoSaveWorkflow(newNodes, edges), 100);
                 }
             }
             _setNodes(updater);
         },
-        [_setNodes, pushHistory, nodes]
+        [_setNodes, pushHistory, nodes, autoSaveWorkflow, edges]
     );
     const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
         (updater) => {
             if (!isRestoring.current && !isDraggingRef.current) {
                 pushHistory();
+                // Auto-save after edge changes
+                const newEdges = typeof updater === 'function' ? updater(edges) : updater;
+                setTimeout(() => autoSaveWorkflow(nodes, newEdges), 100);
             }
             _setEdges(updater);
         },
-        [_setEdges, pushHistory]
+        [_setEdges, pushHistory, autoSaveWorkflow, nodes, edges]
     );
 
 //   // Wrap React Flow change handlers to record changes originating from Canvas interactions
@@ -327,19 +346,23 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             // Only push to history if there are actual content changes (not just selections)
             if (!isRestoring.current && hasNonSelectionChanges) {
                 pushHistory();
+                // Auto-save after node changes from canvas interactions
+                queueMicrotask(() => autoSaveWorkflow());
             }
         },
-        [nodes, edges, _onNodesChange, clone, publishFlags, pushHistory]
+        [nodes, edges, _onNodesChange, clone, publishFlags, pushHistory, autoSaveWorkflow]
     );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       if (!isRestoring.current) {
         pushHistory();
+        // Auto-save after edge changes from canvas interactions
+        queueMicrotask(() => autoSaveWorkflow());
       }
       _onEdgesChange(changes);
     },
-    [_onEdgesChange, pushHistory]
+    [_onEdgesChange, pushHistory, autoSaveWorkflow]
   );
 
   // Initialize a baseline snapshot once after graph is hydrated
@@ -426,12 +449,38 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   useEffect(() => {
     const hydrateContent = async () => {
       if (workflow) {
-        importWorkflow(
-          JSON.stringify(workflow.visualJson),
-          _setNodes, _setEdges, setWorkflowId,
-          workflow.id,
-          { setNodes: _setNodes, updatePipeline } // use raw setter during import
-        );
+        // First check if there's a cached version of this workflow
+        const cachedWorkflowData = sessionStorage.getItem(`workflow-${workflow.id}`);
+        
+        if (cachedWorkflowData) {
+          try {
+            const cached = JSON.parse(cachedWorkflowData);
+            // Use cached workflow data if it exists
+            importWorkflow(
+              JSON.stringify({ nodes: cached.nodes, edges: cached.edges }),
+              _setNodes, _setEdges, setWorkflowId,
+              workflow.id,
+              { setNodes: _setNodes, updatePipeline } // use raw setter during import
+            );
+          } catch (err) {
+            console.error('Error loading cached workflow, falling back to server data:', err);
+            // Fall back to server workflow if cache is corrupted
+            importWorkflow(
+              JSON.stringify(workflow.visualJson),
+              _setNodes, _setEdges, setWorkflowId,
+              workflow.id,
+              { setNodes: _setNodes, updatePipeline } // use raw setter during import
+            );
+          }
+        } else {
+          // No cache, use server workflow data
+          importWorkflow(
+            JSON.stringify(workflow.visualJson),
+            _setNodes, _setEdges, setWorkflowId,
+            workflow.id,
+            { setNodes: _setNodes, updatePipeline } // use raw setter during import
+          );
+        }
 
         // If workflow has project info, fetch all project workflows for sidebar
         if (router.query.projectId) {

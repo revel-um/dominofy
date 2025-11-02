@@ -90,6 +90,9 @@ export function createDropHandler(
       const cleared = prev.map(n => ({ ...n, selected: false }));
       const updated = [...cleared, newNode];
       updatePipeline(updated, getEdges());
+      
+      // Auto-save is now handled centrally in the parent component
+      
       return updated;
     });
   };

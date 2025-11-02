@@ -131,7 +131,7 @@ export default [
   },
   {
     id: 'codeRunner',
-    label: 'Code Runner',
+    label: 'Custom Code',
     icon: FiCode,
     categories: ['Action']
   },

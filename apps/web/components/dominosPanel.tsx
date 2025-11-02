@@ -31,6 +31,7 @@ interface Workflow {
     id: string;
     name: string;
   };
+  isCached?: boolean;
 }
 
 const MIN_WIDTH = 240;
@@ -92,6 +93,21 @@ export default function DominosPanel({ bottomOffset = 0, currentProject, project
   const [newWorkflowName, setNewWorkflowName] = useState('');
   const isDragging = useRef(false);
   const router = useRouter();
+
+  // Helper function to check if a workflow has cached changes
+  const checkWorkflowCached = (workflow: Workflow): Workflow => {
+    const cachedWorkflowData = sessionStorage.getItem(`workflow-${workflow.id}`);
+    if (cachedWorkflowData) {
+      try {
+        JSON.parse(cachedWorkflowData); // Validate it's parseable
+        return { ...workflow, isCached: true };
+      } catch {
+        // Invalid cached data, ignore it
+        return workflow;
+      }
+    }
+    return workflow;
+  };
 
   // measure scrollbar width and negate it on the content wrapper
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -200,7 +216,9 @@ export default function DominosPanel({ bottomOffset = 0, currentProject, project
   };
 
   useEffect(() => {
-    setWorkflows(projectWorkflows);
+    // Check each workflow for cached changes
+    const workflowsWithCacheCheck = projectWorkflows.map(checkWorkflowCached);
+    setWorkflows(workflowsWithCacheCheck);
   }, [projectWorkflows]);
 
   // Memoized categorized + filtered dominos
@@ -362,9 +380,17 @@ export default function DominosPanel({ bottomOffset = 0, currentProject, project
                     >
                       <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
                       <div className="flex flex-col flex-1 min-w-0">
-                        <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text truncate">
-                          {workflow.name}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text truncate">
+                            {workflow.name}
+                          </span>
+                          {workflow.isCached && (
+                            <div className="flex items-center gap-1">
+                              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Unsaved</span>
+                            </div>
+                          )}
+                        </div>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {new Date(workflow.updatedAt).toLocaleDateString()}
                         </span>

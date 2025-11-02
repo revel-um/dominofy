@@ -265,6 +265,9 @@ export default function Canvas(props: CanvasProps) {
       const cleared = prev.map((n) => ({ ...n, selected: false }));
       const upd = [...cleared, newNode];
       updatePipeline(upd, edges);
+      
+      // Auto-save is now handled centrally in the parent component
+      
       return upd;
     });
 
@@ -382,6 +385,9 @@ export default function Canvas(props: CanvasProps) {
           const cleared = prev.map((n) => ({ ...n, selected: false }));
           const upd = [...cleared, newNode];
           updatePipeline(upd, edges);
+          
+          // Auto-save is now handled centrally in the parent component
+          
           return upd;
         });
 

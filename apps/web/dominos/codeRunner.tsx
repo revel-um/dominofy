@@ -39,6 +39,11 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
     (data.details?.fields.find((f: any) => f.heading === 'Code')?.value as string) || ''
   );
 
+  // Local state to manage the function name
+  const [functionName, setFunctionName] = useState<string>(
+    (data.details?.fields.find((f: any) => f.heading === 'FunctionName')?.value as string) || ''
+  );
+
   // State to manage variables (hydrate from details.fields) — ensure at least one row
   const [variables, setVariables] = useState<VariableRow[]>(() => {
     const saved: any[] = data?.details?.fields ?? [];
@@ -135,6 +140,15 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
 
         const existing: DominoField[] = n.data.details?.fields ?? [];
 
+        const functionNameField: DominoField = {
+          type: 'text',
+          heading: 'FunctionName',
+          value: functionName,
+          required: false,
+          placeholder: "Enter function name (optional)",
+          shouldRender: true,
+        };
+
         const codeField: DominoField = {
           type: 'textArea',
           heading: 'Code',
@@ -144,7 +158,7 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
           shouldRender: true,
         };
 
-        const fields: DominoField[] = [codeField];
+        const fields: DominoField[] = [functionNameField, codeField];
 
         // Add variable fields (keep inPinId stable if it already exists)
         variables.forEach(variable => {
@@ -185,17 +199,18 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
           data: {
             ...n.data,
             details,
-            exportFields: ['Code', ...variables.flatMap(v => [`Variable_${v.id}_name`, `Variable_${v.id}_value`])],
+            exportFields: ['FunctionName', 'Code', ...variables.flatMap(v => [`Variable_${v.id}_name`, `Variable_${v.id}_value`])],
           },
         };
       })
     );
-  }, [data.setNodes, id, code, configured, runtime, variables]);
+  }, [data.setNodes, id, functionName, code, configured, runtime, variables]);
 
   /* ───────── Attach setFieldValue to data (kept) */
   useEffect(() => {
     if (!data.setFieldValue && data.setNodes) {
       const setFieldValue = (heading: string, newValue: any) => {
+        if (heading === 'FunctionName') setFunctionName(newValue);
         if (heading === 'Code') setCode(newValue);
         if (heading === 'Environment') setRuntime(newValue);
 
@@ -301,6 +316,17 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
           <DominoPin id="exec_out_success" pinType={PinType.EXEC_OUT} inline />
           <DominoPin id="exec_out_error" pinType={PinType.EXEC_OUT} inline />
         </div>
+      </div>
+
+      {/* Function name input */}
+      <div className="px-3 py-1">
+        <input
+          type="text"
+          value={functionName}
+          onChange={(e) => data.setFieldValue?.('FunctionName', e.target.value)}
+          placeholder="Function name (optional)"
+          className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+        />
       </div>
 
       {/* Code input area */}
