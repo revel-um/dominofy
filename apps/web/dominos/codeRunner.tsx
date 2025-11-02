@@ -10,6 +10,7 @@ import {
 import { useDomino } from '../contexts/dominoContext';
 import { useRouter } from 'next/router';
 import { Trash } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 /* ───────────────────────── Types */
 type VariableRow = {
@@ -27,12 +28,6 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
   const hasError = erroredNodes.includes(id);
   const router = useRouter();
 
-  // Track whether the "Setup" button was clicked (kept for compatibility)
-  const [configured, setConfigured] = useState<boolean>(
-    Boolean(
-      data.details?.fields.find((f: any) => f.heading === 'Environment')
-    )
-  );
 
   // Local state to manage the code snippet
   const [code, setCode] = useState<string>(
@@ -44,7 +39,7 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
     (data.details?.fields.find((f: any) => f.heading === 'FunctionName')?.value as string) || ''
   );
 
-  // State to manage variables (hydrate from details.fields) — ensure at least one row
+  // State to manage variables (hydrate from details.fields) — start with empty array
   const [variables, setVariables] = useState<VariableRow[]>(() => {
     const saved: any[] = data?.details?.fields ?? [];
     const varsMap = new Map<number, VariableRow>();
@@ -63,22 +58,10 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
       }
     }
     const vars = Array.from(varsMap.values()).sort((a,b)=>a.id-b.id);
-    if (vars.length === 0) return [{ id: 1, name: '', value: '' }];
+    // Return empty array by default instead of creating a default variable
     return vars.map((v, i) => ({ ...v, id: i + 1 }));
   });
 
-  // Supported runtimes for execution
-  const runtimeOptions: DominoFieldOption[] = [
-    { label: 'Node.js', value: 'nodejs' },
-    { label: 'Python', value: 'python' },
-    { label: 'Ruby', value: 'ruby' },
-  ];
-  const [runtime, setRuntime] = useState<string>(
-    data.details?.fields.find((f: any) => f.heading === 'Environment')?.value || runtimeOptions[0].value
-  );
-
-  // When Setup is clicked, reveal the Environment dropdown
-  const handleSetup = () => setConfigured(true);
 
   /* ───────── Add/Remove/Change variable rows */
   const addVariable = () => {
@@ -204,7 +187,7 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
         };
       })
     );
-  }, [data.setNodes, id, functionName, code, configured, runtime, variables]);
+  }, [data.setNodes, id, functionName, code, variables]);
 
   /* ───────── Attach setFieldValue to data (kept) */
   useEffect(() => {
@@ -212,7 +195,6 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
       const setFieldValue = (heading: string, newValue: any) => {
         if (heading === 'FunctionName') setFunctionName(newValue);
         if (heading === 'Code') setCode(newValue);
-        if (heading === 'Environment') setRuntime(newValue);
 
         const varMatch = /^Variable_(\d+)_(\w+)$/.exec(heading);
         if (varMatch) {
@@ -284,16 +266,45 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
 
   // Open code editor
   const routerOpenEditor = () => {
+    // Validation: Check if function name is provided
+    if (!functionName.trim()) {
+      toast.error('Please enter a function name before opening the code editor', {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: true,
+      });
+      return;
+    }
+
+    // Validation: Check if any variables exist but have empty names
+    const emptyNameVariables = variables.filter(v => v.name.trim() === '');
+    
+    if (emptyNameVariables.length > 0) {
+      toast.error('Please provide names for all variables before opening the code editor', {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: true,
+      });
+      return;
+    }
+
+    // Prepare variables for code editor (only include variables with names)
+    const variablesForEditor = variables.map(v => ({
+      name: v.name,
+      defaultValue: v.value || 'undefined'
+    }));
+
     const queryParams = new URLSearchParams({
       code: code,
       language: 'javascript',
-      title: 'Custom Code Editor'
+      title: 'Custom Code Editor',
+      functionName: functionName,
+      variables: JSON.stringify(variablesForEditor)
     });
+    
     router.push(`/editor?${queryParams.toString()}`);
   };
 
-  // Execution pin trigger
-  const handleRun = () => data.setFieldValue?.('Run', true);
 
   /* ───────── Render */
   return (
