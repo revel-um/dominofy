@@ -50,6 +50,8 @@ export default function EditorPage() {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [connectionError, setConnectionError] = useState<string>('');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [functionName, setFunctionName] = useState<string>('');
+  const [variables, setVariables] = useState<Array<{name: string, defaultValue: string}>>([]);
 
   // Extract query parameters on mount
   useEffect(() => {
@@ -57,17 +59,53 @@ export default function EditorPage() {
       const { 
         code: queryCode = '', 
         language: queryLanguage = 'javascript', 
-        title: queryTitle = 'Code Editor' 
+        title: queryTitle = 'Code Editor',
+        functionName: queryFunctionName = '',
+        variables: queryVariables = '[]'
       } = router.query;
       
       const codeValue = Array.isArray(queryCode) ? queryCode[0] : queryCode;
       const langValue = Array.isArray(queryLanguage) ? queryLanguage[0] : queryLanguage;
       const titleValue = Array.isArray(queryTitle) ? queryTitle[0] : queryTitle;
+      const functionNameValue = Array.isArray(queryFunctionName) ? queryFunctionName[0] : queryFunctionName;
+      const variablesValue = Array.isArray(queryVariables) ? queryVariables[0] : queryVariables;
       
-      setCode(codeValue || (langValue === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT));
-      setInitialCode(codeValue || (langValue === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT));
+      // Parse variables from JSON string
+      let parsedVariables: Array<{name: string, defaultValue: string}> = [];
+      try {
+        parsedVariables = JSON.parse(variablesValue || '[]');
+      } catch (error) {
+        console.error('Error parsing variables from URL:', error);
+        parsedVariables = [];
+      }
+      
+      // Generate complete function code if we have function name
+      let fullCode = codeValue;
+      if (functionNameValue) {
+        if (parsedVariables.length > 0) {
+          const params = parsedVariables.map(v => v.name).join(', ');
+          const defaultValues = parsedVariables.map(v => 
+            `  // ${v.name} = ${v.defaultValue}`
+          ).join('\n');
+          
+          const functionBody = codeValue || '  // Write your code here';
+          fullCode = `function ${functionNameValue}(${params}) {
+${defaultValues ? defaultValues + '\n' : ''}${functionBody}
+}`;
+        } else {
+          const functionBody = codeValue || '  // Write your code here';
+          fullCode = `function ${functionNameValue}() {
+${functionBody}
+}`;
+        }
+      }
+      
+      setCode(fullCode || (langValue === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT));
+      setInitialCode(fullCode || (langValue === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT));
       setLanguage(langValue as 'javascript' | 'sql');
       setTitle(titleValue);
+      setFunctionName(functionNameValue);
+      setVariables(parsedVariables);
     }
   }, [router.isReady, router.query]);
 
@@ -88,8 +126,24 @@ export default function EditorPage() {
 
   // Save/Cancel handlers
   const handleSave = () => {
+    // Extract just the function body if we have a function structure
+    let codeToSave = code;
+    if (functionName && code.includes(`function ${functionName}`)) {
+      // Try to extract the function body
+      const functionRegex = new RegExp(`function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\}\\s*$`);
+      const match = code.match(functionRegex);
+      if (match && match[1]) {
+        // Remove leading/trailing whitespace and comments about default values
+        codeToSave = match[1]
+          .split('\n')
+          .filter(line => !line.trim().startsWith('//') || !line.includes(' = '))
+          .join('\n')
+          .trim();
+      }
+    }
+    
     const resultData = {
-      code,
+      code: codeToSave,
       saved: true,
       timestamp: Date.now()
     };
