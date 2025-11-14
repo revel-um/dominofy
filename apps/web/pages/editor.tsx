@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { 
-  FiPlay, FiCode, FiDatabase, FiTerminal, FiServer, 
+import {
+  FiPlay, FiCode, FiDatabase, FiTerminal, FiServer,
   FiUser, FiKey, FiLink, FiRefreshCw, FiArrowLeft
 } from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
@@ -68,8 +68,8 @@ function buildWrappedCode(
   const defaultsBlock =
     variables.length > 0
       ? variables
-          .map(v => `  // ${v.name} = ${v.defaultValue}`)
-          .join('\n') + '\n'
+        .map(v => `  // ${v.name} = ${v.defaultValue}`)
+        .join('\n') + '\n'
       : '';
 
   const body =
@@ -136,7 +136,7 @@ function computeReadOnlyRanges(
 
 export default function EditorPage() {
   const router = useRouter();
-  
+
   const [code, setCode] = useState<string>('');
   const [language, setLanguage] = useState<Language>('javascript');
   const [title, setTitle] = useState('Code Editor');
@@ -167,20 +167,20 @@ export default function EditorPage() {
   useEffect(() => {
     if (!router.isReady) return;
 
-    const { 
+    const {
       code: queryCode = '',           // body from domino
-      language: queryLanguage = 'javascript', 
+      language: queryLanguage = 'javascript',
       title: queryTitle = 'Code Editor',
       functionName: queryFunctionName = '',
       variables: queryVariables = '[]'
     } = router.query;
-    
+
     const codeValue = Array.isArray(queryCode) ? queryCode[0] : queryCode;
     const langValue = Array.isArray(queryLanguage) ? queryLanguage[0] : queryLanguage;
     const titleValue = Array.isArray(queryTitle) ? queryTitle[0] : queryTitle;
     const functionNameValue = Array.isArray(queryFunctionName) ? queryFunctionName[0] : queryFunctionName;
     const variablesValue = Array.isArray(queryVariables) ? queryVariables[0] : queryVariables;
-    
+
     // Parse variables from JSON string
     let parsedVariables: EditorVariable[] = [];
     try {
@@ -225,10 +225,10 @@ export default function EditorPage() {
 
   // Initialize dark mode from system preference or localStorage
   useEffect(() => {
-    const isDark = localStorage.theme === 'dark' || 
-                  (!('theme' in localStorage) && 
-                   window.matchMedia('(prefers-color-scheme: dark)').matches);
-    
+    const isDark = localStorage.theme === 'dark' ||
+      (!('theme' in localStorage) &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches);
+
     setIsDarkMode(isDark);
     document.documentElement.classList.toggle('dark', isDark);
   }, []);
@@ -281,7 +281,7 @@ export default function EditorPage() {
       const shouldCancel = confirm('You have unsaved changes. Are you sure you want to cancel?');
       if (!shouldCancel) return;
     }
-    
+
     sessionStorage.setItem('codeEditorResult', JSON.stringify({
       code: initialCode,
       saved: false,
@@ -481,30 +481,6 @@ export default function EditorPage() {
           background-color: ${isDarkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)'} !important;
           border-color: ${isDarkMode ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'};
         }
-        .monaco-editor .read-only-range::before {
-          content: '🔒';
-          position: absolute;
-          right: -2px;
-          top: -1px;
-          font-size: 10px;
-          opacity: 0.6;
-          pointer-events: none;
-          z-index: 10;
-        }
-        .monaco-editor .read-only-range::after {
-          content: 'READ-ONLY';
-          position: absolute;
-          right: 8px;
-          top: 0px;
-          font-size: 8px;
-          font-weight: bold;
-          color: ${isDarkMode ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.6)'};
-          opacity: 0.5;
-          pointer-events: none;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          z-index: 10;
-        }
         /* Add striped pattern for extra visual indication */
         .monaco-editor .read-only-range {
           background-image: repeating-linear-gradient(
@@ -521,98 +497,318 @@ export default function EditorPage() {
         isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
       )}>
         {/* Header */}
-      <header className={cn(
-        'border-b p-4 flex justify-between items-center transition-colors duration-200',
-        isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
-      )}>
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => router.back()}
-            className={cn(
-              'flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
-              isDarkMode 
-                ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
-                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-            )}
-          >
-            <FiArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </button>
-          <div>
-            <h1 className={cn(
-              'text-xl font-bold flex items-center gap-2',
-              isDarkMode ? 'text-white' : 'text-black'
-            )}>
-              <span>{language === 'javascript' ? '🟨' : '🗃️'}</span>
-              {title}
-            </h1>
-            <p className={cn(
-              'text-sm',
-              isDarkMode ? 'text-gray-400' : 'text-gray-500'
-            )}>
-              {language === 'javascript' ? 'JavaScript' : 'SQL'} Editor
-              {hasChanges && <span className="ml-2 text-orange-500">• Unsaved changes</span>}
-            </p>
-            {language === 'javascript' && functionName && (
-              <p className={cn(
-                'text-xs mt-1 font-mono',
-                isDarkMode ? 'text-gray-500' : 'text-gray-600'
+        <header className={cn(
+          'border-b p-4 flex justify-between items-center transition-colors duration-200',
+          isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+        )}>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => router.back()}
+              className={cn(
+                'flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
+                isDarkMode
+                  ? 'text-gray-300 hover:text-white hover:bg-gray-700'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+              )}
+            >
+              <FiArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </button>
+            <div>
+              <h1 className={cn(
+                'text-xl font-bold flex items-center gap-2',
+                isDarkMode ? 'text-white' : 'text-black'
               )}>
-                {`function ${functionName}(${variables.map(v => v.name).join(', ')}) { ... }`}
+                <span>{language === 'javascript' ? '🟨' : '🗃️'}</span>
+                {title}
+              </h1>
+              <p className={cn(
+                'text-sm',
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              )}>
+                {language === 'javascript' ? 'JavaScript' : 'SQL'} Editor
+                {hasChanges && <span className="ml-2 text-orange-500">• Unsaved changes</span>}
               </p>
+              {language === 'javascript' && functionName && (
+                <p className={cn(
+                  'text-xs mt-1 font-mono',
+                  isDarkMode ? 'text-gray-500' : 'text-gray-600'
+                )}>
+                  {`function ${functionName}(${variables.map(v => v.name).join(', ')}) { ... }`}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            {language === 'sql' && (
+              <span className={cn(
+                'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                connectionStatus === 'connected'
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+              )}>
+                {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+              </span>
             )}
+
+            <button
+              onClick={handleCancel}
+              className={cn(
+                'px-4 py-2 text-sm font-medium rounded-md border transition-colors',
+                isDarkMode
+                  ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+              )}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className={cn(
+                'px-4 py-2 text-sm font-medium rounded-md text-white transition-colors',
+                hasChanges
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-gray-400 cursor-not-allowed'
+              )}
+              disabled={!hasChanges}
+            >
+              Done
+            </button>
+          </div>
+        </header>
+
+
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          {/* Editor Section */}
+          <div className="flex-1 flex flex-col border-r border-gray-200 bg-white">
+            <div className="flex items-center justify-between p-2 border-b border-gray-200">
+              <div className="flex items-center space-x-2">
+                <div className={cn(
+                  'px-3 py-1 rounded-md text-sm font-medium',
+                  'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                )}>
+                  {language === 'javascript' ? (
+                    <>
+                      <FiCode className="inline mr-1" /> JavaScript
+                    </>
+                  ) : (
+                    <>
+                      <FiDatabase className="inline mr-1" /> SQL
+                    </>
+                  )}
+                </div>
+                {language === 'sql' && connectionStatus !== 'connected' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowConnectionForm(true)}
+                    disabled={isLoading}
+                  >
+                    Connect to Database
+                  </Button>
+                )}
+              </div>
+              <Button
+                onClick={handleRunCode}
+                disabled={isLoading || (language === 'sql' && connectionStatus !== 'connected')}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                title={language === 'sql' && connectionStatus !== 'connected' ? 'Connect to a database first' : 'Run code'}
+              >
+                <FiPlay className="mr-2" />
+                {isLoading ? 'Running...' : 'Run'}
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-auto relative">
+              <div className="absolute right-4 top-4 z-10">
+                <button
+                  onClick={() => {
+                    let nextCode: string;
+                    if (language === 'javascript') {
+                      const wrapped = buildWrappedCode(functionName || '', variables, '');
+                      nextCode = wrapped;
+                    } else {
+                      nextCode = SQL_DEFAULT;
+                    }
+                    setCode(nextCode);
+                    setInitialCode(nextCode);
+                    if (language === 'javascript' && functionName) {
+                      setReadOnlyRanges(computeReadOnlyRanges(nextCode, functionName, variables));
+                    } else {
+                      setReadOnlyRanges([]);
+                    }
+                  }}
+                  className={cn(
+                    'flex items-center text-xs px-3 py-1.5 rounded-md transition-all',
+                    'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
+                    'backdrop-blur-sm',
+                    isDarkMode
+                      ? 'text-gray-200 bg-gray-800/80 hover:bg-gray-700/90 border border-gray-700'
+                      : 'text-gray-700 bg-white/80 hover:bg-gray-100/90 border border-gray-200',
+                    'shadow-sm'
+                  )}
+                  title="Reset code to default"
+                >
+                  <FiRefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  Reset
+                </button>
+              </div>
+              <CodeEditor
+                language={language}
+                value={code}
+                onChange={handleCodeChange}
+                theme={isDarkMode ? 'vs-dark' : 'light'}
+                readOnlyRanges={language === 'javascript' ? readOnlyRanges : []}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  readOnly: false,
+                  scrollBeyondLastLine: false,
+                  padding: { top: 16, bottom: 16 },
+                  ...(isDarkMode ? {
+                    'editor.background': '#111827',
+                    'editor.foreground': '#f9fafb',
+                    'editor.lineHighlightBackground': '#1f2937',
+                    'editorLineNumber.foreground': '#4b5563',
+                    'editorLineNumber.activeForeground': '#9ca3af',
+                    'editor.selectionBackground': '#3b82f633',
+                    'editor.inactiveSelectionBackground': '#3b82f61a',
+                    'editorIndentGuide.background': '#1f2937',
+                    'editorIndentGuide.activeBackground': '#374151',
+                    'editorCursor.foreground': '#60a5fa'
+                  } : {
+                    'editor.background': '#ffffff',
+                    'editor.foreground': '#111827',
+                    'editor.lineHighlightBackground': '#f9fafb',
+                    'editorLineNumber.foreground': '#9ca3af',
+                    'editorLineNumber.activeForeground': '#6b7280',
+                    'editor.selectionBackground': '#3b82f61a',
+                    'editor.inactiveSelectionBackground': '#e5e7eb',
+                    'editorIndentGuide.background': '#f3f4f6',
+                    'editorIndentGuide.activeBackground': '#d1d5db',
+                    'editorCursor.foreground': '#3b82f6'
+                  })
+                }}
+              />
+              {language === 'sql' && connectionStatus !== 'connected' && (
+                <div className="absolute inset-0 bg-white bg-opacity-90 flex flex-col items-center justify-center p-4 text-center">
+                  <FiLink className="h-12 w-12 text-gray-400 mb-2" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-1">Connect to a database</h3>
+                  <p className="text-gray-500 mb-4">You need to connect to a PostgreSQL database to run SQL queries</p>
+                  <Button
+                    onClick={() => setShowConnectionForm(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Connect to Database
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Output Section */}
+          <div className={cn(
+            'w-full md:w-1/2 flex flex-col',
+            isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'
+          )}>
+            <div className={cn(
+              'p-3 border-b flex justify-between items-center',
+              isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+            )}>
+              <div className="flex items-center space-x-2">
+                <FiTerminal className={cn(
+                  'h-4 w-4',
+                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                )} />
+                <h2 className={cn(
+                  'text-sm font-medium',
+                  isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                )}>
+                  Output
+                </h2>
+              </div>
+              <div className="flex items-center space-x-3">
+                {connectionStatus === 'connected' && (
+                  <div className={cn(
+                    'flex items-center text-xs px-2 py-1 rounded-full',
+                    isDarkMode ? 'bg-gray-700 text-green-400' : 'bg-green-50 text-green-700'
+                  )}>
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>
+                    Connected to {connectionConfig.host}/{connectionConfig.database}
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    let nextCode: string;
+                    if (language === 'javascript') {
+                      const wrapped = buildWrappedCode(functionName || '', variables, '');
+                      nextCode = wrapped;
+                    } else {
+                      nextCode = SQL_DEFAULT;
+                    }
+                    setCode(nextCode);
+                    setInitialCode(nextCode);
+                    if (language === 'javascript' && functionName) {
+                      setReadOnlyRanges(computeReadOnlyRanges(nextCode, functionName, variables));
+                    } else {
+                      setReadOnlyRanges([]);
+                    }
+                  }}
+                  className={cn(
+                    'flex items-center text-xs px-3 py-1.5 rounded-md transition-colors',
+                    'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
+                    isDarkMode
+                      ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  )}
+                  title="Reset code to default"
+                >
+                  <FiRefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  Reset
+                </button>
+              </div>
+            </div>
+            <div className={cn(
+              'flex-1 overflow-auto p-4 font-mono text-sm whitespace-pre',
+              isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-800',
+              'transition-colors duration-200'
+            )}>
+              {output || (language === 'sql' && connectionStatus !== 'connected' ? (
+                <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>
+                  Connect to a database to run SQL queries
+                </span>
+              ) : (
+                <span className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}>
+                  Run code to see output here...
+                </span>
+              ))}
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className="flex items-center space-x-3">
-          {language === 'sql' && (
-            <span className={cn(
-              'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-              connectionStatus === 'connected' 
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-            )}>
-              {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-            </span>
-          )}
-          
-          <button
-            onClick={handleCancel}
-            className={cn(
-              'px-4 py-2 text-sm font-medium rounded-md border transition-colors',
-              isDarkMode 
-                ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
-                : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-            )}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className={cn(
-              'px-4 py-2 text-sm font-medium rounded-md text-white transition-colors',
-              hasChanges
-                ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-gray-400 cursor-not-allowed'
-            )}
-            disabled={!hasChanges}
-          >
-            Done
-          </button>
-        </div>
-      </header>
-
-      {/* Connection Form Modal */}
+      {/* Connection Form Modal - Positioned at root level for highest z-index */}
       {showConnectionForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 pointer-events-auto"
+          style={{ zIndex: 2147483647 }} // effectively "highest" z-index
+        >
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md relative">
             <div className="p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Connect to Database</h2>
+              <h2 className="text-lg font-medium text-gray-900 mb-4">
+                Connect to Database
+              </h2>
 
               <form onSubmit={handleConnect}>
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="host" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="host"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Host
                     </label>
                     <div className="relative rounded-md shadow-sm">
@@ -625,7 +821,12 @@ export default function EditorPage() {
                         className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
                         placeholder="localhost"
                         value={connectionConfig.host}
-                        onChange={(e) => setConnectionConfig({ ...connectionConfig, host: e.target.value })}
+                        onChange={(e) =>
+                          setConnectionConfig({
+                            ...connectionConfig,
+                            host: e.target.value,
+                          })
+                        }
                         required
                       />
                     </div>
@@ -633,7 +834,10 @@ export default function EditorPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="port" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label
+                        htmlFor="port"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
                         Port
                       </label>
                       <input
@@ -642,12 +846,20 @@ export default function EditorPage() {
                         className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
                         placeholder="5432"
                         value={connectionConfig.port}
-                        onChange={(e) => setConnectionConfig({ ...connectionConfig, port: parseInt(e.target.value) || 5432 })}
+                        onChange={(e) =>
+                          setConnectionConfig({
+                            ...connectionConfig,
+                            port: parseInt(e.target.value) || 5432,
+                          })
+                        }
                         required
                       />
                     </div>
                     <div>
-                      <label htmlFor="database" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label
+                        htmlFor="database"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
                         Database
                       </label>
                       <div className="relative rounded-md shadow-sm">
@@ -660,7 +872,12 @@ export default function EditorPage() {
                           className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
                           placeholder="postgres"
                           value={connectionConfig.database}
-                          onChange={(e) => setConnectionConfig({ ...connectionConfig, database: e.target.value })}
+                          onChange={(e) =>
+                            setConnectionConfig({
+                              ...connectionConfig,
+                              database: e.target.value,
+                            })
+                          }
                           required
                         />
                       </div>
@@ -668,7 +885,10 @@ export default function EditorPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="username"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Username
                     </label>
                     <div className="relative rounded-md shadow-sm">
@@ -681,14 +901,22 @@ export default function EditorPage() {
                         className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
                         placeholder="postgres"
                         value={connectionConfig.user}
-                        onChange={(e) => setConnectionConfig({ ...connectionConfig, user: e.target.value })}
+                        onChange={(e) =>
+                          setConnectionConfig({
+                            ...connectionConfig,
+                            user: e.target.value,
+                          })
+                        }
                         required
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="password"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Password
                     </label>
                     <div className="relative rounded-md shadow-sm">
@@ -701,7 +929,12 @@ export default function EditorPage() {
                         className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
                         placeholder="********"
                         value={connectionConfig.password}
-                        onChange={(e) => setConnectionConfig({ ...connectionConfig, password: e.target.value })}
+                        onChange={(e) =>
+                          setConnectionConfig({
+                            ...connectionConfig,
+                            password: e.target.value,
+                          })
+                        }
                       />
                     </div>
                   </div>
@@ -712,17 +945,23 @@ export default function EditorPage() {
                       type="checkbox"
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       checked={connectionConfig.ssl || false}
-                      onChange={(e) => setConnectionConfig({ ...connectionConfig, ssl: e.target.checked })}
+                      onChange={(e) =>
+                        setConnectionConfig({
+                          ...connectionConfig,
+                          ssl: e.target.checked,
+                        })
+                      }
                     />
-                    <label htmlFor="ssl" className="ml-2 block text-sm text-gray-700">
+                    <label
+                      htmlFor="ssl"
+                      className="ml-2 block text-sm text-gray-700"
+                    >
                       Use SSL
                     </label>
                   </div>
 
                   {connectionError && (
-                    <div className="text-red-600 text-sm">
-                      {connectionError}
-                    </div>
+                    <div className="text-red-600 text-sm">{connectionError}</div>
                   )}
                 </div>
 
@@ -747,217 +986,6 @@ export default function EditorPage() {
           </div>
         </div>
       )}
-
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Editor Section */}
-        <div className="flex-1 flex flex-col border-r border-gray-200 bg-white">
-          <div className="flex items-center justify-between p-2 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <div className={cn(
-                'px-3 py-1 rounded-md text-sm font-medium',
-                'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-              )}>
-                {language === 'javascript' ? (
-                  <>
-                    <FiCode className="inline mr-1" /> JavaScript
-                  </>
-                ) : (
-                  <>
-                    <FiDatabase className="inline mr-1" /> SQL
-                  </>
-                )}
-              </div>
-              {language === 'sql' && connectionStatus !== 'connected' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowConnectionForm(true)}
-                  disabled={isLoading}
-                >
-                  Connect to Database
-                </Button>
-              )}
-            </div>
-            <Button
-              onClick={handleRunCode}
-              disabled={isLoading || (language === 'sql' && connectionStatus !== 'connected')}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              title={language === 'sql' && connectionStatus !== 'connected' ? 'Connect to a database first' : 'Run code'}
-            >
-              <FiPlay className="mr-2" />
-              {isLoading ? 'Running...' : 'Run'}
-            </Button>
-          </div>
-
-          <div className="flex-1 overflow-auto relative">
-            <div className="absolute right-4 top-4 z-10">
-              <button
-                onClick={() => {
-                  let nextCode: string;
-                  if (language === 'javascript') {
-                    const wrapped = buildWrappedCode(functionName || '', variables, '');
-                    nextCode = wrapped;
-                  } else {
-                    nextCode = SQL_DEFAULT;
-                  }
-                  setCode(nextCode);
-                  setInitialCode(nextCode);
-                  if (language === 'javascript' && functionName) {
-                    setReadOnlyRanges(computeReadOnlyRanges(nextCode, functionName, variables));
-                  } else {
-                    setReadOnlyRanges([]);
-                  }
-                }}
-                className={cn(
-                  'flex items-center text-xs px-3 py-1.5 rounded-md transition-all',
-                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
-                  'backdrop-blur-sm',
-                  isDarkMode 
-                    ? 'text-gray-200 bg-gray-800/80 hover:bg-gray-700/90 border border-gray-700' 
-                    : 'text-gray-700 bg-white/80 hover:bg-gray-100/90 border border-gray-200',
-                  'shadow-sm'
-                )}
-                title="Reset code to default"
-              >
-                <FiRefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                Reset
-              </button>
-            </div>
-            <CodeEditor
-              language={language}
-              value={code}
-              onChange={handleCodeChange}
-              theme={isDarkMode ? 'vs-dark' : 'light'}
-              readOnlyRanges={language === 'javascript' ? readOnlyRanges : []}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 14,
-                wordWrap: 'on',
-                automaticLayout: true,
-                readOnly: false,
-                scrollBeyondLastLine: false,
-                padding: { top: 16, bottom: 16 },
-                ...(isDarkMode ? {
-                  'editor.background': '#111827',
-                  'editor.foreground': '#f9fafb',
-                  'editor.lineHighlightBackground': '#1f2937',
-                  'editorLineNumber.foreground': '#4b5563',
-                  'editorLineNumber.activeForeground': '#9ca3af',
-                  'editor.selectionBackground': '#3b82f633',
-                  'editor.inactiveSelectionBackground': '#3b82f61a',
-                  'editorIndentGuide.background': '#1f2937',
-                  'editorIndentGuide.activeBackground': '#374151',
-                  'editorCursor.foreground': '#60a5fa'
-                } : {
-                  'editor.background': '#ffffff',
-                  'editor.foreground': '#111827',
-                  'editor.lineHighlightBackground': '#f9fafb',
-                  'editorLineNumber.foreground': '#9ca3af',
-                  'editorLineNumber.activeForeground': '#6b7280',
-                  'editor.selectionBackground': '#3b82f61a',
-                  'editor.inactiveSelectionBackground': '#e5e7eb',
-                  'editorIndentGuide.background': '#f3f4f6',
-                  'editorIndentGuide.activeBackground': '#d1d5db',
-                  'editorCursor.foreground': '#3b82f6'
-                })
-              }}
-            />
-            {language === 'sql' && connectionStatus !== 'connected' && (
-              <div className="absolute inset-0 bg-white bg-opacity-90 flex flex-col items-center justify-center p-4 text-center">
-                <FiLink className="h-12 w-12 text-gray-400 mb-2" />
-                <h3 className="text-lg font-medium text-gray-900 mb-1">Connect to a database</h3>
-                <p className="text-gray-500 mb-4">You need to connect to a PostgreSQL database to run SQL queries</p>
-                <Button
-                  onClick={() => setShowConnectionForm(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  Connect to Database
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Output Section */}
-        <div className={cn(
-          'w-full md:w-1/2 flex flex-col',
-          isDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-200'
-        )}>
-          <div className={cn(
-            'p-3 border-b flex justify-between items-center',
-            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-          )}>
-            <div className="flex items-center space-x-2">
-              <FiTerminal className={cn(
-                'h-4 w-4',
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
-              )} />
-              <h2 className={cn(
-                'text-sm font-medium',
-                isDarkMode ? 'text-gray-200' : 'text-gray-700'
-              )}>
-                Output
-              </h2>
-            </div>
-            <div className="flex items-center space-x-3">
-              {connectionStatus === 'connected' && (
-                <div className={cn(
-                  'flex items-center text-xs px-2 py-1 rounded-full',
-                  isDarkMode ? 'bg-gray-700 text-green-400' : 'bg-green-50 text-green-700'
-                )}>
-                  <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>
-                  Connected to {connectionConfig.host}/{connectionConfig.database}
-                </div>
-              )}
-              <button
-                onClick={() => {
-                  let nextCode: string;
-                  if (language === 'javascript') {
-                    const wrapped = buildWrappedCode(functionName || '', variables, '');
-                    nextCode = wrapped;
-                  } else {
-                    nextCode = SQL_DEFAULT;
-                  }
-                  setCode(nextCode);
-                  setInitialCode(nextCode);
-                  if (language === 'javascript' && functionName) {
-                    setReadOnlyRanges(computeReadOnlyRanges(nextCode, functionName, variables));
-                  } else {
-                    setReadOnlyRanges([]);
-                  }
-                }}
-                className={cn(
-                  'flex items-center text-xs px-3 py-1.5 rounded-md transition-colors',
-                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
-                  isDarkMode 
-                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white' 
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                )}
-                title="Reset code to default"
-              >
-                <FiRefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                Reset
-              </button>
-            </div>
-          </div>
-          <div className={cn(
-            'flex-1 overflow-auto p-4 font-mono text-sm whitespace-pre',
-            isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-800',
-            'transition-colors duration-200'
-          )}>
-            {output || (language === 'sql' && connectionStatus !== 'connected' ? (
-              <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>
-                Connect to a database to run SQL queries
-              </span>
-            ) : (
-              <span className={isDarkMode ? 'text-gray-500' : 'text-gray-400'}>
-                Run code to see output here...
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
     </>
   );
 }
