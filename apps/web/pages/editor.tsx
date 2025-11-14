@@ -491,6 +491,12 @@ export default function EditorPage() {
             ${isDarkMode ? 'rgba(239, 68, 68, 0.05)' : 'rgba(239, 68, 68, 0.03)'} 4px
           );
         }
+        
+        /* Ensure Monaco tooltips appear above the editor panel elements */
+        .monaco-hover,
+        .monaco-hover-content {
+          z-index: 1000 !important;
+        }
       `}</style>
       <div className={cn(
         'min-h-screen flex flex-col',
@@ -581,8 +587,8 @@ export default function EditorPage() {
 
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Editor Section */}
-          <div className="flex-1 flex flex-col border-r border-gray-200 bg-white">
-            <div className="flex items-center justify-between p-2 border-b border-gray-200">
+          <div className="flex-1 flex flex-col border-r border-gray-200 bg-white relative" style={{ zIndex: 0 }}>
+            <div className="flex items-center justify-between p-2 border-b border-gray-200 relative z-0">
               <div className="flex items-center space-x-2">
                 <div className={cn(
                   'px-3 py-1 rounded-md text-sm font-medium',
@@ -620,8 +626,8 @@ export default function EditorPage() {
               </Button>
             </div>
 
-            <div className="flex-1 overflow-auto relative">
-              <div className="absolute right-4 top-4 z-10">
+            <div className="flex-1" style={{ zIndex: 0, overflow: 'visible', position: 'relative' }}>
+              <div className="absolute right-4 top-4 z-0">
                 <button
                   onClick={() => {
                     let nextCode: string;
@@ -668,6 +674,12 @@ export default function EditorPage() {
                   readOnly: false,
                   scrollBeyondLastLine: false,
                   padding: { top: 16, bottom: 16 },
+                  hover: {
+                    enabled: true,
+                    delay: 300,
+                    sticky: true
+                  },
+                  fixedOverflowWidgets: true,
                   ...(isDarkMode ? {
                     'editor.background': '#111827',
                     'editor.foreground': '#f9fafb',
