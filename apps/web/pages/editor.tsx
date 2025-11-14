@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import CodeEditor from '@/components/code-editor/CodeEditor';
 import { cn } from '@/lib/utils';
 
-
 type ConnectionConfig = {
   host: string;
   port: number;
@@ -22,9 +21,118 @@ type ConnectionConfig = {
 
 type Language = 'javascript' | 'sql';
 
-const JAVASCRIPT_DEFAULT = `// Welcome to your JavaScript scratchpad!\nfunction greet(name) {\n  return 'Hello, ' + name + '!';\n}\n\nconsole.log(greet('World'));`;
+type EditorVariable = {
+  name: string;
+  defaultValue: string;
+};
 
-const SQL_DEFAULT = `-- Welcome to your SQL scratchpad!\nSELECT\n    c.customer_id,\n    c.name,\n    COUNT(o.order_id) AS total_orders\nFROM\n    customers c\nJOIN\n    orders o ON c.customer_id = o.customer_id\nGROUP BY\n    c.customer_id,\n    c.name\nHAVING\n    COUNT(o.order_id) > 5\nORDER BY\n    total_orders DESC;`;
+type ReadOnlyRange = {
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+};
+
+const JAVASCRIPT_DEFAULT_BODY = `  // Write your code here
+  console.log('Hello from custom code');`;
+
+const SQL_DEFAULT = `-- Welcome to your SQL scratchpad!
+SELECT
+    c.customer_id,
+    c.name,
+    COUNT(o.order_id) AS total_orders
+FROM
+    customers c
+JOIN
+    orders o ON c.customer_id = o.customer_id
+GROUP BY
+    c.customer_id,
+    c.name
+HAVING
+    COUNT(o.order_id) > 5
+ORDER BY
+    total_orders DESC;`;
+
+/** Build the full code string with wrapper + default comments + body */
+function buildWrappedCode(
+  functionName: string,
+  variables: EditorVariable[],
+  bodyFromDomino: string
+): string {
+  if (!functionName) {
+    // No function name: just return body
+    return bodyFromDomino || JAVASCRIPT_DEFAULT_BODY;
+  }
+
+  const params = variables.map(v => v.name).join(', ');
+  const defaultsBlock =
+    variables.length > 0
+      ? variables
+          .map(v => `  // ${v.name} = ${v.defaultValue}`)
+          .join('\n') + '\n'
+      : '';
+
+  const body =
+    bodyFromDomino && bodyFromDomino.trim().length > 0
+      ? bodyFromDomino
+      : JAVASCRIPT_DEFAULT_BODY;
+
+  return `function ${functionName}(${params}) {
+${defaultsBlock}${body}
+}`;
+}
+
+/** Compute read-only ranges: function line, default-comment lines, closing brace */
+function computeReadOnlyRanges(
+  fullCode: string,
+  functionName: string,
+  variables: EditorVariable[]
+): ReadOnlyRange[] {
+  const ranges: ReadOnlyRange[] = [];
+  if (!functionName) return ranges;
+
+  const lines = fullCode.split('\n');
+  if (lines.length === 0) return ranges;
+
+  // 1) Entire first line (function signature + opening brace)
+  ranges.push({
+    startLine: 1,
+    startColumn: 1,
+    endLine: 1,
+    endColumn: lines[0].length + 1,
+  });
+
+  // 2) Default value comment lines (// var = default)
+  variables.forEach(v => {
+    const prefix = `// ${v.name} =`;
+    const idx = lines.findIndex((line, i) => {
+      if (i === 0) return false; // skip function line
+      return line.trim().startsWith(prefix);
+    });
+    if (idx >= 0) {
+      ranges.push({
+        startLine: idx + 1,
+        startColumn: 1,
+        endLine: idx + 1,
+        endColumn: lines[idx].length + 1,
+      });
+    }
+  });
+
+  // 3) Closing brace: last non-empty line
+  let last = lines.length;
+  while (last > 0 && lines[last - 1].trim() === '') last--;
+  if (last > 0) {
+    ranges.push({
+      startLine: last,
+      startColumn: 1,
+      endLine: last,
+      endColumn: lines[last - 1].length + 1,
+    });
+  }
+
+  return ranges;
+}
 
 export default function EditorPage() {
   const router = useRouter();
@@ -50,62 +158,63 @@ export default function EditorPage() {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [connectionError, setConnectionError] = useState<string>('');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+
   const [functionName, setFunctionName] = useState<string>('');
-  const [variables, setVariables] = useState<Array<{name: string, defaultValue: string}>>([]);
+  const [variables, setVariables] = useState<EditorVariable[]>([]);
+  const [readOnlyRanges, setReadOnlyRanges] = useState<ReadOnlyRange[]>([]);
 
   // Extract query parameters on mount
   useEffect(() => {
-    if (router.isReady) {
-      const { 
-        code: queryCode = '', 
-        language: queryLanguage = 'javascript', 
-        title: queryTitle = 'Code Editor',
-        functionName: queryFunctionName = '',
-        variables: queryVariables = '[]'
-      } = router.query;
-      
-      const codeValue = Array.isArray(queryCode) ? queryCode[0] : queryCode;
-      const langValue = Array.isArray(queryLanguage) ? queryLanguage[0] : queryLanguage;
-      const titleValue = Array.isArray(queryTitle) ? queryTitle[0] : queryTitle;
-      const functionNameValue = Array.isArray(queryFunctionName) ? queryFunctionName[0] : queryFunctionName;
-      const variablesValue = Array.isArray(queryVariables) ? queryVariables[0] : queryVariables;
-      
-      // Parse variables from JSON string
-      let parsedVariables: Array<{name: string, defaultValue: string}> = [];
-      try {
-        parsedVariables = JSON.parse(variablesValue || '[]');
-      } catch (error) {
-        console.error('Error parsing variables from URL:', error);
-        parsedVariables = [];
+    if (!router.isReady) return;
+
+    const { 
+      code: queryCode = '',           // body from domino
+      language: queryLanguage = 'javascript', 
+      title: queryTitle = 'Code Editor',
+      functionName: queryFunctionName = '',
+      variables: queryVariables = '[]'
+    } = router.query;
+    
+    const codeValue = Array.isArray(queryCode) ? queryCode[0] : queryCode;
+    const langValue = Array.isArray(queryLanguage) ? queryLanguage[0] : queryLanguage;
+    const titleValue = Array.isArray(queryTitle) ? queryTitle[0] : queryTitle;
+    const functionNameValue = Array.isArray(queryFunctionName) ? queryFunctionName[0] : queryFunctionName;
+    const variablesValue = Array.isArray(queryVariables) ? queryVariables[0] : queryVariables;
+    
+    // Parse variables from JSON string
+    let parsedVariables: EditorVariable[] = [];
+    try {
+      const raw = JSON.parse(variablesValue || '[]');
+      if (Array.isArray(raw)) {
+        parsedVariables = raw.map((v: any) => ({
+          name: String(v.name ?? ''),
+          defaultValue: v.defaultValue !== undefined ? String(v.defaultValue) : 'undefined',
+        }));
       }
-      
-      // Generate complete function code if we have function name
-      let fullCode = codeValue;
-      if (functionNameValue) {
-        if (parsedVariables.length > 0) {
-          const params = parsedVariables.map(v => v.name).join(', ');
-          const defaultValues = parsedVariables.map(v => 
-            `  // ${v.name} = ${v.defaultValue}`
-          ).join('\n');
-          
-          const functionBody = codeValue || '  // Write your code here';
-          fullCode = `function ${functionNameValue}(${params}) {
-${defaultValues ? defaultValues + '\n' : ''}${functionBody}
-}`;
-        } else {
-          const functionBody = codeValue || '  // Write your code here';
-          fullCode = `function ${functionNameValue}() {
-${functionBody}
-}`;
-        }
-      }
-      
-      setCode(fullCode || (langValue === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT));
-      setInitialCode(fullCode || (langValue === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT));
-      setLanguage(langValue as 'javascript' | 'sql');
-      setTitle(titleValue);
-      setFunctionName(functionNameValue);
-      setVariables(parsedVariables);
+    } catch (error) {
+      console.error('Error parsing variables from URL:', error);
+      parsedVariables = [];
+    }
+
+    // Build full code with wrapper (for JS), or use raw code for SQL
+    let fullCode: string;
+    if (langValue === 'javascript') {
+      fullCode = buildWrappedCode(functionNameValue || '', parsedVariables, codeValue || '');
+    } else {
+      fullCode = codeValue || SQL_DEFAULT;
+    }
+
+    setCode(fullCode);
+    setInitialCode(fullCode);
+    setLanguage(langValue as Language);
+    setTitle(titleValue);
+    setFunctionName(functionNameValue || '');
+    setVariables(parsedVariables);
+
+    if (langValue === 'javascript' && functionNameValue) {
+      setReadOnlyRanges(computeReadOnlyRanges(fullCode, functionNameValue, parsedVariables));
+    } else {
+      setReadOnlyRanges([]);
     }
   }, [router.isReady, router.query]);
 
@@ -126,22 +235,37 @@ ${functionBody}
 
   // Save/Cancel handlers
   const handleSave = () => {
-    // Extract just the function body if we have a function structure
     let codeToSave = code;
-    if (functionName && code.includes(`function ${functionName}`)) {
-      // Try to extract the function body
-      const functionRegex = new RegExp(`function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\}\\s*$`);
+
+    // For JS, strip the wrapper and default-comment lines and only save the body
+    if (language === 'javascript' && functionName && code.includes(`function ${functionName}`)) {
+      const functionRegex = new RegExp(
+        `function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\}\\s*$`
+      );
       const match = code.match(functionRegex);
-      if (match && match[1]) {
-        // Remove leading/trailing whitespace and comments about default values
-        codeToSave = match[1]
-          .split('\n')
-          .filter(line => !line.trim().startsWith('//') || !line.includes(' = '))
-          .join('\n')
-          .trim();
+      if (match && match[1] !== undefined) {
+        let body = match[1];
+
+        // Remove auto-generated default comments: // varName = default
+        const lines = body.split('\n');
+        const filtered = lines.filter(line => {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('//')) return true;
+          // If it looks like one of our default comments, drop it
+          const isDefaultComment = variables.some(v =>
+            trimmed === `// ${v.name} = ${v.defaultValue}` ||
+            trimmed.startsWith(`// ${v.name} =`)
+          );
+          return !isDefaultComment;
+        });
+
+        body = filtered.join('\n');
+        // Trim leading/trailing whitespace-only lines
+        body = body.replace(/^\s*\n+/, '').replace(/\n+\s*$/, '');
+        codeToSave = body;
       }
     }
-    
+
     const resultData = {
       code: codeToSave,
       saved: true,
@@ -181,7 +305,7 @@ ${functionBody}
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [code]);
+  }, [code, hasChanges, initialCode, functionName, variables, language]);
 
   const handleCodeChange = (newCode: string | undefined) => {
     setCode(newCode || '');
@@ -245,7 +369,6 @@ ${functionBody}
 
     try {
       if (language === 'javascript') {
-        // For JavaScript, we'll use a simple eval (in a real app, use a sandboxed environment)
         try {
           // Store console.log output
           let consoleOutput: string[] = [];
@@ -257,14 +380,13 @@ ${functionBody}
             originalConsoleLog(...args);
           };
 
-          // Execute the code
+          // Execute the full code (with wrapper)
           // eslint-disable-next-line no-new-func
           const result = new Function(code)();
 
           // Restore console.log
           console.log = originalConsoleLog;
 
-          // Combine the result with console output
           const resultOutput = result !== undefined ? `Result: ${JSON.stringify(result, null, 2)}\n\n` : '';
           const consoleOutputText = consoleOutput.length > 0
             ? `Console Output:\n${consoleOutput.join('\n')}`
@@ -293,17 +415,14 @@ ${functionBody}
 
           const result = await response.json();
 
-          // Format the SQL query results in a table
           if (result.data && result.data.rows) {
             if (result.data.rows.length === 0) {
               setOutput('Query executed successfully. No rows returned.');
               return;
             }
 
-            // Get column headers
             const headers = Object.keys(result.data.rows[0]);
 
-            // Calculate column widths
             const colWidths = headers.map(header => {
               const maxLength = Math.max(
                 header.length,
@@ -311,32 +430,27 @@ ${functionBody}
                   String(row[header] !== null ? row[header] : 'NULL').length
                 )
               );
-              // Limit width between 10 and 50 characters
               return Math.min(Math.max(maxLength, 10), 50);
             });
 
-            // Create header row
-            let output = headers.map((header, i) =>
+            let out = headers.map((header, i) =>
               header.padEnd(colWidths[i])
             ).join(' | ') + '\n';
 
-            // Add separator
-            output += headers.map((_, i) =>
+            out += headers.map((_, i) =>
               '-'.repeat(colWidths[i])
             ).join('-+-') + '\n';
 
-            // Add data rows
             result.data.rows.forEach((row: any) => {
-              output += headers.map((header, i) => {
+              out += headers.map((header, i) => {
                 const value = row[header] !== null ? String(row[header]) : 'NULL';
                 return value.padEnd(colWidths[i]);
               }).join(' | ') + '\n';
             });
 
-            // Add row count
-            output += `\n${result.data.rowCount} row${result.data.rowCount !== 1 ? 's' : ''} returned.`;
+            out += `\n${result.data.rowCount} row${result.data.rowCount !== 1 ? 's' : ''} returned.`;
 
-            setOutput(output);
+            setOutput(out);
           } else {
             setOutput(JSON.stringify(result.data, null, 2));
           }
@@ -351,11 +465,25 @@ ${functionBody}
 
 
   return (
-    <div className={cn(
-      'min-h-screen flex flex-col',
-      isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
-    )}>
-      {/* Header */}
+    <>
+      <style jsx global>{`
+        .monaco-editor .read-only-range {
+          background-color: ${isDarkMode ? 'rgba(156, 163, 175, 0.15)' : 'rgba(107, 114, 128, 0.15)'} !important;
+          border: 1px solid ${isDarkMode ? 'rgba(156, 163, 175, 0.25)' : 'rgba(107, 114, 128, 0.25)'};
+          border-radius: 2px;
+        }
+        .monaco-editor .read-only-glyph {
+          background-color: ${isDarkMode ? '#374151' : '#e5e7eb'} !important;
+        }
+        .monaco-editor .read-only-range:hover {
+          background-color: ${isDarkMode ? 'rgba(156, 163, 175, 0.25)' : 'rgba(107, 114, 128, 0.25)'} !important;
+        }
+      `}</style>
+      <div className={cn(
+        'min-h-screen flex flex-col',
+        isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'
+      )}>
+        {/* Header */}
       <header className={cn(
         'border-b p-4 flex justify-between items-center transition-colors duration-200',
         isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
@@ -388,6 +516,14 @@ ${functionBody}
               {language === 'javascript' ? 'JavaScript' : 'SQL'} Editor
               {hasChanges && <span className="ml-2 text-orange-500">• Unsaved changes</span>}
             </p>
+            {language === 'javascript' && functionName && (
+              <p className={cn(
+                'text-xs mt-1 font-mono',
+                isDarkMode ? 'text-gray-500' : 'text-gray-600'
+              )}>
+                {`function ${functionName}(${variables.map(v => v.name).join(', ')}) { ... }`}
+              </p>
+            )}
           </div>
         </div>
 
@@ -619,7 +755,22 @@ ${functionBody}
           <div className="flex-1 overflow-auto relative">
             <div className="absolute right-4 top-4 z-10">
               <button
-                onClick={() => setCode(language === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT)}
+                onClick={() => {
+                  let nextCode: string;
+                  if (language === 'javascript') {
+                    const wrapped = buildWrappedCode(functionName || '', variables, '');
+                    nextCode = wrapped;
+                  } else {
+                    nextCode = SQL_DEFAULT;
+                  }
+                  setCode(nextCode);
+                  setInitialCode(nextCode);
+                  if (language === 'javascript' && functionName) {
+                    setReadOnlyRanges(computeReadOnlyRanges(nextCode, functionName, variables));
+                  } else {
+                    setReadOnlyRanges([]);
+                  }
+                }}
                 className={cn(
                   'flex items-center text-xs px-3 py-1.5 rounded-md transition-all',
                   'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
@@ -640,6 +791,7 @@ ${functionBody}
               value={code}
               onChange={handleCodeChange}
               theme={isDarkMode ? 'vs-dark' : 'light'}
+              readOnlyRanges={language === 'javascript' ? readOnlyRanges : []}
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,
@@ -721,7 +873,22 @@ ${functionBody}
                 </div>
               )}
               <button
-                onClick={() => setCode(language === 'javascript' ? JAVASCRIPT_DEFAULT : SQL_DEFAULT)}
+                onClick={() => {
+                  let nextCode: string;
+                  if (language === 'javascript') {
+                    const wrapped = buildWrappedCode(functionName || '', variables, '');
+                    nextCode = wrapped;
+                  } else {
+                    nextCode = SQL_DEFAULT;
+                  }
+                  setCode(nextCode);
+                  setInitialCode(nextCode);
+                  if (language === 'javascript' && functionName) {
+                    setReadOnlyRanges(computeReadOnlyRanges(nextCode, functionName, variables));
+                  } else {
+                    setReadOnlyRanges([]);
+                  }
+                }}
                 className={cn(
                   'flex items-center text-xs px-3 py-1.5 rounded-md transition-colors',
                   'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
@@ -754,5 +921,6 @@ ${functionBody}
         </div>
       </div>
     </div>
+    </>
   );
 }
