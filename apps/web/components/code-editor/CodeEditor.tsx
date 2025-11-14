@@ -238,8 +238,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         options: {
           className: 'read-only-range',
           glyphMarginClassName: 'read-only-glyph',
-          hoverMessage: { value: 'This text is read-only' },
+          hoverMessage: { 
+            value: '🔒 **READ-ONLY AREA**\n\nThis function signature cannot be modified.\nYou can only edit the function body inside the curly braces.' 
+          },
           isWholeLine: false,
+          overviewRuler: {
+            color: 'rgba(239, 68, 68, 0.5)',
+            position: 1
+          }
         },
       }))
     );

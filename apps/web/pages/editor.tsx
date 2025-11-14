@@ -468,15 +468,52 @@ export default function EditorPage() {
     <>
       <style jsx global>{`
         .monaco-editor .read-only-range {
-          background-color: ${isDarkMode ? 'rgba(156, 163, 175, 0.15)' : 'rgba(107, 114, 128, 0.15)'} !important;
-          border: 1px solid ${isDarkMode ? 'rgba(156, 163, 175, 0.25)' : 'rgba(107, 114, 128, 0.25)'};
-          border-radius: 2px;
+          background-color: ${isDarkMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)'} !important;
+          border: 1px solid ${isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'};
+          border-radius: 3px;
+          position: relative;
         }
         .monaco-editor .read-only-glyph {
-          background-color: ${isDarkMode ? '#374151' : '#e5e7eb'} !important;
+          background-color: ${isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)'} !important;
+          width: 4px !important;
         }
         .monaco-editor .read-only-range:hover {
-          background-color: ${isDarkMode ? 'rgba(156, 163, 175, 0.25)' : 'rgba(107, 114, 128, 0.25)'} !important;
+          background-color: ${isDarkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)'} !important;
+          border-color: ${isDarkMode ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'};
+        }
+        .monaco-editor .read-only-range::before {
+          content: '🔒';
+          position: absolute;
+          right: -2px;
+          top: -1px;
+          font-size: 10px;
+          opacity: 0.6;
+          pointer-events: none;
+          z-index: 10;
+        }
+        .monaco-editor .read-only-range::after {
+          content: 'READ-ONLY';
+          position: absolute;
+          right: 8px;
+          top: 0px;
+          font-size: 8px;
+          font-weight: bold;
+          color: ${isDarkMode ? 'rgba(239, 68, 68, 0.7)' : 'rgba(239, 68, 68, 0.6)'};
+          opacity: 0.5;
+          pointer-events: none;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          z-index: 10;
+        }
+        /* Add striped pattern for extra visual indication */
+        .monaco-editor .read-only-range {
+          background-image: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 2px,
+            ${isDarkMode ? 'rgba(239, 68, 68, 0.05)' : 'rgba(239, 68, 68, 0.03)'} 2px,
+            ${isDarkMode ? 'rgba(239, 68, 68, 0.05)' : 'rgba(239, 68, 68, 0.03)'} 4px
+          );
         }
       `}</style>
       <div className={cn(
