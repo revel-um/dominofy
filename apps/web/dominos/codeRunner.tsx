@@ -28,7 +28,6 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
   const hasError = erroredNodes.includes(id);
   const router = useRouter();
 
-
   // Local state to manage the code snippet
   const [code, setCode] = useState<string>(
     (data.details?.fields.find((f: any) => f.heading === 'Code')?.value as string) || ''
@@ -57,46 +56,49 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
         }
       }
     }
-    const vars = Array.from(varsMap.values()).sort((a,b)=>a.id-b.id);
+    const vars = Array.from(varsMap.values()).sort((a, b) => a.id - b.id);
     // Return empty array by default instead of creating a default variable
     return vars.map((v, i) => ({ ...v, id: i + 1 }));
   });
 
-
   /* ───────── Add/Remove/Change variable rows */
   const addVariable = () => {
     clearValidationForDominoId?.(id);
-    setVariables(prev => {
-      const nextId = Math.max(0, ...prev.map(v => v.id)) + 1;
+    setVariables((prev) => {
+      const nextId = Math.max(0, ...prev.map((v) => v.id)) + 1;
       return [...prev, { id: nextId, name: '', value: '' }];
     });
   };
 
   const removeVariable = (varId: number) => {
     clearValidationForDominoId?.(id);
-    setVariables(prev => {
-      const remaining = prev.filter(v => v.id !== varId);
+    setVariables((prev) => {
+      const remaining = prev.filter((v) => v.id !== varId);
       let counter = 1;
-      return remaining.map(v => ({ ...v, id: counter++ }));
+      return remaining.map((v) => ({ ...v, id: counter++ }));
     });
   };
 
   const handleVariableChange = (varId: number, field: 'name' | 'value', newValue: string) => {
     clearValidationForDominoId?.(id);
-    setVariables(prev => prev.map(v =>
-      v.id === varId ? { ...v, [field]: newValue } : v
-    ));
+    setVariables((prev) =>
+      prev.map((v) => (v.id === varId ? { ...v, [field]: newValue } : v))
+    );
   };
 
   /* ───────── Auto-clear local values when a corresponding value_in pin is connected */
   useEffect(() => {
     let updated = false;
-    const next = variables.map(row => {
+    const next = variables.map((row) => {
       const namePin = `value_in_var_name_${row.id}`;
       const valuePin = `value_in_var_value_${row.id}`;
 
-      const nameConnected = edges.some(e => e.target === id && e.targetHandle === namePin);
-      const valueConnected = edges.some(e => e.target === id && e.targetHandle === valuePin);
+      const nameConnected = edges.some(
+        (e) => e.target === id && e.targetHandle === namePin
+      );
+      const valueConnected = edges.some(
+        (e) => e.target === id && e.targetHandle === valuePin
+      );
 
       let newRow = row;
       if (nameConnected && row.name !== '') {
@@ -127,8 +129,8 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
           type: 'text',
           heading: 'FunctionName',
           value: functionName,
-          required: false,
-          placeholder: "Enter function name (optional)",
+          required: true,
+          placeholder: 'Enter function name (required)',
           shouldRender: true,
         };
 
@@ -137,16 +139,20 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
           heading: 'Code',
           value: code,
           required: true,
-          placeholder: "Enter your custom code here...",
+          placeholder: 'Enter your custom code here...',
           shouldRender: true,
         };
 
         const fields: DominoField[] = [functionNameField, codeField];
 
         // Add variable fields (keep inPinId stable if it already exists)
-        variables.forEach(variable => {
-          const oldName = existing.find(f => f.heading === `Variable_${variable.id}_name`);
-          const oldValue = existing.find(f => f.heading === `Variable_${variable.id}_value`);
+        variables.forEach((variable) => {
+          const oldName = existing.find(
+            (f) => f.heading === `Variable_${variable.id}_name`
+          );
+          const oldValue = existing.find(
+            (f) => f.heading === `Variable_${variable.id}_value`
+          );
           fields.push(
             {
               type: 'text',
@@ -182,7 +188,14 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
           data: {
             ...n.data,
             details,
-            exportFields: ['FunctionName', 'Code', ...variables.flatMap(v => [`Variable_${v.id}_name`, `Variable_${v.id}_value`])],
+            exportFields: [
+              'FunctionName',
+              'Code',
+              ...variables.flatMap((v) => [
+                `Variable_${v.id}_name`,
+                `Variable_${v.id}_value`,
+              ]),
+            ],
           },
         };
       })
@@ -269,7 +282,7 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
     // Validation: Check if function name is provided
     if (!functionName.trim()) {
       toast.error('Please enter a function name before opening the code editor', {
-        position: "top-right",
+        position: 'top-right',
         autoClose: 3000,
         hideProgressBar: true,
       });
@@ -277,11 +290,11 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
     }
 
     // Validation: Check if any variables exist but have empty names
-    const emptyNameVariables = variables.filter(v => v.name.trim() === '');
-    
+    const emptyNameVariables = variables.filter((v) => v.name.trim() === '');
+
     if (emptyNameVariables.length > 0) {
       toast.error('Please provide names for all variables before opening the code editor', {
-        position: "top-right",
+        position: 'top-right',
         autoClose: 3000,
         hideProgressBar: true,
       });
@@ -289,22 +302,23 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
     }
 
     // Prepare variables for code editor (only include variables with names)
-    const variablesForEditor = variables.map(v => ({
-      name: v.name,
-      defaultValue: v.value || 'undefined'
-    }));
+    const variablesForEditor = variables
+      .filter((v) => v.name.trim() !== '')
+      .map((v) => ({
+        name: v.name.trim(),
+        defaultValue: v.value || 'undefined',
+      }));
 
     const queryParams = new URLSearchParams({
       code: code,
       language: 'javascript',
       title: 'Custom Code Editor',
       functionName: functionName,
-      variables: JSON.stringify(variablesForEditor)
+      variables: JSON.stringify(variablesForEditor),
     });
-    
+
     router.push(`/editor?${queryParams.toString()}`);
   };
-
 
   /* ───────── Render */
   return (
@@ -335,17 +349,15 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
           type="text"
           value={functionName}
           onChange={(e) => data.setFieldValue?.('FunctionName', e.target.value)}
-          placeholder="Function name (optional)"
+          placeholder="Function name (required)"
           className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
         />
       </div>
 
       {/* Code input area */}
       <div className="px-3 py-1 relative">
-        {/* <label className="block text-xs mb-1">Code</label> */}
         <div className="relative">
           <textarea
-            // name="Code"
             value={code}
             onChange={handleCodeChange}
             onClick={routerOpenEditor}
@@ -365,11 +377,15 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
 
       {/* Variables section (pins anchored to left node border) */}
       <div className="flex flex-col gap-2">
-        {variables.map(variable => {
+        {variables.map((variable) => {
           const namePin = `value_in_var_name_${variable.id}`;
           const valuePin = `value_in_var_value_${variable.id}`;
-          const nameConnected = edges.some(e => e.target === id && e.targetHandle === namePin);
-          const valueConnected = edges.some(e => e.target === id && e.targetHandle === valuePin);
+          const nameConnected = edges.some(
+            (e) => e.target === id && e.targetHandle === namePin
+          );
+          const valueConnected = edges.some(
+            (e) => e.target === id && e.targetHandle === valuePin
+          );
 
           return (
             <div key={variable.id} className="flex items-center gap-2 relative px-3">
@@ -377,7 +393,9 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
               <input
                 type="text"
                 value={variable.name}
-                onChange={e => handleVariableChange(variable.id, 'name', e.target.value)}
+                onChange={(e) =>
+                  handleVariableChange(variable.id, 'name', e.target.value)
+                }
                 placeholder={nameConnected ? 'Connected' : 'Variable name'}
                 readOnly={nameConnected}
                 disabled={nameConnected}
@@ -388,7 +406,9 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
               <input
                 type="text"
                 value={variable.value}
-                onChange={e => handleVariableChange(variable.id, 'value', e.target.value)}
+                onChange={(e) =>
+                  handleVariableChange(variable.id, 'value', e.target.value)
+                }
                 placeholder={valueConnected ? 'Connected' : 'Default value'}
                 readOnly={valueConnected}
                 disabled={valueConnected}
