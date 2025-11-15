@@ -25,6 +25,13 @@ import WorkflowToolbar from "@/components/workflowToolbar";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+// ⭐ TABS: import tab component
+import { WorkflowTabMeta, WorkflowTabs } from "@/components/workflowTabs";
+
+
+// Key for session storage of open tabs
+const TABS_STORAGE_KEY = "dominofy-tabs";
+
 interface Props {
   currWorkflow?: {
     id: string;
@@ -92,6 +99,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [nodes, edges]);
 
   // Auto-save workflow to cache whenever nodes or edges change
+  const isRestoring = useRef(false); // moved up a bit so we can use it
   const autoSaveWorkflow = useCallback((currentNodes = nodes, currentEdges = edges) => {
     if (workflowId && !isRestoring.current) {
       setTimeout(() => {
@@ -108,12 +116,85 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const selectedNode = nodes.find(n => n.selected);
 
   // ──────────────────────────────
-  // Parent‑managed UNDO/REDO
+  // ⭐ TABS: simple tab meta state
+  // ──────────────────────────────
+
+  const [tabs, setTabs] = useState<WorkflowTabMeta[]>(() => {
+    // initial read from sessionStorage (client only)
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = sessionStorage.getItem(TABS_STORAGE_KEY);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored) as { tabs?: WorkflowTabMeta[] };
+      return parsed.tabs ?? [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [activeTabId, setActiveTabId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = sessionStorage.getItem(TABS_STORAGE_KEY);
+      if (!stored) return null;
+      const parsed = JSON.parse(stored) as { activeTabId?: string | null };
+      return parsed.activeTabId ?? null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Ensure current `workflow` is in the tabs list and set default active tab
+  useEffect(() => {
+    if (!workflow) return;
+
+    setTabs((prev) => {
+      // First time: no tabs yet → start with current workflow
+      if (prev.length === 0) {
+        return [{ id: workflow.id, name: workflow.name }];
+      }
+
+      // Update name if tab already exists
+      const exists = prev.some((t) => t.id === workflow.id);
+      if (exists) {
+        return prev.map((t) =>
+          t.id === workflow.id ? { ...t, name: workflow.name } : t
+        );
+      }
+
+      // Otherwise, append as a new tab (e.g. opened from sidebar)
+      return [...prev, { id: workflow.id, name: workflow.name }];
+    });
+
+    // If nothing active yet, make current workflow active
+    setActiveTabId((prev) => prev ?? workflow.id);
+  }, [workflow]);
+
+  // Persist tabs + active tab whenever they change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        TABS_STORAGE_KEY,
+        JSON.stringify({ tabs, activeTabId })
+      );
+    } catch (e) {
+      console.error("Error saving tabs to storage", e);
+    }
+  }, [tabs, activeTabId]);
+
+  // tab helpers: find workflow by id from current data
+  const findWorkflowById = useCallback((id: string) => {
+    if (workflow?.id === id) return workflow;
+    const fromProject = projectWorkflows.find(w => w.id === id);
+    return fromProject || null;
+  }, [workflow, projectWorkflows]);
+
+  // ──────────────────────────────
+  // Parent-managed UNDO/REDO
   // ──────────────────────────────
   type Snapshot = { nodes: Node[]; edges: Edge[] };
   const undoStack = useRef<Snapshot[]>([]);
   const redoStack = useRef<Snapshot[]>([]);
-  const isRestoring = useRef(false);
   const pushGuard = useRef(false); // prevents double-record within same change “tick”
 
   const isDraggingRef = useRef(false);
@@ -207,151 +288,143 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [nodes, edges, clone, publishFlags]);
 
   // Wrap setters so ANY change via setNodes/setEdges records (DetailsPanel etc.)
-    const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node[]>>>(
-        (updater) => {
-            if (!isRestoring.current && !isDraggingRef.current) {
+  const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node[]>>>(
+    (updater) => {
+      if (!isRestoring.current && !isDraggingRef.current) {
                 // Check if this is a selection-only change
-                const prevNodes = nodes;
-                const newNodes = typeof updater === 'function' ? updater(prevNodes) : updater;
-                
+        const prevNodes = nodes;
+        const newNodes = typeof updater === 'function' ? updater(prevNodes) : updater;
+        
                 // Only push history if there are non-selection differences
-                const hasNonSelectionChanges = prevNodes.some((prevNode, i) => {
-                    const newNode = newNodes[i];
+        const hasNonSelectionChanges = prevNodes.some((prevNode, i) => {
+          const newNode = newNodes[i];
                     if (!newNode) return true; // node removed
                     if (prevNode.id !== newNode.id) return true; // different node
                     if (prevNode.position.x !== newNode.position.x || prevNode.position.y !== newNode.position.y) return true; // moved
                     if (JSON.stringify(prevNode.data) !== JSON.stringify(newNode.data)) return true; // data changed
-                    return false;
+          return false;
                 }) || prevNodes.length !== newNodes.length; // nodes added/removed
-                
-                if (hasNonSelectionChanges) {
-                    pushHistory();
+        
+        if (hasNonSelectionChanges) {
+          pushHistory();
                     // Auto-save after node changes
-                    setTimeout(() => autoSaveWorkflow(newNodes, edges), 100);
-                }
-            }
-            _setNodes(updater);
-        },
-        [_setNodes, pushHistory, nodes, autoSaveWorkflow, edges]
-    );
-    const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
-        (updater) => {
-            if (!isRestoring.current && !isDraggingRef.current) {
-                pushHistory();
+          setTimeout(() => autoSaveWorkflow(newNodes, edges), 100);
+        }
+      }
+      _setNodes(updater);
+    },
+    [_setNodes, pushHistory, nodes, autoSaveWorkflow, edges]
+  );
+
+  const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
+    (updater) => {
+      if (!isRestoring.current && !isDraggingRef.current) {
+        pushHistory();
                 // Auto-save after edge changes
-                const newEdges = typeof updater === 'function' ? updater(edges) : updater;
-                setTimeout(() => autoSaveWorkflow(nodes, newEdges), 100);
-            }
-            _setEdges(updater);
-        },
-        [_setEdges, pushHistory, autoSaveWorkflow, nodes, edges]
-    );
+        const newEdges = typeof updater === 'function' ? updater(edges) : updater;
+        setTimeout(() => autoSaveWorkflow(nodes, newEdges), 100);
+      }
+      _setEdges(updater);
+    },
+    [_setEdges, pushHistory, autoSaveWorkflow, nodes, edges]
+  );
 
-//   // Wrap React Flow change handlers to record changes originating from Canvas interactions
-//   const onNodesChange = useCallback(
-//     (changes: NodeChange[]) => {
-//       if (!isRestoring.current) pushHistory();
-//       _onNodesChange(changes);
-//     },
-//     [_onNodesChange, pushHistory]
-//   );
-
-    const onNodesChange = useCallback(
-        (changes: NodeChange[]) => {
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
             // filter out selection changes from history tracking
-            const hasNonSelectionChanges = changes.some(c => c.type !== 'select');
-            
+      const hasNonSelectionChanges = changes.some(c => c.type !== 'select');
+      
             // detect "only position" changes (dragging)
-            const onlyPosition = changes.length > 0 && changes.every(c => c.type === 'position');
-            const anyDraggingTrue  = onlyPosition && changes.some((c: any) => c.dragging === true);
-            const anyDraggingFalse = onlyPosition && changes.some((c: any) => c.dragging === false);
+      const onlyPosition = changes.length > 0 && changes.every(c => c.type === 'position');
+      const anyDraggingTrue  = onlyPosition && changes.some((c: any) => c.dragging === true);
+      const anyDraggingFalse = onlyPosition && changes.some((c: any) => c.dragging === false);
 
-            if (onlyPosition) {
+      if (onlyPosition) {
             // 🔹 First frame of a drag: just set dragging flag and store start positions
-            if (anyDraggingTrue) {
-                if (!isDraggingRef.current && !isRestoring.current) {
-                    isDraggingRef.current = true;
+        if (anyDraggingTrue) {
+          if (!isDraggingRef.current && !isRestoring.current) {
+            isDraggingRef.current = true;
                     // Store initial positions for each node being dragged
-                    changes.forEach((change: any) => {
-                        if (change.type === 'position' && change.dragging && change.id) {
-                            const node = nodes.find(n => n.id === change.id);
-                            if (node && node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number') {
-                                dragStartPositionsRef.current.set(change.id, {
-                                    x: node.position.x,
-                                    y: node.position.y
-                                });
-                            }
-                        }
-                    });
+            changes.forEach((change: any) => {
+              if (change.type === 'position' && change.dragging && change.id) {
+                const node = nodes.find(n => n.id === change.id);
+                if (node && node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number') {
+                  dragStartPositionsRef.current.set(change.id, {
+                    x: node.position.x,
+                    y: node.position.y
+                  });
                 }
+              }
+            });
+          }
                 _onNodesChange(changes); // apply movement, but don't push per-frame
-                return;
-            }
+          return;
+        }
 
             // 🔹 Final frame of a drag (dragging:false): only push if there was actual movement
-            if (isDraggingRef.current && anyDraggingFalse && !isRestoring.current) {
+        if (isDraggingRef.current && anyDraggingFalse && !isRestoring.current) {
                 _onNodesChange(changes); // apply final position
-                
+          
                 // Check if any node actually moved a significant distance
                 const DRAG_THRESHOLD = 5; // pixels
-                let actuallyMoved = false;
-                
-                changes.forEach((change: any) => {
-                    if (change.type === 'position' && !change.dragging && change.position) {
-                        const startPos = dragStartPositionsRef.current.get(change.id);
-                        if (startPos && change.position.x !== undefined && change.position.y !== undefined) {
-                            const distance = Math.sqrt(
-                                Math.pow(change.position.x - startPos.x, 2) + 
-                                Math.pow(change.position.y - startPos.y, 2)
-                            );
-                            if (distance > DRAG_THRESHOLD) {
-                                actuallyMoved = true;
-                            }
-                        }
-                    }
-                });
-                
-                // Only record to history if there was actual movement
-                if (actuallyMoved) {
-                    queueMicrotask(() => {
-                        // Push pre-drag snapshot first (if we haven't already)
-                        undoStack.current.push({ 
-                            nodes: clone(nodes.map(node => {
-                                const startPos = dragStartPositionsRef.current.get(node.id);
-                                return startPos ? { ...node, position: startPos } : node;
-                            })), 
-                            edges: clone(edges) 
-                        });
-                        if (undoStack.current.length > 100) undoStack.current.shift();
-                        
-                        // Push post-drag snapshot
-                        undoStack.current.push({ nodes: clone(nodes), edges: clone(edges) });
-                        if (undoStack.current.length > 100) undoStack.current.shift();
-                        
-                        redoStack.current = [];
-                        publishFlags();
-                    });
+          let actuallyMoved = false;
+          
+          changes.forEach((change: any) => {
+            if (change.type === 'position' && !change.dragging && change.position) {
+              const startPos = dragStartPositionsRef.current.get(change.id);
+              if (startPos && change.position.x !== undefined && change.position.y !== undefined) {
+                const distance = Math.sqrt(
+                  Math.pow(change.position.x - startPos.x, 2) + 
+                  Math.pow(change.position.y - startPos.y, 2)
+                );
+                if (distance > DRAG_THRESHOLD) {
+                  actuallyMoved = true;
                 }
-                
+              }
+            }
+          });
+          
+                // Only record to history if there was actual movement
+          if (actuallyMoved) {
+            queueMicrotask(() => {
+                        // Push pre-drag snapshot first (if we haven't already)
+              undoStack.current.push({ 
+                nodes: clone(nodes.map(node => {
+                  const startPos = dragStartPositionsRef.current.get(node.id);
+                  return startPos ? { ...node, position: startPos } : node;
+                })), 
+                edges: clone(edges) 
+              });
+              if (undoStack.current.length > 100) undoStack.current.shift();
+              
+                        // Push post-drag snapshot
+              undoStack.current.push({ nodes: clone(nodes), edges: clone(edges) });
+              if (undoStack.current.length > 100) undoStack.current.shift();
+              
+              redoStack.current = [];
+              publishFlags();
+            });
+          }
+          
                 // Clean up
-                dragStartPositionsRef.current.clear();
-                isDraggingRef.current = false;
-                return;
-            }
-            }
+          dragStartPositionsRef.current.clear();
+          isDraggingRef.current = false;
+          return;
+        }
+      }
 
             // Apply changes first (this handles the actual selection)
-            _onNodesChange(changes);
-            
+      _onNodesChange(changes);
+      
             // Only push to history if there are actual content changes (not just selections)
-            if (!isRestoring.current && hasNonSelectionChanges) {
-                pushHistory();
+      if (!isRestoring.current && hasNonSelectionChanges) {
+        pushHistory();
                 // Auto-save after node changes from canvas interactions
-                queueMicrotask(() => autoSaveWorkflow());
-            }
-        },
-        [nodes, edges, _onNodesChange, clone, publishFlags, pushHistory, autoSaveWorkflow]
-    );
+        queueMicrotask(() => autoSaveWorkflow());
+      }
+    },
+    [nodes, edges, _onNodesChange, clone, publishFlags, pushHistory, autoSaveWorkflow]
+  );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
@@ -442,6 +515,82 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     isRestoring.current = false;
     publishFlags();
   }, [nodes, edges, _setNodes, _setEdges, clone, publishFlags, analyzeChanges]);
+
+  // ──────────────────────────────
+  // ⭐ TABS: switching between workflows
+  // ──────────────────────────────
+  const switchToWorkflow = useCallback((id: string) => {
+    const nextWorkflow = findWorkflowById(id);
+    if (!nextWorkflow) return;
+
+    // ensure current workflow is autosaved before switching
+    autoSaveWorkflow();
+
+    // clear undo/redo so new workflow gets a fresh baseline
+    undoStack.current = [];
+    redoStack.current = [];
+    setCanUndo(false);
+    setCanRedo(false);
+
+    // show loading while new workflow hydrates
+    setLoading(true);
+    setWorkflow(nextWorkflow);
+    setWorkflowId(nextWorkflow.id);
+  }, [findWorkflowById, autoSaveWorkflow]);
+
+
+  // Open a workflow and ensure its tab is selected
+  const openWorkflowInTab = useCallback(
+    (wf: { id: string; name: string; visualJson: any }) => {
+      if (!wf) return;
+
+      // 1) Ensure this workflow has a tab
+      setTabs(prev => {
+        const exists = prev.some(t => t.id === wf.id);
+        if (exists) {
+          // keep name updated
+          return prev.map(t =>
+            t.id === wf.id ? { ...t, name: wf.name } : t
+          );
+        }
+        return [...prev, { id: wf.id, name: wf.name }];
+      });
+
+      // 2) Make its tab active
+      setActiveTabId(wf.id);
+
+      // 3) Switch canvas to that workflow
+      switchToWorkflow(wf.id);
+    },
+    [setTabs, setActiveTabId, switchToWorkflow]
+  );
+
+
+  const handleSelectTab = useCallback((id: string) => {
+    if (id === activeTabId) return;
+    setActiveTabId(id);
+    switchToWorkflow(id);
+  }, [activeTabId, switchToWorkflow]);
+
+  const handleCloseTab = useCallback((id: string) => {
+    setTabs(prev => {
+      if (prev.length === 1) return prev; // keep at least one tab
+
+      const filtered = prev.filter(t => t.id !== id);
+      if (id === activeTabId && filtered.length) {
+        const nextActive = filtered[filtered.length - 1];
+        setActiveTabId(nextActive.id);
+        switchToWorkflow(nextActive.id);
+      }
+      return filtered;
+    });
+  }, [activeTabId, switchToWorkflow]);
+
+  // Optional: Add tab (for now, do nothing / or future "blank workflow")
+  const handleAddTab = useCallback(() => {
+    // you can later create a brand-new workflow via API
+    toast.info("New tab behavior not implemented yet");
+  }, []);
 
   // ──────────────────────────────
   // Hydrate workflow and fetch project workflows
@@ -538,11 +687,29 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             onCancelInsertNote={() => setNoteToolActive(false)}
           />
 
+          {/* ⭐ TABS: workflow tabs bar */}
+          <WorkflowTabs
+            tabs={tabs}
+            activeTabId={activeTabId}
+            onSelectTab={handleSelectTab}
+            onCloseTab={handleCloseTab}
+            onAddTab={handleAddTab}
+          />
+
           <div className="flex-1 flex h-full">
             {/* Sidebar */}
             <DominosPanel 
               currentProject={project} 
               projectWorkflows={projectWorkflows}
+              onOpenWorkflowInTab={openWorkflowInTab}
+              // ⭐ OPTIONAL: later you can pass something like:
+              // onOpenWorkflowInTab={(wf) => {
+              //   setTabs(prev => prev.some(t => t.id === wf.id)
+              //     ? prev
+              //     : [...prev, { id: wf.id, name: wf.name }]
+              //   );
+              //   setWorkflow(wf);
+              // }}
             />
 
             {/* Main content */}

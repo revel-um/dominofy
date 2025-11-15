@@ -21,6 +21,7 @@ interface DominosPanelProps {
     description?: string;
   };
   projectWorkflows?: Workflow[];
+  onOpenWorkflowInTab?: (wf: any) => void;
 }
 
 interface Workflow {
@@ -82,7 +83,7 @@ function HeaderRow({
   );
 }
 
-export default function DominosPanel({ bottomOffset = 0, currentProject, projectWorkflows = [] }: DominosPanelProps) {
+export default function DominosPanel({ bottomOffset = 0, currentProject, projectWorkflows = [], onOpenWorkflowInTab }: DominosPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [searchTerm, setSearchTerm] = useState('');
   const [expanded, setExpanded] = useState<{ [category: string]: boolean }>({});
@@ -375,7 +376,15 @@ export default function DominosPanel({ bottomOffset = 0, currentProject, project
                   workflows.map((workflow) => (
                     <div
                       key={workflow.id}
-                      onClick={() => navigateToWorkflow(workflow)}
+                      // onClick={() => navigateToWorkflow(workflow)}
+                      onClick={() => {
+                      if (onOpenWorkflowInTab) {
+                        onOpenWorkflowInTab(workflow);   // 👈 open in tab + switch canvas (from [id].tsx)
+                      }
+                      navigateToWorkflow(workflow);    // 👈 fallback: old router.push behavior
+                      
+                    }}
+
                       className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-pointer hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-4 relative"
                     >
                       <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
