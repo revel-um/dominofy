@@ -44,7 +44,7 @@ export class RefreshTokenService {
       {
         isRevoked: true,
         revokedAt: new Date(),
-        replacedByToken: replacedByToken || null,
+        replacedByToken: replacedByToken || undefined,
       }
     );
   }

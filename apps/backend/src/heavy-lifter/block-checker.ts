@@ -4,6 +4,7 @@ export function isWorkflowBlocking(
   workflow: PipelineStep[],
   RANGE_THRESHOLD = 1_000_00
 ): boolean {
+  console.log(workflow);
   for (const step of workflow) {
     // ─── Iterator check ───
     if (step.type === "iterator") {

@@ -53,7 +53,7 @@ export class Runner extends EventEmitter {
         this.scheduleNode(nodeId, runId, globalInput, children, depsClone, results, unresolved);
       }
     });
-
+    
     await this.queue.onIdle();
 
     if (unresolved.size) {
