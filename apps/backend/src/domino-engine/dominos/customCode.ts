@@ -8,15 +8,14 @@ export class CustomCodeDomino implements DominoExecutable {
   type = "codeRunner" as const;
   private functionName?: string;
   private codeString?: string;
-  private variables: Record<string, any> = {};
+  private variableMap: Record<string, { name: string; defaultValue: any }> = {}; // variableId -> {name, defaultValue}
 
   constructor(node: PipelineStep) {
-    console.log("Initializing CustomCodeDomino with node:", node);
     this.id = node.id;
     this.functionName = node.data?.FunctionName?.value;
     this.codeString = node.data?.Code?.value;
     
-    // Extract variables from data
+    // Extract variables from data and map by variable ID
     Object.keys(node.data || {}).forEach(key => {
       if (key.startsWith('Variable_') && key.endsWith('_name')) {
         const variableId = key.replace('Variable_', '').replace('_name', '');
@@ -27,7 +26,10 @@ export class CustomCodeDomino implements DominoExecutable {
         const variableValue = node.data?.[valueKey]?.value;
         
         if (variableName) {
-          this.variables[variableName] = variableValue;
+          this.variableMap[variableId] = {
+            name: variableName,
+            defaultValue: variableValue
+          };
         }
       }
     });
@@ -35,22 +37,26 @@ export class CustomCodeDomino implements DominoExecutable {
 
   async execute(ctx: ExecuteContext): Promise<DominoResult> {
     const startedAt = Date.now();
+    console.log('ctx', ctx);
     
     try {
-      // Get dynamic inputs or use default values
-      const runtimeVariables = { ...this.variables };
+      const runtimeVariables: Record<string, any> = {};
       
-      // Override with dynamic inputs from context
-      Object.keys(ctx.input).forEach(key => {
-        if (key.startsWith('var_name_')) {
-          const variableId = key.replace('var_name_', '');
-          const valuePinKey = `var_value_${variableId}`;
-          const variableName = ctx.input[key];
-          const variableValue = ctx.input[valuePinKey];
-          
-          if (variableName && variableValue !== undefined) {
-            runtimeVariables[variableName] = variableValue;
-          }
+      // Process each variable by ID to determine final name and value
+      Object.keys(this.variableMap).forEach(variableId => {
+        const variable = this.variableMap[variableId];
+        const valueFieldKey = `Variable_${variableId}_value`;
+        
+        // Variable name always comes from stored field (not connected)
+        const finalVariableName = variable.name;
+        
+        // Variable value: use connected value if available, otherwise use default
+        const hasConnectedValue = ctx.input[valueFieldKey] !== undefined;
+        const finalVariableValue = hasConnectedValue ? ctx.input[valueFieldKey] : variable.defaultValue;
+        
+        // Only add to runtime variables if we have a valid name
+        if (finalVariableName) {
+          runtimeVariables[finalVariableName] = finalVariableValue;
         }
       });
 
