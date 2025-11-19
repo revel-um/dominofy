@@ -592,11 +592,6 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     });
   }, [activeTabId, switchToWorkflow]);
 
-  // Optional: Add tab (for now, do nothing / or future "blank workflow")
-  const handleAddTab = useCallback(() => {
-    // you can later create a brand-new workflow via API
-    toast.info("New tab behavior not implemented yet");
-  }, []);
 
   // ──────────────────────────────
   // Hydrate workflow and fetch project workflows
@@ -695,15 +690,6 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             onCancelInsertNote={() => setNoteToolActive(false)}
           />
 
-          {/* ⭐ TABS: workflow tabs bar */}
-          <WorkflowTabs
-            tabs={tabs}
-            activeTabId={activeTabId}
-            onSelectTab={handleSelectTab}
-            onCloseTab={handleCloseTab}
-            onAddTab={handleAddTab}
-          />
-
           <div className="flex-1 flex overflow-hidden">
             {/* Sidebar */}
             <DominosPanel 
@@ -720,8 +706,18 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               // }}
             />
 
-            {/* Main content */}
+            {/* Vertical separator line */}
+            <div className="w-px bg-slate-200 dark:bg-gray-700 flex-shrink-0"></div>
+
+            {/* Main content with tabs */}
             <div className="flex-1 flex flex-col relative overflow-hidden">
+              {/* ⭐ TABS: workflow tabs bar positioned after dominos panel */}
+              <WorkflowTabs
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onSelectTab={handleSelectTab}
+                onCloseTab={handleCloseTab}
+              />
               <ReactFlowProvider>
                 <div className="flex-1 relative">
                   {/* Canvas with smooth fade transition */}

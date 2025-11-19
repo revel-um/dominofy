@@ -1,7 +1,7 @@
 // src/components/workflowTabs.tsx
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 
 export type WorkflowTabMeta = {
   id: string;
@@ -13,7 +13,6 @@ type WorkflowTabsProps = {
   activeTabId: string | null;
   onSelectTab: (id: string) => void;
   onCloseTab: (id: string) => void;
-  onAddTab?: () => void; // optional (you can wire later)
 };
 
 export function WorkflowTabs({
@@ -21,7 +20,6 @@ export function WorkflowTabs({
   activeTabId,
   onSelectTab,
   onCloseTab,
-  onAddTab,
 }: WorkflowTabsProps) {
   return (
     <div className="flex items-center border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-2 min-h-[48px] flex-shrink-0">
@@ -59,15 +57,6 @@ export function WorkflowTabs({
         })}
       </div>
 
-      {onAddTab && (
-        <button
-          onClick={onAddTab}
-          className="ml-2 flex items-center rounded-md border border-dashed border-slate-300 dark:border-gray-600 px-2 py-1 text-xs text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-700 flex-shrink-0 transition-all duration-200 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 hover:scale-105"
-        >
-          <Plus className="mr-1 h-3 w-3" />
-          New tab
-        </button>
-      )}
     </div>
   );
 }
