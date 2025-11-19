@@ -696,7 +696,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             onAddTab={handleAddTab}
           />
 
-          <div className="flex-1 flex h-full">
+          <div className="flex-1 flex overflow-hidden">
             {/* Sidebar */}
             <DominosPanel 
               currentProject={project} 

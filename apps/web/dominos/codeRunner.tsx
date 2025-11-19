@@ -4,7 +4,6 @@ import { PinType } from '../types/pinTypes';
 import { useEffect, useState } from 'react';
 import {
   DominoField,
-  DominoFieldOption,
   DominoNodeData,
 } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
