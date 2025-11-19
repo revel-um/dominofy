@@ -235,6 +235,17 @@ export default function Canvas(props: CanvasProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false); // Hidden by default, shows on hover
   const [detailsPanelWidth, setDetailsPanelWidth] = useState(40); // Default to BAR_WIDTH
+  const [tabViewports, setTabViewports] = useState<Record<string, {x: number, y: number, zoom: number}>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const stored = sessionStorage.getItem('tabViewports');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null);
+  const [isNewTab, setIsNewTab] = useState(false);
 
   const handleMouseEnter = useCallback(() => {
     setShowMiniMap(true);
@@ -348,6 +359,130 @@ export default function Canvas(props: CanvasProps) {
     event.preventDefault();
     recenterToPopulatedArea();
   }, [recenterToPopulatedArea]);
+
+  // Get initial viewport for current workflow
+  const getInitialViewport = useCallback(() => {
+    const newWorkflowId = workflowId || 'default';
+    const savedViewport = tabViewports[newWorkflowId];
+    
+    if (savedViewport) {
+      return savedViewport;
+    }
+    
+    // Default viewport for new workflows
+    return { x: 0, y: 0, zoom: 1 };
+  }, [workflowId, tabViewports]);
+
+  // Detect workflow changes and manage tab-specific viewports
+  useEffect(() => {
+    const newWorkflowId = workflowId || 'default';
+    
+    // If this is a different workflow (tab switch)
+    if (currentWorkflowId && currentWorkflowId !== newWorkflowId) {
+      // Save current viewport state for the previous tab
+      if (rfInstance) {
+        const currentViewport = rfInstance.getViewport();
+        setTabViewports(prev => ({
+          ...prev,
+          [currentWorkflowId]: {
+            x: currentViewport.x,
+            y: currentViewport.y,
+            zoom: currentViewport.zoom
+          }
+        }));
+      }
+
+      // Check if this new workflow has saved viewport state
+      const savedViewport = tabViewports[newWorkflowId];
+      if (savedViewport) {
+        setIsNewTab(false);
+      } else {
+        // This is a new tab - mark for recentering
+        setIsNewTab(true);
+      }
+    } else if (!currentWorkflowId) {
+      // First time initialization
+      setIsNewTab(true);
+    }
+
+    setCurrentWorkflowId(newWorkflowId);
+  }, [workflowId, rfInstance, currentWorkflowId, tabViewports]);
+
+  // Apply viewport immediately when ReactFlow instance becomes available
+  useEffect(() => {
+    if (rfInstance && currentWorkflowId) {
+      const savedViewport = tabViewports[currentWorkflowId];
+      if (savedViewport && !isNewTab) {
+        // Apply saved viewport immediately without delay
+        rfInstance.setViewport(savedViewport);
+      }
+    }
+  }, [rfInstance, currentWorkflowId, tabViewports, isNewTab]);
+
+  // Handle recentering for new tabs only
+  useEffect(() => {
+    if (rfInstance && nodes.length > 0 && isNewTab) {
+      // Only recenter new tabs, not existing ones being restored
+      const timeout = setTimeout(() => {
+        recenterToPopulatedArea();
+        setIsNewTab(false);
+      }, 400);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [nodes, recenterToPopulatedArea, rfInstance, isNewTab]);
+
+  // Save viewport state periodically during user interactions
+  useEffect(() => {
+    if (!rfInstance || !currentWorkflowId) return;
+
+    let timeoutId: NodeJS.Timeout;
+    
+    const saveViewportState = () => {
+      const viewport = rfInstance.getViewport();
+      setTabViewports(prev => ({
+        ...prev,
+        [currentWorkflowId]: {
+          x: viewport.x,
+          y: viewport.y,
+          zoom: viewport.zoom
+        }
+      }));
+    };
+
+    const debouncedSave = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(saveViewportState, 500); // Save after 500ms of inactivity
+    };
+
+    const handleViewportChange = () => {
+      debouncedSave();
+    };
+
+    // Listen for viewport changes (pan, zoom) via DOM events
+    const canvasElement = rfInstance.getContainer?.();
+    if (canvasElement) {
+      canvasElement.addEventListener('wheel', handleViewportChange, { passive: true });
+      canvasElement.addEventListener('mousedown', handleViewportChange);
+      canvasElement.addEventListener('touchstart', handleViewportChange, { passive: true });
+    }
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (canvasElement) {
+        canvasElement.removeEventListener('wheel', handleViewportChange);
+        canvasElement.removeEventListener('mousedown', handleViewportChange);
+        canvasElement.removeEventListener('touchstart', handleViewportChange);
+      }
+    };
+  }, [rfInstance, currentWorkflowId]);
+
+  // Persist viewport states to sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('tabViewports', JSON.stringify(tabViewports));
+    }
+  }, [tabViewports]);
 
   useEffect(() => {
     if (!connectStart) return;
@@ -620,6 +755,7 @@ export default function Canvas(props: CanvasProps) {
     >
       <ReactFlowProvider>
       <ReactFlow
+        key={currentWorkflowId} // Force re-render on workflow change
         id={id}
         nodes={renderedNodes}
         edges={edges}
@@ -633,7 +769,8 @@ export default function Canvas(props: CanvasProps) {
         onNodesChange={handleNodesChange}
         onNodeClick={onNodeClick as any}
         isValidConnection={isValidConnection}
-        fitView
+        defaultViewport={getInitialViewport()}
+        fitView={isNewTab} // Only fit view for new tabs
         nodesDraggable={!readonly}
         nodesConnectable={!readonly}
         elementsSelectable={!readonly}
