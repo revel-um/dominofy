@@ -5,6 +5,7 @@ import ReactFlow, {
   addEdge,
   Background,
   Controls,
+  MiniMap,
   OnConnect,
   SelectionMode,
   applyNodeChanges,
@@ -232,6 +233,121 @@ export default function Canvas(props: CanvasProps) {
   /* modal spawn */
   const [dropPos, setDropPos] = useState<{ x: number; y: number } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(false); // Hidden by default, shows on hover
+  const [detailsPanelWidth, setDetailsPanelWidth] = useState(40); // Default to BAR_WIDTH
+
+  const handleMouseEnter = useCallback(() => {
+    setShowMiniMap(true);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setShowMiniMap(false);
+  }, []);
+
+  // Observe DetailsPanel width changes
+  useEffect(() => {
+    let resizeObserver: ResizeObserver | null = null;
+    let intervalId: NodeJS.Timeout;
+
+    const findAndObserveDetailsPanel = () => {
+      // Look for DetailsPanel with multiple possible selectors
+      const detailsPanel = document.querySelector('aside[class*="absolute right-0 top-0"]') ||
+                          document.querySelector('[class*="absolute"][class*="right-0"][class*="top-0"]') as HTMLElement;
+      
+      if (detailsPanel && detailsPanel !== (resizeObserver as any)?.observedElement) {
+        // Clean up previous observer
+        if (resizeObserver) {
+          resizeObserver.disconnect();
+        }
+
+        resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const width = entry.contentRect.width;
+            setDetailsPanelWidth(width > 0 ? width : 40);
+          }
+        });
+
+        resizeObserver.observe(detailsPanel);
+        (resizeObserver as any).observedElement = detailsPanel;
+        
+        // Set initial width
+        const initialWidth = (detailsPanel as HTMLElement).offsetWidth;
+        setDetailsPanelWidth(initialWidth > 0 ? initialWidth : 40);
+      } else if (!detailsPanel) {
+        setDetailsPanelWidth(40); // Default BAR_WIDTH when no panel found
+      }
+    };
+
+    // Initial check and periodic re-check for dynamic content
+    findAndObserveDetailsPanel();
+    intervalId = setInterval(findAndObserveDetailsPanel, 1000);
+    
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, []);
+
+  // Function to calculate the center of most populated area
+  const recenterToPopulatedArea = useCallback(() => {
+    if (!rfInstance || nodes.length === 0) return;
+
+    // Calculate bounding box of all nodes
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let totalX = 0, totalY = 0;
+
+    nodes.forEach(node => {
+      if (node.position) {
+        const nodeWidth = node.width || 200; // Default node width
+        const nodeHeight = node.height || 100; // Default node height
+        
+        const left = node.position.x;
+        const right = node.position.x + nodeWidth;
+        const top = node.position.y;
+        const bottom = node.position.y + nodeHeight;
+
+        minX = Math.min(minX, left);
+        maxX = Math.max(maxX, right);
+        minY = Math.min(minY, top);
+        maxY = Math.max(maxY, bottom);
+
+        // Calculate center point for weighted average
+        totalX += node.position.x + nodeWidth / 2;
+        totalY += node.position.y + nodeHeight / 2;
+      }
+    });
+
+    if (minX !== Infinity) {
+      // Use center of mass approach for better positioning
+      const centerX = totalX / nodes.length;
+      const centerY = totalY / nodes.length;
+
+      // Calculate appropriate zoom level based on content spread
+      const contentWidth = maxX - minX;
+      const contentHeight = maxY - minY;
+      const padding = 100; // Padding around content
+      
+      const viewportWidth = window.innerWidth - detailsPanelWidth;
+      const viewportHeight = window.innerHeight;
+      
+      const zoomX = (viewportWidth - padding * 2) / Math.max(contentWidth, 1);
+      const zoomY = (viewportHeight - padding * 2) / Math.max(contentHeight, 1);
+      const zoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.1), 2); // Clamp zoom between 0.1 and 2
+
+      // Set view to center the populated area
+      rfInstance.setCenter(centerX, centerY, { zoom });
+    }
+  }, [rfInstance, nodes, detailsPanelWidth]);
+
+  // Handle MiniMap click
+  const handleMiniMapClick = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    recenterToPopulatedArea();
+  }, [recenterToPopulatedArea]);
 
   useEffect(() => {
     if (!connectStart) return;
@@ -496,7 +612,12 @@ export default function Canvas(props: CanvasProps) {
 
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   return (
-    <div className="relative w-full h-full" onContextMenu={onPaneContextMenu}>
+    <div 
+      className="relative w-full h-full" 
+      onContextMenu={onPaneContextMenu}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <ReactFlowProvider>
       <ReactFlow
         id={id}
@@ -531,9 +652,50 @@ export default function Canvas(props: CanvasProps) {
         className={`absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none`}
       >
         <Background />
+        <div
+          onClick={handleMiniMapClick}
+          className={`${
+            showMiniMap ? 'opacity-100' : 'opacity-0'
+          } transition-all duration-300 ease-in-out cursor-pointer hover:scale-105 active:scale-95`}
+          style={{
+            position: 'absolute',
+            top: '2px',     // Top margin from canvas edge
+            right: `${detailsPanelWidth + 2}px`,  // Dynamic right margin based on details panel width + 20px buffer
+            zIndex: 50,      // High z-index to stay above other elements
+            borderRadius: '8px',
+          }}
+          title="Click to center view on workflow"
+        >
+          <MiniMap 
+            nodeStrokeColor={(n) => {
+              if (n.type === 'note') return '#10b981'; // emerald for notes
+              return '#6366f1'; // indigo for dominos
+            }}
+            nodeColor={(n) => {
+              if (n.selected) return '#3b82f6'; // blue for selected
+              if (n.type === 'note') return '#d1fae5'; // light emerald for notes
+              return '#e0e7ff'; // light indigo for dominos
+            }}
+            nodeBorderRadius={6}
+            position="top-right"
+            pannable={false}  // Disable panning to allow click events
+            zoomable={false}  // Disable zoom to allow click events
+            style={{
+              width: 220,
+              height: 160,
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid #e2e8f09b',
+              borderRadius: '8px',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+              pointerEvents: 'none', // Let parent handle clicks
+            }}
+            maskColor="rgb(240, 242, 247, 0.15)"
+          />
+        </div>
         {/* <Controls /> */}
       </ReactFlow>
       </ReactFlowProvider>
+
 
       {/* modal */}
       {isModalOpen && (
