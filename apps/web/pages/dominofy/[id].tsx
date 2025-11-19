@@ -64,17 +64,21 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [edges, _setEdges, _onEdgesChange] = useEdgesState<Edge>([]);
 
   const [workflowId, setWorkflowId] = useState<string>();
+  // @ts-ignore - TODO: Implement logging functionality
   const [logs, setLogs] = useState<WorkflowLog[]>([]);
   const logsRef = React.useRef<WorkflowLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [canvasLoading, setCanvasLoading] = useState(false);
   const [logsMinimized, setLogsMinimized] = useState(true);
   const openLogsPanel = () => setLogsMinimized(false);
 
+  // @ts-ignore - TODO: Implement logging functionality
   const addLog = useCallback((message: string, type: 'log' | 'info' | 'warn' | 'error' | 'success' = 'log', source?: string) => {
     const newLog: WorkflowLog = { id: Date.now().toString(), type, message, timestamp: new Date(), source };
     logsRef.current = [...logsRef.current, newLog].slice(-200);
     setLogs(logsRef.current);
   }, []);
+  // @ts-ignore - TODO: Implement logging functionality
   const clearLogs = useCallback(() => { logsRef.current = []; setLogs([]); }, []);
 
   const [connectionErrors, setConnectionErrors] = useState<string[]>([]);
@@ -532,8 +536,10 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     setCanUndo(false);
     setCanRedo(false);
 
-    // show loading while new workflow hydrates
-    setLoading(true);
+    // show subtle canvas loading indicator
+    setCanvasLoading(true);
+
+    // smoothly switch to new workflow
     setWorkflow(nextWorkflow);
     setWorkflowId(nextWorkflow.id);
   }, [findWorkflowById, autoSaveWorkflow]);
@@ -649,11 +655,13 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         }
         
         setLoading(false);
+        setCanvasLoading(false);
         return;
       }
       
       // If no workflow provided, we can't proceed
       setLoading(false);
+      setCanvasLoading(false);
     };
     hydrateContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -715,20 +723,43 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             {/* Main content */}
             <div className="flex-1 flex flex-col relative overflow-hidden">
               <ReactFlowProvider>
-                <Canvas
-                  id="dominofy"
-                  nodes={nodes}
-                  setNodes={setNodes}                 // wrapped setter (records history)
-                  onNodesChange={onNodesChange}       // wrapped handler (records history)
-                  edges={edges}
-                  setEdges={setEdges}                 // wrapped setter (records history)
-                  onEdgesChange={onEdgesChange}       // wrapped handler (records history)
-                  workflowId={workflowId!}
-                  onUndo={undo}
-                  onRedo={redo}
-                  noteToolActive={noteToolActive}
-                  onCancelInsertNote={() => setNoteToolActive(false)}
-                />
+                <div className="flex-1 relative">
+                  {/* Canvas with smooth fade transition */}
+                  <div className={`absolute inset-0 transition-all duration-300 ease-in-out ${
+                    canvasLoading ? 'opacity-60 scale-[0.98]' : 'opacity-100 scale-100'
+                  }`}>
+                    <Canvas
+                      id="dominofy"
+                      nodes={nodes}
+                      setNodes={setNodes}                 // wrapped setter (records history)
+                      onNodesChange={onNodesChange}       // wrapped handler (records history)
+                      edges={edges}
+                      setEdges={setEdges}                 // wrapped setter (records history)
+                      onEdgesChange={onEdgesChange}       // wrapped handler (records history)
+                      workflowId={workflowId!}
+                      onUndo={undo}
+                      onRedo={redo}
+                      noteToolActive={noteToolActive}
+                      onCancelInsertNote={() => setNoteToolActive(false)}
+                    />
+                  </div>
+                  
+                  {/* Smooth loading overlay with slide-in animation */}
+                  <div className={`absolute inset-0 flex items-center justify-center z-50 transition-all duration-300 ease-in-out ${
+                    canvasLoading 
+                      ? 'opacity-100 backdrop-blur-sm bg-dominofy-light-background/30 dark:bg-dominofy-dark-background/30' 
+                      : 'opacity-0 pointer-events-none'
+                  }`}>
+                    <div className={`transform transition-all duration-300 ease-out ${
+                      canvasLoading 
+                        ? 'scale-100 translate-y-0' 
+                        : 'scale-95 translate-y-2'
+                    } bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-xl shadow-2xl px-6 py-4 flex items-center gap-3 border border-gray-200/50 dark:border-gray-600/50 animate-scale-in`}>
+                      <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-loading-pulse"></div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Switching workflow...</span>
+                    </div>
+                  </div>
+                </div>
 
                 {/* details drawer now starts below toolbar */}
                 <DetailsPanel
