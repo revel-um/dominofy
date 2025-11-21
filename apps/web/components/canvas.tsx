@@ -145,11 +145,14 @@ export default function Canvas(props: CanvasProps) {
   const [isProgrammaticMove, setIsProgrammaticMove] = useState(false);
   const viewportChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
+  const renderGuarded = useMemo(() => id.includes('dashboard') || id.includes('template'), [id]);
 
   // Reset canvas ready state when nodes change
   useEffect(() => {
-    setIsCanvasReady(false);
-  }, [nodes]);
+    if (renderGuarded) {
+      setIsCanvasReady(false);
+    }
+  }, [nodes, renderGuarded]);
 
   // Handle viewport changes using ReactFlow's built-in onMove event
   const handleReactFlowMove = useCallback(
@@ -190,11 +193,11 @@ export default function Canvas(props: CanvasProps) {
   /* fade suggestion nodes for UI */
   const renderedNodes = useMemo(
     () => {
-      // Don't render nodes until canvas is ready (viewport set)
-      if (!isCanvasReady) {
+      // Only gate rendering for dashboard/template canvases
+      if (renderGuarded && !isCanvasReady) {
         return [];
       }
-      
+
       return nodes.map((n) => {
         if (n.data?.suggested) {
           return {
@@ -205,7 +208,7 @@ export default function Canvas(props: CanvasProps) {
         return n;
       });
     },
-    [nodes, isCanvasReady]
+    [nodes, isCanvasReady, renderGuarded]
   );
 
   /* helpers */

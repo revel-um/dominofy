@@ -18,6 +18,7 @@ import { DominoContext } from "../../contexts/dominoContext";
 import { buildPipeline } from "../../../../shared/helpers/buildPipeline";
 import { useRouter } from "next/router";
 import { ProjectsApi } from "../../apis/projects.apis";
+import { WorkflowsApi } from "../../apis/workflow.apis";
 import { importWorkflow } from "../../helpers/workflowManager";
 import { SSEProvider } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
@@ -89,6 +90,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   );
 
   const router = useRouter();
+  const requestedWorkflowId = router?.query?.workflowId as string | undefined;
   const contextValue = {
     erroredNodes,
     setConnectionErrors,
@@ -186,12 +188,46 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     }
   }, [tabs, activeTabId]);
 
+
   // tab helpers: find workflow by id from current data
   const findWorkflowById = useCallback((id: string) => {
     if (workflow?.id === id) return workflow;
     const fromProject = projectWorkflows.find(w => w.id === id);
     return fromProject || null;
   }, [workflow, projectWorkflows]);
+
+  const fetchWorkflowById = useCallback(async (id: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/auth');
+        return null;
+      }
+
+      const response = await WorkflowsApi.getWorkflowById(id, token, router);
+      if (response?.ok) {
+        const nextWorkflow = await response.json();
+
+        if (nextWorkflow?.project) {
+          setProject(nextWorkflow.project);
+        }
+
+        setProjectWorkflows(prev => {
+          const exists = prev.some(w => w.id === nextWorkflow.id);
+          if (exists) {
+            return prev.map(w => (w.id === nextWorkflow.id ? nextWorkflow : w));
+          }
+          return [...prev, nextWorkflow];
+        });
+
+        return nextWorkflow;
+      }
+    } catch (err) {
+      console.error('Error fetching workflow by id:', err);
+    }
+
+    return null;
+  }, [router]);
 
   // ──────────────────────────────
   // Parent-managed UNDO/REDO
@@ -523,12 +559,28 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   // ──────────────────────────────
   // ⭐ TABS: switching between workflows
   // ──────────────────────────────
-  const switchToWorkflow = useCallback((id: string) => {
-    const nextWorkflow = findWorkflowById(id);
-    if (!nextWorkflow) return;
+  const switchToWorkflow = useCallback(async (id: string) => {
+    if (!id) return;
+    if (workflow?.id === id) {
+      setCanvasLoading(false);
+      return;
+    }
 
     // ensure current workflow is autosaved before switching
     autoSaveWorkflow();
+
+    setCanvasLoading(true);
+
+    let nextWorkflow = findWorkflowById(id);
+    if (!nextWorkflow) {
+      nextWorkflow = await fetchWorkflowById(id);
+    }
+
+    if (!nextWorkflow) {
+      setCanvasLoading(false);
+      toast.error('Unable to load selected workflow');
+      return;
+    }
 
     // clear undo/redo so new workflow gets a fresh baseline
     undoStack.current = [];
@@ -536,13 +588,9 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     setCanUndo(false);
     setCanRedo(false);
 
-    // show subtle canvas loading indicator
-    setCanvasLoading(true);
-
-    // smoothly switch to new workflow
     setWorkflow(nextWorkflow);
     setWorkflowId(nextWorkflow.id);
-  }, [findWorkflowById, autoSaveWorkflow]);
+  }, [workflow?.id, findWorkflowById, autoSaveWorkflow, fetchWorkflowById]);
 
 
   // Open a workflow and ensure its tab is selected
@@ -591,6 +639,20 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       return filtered;
     });
   }, [activeTabId, switchToWorkflow]);
+
+  // Ensure the requested workflow (via router) or last active tab is honored on load
+  useEffect(() => {
+    if (!router.isReady || !workflow) return;
+
+    if (requestedWorkflowId && workflow.id === requestedWorkflowId) {
+      setActiveTabId(prev => (prev === requestedWorkflowId ? prev : requestedWorkflowId));
+      return;
+    }
+
+    if (!requestedWorkflowId && activeTabId && workflow.id !== activeTabId) {
+      switchToWorkflow(activeTabId);
+    }
+  }, [router.isReady, workflow, requestedWorkflowId, activeTabId, switchToWorkflow]);
 
 
   // ──────────────────────────────
