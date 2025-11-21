@@ -13,6 +13,7 @@ type WorkflowTabsProps = {
   activeTabId: string | null;
   onSelectTab: (id: string) => void;
   onCloseTab: (id: string) => void;
+  getPanelWidth?: () => number;
 };
 
 export function WorkflowTabs({
@@ -20,10 +21,20 @@ export function WorkflowTabs({
   activeTabId,
   onSelectTab,
   onCloseTab,
+  getPanelWidth,
 }: WorkflowTabsProps) {
+  const rightInset = getPanelWidth?.() ?? 0;
+  const containerStyle =
+    rightInset > 0
+      ? { width: `calc(100% - ${rightInset}px)` }
+      : { width: '100%' };
+
   return (
-    <div className="flex items-center border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-2 min-h-[48px] flex-shrink-0">
-      <div className="flex flex-1 overflow-x-auto scrollbar-hide">
+    <div
+      className="flex items-center border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-2 min-h-[48px] flex-shrink-0 relative"
+      style={{ ...containerStyle, paddingRight: '0.5rem' }}
+    >
+      <div className="flex flex-1 overflow-x-auto scrollbar-hide pr-2">
         {tabs.map((tab, index) => {
           const isActive = tab.id === activeTabId;
           return (

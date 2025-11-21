@@ -57,6 +57,7 @@ interface WorkflowToolbarProps {
   onStartInsertNote?: () => void;
   onCancelInsertNote?: () => void;
   isInsertNoteActive?: boolean;
+  onWorkflowSaved?: (nodes: Node[], edges: Edge[]) => void;
 }
 
 const TOOLBAR_HEIGHT = 56;
@@ -76,6 +77,7 @@ export default function WorkflowToolbar({
   onStartInsertNote,
   onCancelInsertNote,
   isInsertNoteActive = false,
+  onWorkflowSaved,
 }: WorkflowToolbarProps) {
   const router = useRouter();
   const { setValidationErrors } = useDomino();
@@ -137,26 +139,37 @@ export default function WorkflowToolbar({
       return false;
     }
     setSaveStatus('loading');
-    const exported = exportWorkflow(getNodes(), getEdges(), workflow.id);
+    const nodesSnapshot = getNodes();
+    const edgesSnapshot = getEdges();
+    const exported = exportWorkflow(nodesSnapshot, edgesSnapshot, workflow.id);
     const token = localStorage.getItem('token') || '';
     try {
       const resp = await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
-      setSaveStatus(resp?.status === 201 ? 'success' : 'error');
+      const wasSuccessful = Boolean(resp?.ok);
+      if (wasSuccessful) {
+        onWorkflowSaved?.(nodesSnapshot, edgesSnapshot);
+      }
+      setSaveStatus(wasSuccessful ? 'success' : 'error');
     } catch {
       setSaveStatus('error');
     } finally {
       setTimeout(() => setSaveStatus('idle'), 1200);
     }
     return true;
-  }, [workflow.id, getNodes, getEdges, router]);
+  }, [workflow.id, getNodes, getEdges, router, onWorkflowSaved]);
 
   const onRun = useCallback(async () => {
     if (openLogsPanel) openLogsPanel();
     if (!isWorkflowValid() || !workflow.id) return false;
-    const exported = exportWorkflow(getNodes(), getEdges(), workflow.id);
+    const nodesSnapshot = getNodes();
+    const edgesSnapshot = getEdges();
+    const exported = exportWorkflow(nodesSnapshot, edgesSnapshot, workflow.id);
     const token = localStorage.getItem('token') || '';
     try {
-      await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
+      const resp = await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
+      if (resp?.ok) {
+        onWorkflowSaved?.(nodesSnapshot, edgesSnapshot);
+      }
       startSSE(workflow.id, token);
       setJustRan(true);
       setTimeout(() => setJustRan(false), 1000);
@@ -164,7 +177,7 @@ export default function WorkflowToolbar({
     } catch {
       return false;
     }
-  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE, openLogsPanel]);
+  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE, openLogsPanel, onWorkflowSaved]);
 
   const onDeploy = useCallback(() => {
     if (isWorkflowValid()) alert('Deploying...');

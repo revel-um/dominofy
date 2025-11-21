@@ -63,6 +63,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [projectWorkflows, setProjectWorkflows] = useState<any[]>([]);
   const [nodes, _setNodes, _onNodesChange] = useNodesState<Node>([]);
   const [edges, _setEdges, _onEdgesChange] = useEdgesState<Edge>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(0);
 
   const [workflowId, setWorkflowId] = useState<string>();
   // @ts-ignore - TODO: Implement logging functionality
@@ -106,18 +108,56 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   // Auto-save workflow to cache whenever nodes or edges change
   const isRestoring = useRef(false); // moved up a bit so we can use it
-  const autoSaveWorkflow = useCallback((currentNodes = nodes, currentEdges = edges) => {
-    if (workflowId && !isRestoring.current) {
-      setTimeout(() => {
-        const workflowData = {
-          workflowId,
-          nodes: currentNodes,
-          edges: currentEdges,
-        };
-        sessionStorage.setItem(`workflow-${workflowId}`, JSON.stringify(workflowData));
-      }, 100);
+  const hasHydratedRef = useRef(false);
+  const persistWorkflowCache = useCallback((dirty: boolean, currentNodes = nodes, currentEdges = edges, id = workflowId) => {
+    if (typeof window === 'undefined' || !id) return;
+    const workflowData = {
+      workflowId: id,
+      nodes: currentNodes,
+      edges: currentEdges,
+      dirty,
+    };
+    sessionStorage.setItem(`workflow-${id}`, JSON.stringify(workflowData));
+    setProjectWorkflows(prev =>
+      prev.map(w => (w.id === id ? { ...w, isCached: dirty } : w))
+    );
+  }, [workflowId, nodes, edges, setProjectWorkflows]);
+
+  const autoSaveWorkflow = useCallback((currentNodes = nodes, currentEdges = edges, markDirty = true) => {
+    const targetWorkflowId = workflowId;
+    if (!targetWorkflowId || isRestoring.current || !hasHydratedRef.current) return;
+    const nodesSnapshot = currentNodes;
+    const edgesSnapshot = currentEdges;
+    setTimeout(() => {
+      persistWorkflowCache(markDirty, nodesSnapshot, edgesSnapshot, targetWorkflowId);
+    }, 100);
+  }, [workflowId, nodes, edges, persistWorkflowCache]);
+
+  const markWorkflowClean = useCallback((currentNodes = nodes, currentEdges = edges, id = workflowId) => {
+    if (!id) return;
+    persistWorkflowCache(false, currentNodes, currentEdges, id);
+    setHasUnsavedChanges(false);
+  }, [persistWorkflowCache, nodes, edges, workflowId]);
+
+  const loadWorkflowGraph = useCallback((graph: { nodes: Node[]; edges: Edge[] }, id: string) => {
+    hasHydratedRef.current = false;
+    isRestoring.current = true;
+    importWorkflow(
+      JSON.stringify(graph),
+      _setNodes, _setEdges, setWorkflowId,
+      id,
+      { setNodes: _setNodes, updatePipeline }
+    );
+    const finalize = () => {
+      isRestoring.current = false;
+      hasHydratedRef.current = true;
+    };
+    if (typeof queueMicrotask === 'function') {
+      queueMicrotask(finalize);
+    } else {
+      setTimeout(finalize, 0);
     }
-  }, [workflowId, nodes, edges]);
+  }, [_setNodes, _setEdges, updatePipeline]);
 
   const selectedNode = nodes.find(n => n.selected);
 
@@ -345,34 +385,39 @@ export default function DominofyLayout({ currWorkflow }: Props) {
           return false;
                 }) || prevNodes.length !== newNodes.length; // nodes added/removed
         
-        if (hasNonSelectionChanges) {
+        if (hasNonSelectionChanges && hasHydratedRef.current) {
+          const markDirty = hasMeaningfulNodeDifferences(prevNodes, newNodes);
           pushHistory();
                     // Auto-save after node changes
-          setTimeout(() => autoSaveWorkflow(newNodes, edges), 100);
+          setTimeout(() => autoSaveWorkflow(newNodes, edges, markDirty), 100);
+          if (markDirty && hasHydratedRef.current) {
+            setHasUnsavedChanges(true);
+          }
         }
       }
       _setNodes(updater);
     },
-    [_setNodes, pushHistory, nodes, autoSaveWorkflow, edges]
+    [_setNodes, pushHistory, nodes, autoSaveWorkflow, edges, setHasUnsavedChanges]
   );
 
   const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
     (updater) => {
-      if (!isRestoring.current && !isDraggingRef.current) {
+      if (!isRestoring.current && !isDraggingRef.current && hasHydratedRef.current) {
         pushHistory();
                 // Auto-save after edge changes
         const newEdges = typeof updater === 'function' ? updater(edges) : updater;
         setTimeout(() => autoSaveWorkflow(nodes, newEdges), 100);
+        setHasUnsavedChanges(true);
       }
       _setEdges(updater);
     },
-    [_setEdges, pushHistory, autoSaveWorkflow, nodes, edges]
+    [_setEdges, pushHistory, autoSaveWorkflow, nodes, edges, setHasUnsavedChanges]
   );
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-            // filter out selection changes from history tracking
-      const hasNonSelectionChanges = changes.some(c => c.type !== 'select');
+            // Only consider meaningful node changes (add/remove/data) for history + dirty tracking
+      const hasMeaningfulChanges = changes.some(c => isMeaningfulNodeChangeType(c.type));
       
             // detect "only position" changes (dragging)
       const onlyPosition = changes.length > 0 && changes.every(c => c.type === 'position');
@@ -402,7 +447,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         }
 
             // 🔹 Final frame of a drag (dragging:false): only push if there was actual movement
-        if (isDraggingRef.current && anyDraggingFalse && !isRestoring.current) {
+        if (isDraggingRef.current && anyDraggingFalse && !isRestoring.current && hasHydratedRef.current) {
                 _onNodesChange(changes); // apply final position
           
                 // Check if any node actually moved a significant distance
@@ -457,25 +502,40 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       _onNodesChange(changes);
       
             // Only push to history if there are actual content changes (not just selections)
-      if (!isRestoring.current && hasNonSelectionChanges) {
+      if (!isRestoring.current && hasMeaningfulChanges && hasHydratedRef.current) {
         pushHistory();
                 // Auto-save after node changes from canvas interactions
-        queueMicrotask(() => autoSaveWorkflow());
+        const markDirty = changes.some(c => isMeaningfulNodeChangeType(c.type));
+        const scheduleSave = () => autoSaveWorkflow(undefined, undefined, markDirty);
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(scheduleSave);
+        } else {
+          setTimeout(scheduleSave, 0);
+        }
+        if (markDirty) {
+          setHasUnsavedChanges(true);
+        }
       }
     },
-    [nodes, edges, _onNodesChange, clone, publishFlags, pushHistory, autoSaveWorkflow]
+    [nodes, edges, _onNodesChange, clone, publishFlags, pushHistory, autoSaveWorkflow, setHasUnsavedChanges]
   );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      if (!isRestoring.current) {
+      if (!isRestoring.current && hasHydratedRef.current) {
         pushHistory();
         // Auto-save after edge changes from canvas interactions
-        queueMicrotask(() => autoSaveWorkflow());
+        const scheduleSave = () => autoSaveWorkflow();
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(scheduleSave);
+        } else {
+          setTimeout(scheduleSave, 0);
+        }
+        setHasUnsavedChanges(true);
       }
       _onEdgesChange(changes);
     },
-    [_onEdgesChange, pushHistory, autoSaveWorkflow]
+    [_onEdgesChange, pushHistory, autoSaveWorkflow, setHasUnsavedChanges]
   );
 
   // Initialize a baseline snapshot once after graph is hydrated
@@ -567,7 +627,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     }
 
     // ensure current workflow is autosaved before switching
-    autoSaveWorkflow();
+    autoSaveWorkflow(undefined, undefined, hasUnsavedChanges);
 
     setCanvasLoading(true);
 
@@ -590,7 +650,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
     setWorkflow(nextWorkflow);
     setWorkflowId(nextWorkflow.id);
-  }, [workflow?.id, findWorkflowById, autoSaveWorkflow, fetchWorkflowById]);
+    setHasUnsavedChanges(false);
+  }, [workflow?.id, findWorkflowById, autoSaveWorkflow, fetchWorkflowById, hasUnsavedChanges]);
 
 
   // Open a workflow and ensure its tab is selected
@@ -617,6 +678,38 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       switchToWorkflow(wf.id);
     },
     [setTabs, setActiveTabId, switchToWorkflow]
+  );
+
+  const handleWorkflowRenamed = useCallback(
+    (id: string, name: string) => {
+      setTabs(prev => prev.map(t => (t.id === id ? { ...t, name } : t)));
+      setProjectWorkflows(prev => prev.map(w => (w.id === id ? { ...w, name } : w)));
+      setWorkflow(prev => {
+        if (!prev || prev.id !== id) return prev;
+        return { ...prev, name };
+      });
+    },
+    []
+  );
+
+  const handleWorkflowDeleted = useCallback(
+    (id: string) => {
+      setTabs(prev => {
+        const filtered = prev.filter(t => t.id !== id);
+        if (!filtered.length) {
+          setActiveTabId(null);
+        } else if (activeTabId === id) {
+          const fallback = filtered[filtered.length - 1];
+          setActiveTabId(fallback.id);
+          if (fallback.id !== id) {
+            switchToWorkflow(fallback.id);
+          }
+        }
+        return filtered;
+      });
+      setProjectWorkflows(prev => prev.filter(w => w.id !== id));
+    },
+    [activeTabId, switchToWorkflow]
   );
 
 
@@ -663,36 +756,33 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       if (workflow) {
         // First check if there's a cached version of this workflow
         const cachedWorkflowData = sessionStorage.getItem(`workflow-${workflow.id}`);
+        let cacheDirty = false;
         
         if (cachedWorkflowData) {
           try {
             const cached = JSON.parse(cachedWorkflowData);
-            // Use cached workflow data if it exists
-            importWorkflow(
-              JSON.stringify({ nodes: cached.nodes, edges: cached.edges }),
-              _setNodes, _setEdges, setWorkflowId,
-              workflow.id,
-              { setNodes: _setNodes, updatePipeline } // use raw setter during import
-            );
+            if (cached?.nodes && cached?.edges) {
+              loadWorkflowGraph(
+                { nodes: cached.nodes, edges: cached.edges },
+                workflow.id
+              );
+              cacheDirty = Boolean(cached?.dirty);
+            } else {
+              loadWorkflowGraph(workflow.visualJson, workflow.id);
+            }
           } catch (err) {
             console.error('Error loading cached workflow, falling back to server data:', err);
-            // Fall back to server workflow if cache is corrupted
-            importWorkflow(
-              JSON.stringify(workflow.visualJson),
-              _setNodes, _setEdges, setWorkflowId,
-              workflow.id,
-              { setNodes: _setNodes, updatePipeline } // use raw setter during import
-            );
+            loadWorkflowGraph(workflow.visualJson, workflow.id);
           }
         } else {
           // No cache, use server workflow data
-          importWorkflow(
-            JSON.stringify(workflow.visualJson),
-            _setNodes, _setEdges, setWorkflowId,
-            workflow.id,
-            { setNodes: _setNodes, updatePipeline } // use raw setter during import
-          );
+          loadWorkflowGraph(workflow.visualJson, workflow.id);
         }
+
+        setHasUnsavedChanges(cacheDirty);
+        setProjectWorkflows(prev =>
+          prev.map(w => (w.id === workflow.id ? { ...w, isCached: cacheDirty } : w))
+        );
 
         // If workflow has project info, fetch all project workflows for sidebar
         if (router.query.projectId) {
@@ -750,6 +840,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             isInsertNoteActive={noteToolActive}
             onStartInsertNote={() => setNoteToolActive(true)}
             onCancelInsertNote={() => setNoteToolActive(false)}
+            onWorkflowSaved={(latestNodes, latestEdges) => markWorkflowClean(latestNodes, latestEdges, workflow?.id)}
           />
 
           <div className="flex-1 flex overflow-hidden">
@@ -758,6 +849,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               currentProject={project} 
               projectWorkflows={projectWorkflows}
               onOpenWorkflowInTab={openWorkflowInTab}
+              onWorkflowRenamed={handleWorkflowRenamed}
+              onWorkflowDeleted={handleWorkflowDeleted}
               // ⭐ OPTIONAL: later you can pass something like:
               // onOpenWorkflowInTab={(wf) => {
               //   setTabs(prev => prev.some(t => t.id === wf.id)
@@ -779,6 +872,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                 activeTabId={activeTabId}
                 onSelectTab={handleSelectTab}
                 onCloseTab={handleCloseTab}
+                getPanelWidth={() => panelWidth}
               />
               <ReactFlowProvider>
                 <div className="flex-1 relative">
@@ -826,6 +920,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                   getEdges={() => edges}
                   setNodes={setNodes}                 // wrapped setter so edits are recorded
                   setEdges={setEdges}                 // wrapped setter so edits are recorded
+                  onWidthChange={setPanelWidth}
                 />
               </ReactFlowProvider>
 
@@ -845,3 +940,55 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     </SSEProvider>
   );
 }
+
+const sanitizeNodeForDiff = (node: Node) => {
+  const {
+    id,
+    type,
+    data,
+    parentNode,
+    dragHandle,
+    sourcePosition,
+    targetPosition,
+    hidden,
+    style,
+    className,
+  } = node;
+
+  return {
+    id,
+    type,
+    data,
+    parentNode,
+    dragHandle,
+    sourcePosition,
+    targetPosition,
+    hidden: Boolean(hidden),
+    style,
+    className,
+  };
+};
+
+const hasMeaningfulNodeDifferences = (prevNodes: Node[], newNodes: Node[]) => {
+  if (prevNodes.length !== newNodes.length) return true;
+
+  const prevMap = new Map(prevNodes.map((n) => [n.id, n]));
+  const newMap = new Map(newNodes.map((n) => [n.id, n]));
+  if (prevMap.size !== newMap.size) return true;
+
+  for (const [id, newNode] of newMap) {
+    const prevNode = prevMap.get(id);
+    if (!prevNode) return true;
+    if (
+      JSON.stringify(sanitizeNodeForDiff(prevNode)) !==
+      JSON.stringify(sanitizeNodeForDiff(newNode))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const isMeaningfulNodeChangeType = (type: NodeChange['type']) =>
+  type === 'add' || type === 'remove';

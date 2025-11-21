@@ -91,14 +91,19 @@ export default function DominofyDashboard() {
         if (cachedWorkflowData) {
             try {
                 const cached = JSON.parse(cachedWorkflowData);
-                return {
-                    ...workflow,
-                    visualJson: {
-                        nodes: cached.nodes || workflow.visualJson.nodes,
-                        edges: cached.edges || workflow.visualJson.edges
-                    },
-                    isCached: true
-                };
+                if (cached?.dirty === false) {
+                    return workflow;
+                }
+                if (cached?.nodes && cached?.edges) {
+                    return {
+                        ...workflow,
+                        visualJson: {
+                            nodes: cached.nodes || workflow.visualJson.nodes,
+                            edges: cached.edges || workflow.visualJson.edges
+                        },
+                        isCached: true
+                    };
+                }
             } catch (error) {
                 console.error('Error parsing cached workflow data:', error);
                 return workflow;

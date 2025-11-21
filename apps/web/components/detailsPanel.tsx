@@ -19,7 +19,19 @@ interface Props {
   bottomOffset?: number;
 }
 
-export default function DetailsPanel({ selectedNode, bottomOffset = 60, setEdges, setNodes, getEdges, getNodes }: Props) {
+interface DetailsPanelProps extends Props {
+  onWidthChange?: (width: number) => void;
+}
+
+export default function DetailsPanel({
+  selectedNode,
+  bottomOffset = 60,
+  setEdges,
+  setNodes,
+  getEdges,
+  getNodes,
+  onWidthChange,
+}: DetailsPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [isDetailsOpen, setIsDetailsOpen] = useState(!!selectedNode);
   const [isAIOpen, setIsAIOpen] = useState(false);
@@ -88,6 +100,9 @@ export default function DetailsPanel({ selectedNode, bottomOffset = 60, setEdges
     if (!dragRef.current) return;
     const newW = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, window.innerWidth - e.clientX - BAR_WIDTH));
     setWidth(newW);
+    if (isDetailsOpen || isAIOpen) {
+      onWidthChange?.(newW + BAR_WIDTH);
+    }
   };
 
   const stopDrag = () => {
@@ -98,6 +113,13 @@ export default function DetailsPanel({ selectedNode, bottomOffset = 60, setEdges
   };
 
   const asideW = isDetailsOpen || isAIOpen ? width + BAR_WIDTH : BAR_WIDTH;
+  useEffect(() => {
+    if (isDetailsOpen || isAIOpen) {
+      onWidthChange?.(width + BAR_WIDTH);
+    } else {
+      onWidthChange?.(0);
+    }
+  }, [isDetailsOpen, isAIOpen, onWidthChange, width]);
 
   return (
     <aside

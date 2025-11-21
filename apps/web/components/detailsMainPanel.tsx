@@ -15,7 +15,10 @@ export default function DetailsMainPanel({ selectedNode, width, onClose }: Props
     const { clearValidationForDominoId } = useDomino();
 
     return (
-        <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-6" style={{ width }}>
+        <div
+            className="flex-1 overflow-y-auto px-4 pb-6 space-y-6 border-l border-gray-200 dark:border-gray-700 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
+            style={{ width }}
+        >
 
             {/* Placeholder */}
             {!selectedNode && (
