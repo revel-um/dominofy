@@ -38,12 +38,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const data = await resp.json();
-    // Expecting { token: string }
-    if (!data?.token) {
-      return res.status(500).json({ error: 'Backend did not return a token' });
+    // Expecting { accessToken: string, refreshToken: string }
+    if (!data?.accessToken || !data?.refreshToken) {
+      return res.status(500).json({ error: 'Backend did not return tokens' });
     }
 
-    return res.status(200).json({ token: data.token });
+    return res.status(200).json({ 
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken
+    });
   } catch (err: any) {
     console.error('Error in /api/auth/exchange:', err);
     return res.status(500).json({ error: 'Internal server error' });

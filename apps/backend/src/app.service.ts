@@ -49,6 +49,7 @@ export class AppService {
           return;
         }
 
+        
         execPool.run({ workflowId, runId, visualJson: pipeline }).catch(err => subscriber.error(err));
 
         const sub = fromEvent(progressEmitter, runId).subscribe((msg: any) => {
