@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import ReactFlow, {
   addEdge,
   Background,
@@ -111,6 +111,9 @@ interface CanvasProps {
   /* NEW: note tool control coming from parent/toolbar */
   noteToolActive?: boolean;
   onCancelInsertNote?: () => void;
+  
+  /* NEW: viewport change callback for template carousel */
+  onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;
 }
 
 /* ─────────────────────────  COMPONENT  ───────────────────────── */
@@ -123,25 +126,11 @@ export default function Canvas(props: CanvasProps) {
     /* NEW */
     noteToolActive = false,
     onCancelInsertNote,
+    onViewportChange,
   } = props;
 
   const router = useRouter();
   const { setConnectionErrors, clearValidationForDominoId } = useDomino();
-
-  /* fade suggestion nodes for UI */
-  const renderedNodes = useMemo(
-    () =>
-      nodes.map((n) => {
-        if (n.data?.suggested) {
-          return {
-            ...n,
-            className: n.className ? `${n.className} opacity-50` : "opacity-50",
-          };
-        }
-        return n;
-      }),
-    [nodes]
-  );
 
   /* local state */
   const [rfInstance, setRfInstance] = useState<any>(null);
@@ -152,6 +141,72 @@ export default function Canvas(props: CanvasProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const [isProgrammaticMove, setIsProgrammaticMove] = useState(false);
+  const viewportChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
+
+  // Reset canvas ready state when nodes change
+  useEffect(() => {
+    setIsCanvasReady(false);
+  }, [nodes]);
+
+  // Handle viewport changes using ReactFlow's built-in onMove event
+  const handleReactFlowMove = useCallback(
+    (event: any, viewport: { x: number; y: number; zoom: number }) => {
+      if (!onViewportChange || !id.includes("template")) return;
+      if (isProgrammaticMove || !isCanvasReady) return;
+
+      const last = lastViewportRef.current;
+      const hasMeaningfulChange =
+        !last ||
+        Math.abs(last.x - viewport.x) > 1 ||
+        Math.abs(last.y - viewport.y) > 1 ||
+        Math.abs(last.zoom - viewport.zoom) > 0.002;
+
+      if (!hasMeaningfulChange) return;
+
+      lastViewportRef.current = viewport;
+
+      if (viewportChangeTimeoutRef.current) {
+        clearTimeout(viewportChangeTimeoutRef.current);
+      }
+
+      viewportChangeTimeoutRef.current = setTimeout(() => {
+        onViewportChange(viewport);
+      }, 100);
+    },
+    [onViewportChange, id, isProgrammaticMove, isCanvasReady]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (viewportChangeTimeoutRef.current) {
+        clearTimeout(viewportChangeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  /* fade suggestion nodes for UI */
+  const renderedNodes = useMemo(
+    () => {
+      // Don't render nodes until canvas is ready (viewport set)
+      if (!isCanvasReady) {
+        return [];
+      }
+      
+      return nodes.map((n) => {
+        if (n.data?.suggested) {
+          return {
+            ...n,
+            className: n.className ? `${n.className} opacity-50` : "opacity-50",
+          };
+        }
+        return n;
+      });
+    },
+    [nodes, isCanvasReady]
+  );
 
   /* helpers */
   const getNodes = () => nodes;
@@ -187,6 +242,10 @@ export default function Canvas(props: CanvasProps) {
   /* node click */
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
+      if (id !== 'dominofy') {
+        return; // Dashboard/template canvases remain fully read-only
+      }
+
       // Handle connecting behavior first
       const cs = connectStart;
       if (cs && node.id !== cs.nodeId) {
@@ -222,7 +281,7 @@ export default function Canvas(props: CanvasProps) {
         setSelectedNode(node);
       }
     },
-    [connectStart, setEdges, updatePipeline, setSelectedNode, setNodes, getNodes]
+    [connectStart, setEdges, updatePipeline, setSelectedNode, setNodes, getNodes, id]
   );
 
   /* connect start */
@@ -307,6 +366,9 @@ export default function Canvas(props: CanvasProps) {
   const recenterToPopulatedArea = useCallback(() => {
     if (!rfInstance || nodes.length === 0) return;
 
+    // Mark as programmatic move to ignore onMove events
+    setIsProgrammaticMove(true);
+
     // Calculate bounding box of all nodes
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     let totalX = 0, totalY = 0;
@@ -347,12 +409,25 @@ export default function Canvas(props: CanvasProps) {
       
       const zoomX = (viewportWidth - padding * 2) / Math.max(contentWidth, 1);
       const zoomY = (viewportHeight - padding * 2) / Math.max(contentHeight, 1);
-      const zoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.1), 2); // Clamp zoom between 0.1 and 2
+      let zoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.1), 2); // Clamp zoom between 0.1 and 2
+
+      // Special handling for different canvas types
+      if (id === 'dominofy') {
+        // For dominofy canvas, use a more conservative zoom to show workflow clearly
+        zoom = Math.min(zoom, 1); // Cap at 1x zoom for better readability
+      } else if (id === 'dashboard-template') {
+        console.log('Setting fixed zoom for template canvas');
+        // For template canvas, use fixed zoom for consistent display
+        zoom = 0.5; // Fixed zoom level for templates
+      }
 
       // Set view to center the populated area
       rfInstance.setCenter(centerX, centerY, { zoom });
     }
-  }, [rfInstance, nodes, detailsPanelWidth]);
+
+    // Reset programmatic flag after viewport settles
+    setTimeout(() => setIsProgrammaticMove(false), 200);
+  }, [rfInstance, nodes, detailsPanelWidth, id]);
 
   // Handle MiniMap click
   const handleMiniMapClick = useCallback((event: React.MouseEvent) => {
@@ -369,9 +444,16 @@ export default function Canvas(props: CanvasProps) {
       return savedViewport;
     }
     
-    // Default viewport for new workflows
-    return { x: 0, y: 0, zoom: 1 };
-  }, [workflowId, tabViewports]);
+    // Default viewport for new workflows with canvas-specific zoom
+    let defaultZoom = 1;
+    if (id === 'dashboard-template') {
+      defaultZoom = 0.5; // Template canvas uses 0.5 zoom
+    } else if (id.includes('dashboard')) {
+      defaultZoom = 0.5; // Dashboard canvas uses maximum zoom out
+    }
+    
+    return { x: 0, y: 0, zoom: defaultZoom };
+  }, [workflowId, tabViewports, id]);
 
   // Detect workflow changes and manage tab-specific viewports
   useEffect(() => {
@@ -419,10 +501,60 @@ export default function Canvas(props: CanvasProps) {
     }
   }, [rfInstance, currentWorkflowId, tabViewports, isNewTab]);
 
-  // Handle recentering for new tabs only
+  // Universal canvas setup - set viewport before showing nodes
   useEffect(() => {
-    if (rfInstance && nodes.length > 0 && isNewTab) {
-      // Only recenter new tabs, not existing ones being restored
+    if (rfInstance && nodes.length > 0 && !isCanvasReady) {
+      const timeout = setTimeout(() => {
+        // Mark as programmatic move to ignore onMove events
+        setIsProgrammaticMove(true);
+        
+        // Calculate appropriate zoom based on canvas type
+        let zoom = 1; // Default zoom
+        
+        if (id.includes('dashboard')) {
+          zoom = 0.5; // Dashboard canvases use 0.5 zoom
+        } else if (id === 'dominofy') {
+          // For dominofy canvas, use recenter function which has smart zoom calculation
+          recenterToPopulatedArea();
+          setIsCanvasReady(true);
+          // Reset programmatic flag after a delay
+          setTimeout(() => setIsProgrammaticMove(false), 200);
+          return;
+        }
+        
+        // For dashboard and template canvases, calculate center and set viewport
+        if (nodes.length > 0) {
+          let totalX = 0, totalY = 0;
+          nodes.forEach(node => {
+            if (node.position) {
+              totalX += node.position.x + (node.width || 200) / 2;
+              totalY += node.position.y + (node.height || 100) / 2;
+            }
+          });
+          const centerX = totalX / nodes.length;
+          const centerY = totalY / nodes.length;
+          
+          // For template canvas, center at middle of canvas instead
+          if (id === 'dashboard-template') {
+            rfInstance.setCenter(0, 0, { zoom });
+          } else {
+            rfInstance.setCenter(centerX, centerY, { zoom });
+          }
+        }
+        
+        // Mark canvas as ready to show nodes and reset programmatic flag
+        setIsCanvasReady(true);
+        setTimeout(() => setIsProgrammaticMove(false), 200); // Reset after viewport settles
+      }, 100);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [rfInstance, nodes, isCanvasReady, id, recenterToPopulatedArea]);
+
+  // Handle recentering for new tabs only (dominofy canvas only)
+  useEffect(() => {
+    if (rfInstance && nodes.length > 0 && isNewTab && id === 'dominofy') {
+      // Only recenter new tabs for dominofy canvas, not existing ones being restored
       const timeout = setTimeout(() => {
         recenterToPopulatedArea();
         setIsNewTab(false);
@@ -430,7 +562,7 @@ export default function Canvas(props: CanvasProps) {
 
       return () => clearTimeout(timeout);
     }
-  }, [nodes, recenterToPopulatedArea, rfInstance, isNewTab]);
+  }, [nodes, recenterToPopulatedArea, rfInstance, isNewTab, id]);
 
   // Save viewport state periodically during user interactions
   useEffect(() => {
@@ -746,6 +878,9 @@ export default function Canvas(props: CanvasProps) {
 
 
   /* ───────────────────────────  RENDER  ─────────────────────────── */
+  const isDominofyCanvas = id === 'dominofy';
+  const canvasClassName = `absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none ${!isDominofyCanvas ? 'locked-canvas' : ''}`;
+
   return (
     <div 
       className="relative w-full h-full" 
@@ -754,85 +889,87 @@ export default function Canvas(props: CanvasProps) {
       onMouseLeave={handleMouseLeave}
     >
       <ReactFlowProvider>
-      <ReactFlow
-        key={currentWorkflowId} // Force re-render on workflow change
-        id={id}
-        nodes={renderedNodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onInit={setRfInstance}
-        onDrop={onDrop}
-        onDragOver={handleDragOver}
-        onConnectStart={onConnectStart}
-        onConnect={onConnect}
-        onEdgesChange={handleEdgesChange}
-        onNodesChange={handleNodesChange}
-        onNodeClick={onNodeClick as any}
-        isValidConnection={isValidConnection}
-        defaultViewport={getInitialViewport()}
-        fitView={isNewTab} // Only fit view for new tabs
-        nodesDraggable={!readonly}
-        nodesConnectable={!readonly}
-        elementsSelectable={!readonly}
-        panOnDrag
-        zoomOnScroll
+        <ReactFlow
+          key={currentWorkflowId} // Force re-render on workflow change
+          id={id}
+          nodes={renderedNodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          onInit={setRfInstance}
+          onDrop={onDrop}
+          onDragOver={handleDragOver}
+          onConnectStart={onConnectStart}
+          onConnect={onConnect}
+          onEdgesChange={handleEdgesChange}
+          onNodesChange={handleNodesChange}
+          onNodeClick={onNodeClick as any}
+          onMove={handleReactFlowMove}
+          isValidConnection={isValidConnection}
+          defaultViewport={getInitialViewport()}
+          fitView={isNewTab} // Only fit view for new tabs
+          nodesDraggable={!readonly}
+          nodesConnectable={!readonly}
+          elementsSelectable={!readonly}
+          panOnDrag
+          zoomOnScroll
 
-        /* ✅ MULTI-SELECT via rectangle (hold Shift) */
-        selectionOnDrag
-        selectionKeyCode={['Shift']}
-        multiSelectionKeyCode={null}
-        selectionMode={SelectionMode.Partial}
-        selectNodesOnDrag={false}
-        onPaneClick={handlePaneClick}
+          /* ✅ MULTI-SELECT via rectangle (hold Shift) */
+          selectionOnDrag
+          selectionKeyCode={['Shift']}
+          multiSelectionKeyCode={null}
+          selectionMode={SelectionMode.Partial}
+          selectNodesOnDrag={false}
+          onPaneClick={handlePaneClick}
 
-        proOptions={{ hideAttribution: true }}
-        className={`absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none`}
-      >
-        <Background />
-        <div
-          onClick={handleMiniMapClick}
-          className={`${
-            showMiniMap ? 'opacity-100' : 'opacity-0'
-          } transition-all duration-300 ease-in-out cursor-pointer hover:scale-105 active:scale-95`}
-          style={{
-            position: 'absolute',
-            top: '2px',     // Top margin from canvas edge
-            right: `${detailsPanelWidth + 2}px`,  // Dynamic right margin based on details panel width + 20px buffer
-            zIndex: 50,      // High z-index to stay above other elements
-            borderRadius: '8px',
-          }}
-          title="Click to center view on workflow"
+          proOptions={{ hideAttribution: true }}
+          className={canvasClassName}
         >
-          <MiniMap 
-            nodeStrokeColor={(n) => {
-              if (n.type === 'note') return '#10b981'; // emerald for notes
-              return '#6366f1'; // indigo for dominos
-            }}
-            nodeColor={(n) => {
-              if (n.selected) return '#3b82f6'; // blue for selected
-              if (n.type === 'note') return '#d1fae5'; // light emerald for notes
-              return '#e0e7ff'; // light indigo for dominos
-            }}
-            nodeBorderRadius={6}
-            position="top-right"
-            pannable={false}  // Disable panning to allow click events
-            zoomable={false}  // Disable zoom to allow click events
-            style={{
-              width: 220,
-              height: 160,
-              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid #e2e8f09b',
-              borderRadius: '8px',
-              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-              pointerEvents: 'none', // Let parent handle clicks
-            }}
-            maskColor="rgb(240, 242, 247, 0.15)"
-          />
-        </div>
-        {/* <Controls /> */}
-      </ReactFlow>
+          <Background />
+          {!readonly && !id.includes('dashboard') && (
+            <div
+              onClick={handleMiniMapClick}
+              className={`${
+                showMiniMap ? 'opacity-100' : 'opacity-0'
+              } transition-all duration-300 ease-in-out cursor-pointer hover:scale-105 active:scale-95`}
+              style={{
+                position: 'absolute',
+                top: '2px',     // Top margin from canvas edge
+                right: `${detailsPanelWidth + 2}px`,  // Dynamic right margin based on details panel width + 20px buffer
+                zIndex: 50,      // High z-index to stay above other elements
+                borderRadius: '8px',
+              }}
+              title="Click to center view on workflow"
+            >
+              <MiniMap 
+                nodeStrokeColor={(n) => {
+                  if (n.type === 'note') return '#10b981'; // emerald for notes
+                  return '#6366f1'; // indigo for dominos
+                }}
+                nodeColor={(n) => {
+                  if (n.selected) return '#3b82f6'; // blue for selected
+                  if (n.type === 'note') return '#d1fae5'; // light emerald for notes
+                  return '#e0e7ff'; // light indigo for dominos
+                }}
+                nodeBorderRadius={6}
+                position="top-right"
+                pannable={false}  // Disable panning to allow click events
+                zoomable={false}  // Disable zoom to allow click events
+                style={{
+                  width: 220,
+                  height: 160,
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid #e2e8f09b',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+                  pointerEvents: 'none', // Let parent handle clicks
+                }}
+                maskColor="rgb(240, 242, 247, 0.15)"
+              />
+            </div>
+          )}
+          {/* <Controls /> */}
+        </ReactFlow>
       </ReactFlowProvider>
-
 
       {/* modal */}
       {isModalOpen && (

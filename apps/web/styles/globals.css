@@ -188,6 +188,13 @@
     pointer-events: none;
   }
 
+  /* Lock down template/dashboard canvases so their inputs cannot be focused */
+  .locked-canvas .react-flow__node,
+  .locked-canvas .react-flow__node * {
+    pointer-events: none !important;
+    user-select: none;
+  }
+
   /* Button variants */
   .btn-primary {
     background-color: hsl(var(--primary));
