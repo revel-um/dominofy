@@ -1,24 +1,28 @@
 from __future__ import annotations
 """
-ai_service_py/main.py — Dominofy AI gateway (v1.3 async)
+ai_service_py/main.py — Dominofy AI gateway (v1.4 async)
 ────────────────────────────────────────────────────────
 * FastAPI micro-service that calls **Gemini 2.5 Flash**
 * Two-layer RAG with Chroma similarity search
-* All blocking work (Chroma + Gemini SDK) is now off-loaded to a thread-pool
-  via anyio.to_thread, so the FastAPI event-loop stays non-blocking.
+* Blocking work is executed inside a dedicated thread-pool to keep requests independent.
 """
-import json, os, re
+import atexit
+import asyncio
+import json
+import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any, Dict, List, Set
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 import google.generativeai as genai
-from anyio import to_thread
 
 from prompt_template import build_prompt
-from retrieval        import get_domino_snippets           # synchronous helper
-from schema           import PromptIn, AIResponseOut, safe_json_loads
+from retrieval import get_domino_snippets  # synchronous helper
+from schema import PromptIn, AIResponseOut, safe_json_loads
+from json import JSONDecodeError
 
 # ───────────────────────── 1. Auth / SDK ─────────────────────────
 load_dotenv()
@@ -26,9 +30,23 @@ API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=API_KEY)            # ADC if key is None
 
 GEN_MODEL = os.getenv("GEN_MODEL", "models/gemini-2.5-flash")
+GEN_TEMPERATURE = float(os.getenv("GEN_TEMPERATURE", "0.15"))
+GEN_CONFIG = {"temperature": GEN_TEMPERATURE}
+MODEL = genai.GenerativeModel(GEN_MODEL)
+
+# ───────────────────────── Thread pool / tuning ─────────────────
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+MAX_THREAD_WORKERS = max(4, _env_int("AI_THREAD_WORKERS", 8))
+_RAG_EXECUTOR = ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS)
+atexit.register(lambda: _RAG_EXECUTOR.shutdown(wait=False))
 
 # ───────────────────────── 2. FastAPI app ───────────────────────
-app = FastAPI(title="Dominofy AI Service", version="1.3.0")
+app = FastAPI(title="Dominofy AI Service", version="1.4.0")
 
 
 @app.get("/ping", tags=["health"])
@@ -92,6 +110,45 @@ def _docs_list_from_hit(hit_json: str) -> List[Dict[str, Any]]:
         return obj
     return [json.loads(s) for s in obj.get("documents", [[]])[0]]
 
+
+def parse_model_payload(raw: str) -> Dict[str, Any]:
+    """
+    Guardrail for Gemini responses so we can surface useful errors instead of
+    opaque JSON decode failures inside the FastAPI route.
+    """
+    cleaned = (raw or "").strip()
+    if not cleaned:
+        raise ValueError("Gemini returned an empty response.")
+    try:
+        return safe_json_loads(cleaned)
+    except JSONDecodeError as exc:
+        snippet = cleaned[:240].replace("\n", " ")
+        raise ValueError(f"Gemini JSON parse failed ({exc.msg}). Snippet: {snippet}") from exc
+
+
+def build_retrieval_query(prompt: PromptIn) -> str:
+    """
+    Expand the retrieval query with the richest available context, so Chroma
+    can surface dominos that align with the current workflow + revision history.
+    """
+    parts: List[str] = [prompt.text.strip()]
+
+    current = prompt.current_json or {}
+    node_types = {
+        node.get("type", "")
+        for node in current.get("nodes", []) or []
+        if isinstance(node, dict) and node.get("type")
+    }
+    if node_types:
+        parts.append("existing nodes: " + ", ".join(sorted(node_types)))
+
+    if prompt.revision_log:
+        recent = [msg for msg in prompt.revision_log[-3:] if msg]
+        parts.extend(recent)
+
+    query = " ".join(p for p in parts if p).strip()
+    return query or "dominofy domino"
+
 # ───────────────────────── 4. Core RAG (sync) ───────────────────
 def generate_with_rag(prompt: PromptIn,
                       hit_json: str,
@@ -102,9 +159,8 @@ def generate_with_rag(prompt: PromptIn,
     manifests_json = json.dumps(_docs_list_from_hit(hit_json))
     full_prompt    = build_prompt(manifests_json, prompt)
 
-    model   = genai.GenerativeModel(GEN_MODEL)
-    result  = model.generate_content(full_prompt, generation_config={"temperature": 0.15})
-    payload = safe_json_loads(result.text)
+    result  = MODEL.generate_content(full_prompt, generation_config=GEN_CONFIG)
+    payload = parse_model_payload(result.text)
 
     known_ids = {d["id"] for d in _docs_list_from_hit(hit_json)}
     ts        = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -136,11 +192,17 @@ def generate_with_rag(prompt: PromptIn,
     return generate_with_rag(prompt, merged_hit, attempt=2)
 
 # ───────────────────────── 5. Async wrappers ───────────────────
+async def _run_blocking(func, *args):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(_RAG_EXECUTOR, partial(func, *args))
+
+
 async def get_domino_snippets_async(top_k: int, query: str) -> str:
-    return await to_thread.run_sync(get_domino_snippets, top_k, query)
+    return await _run_blocking(get_domino_snippets, top_k, query)
+
 
 async def generate_with_rag_async(prompt: PromptIn, hit_json: str) -> Dict[str, Any]:
-    return await to_thread.run_sync(generate_with_rag, prompt, hit_json)
+    return await _run_blocking(generate_with_rag, prompt, hit_json)
 
 # ───────────────────────── 6. FastAPI route ────────────────────
 @app.post("/generate", tags=["ai"])
@@ -151,7 +213,8 @@ async def generate(prompt: PromptIn):
     3️⃣ pydantic validation.
     """
     try:
-        first_hit = await get_domino_snippets_async(12, prompt.text)
+        search_query = build_retrieval_query(prompt)
+        first_hit = await get_domino_snippets_async(12, search_query)
         ai_json   = await generate_with_rag_async(prompt, first_hit)
         validated = AIResponseOut.parse_obj(ai_json)
         return validated.dict()

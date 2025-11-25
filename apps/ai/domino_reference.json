@@ -1,473 +1,164 @@
 [
     {
-        "id": "llm",
-        "label": "LLM",
-        "category": "AI/LLM",
-        "description": "Large Language Model integration with multiple providers.",
-        "icon": "Cpu",
-        "color": "blue",
+        "id": "aggregator",
+        "label": "Aggregator",
+        "category": "Data Transformation",
+        "description": "Accumulates iterator output using math operations or collection builders.",
+        "icon": "Layers",
+        "color": "emerald",
         "features": [
-            "Generate text completions using various AI models (GPT-4, Claude, Gemini, Mixtral)",
-            "Support for multiple providers: OpenAI, Anthropic, Google, Mistral",
-            "Configurable parameters: temperature, max tokens, top-p, frequency/presence penalties",
-            "Streaming response support",
-            "Dynamic prompt input via pin connection",
-            "Model-specific token limits and capabilities"
+            "Collect values produced by Iterator or streaming dominos and emit the final result only once.",
+            "Supports sum, subtract, multiply, divide, min, max, array append and object map operations.",
+            "Initial seed can be defined statically or driven dynamically through the value_in_1 pin.",
+            "Stores progress in local state so concurrent iterators do not collide."
         ],
         "fields": [
             {
-                "heading": "Model",
+                "heading": "Input",
+                "type": "runtime",
+                "inPinId": "value_in",
+                "required": true,
+                "description": "Value emitted each loop; aggregator reduces it using the selected Operation."
+            },
+            {
+                "heading": "Operation",
                 "type": "select",
                 "required": true,
                 "options": [
                     {
-                        "label": "GPT-4o",
-                        "value": "gpt-4o"
+                        "label": "Sum",
+                        "value": "sum"
                     },
                     {
-                        "label": "GPT-4 Turbo",
-                        "value": "gpt-4-turbo"
+                        "label": "Subtract",
+                        "value": "subtract"
                     },
                     {
-                        "label": "GPT-3.5 Turbo",
-                        "value": "gpt-3.5-turbo"
+                        "label": "Multiply",
+                        "value": "multiply"
                     },
                     {
-                        "label": "Claude 3 Opus",
-                        "value": "claude-3-opus"
+                        "label": "Divide",
+                        "value": "divide"
                     },
                     {
-                        "label": "Claude 3 Sonnet",
-                        "value": "claude-3-sonnet"
+                        "label": "Min",
+                        "value": "min"
                     },
                     {
-                        "label": "Gemini Pro",
-                        "value": "gemini-pro"
+                        "label": "Max",
+                        "value": "max"
                     },
                     {
-                        "label": "Mixtral 8×7B",
-                        "value": "mixtral-8x7b"
+                        "label": "Array",
+                        "value": "array"
+                    },
+                    {
+                        "label": "Object",
+                        "value": "object"
                     }
-                ]
+                ],
+                "default": "sum",
+                "description": "Defines how each Input updates the accumulator."
             },
             {
-                "heading": "Prompt",
-                "type": "textarea",
-                "required": true,
-                "inPinId": "value_in",
-                "placeholder": "Enter your prompt…"
-            },
-            {
-                "heading": "Temperature",
+                "heading": "Initial Value",
                 "type": "number",
-                "default": 0.7,
-                "min": 0,
-                "max": 2
+                "inPinId": "value_in_1",
+                "required": false,
+                "description": "Seed applied before the first item. Defaults to 0 (arrays default to [] and objects to {})."
             },
             {
-                "heading": "Max Tokens",
-                "type": "number",
-                "default": 1000
-            },
-            {
-                "heading": "Top P",
-                "type": "number",
-                "default": 1,
-                "min": 0,
-                "max": 1
-            },
-            {
-                "heading": "Frequency Penalty",
-                "type": "number",
-                "default": 0,
-                "min": -2,
-                "max": 2
-            },
-            {
-                "heading": "Presence Penalty",
-                "type": "number",
-                "default": 0,
-                "min": -2,
-                "max": 2
-            },
-            {
-                "heading": "Stream",
-                "type": "boolean",
-                "default": false
+                "heading": "Key",
+                "type": "runtime",
+                "inPinId": "key_in",
+                "required": false,
+                "description": "Optional key for object mode; can also be derived from iterator payload { key, value }."
             }
         ],
         "pins": {
             "exec_in": "EXEC_IN",
             "exec_out": "EXEC_OUT",
             "value_in": "VALUE_IN",
-            "value_out": "VALUE_OUT"
-        },
-        "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
-            "value_out": "dynamic"
-        },
-        "keywords": [
-            "ai",
-            "chat",
-            "claude",
-            "completion",
-            "gemini",
-            "gpt",
-            "language",
-            "large",
-            "llm",
-            "mixtral",
-            "model",
-            "openai",
-            "prompt"
-        ]
-    },
-    {
-        "id": "response",
-        "label": "Response",
-        "category": "Core",
-        "description": "Return a value as workflow response / HTTP reply.",
-        "icon": "CheckCircle",
-        "color": "green",
-        "features": [
-            "Return final output from workflow execution",
-            "Support for HTTP response formatting",
-            "Can be used as workflow endpoint response",
-            "Dynamic value input via pin connection",
-            "Terminal node in workflow execution"
-        ],
-        "fields": [
-            {
-                "heading": "Response",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in",
-                "placeholder": "Response value…"
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "value_in": "VALUE_IN",
-            "value_out": "VALUE_OUT"
-        },
-        "pinStructure": {
-            "exec_in": true,
-            "exec_out": false,
-            "value_in": true,
-            "value_out": true
-        },
-        "keywords": [
-            "http",
-            "output",
-            "reply",
-            "response",
-            "return",
-            "send",
-            "value",
-            "webhook",
-            "workflow"
-        ]
-    },
-    {
-        "id": "SchedulerDomino",
-        "label": "Scheduler",
-        "category": "Timing",
-        "description": "Trigger downstream flow on cron, interval or once.",
-        "icon": "Clock",
-        "color": "yellow",
-        "features": [
-            "Schedule workflow execution using cron expressions",
-            "Set up recurring intervals (seconds, minutes, hours)",
-            "One-time scheduled execution",
-            "Start workflow automatically without manual triggers",
-            "Support for complex scheduling patterns"
-        ],
-        "fields": [
-            {
-                "heading": "Schedule Type",
-                "type": "select",
-                "required": true,
-                "options": [
-                    {
-                        "label": "Cron",
-                        "value": "cron"
-                    },
-                    {
-                        "label": "Interval",
-                        "value": "interval"
-                    },
-                    {
-                        "label": "One-time",
-                        "value": "onetime"
-                    }
-                ]
-            },
-            {
-                "heading": "Cron Expression",
-                "type": "textInput",
-                "placeholder": "0 0 * * *"
-            },
-            {
-                "heading": "Interval (seconds)",
-                "type": "number",
-                "default": 60
-            },
-            {
-                "heading": "Start Date",
-                "type": "datetime"
-            }
-        ],
-        "pins": {
-            "exec_out": "EXEC_OUT"
-        },
-        "pinStructure": {
-            "exec_in": false,
-            "exec_out": true,
-            "value_in": false,
-            "value_out": false
-        },
-        "keywords": [
-            "cron",
-            "date",
-            "delay",
-            "interval",
-            "once",
-            "recurring",
-            "schedule",
-            "scheduler",
-            "start",
-            "timer",
-            "timing",
-            "trigger"
-        ]
-    },
-    {
-        "id": "emailsender",
-        "label": "Email Sender",
-        "category": "Communication",
-        "description": "Send emails via SMTP or API providers.",
-        "icon": "Mail",
-        "color": "red",
-        "features": [
-            "Send emails with customizable from, to, subject, and body",
-            "Support for CC and BCC recipients",
-            "Dynamic field values via pin connections",
-            "SMTP and API provider support",
-            "HTML and plain text email support",
-            "Email validation and error handling"
-        ],
-        "fields": [
-            {
-                "heading": "From",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in_1"
-            },
-            {
-                "heading": "To",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in_2"
-            },
-            {
-                "heading": "Subject",
-                "type": "textInput",
-                "inPinId": "value_in_3"
-            },
-            {
-                "heading": "Body",
-                "type": "textarea",
-                "required": true,
-                "inPinId": "value_in_4"
-            },
-            {
-                "heading": "CC",
-                "type": "textInput",
-                "inPinId": "value_in_5"
-            },
-            {
-                "heading": "BCC",
-                "type": "textInput",
-                "inPinId": "value_in_6"
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "exec_out": "EXEC_OUT",
             "value_in_1": "VALUE_IN",
-            "value_in_2": "VALUE_IN",
-            "value_in_3": "VALUE_IN",
-            "value_in_4": "VALUE_IN",
-            "value_in_5": "VALUE_IN",
-            "value_in_6": "VALUE_IN"
+            "key_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": "dynamic",
-            "value_out": false
+            "exec_in": "Triggers aggregation per incoming item.",
+            "exec_out": "Fires once after the iterator reports done.",
+            "value_in": "Accepts each numeric/object payload to aggregate.",
+            "value_in_1": "Optional seed for numeric operations.",
+            "key_in": "Used for object aggregation when building key/value maps.",
+            "value_out": "Exposes the final accumulator (populated on the last call only)."
         },
         "keywords": [
-            "bcc",
-            "body",
-            "cc",
-            "communication",
-            "email",
-            "from",
-            "mail",
-            "message",
-            "send",
-            "smtp",
-            "subject",
-            "to"
-        ]
-    },
-    {
-        "id": "csvwriter",
-        "label": "CSV Writer",
-        "category": "Data",
-        "description": "Write incoming data rows to a CSV file.",
-        "icon": "Download",
-        "color": "blue",
-        "features": [
-            "Write data arrays or objects to CSV format",
-            "Configurable headers inclusion",
-            "Custom filename specification",
-            "Support for various data structures",
-            "File download and storage capabilities",
-            "Data validation and error handling"
-        ],
-        "fields": [
-            {
-                "heading": "Data",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in"
-            },
-            {
-                "heading": "Filename",
-                "type": "textInput",
-                "required": true
-            },
-            {
-                "heading": "Headers",
-                "type": "boolean",
-                "default": true
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "exec_out": "EXEC_OUT",
-            "value_in": "VALUE_IN"
-        },
-        "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
-            "value_out": false
-        },
-        "keywords": [
-            "comma",
-            "csv",
-            "data",
-            "download",
-            "export",
-            "file",
-            "rows",
-            "save",
-            "values",
-            "write"
-        ]
-    },
-    {
-        "id": "print",
-        "label": "Print",
-        "category": "Utility",
-        "description": "Print value(s) to server console or workflow log.",
-        "icon": "Printer",
-        "color": "blue",
-        "features": [
-            "Log values to server console for debugging",
-            "Print dynamic values from pin connections",
-            "Support for various data types (strings, objects, arrays)",
-            "Workflow execution logging",
-            "Debug and monitoring capabilities"
-        ],
-        "fields": [
-            {
-                "heading": "Text",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in",
-                "placeholder": "What to print…"
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "exec_out": "EXEC_OUT",
-            "value_in": "VALUE_IN"
-        },
-        "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
-            "value_out": false
-        },
-        "keywords": [
-            "console",
-            "debug",
-            "log",
-            "output",
-            "print",
-            "server",
-            "text",
-            "utility",
-            "workflow"
+            "aggregate",
+            "reduce",
+            "sum",
+            "iterator",
+            "object",
+            "array"
         ]
     },
     {
         "id": "apicall",
         "label": "API Call",
-        "category": "Integration",
-        "description": "Make HTTP requests to external services and return response data.",
+        "category": "HTTP",
+        "description": "Send an HTTP request with axios and forward the JSON response to downstream nodes.",
         "icon": "Globe",
-        "color": "green",
+        "color": "teal",
         "features": [
-            "Make HTTP requests to external APIs and services",
-            "Support for GET, POST, PUT, DELETE, PATCH methods",
-            "Custom headers and request body configuration",
-            "Dynamic URL input via pin connections",
-            "Response data extraction and processing",
-            "Error handling and status code management"
+            "Supports GET, POST, PUT and DELETE using axios with automatic JSON parsing.",
+            "Url, method, headers and body can be configured statically or overridden through the value_in payload.",
+            "Runtime errors bubble up with useful status information so retries or error paths can react.",
+            "Response body is emitted on value_out for chaining into other dominos."
         ],
         "fields": [
             {
-                "heading": "URL",
+                "heading": "Url",
                 "type": "textInput",
+                "placeholder": "https://api.example.com",
                 "required": true,
-                "inPinId": "value_in"
+                "inPinId": "value_in",
+                "description": "Endpoint to call. Connect value_in with a payload containing { Url } to override dynamically."
             },
             {
                 "heading": "Method",
                 "type": "select",
                 "required": true,
                 "options": [
-                    "GET",
-                    "POST",
-                    "PUT",
-                    "DELETE",
-                    "PATCH"
-                ]
+                    {
+                        "label": "GET",
+                        "value": "GET"
+                    },
+                    {
+                        "label": "POST",
+                        "value": "POST"
+                    },
+                    {
+                        "label": "PUT",
+                        "value": "PUT"
+                    },
+                    {
+                        "label": "DELETE",
+                        "value": "DELETE"
+                    }
+                ],
+                "default": "GET",
+                "description": "HTTP verb. Override by sending { Method: 'POST' } through the value payload."
             },
             {
                 "heading": "Headers",
-                "type": "json"
+                "type": "json",
+                "required": false,
+                "description": "Key/value headers object merged into the axios request; can be overridden by ctx.input.Headers."
             },
             {
                 "heading": "Body",
-                "type": "json"
+                "type": "json",
+                "required": false,
+                "description": "JSON payload for POST/PUT requests. Send { Body: {...} } through value_in to drive it dynamically."
             }
         ],
         "pins": {
@@ -477,67 +168,57 @@
             "value_out": "VALUE_OUT"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
-            "value_out": true
+            "exec_in": "Runs the HTTP call when upstream execution arrives.",
+            "exec_out": "Emits after the HTTP request finishes.",
+            "value_in": "Accepts overrides object (Url, Method, Headers, Body).",
+            "value_out": "Contains the parsed response body."
         },
         "keywords": [
             "api",
-            "call",
-            "delete",
-            "endpoint",
-            "get",
-            "headers",
             "http",
-            "integration",
-            "patch",
-            "post",
-            "put",
             "request",
-            "response"
+            "axios",
+            "rest",
+            "webhook"
         ]
     },
     {
         "id": "apitrigger",
         "label": "API Trigger",
-        "category": "Integration",
-        "description": "Start a workflow via inbound HTTP request.",
+        "category": "Trigger",
+        "description": "Expose the workflow as an HTTP endpoint that can accept optional body/file uploads.",
         "icon": "Zap",
         "color": "purple",
         "features": [
-            "Create webhook endpoints for workflow triggers",
-            "Receive HTTP requests to start workflow execution",
-            "Support for GET, POST, PUT, DELETE methods",
-            "Authentication options (none, API key, bearer token)",
-            "Request data extraction and processing",
-            "Workflow initialization with request payload"
+            "Generates a signed /workflow/{id}/trigger/{Function} URL for external callers.",
+            "Optional body/file requirements automatically expose a value_out pin containing the inbound payload.",
+            "Sanitises config-only fields so downstream nodes see only caller-supplied data.",
+            "Acts as a workflow entrypoint and does not expect exec_in."
         ],
         "fields": [
             {
-                "heading": "Endpoint",
-                "type": "textInput",
-                "required": true
-            },
-            {
-                "heading": "Method",
-                "type": "select",
+                "heading": "Api Url",
+                "type": "copy",
                 "required": true,
-                "options": [
-                    "GET",
-                    "POST",
-                    "PUT",
-                    "DELETE"
-                ]
+                "description": "Read-only URL that external systems should POST to."
             },
             {
-                "heading": "Authentication",
-                "type": "select",
-                "options": [
-                    "none",
-                    "apikey",
-                    "bearer"
-                ]
+                "heading": "Function",
+                "type": "textInput",
+                "required": true,
+                "description": "Unique identifier appended to the trigger URL."
+            },
+            {
+                "heading": "Require File Upload",
+                "type": "checkbox",
+                "required": false,
+                "description": "When enabled, value_out carries uploaded file metadata and validators enforce multipart input."
+            },
+            {
+                "heading": "Require Body",
+                "type": "checkbox",
+                "required": false,
+                "description": "Expect JSON body; exposes the parsed payload on value_out."
             }
         ],
         "pins": {
@@ -545,55 +226,76 @@
             "value_out": "VALUE_OUT"
         },
         "pinStructure": {
-            "exec_in": false,
-            "exec_out": true,
-            "value_in": false,
-            "value_out": true
+            "exec_out": "Fires when an HTTP call hits this trigger.",
+            "value_out": "Populated only if Require Body/File Upload is enabled; contains cleaned input data."
         },
         "keywords": [
-            "api",
-            "endpoint",
-            "event",
-            "http",
-            "inbound",
-            "integration",
-            "request",
-            "start",
             "trigger",
             "webhook",
-            "workflow"
+            "http",
+            "ingress",
+            "api",
+            "entrypoint"
         ]
     },
     {
-        "id": "readexcel",
-        "label": "Read Excel",
-        "category": "Data",
-        "description": "Load data from an uploaded XLSX/XLS file.",
-        "icon": "FileText",
-        "color": "green",
+        "id": "arithmetic",
+        "label": "Arithmetic",
+        "category": "Logic",
+        "description": "Evaluate a sequence of numeric inputs and operators ( + - * / % ^ ).",
+        "icon": "Calculator",
+        "color": "indigo",
         "features": [
-            "Read data from Excel files (XLSX, XLS, CSV)",
-            "Support for multiple sheets and ranges",
-            "Dynamic file input via pin connections",
-            "Data extraction and transformation",
-            "Support for various Excel formats",
-            "Sheet and range specification"
+            "Support for unlimited operands by adding Input_n/Operator_n pairs.",
+            "Each operand/operator can be overridden at runtime via pins or by passing { Input_n } in the value payload.",
+            "Returns the computed scalar on value_out for downstream math or comparisons.",
+            "Performs strict numeric coercion and raises descriptive errors for invalid values."
         ],
         "fields": [
             {
-                "heading": "File",
-                "type": "file",
+                "heading": "Input_1",
+                "type": "number",
                 "required": true,
-                "accept": ".xlsx,.xls,.csv"
+                "inPinId": "value_in",
+                "description": "First operand. Additional operands use headings Input_2, Input_3, ... with pins value_in_2, value_in_3, etc."
             },
             {
-                "heading": "Sheet",
-                "type": "textInput"
+                "heading": "Operator_1",
+                "type": "select",
+                "required": true,
+                "options": [
+                    {
+                        "label": "+",
+                        "value": "+"
+                    },
+                    {
+                        "label": "-",
+                        "value": "-"
+                    },
+                    {
+                        "label": "*",
+                        "value": "*"
+                    },
+                    {
+                        "label": "/",
+                        "value": "/"
+                    },
+                    {
+                        "label": "%",
+                        "value": "%"
+                    },
+                    {
+                        "label": "^",
+                        "value": "^"
+                    }
+                ],
+                "description": "Operator applied between Input_1 and Input_2. Use Operator_2 for Input_2/Input_3, etc."
             },
             {
-                "heading": "Range",
-                "type": "textInput",
-                "placeholder": "A1:D10"
+                "heading": "Input_n",
+                "type": "number",
+                "required": false,
+                "description": "Placeholder to indicate you can append as many Input_k + Operator_k pairs as needed."
             }
         ],
         "pins": {
@@ -603,422 +305,375 @@
             "value_out": "VALUE_OUT"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
-            "value_out": true
+            "exec_in": "Runs the arithmetic chain.",
+            "exec_out": "Continues after the computation.",
+            "value_in": "Supplies overrides for Input_k/Operator_k values.",
+            "value_out": "Final numeric result."
         },
         "keywords": [
-            "data",
-            "excel",
-            "file",
-            "import",
-            "load",
-            "range",
-            "read",
-            "sheet",
-            "spreadsheet",
-            "xlsx",
-            "xls",
-            "csv"
+            "math",
+            "calculate",
+            "sum",
+            "expression",
+            "operators"
         ]
     },
     {
         "id": "condition",
         "label": "Condition",
         "category": "Logic",
-        "description": "Binary branching based on comparison of two values.",
-        "icon": "HelpCircle",
-        "color": "yellow",
+        "description": "Compare two values and branch execution on true/false results.",
+        "icon": "FileQuestion",
+        "color": "blue",
         "features": [
-            "Compare two values using various operators",
-            "Support for equality, inequality, and comparison operators",
-            "String and numeric comparisons",
-            "Contains and not-contains operations",
-            "Binary branching (true/false paths)",
-            "Dynamic value input via pin connections"
+            "Supports equality, inequality, greater/less, contains/not_contains comparisons.",
+            "Value pins keep Text1/Text2 inputs synced when wires are attached.",
+            "True path leaves through exec_out_1, false path through exec_out_2.",
+            "Result boolean is emitted on value_out for additional logic."
         ],
         "fields": [
             {
-                "heading": "Left Value",
+                "heading": "Text1",
                 "type": "textInput",
                 "required": true,
-                "inPinId": "value_in_1"
+                "inPinId": "value_in_1",
+                "description": "Left-hand operand."
             },
             {
-                "heading": "Operator",
+                "heading": "Text2",
+                "type": "textInput",
+                "required": true,
+                "inPinId": "value_in_2",
+                "description": "Right-hand operand."
+            },
+            {
+                "heading": "Option",
                 "type": "select",
                 "required": true,
                 "options": [
-                    "equal",
-                    "less_than",
-                    "greater_than",
-                    "less_or_equal",
-                    "greater_or_equal",
-                    "not_equal",
-                    "contains"
+                    {
+                        "label": "Equal",
+                        "value": "equal"
+                    },
+                    {
+                        "label": "Not Equal",
+                        "value": "not_equal"
+                    },
+                    {
+                        "label": "Greater Than",
+                        "value": "greater_than"
+                    },
+                    {
+                        "label": "Less Than",
+                        "value": "less_than"
+                    },
+                    {
+                        "label": "Greater or Equal",
+                        "value": "greater_or_equal"
+                    },
+                    {
+                        "label": "Less or Equal",
+                        "value": "less_or_equal"
+                    },
+                    {
+                        "label": "Contains",
+                        "value": "contains"
+                    }
                 ]
-            },
-            {
-                "heading": "Right Value",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in_2"
             }
         ],
         "pins": {
             "exec_in": "EXEC_IN",
-            "exec_out_true": "EXEC_OUT",
-            "exec_out_false": "EXEC_OUT",
+            "exec_out_1": "EXEC_OUT",
+            "exec_out_2": "EXEC_OUT",
             "value_in_1": "VALUE_IN",
-            "value_in_2": "VALUE_IN"
+            "value_in_2": "VALUE_IN",
+            "value_out": "VALUE_OUT"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out": "dynamic",
-            "value_in": "dynamic",
-            "value_out": false
+            "exec_in": "Evaluates the condition when triggered.",
+            "exec_out_1": "True branch.",
+            "exec_out_2": "False branch.",
+            "value_out": "Boolean result for downstream logic."
         },
         "keywords": [
-            "branch",
-            "comparison",
-            "condition",
-            "false",
             "if",
-            "logic",
-            "operator",
-            "true"
+            "condition",
+            "compare",
+            "branch",
+            "boolean"
         ]
     },
     {
-        "id": "switchcase",
-        "label": "Switch",
-        "category": "Logic",
-        "description": "Multi-branch conditional routing by matching value to cases.",
-        "icon": "ToggleLeft",
-        "color": "yellow",
+        "id": "connector",
+        "label": "Connector",
+        "category": "Flow Control",
+        "description": "Barrier that waits for multiple exec_in branches and merges their payloads before continuing.",
+        "icon": "Plug",
+        "color": "slate",
         "features": [
-            "Multi-branch conditional routing based on value matching",
-            "Support for multiple case scenarios",
-            "Default case handling",
-            "Dynamic case addition and removal",
-            "Value-based workflow branching",
-            "Complex decision tree logic"
+            "Dynamically configurable number of exec_in handles (Case_0, Case_1, ...).",
+            "Stores partial payloads in local state until all branches arrive, then emits merged data.",
+            "Prevents downstream nodes from running until every prerequisite branch is complete.",
+            "Automatically clears state once exec_out fires."
         ],
         "fields": [
             {
-                "heading": "Input",
-                "type": "textInput",
+                "heading": "Case_n",
+                "type": "text",
+                "required": true,
+                "description": "Each case row corresponds to an exec_in handle (exec_in, exec_in_2, ...). Names are informational."
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_in_1": "EXEC_IN",
+            "exec_in_2": "EXEC_IN",
+            "exec_out": "EXEC_OUT"
+        },
+        "pinStructure": {
+            "exec_in": "Add as many exec_in_n handles as needed; connector waits for all of them.",
+            "exec_out": "Fires exactly once after every branch has arrived with its payload merged."
+        },
+        "keywords": [
+            "join",
+            "barrier",
+            "merge",
+            "synchronize",
+            "fan-in"
+        ]
+    },
+    {
+        "id": "csvwriter",
+        "label": "CSV Writer",
+        "category": "Output",
+        "description": "Convert arrays/objects into a CSV file and optionally upload it to GCS.",
+        "icon": "FileText",
+        "color": "cyan",
+        "features": [
+            "Accepts JSON arrays from the value_in pin or free-form text pasted into the Input Box.",
+            "Supports configurable delimiters, header handling and the ability to treat the first line as headers for text mode.",
+            "Uploads to Google Cloud Storage via the backend GCS service and returns asset metadata.",
+            "Falls back to local filesystem writes if GCS is unavailable."
+        ],
+        "fields": [
+            {
+                "heading": "Name",
+                "type": "text",
+                "required": false,
+                "description": "Display name stored with the generated asset."
+            },
+            {
+                "heading": "Input Type",
+                "type": "select",
+                "required": true,
+                "options": [
+                    {
+                        "label": "JSON (array of objects)",
+                        "value": "json"
+                    },
+                    {
+                        "label": "Text (rows/columns)",
+                        "value": "text"
+                    }
+                ],
+                "inPinId": "value_in_1"
+            },
+            {
+                "heading": "File Name",
+                "type": "text",
                 "required": true,
                 "inPinId": "value_in"
             },
             {
-                "heading": "Default Case",
-                "type": "textInput"
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "value_in": "VALUE_IN"
-        },
-        "pinStructure": {
-            "exec_in": true,
-            "exec_out": "dynamic",
-            "value_in": true,
-            "value_out": false
-        },
-        "keywords": [
-            "branch",
-            "case",
-            "conditional",
-            "logic",
-            "match",
-            "multi",
-            "routing",
-            "switch",
-            "value"
-        ]
-    },
-    {
-        "id": "arithmetic",
-        "label": "Arithmetic",
-        "category": "Math",
-        "description": "Apply mathematical operation(s) to inputs.",
-        "icon": "Calculator",
-        "color": "blue",
-        "features": [
-            "Perform mathematical operations on numeric inputs",
-            "Support for addition, subtraction, multiplication, division",
-            "Modulo and power operations",
-            "Dynamic input values via pin connections",
-            "Numeric result calculation and output",
-            "Mathematical expression evaluation"
-        ],
-        "fields": [
-            {
-                "heading": "Input 1",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in_1"
+                "heading": "Include Header",
+                "type": "checkbox",
+                "required": false,
+                "inPinId": "value_in_3"
             },
             {
-                "heading": "Operator",
+                "heading": "Consider First Line As Header",
+                "type": "checkbox",
+                "required": false,
+                "inPinId": "value_in_6"
+            },
+            {
+                "heading": "Delimiter",
                 "type": "select",
-                "required": true,
+                "required": false,
+                "inPinId": "value_in_4",
                 "options": [
-                    "+",
-                    "-",
-                    "*",
-                    "/",
-                    "%",
-                    "^"
+                    {
+                        "label": "Comma",
+                        "value": ","
+                    },
+                    {
+                        "label": "Semicolon",
+                        "value": ";"
+                    },
+                    {
+                        "label": "Tab",
+                        "value": "\\t"
+                    },
+                    {
+                        "label": "Pipe",
+                        "value": "|"
+                    }
                 ]
+            },
+            {
+                "heading": "Input Box",
+                "type": "textarea",
+                "required": false,
+                "inPinId": "value_in_5",
+                "description": "Used when Input Type = text."
             }
         ],
         "pins": {
             "exec_in": "EXEC_IN",
             "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
             "value_in_1": "VALUE_IN",
-            "value_out": "VALUE_OUT"
+            "value_in_3": "VALUE_IN",
+            "value_in_4": "VALUE_IN",
+            "value_in_5": "VALUE_IN",
+            "value_in_6": "VALUE_IN"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": "dynamic",
-            "value_out": true
+            "exec_in": "Starts CSV generation.",
+            "exec_out": "Continues after the file is written/uploaded while passing file metadata in the exec context."
         },
         "keywords": [
-            "add",
-            "arithmetic",
-            "calculate",
-            "divide",
-            "math",
-            "modulo",
-            "multiply",
-            "numbers",
-            "operator",
-            "power",
-            "subtract"
+            "csv",
+            "export",
+            "file",
+            "gcs",
+            "writer",
+            "download"
         ]
     },
     {
         "id": "deconstructor",
-        "label": "Deconstruct",
-        "category": "Data",
-        "description": "Break objects/arrays into individual values.",
-        "icon": "PackageOpen",
-        "color": "purple",
+        "label": "Deconstructor",
+        "category": "Data Transformation",
+        "description": "Pluck selected indexes or keys from arrays/objects and expose each on its own value_out pin.",
+        "icon": "Split",
+        "color": "violet",
         "features": [
-            "Extract individual values from objects and arrays",
-            "Support for object property extraction",
-            "Array element extraction",
-            "Dynamic output pin generation based on structure",
-            "Data structure breakdown and analysis",
-            "Property and element mapping"
+            "Supports array indexes or object keys via Key_n selectors.",
+            "Each selector exposes both an input pin (value_in_n) to override the key/index and an output pin (value_out_n) carrying the extracted value.",
+            "Type dropdown enforces array vs object expectations and validates data accordingly.",
+            "Ideal for breaking iterator payloads into independent lanes without custom code."
         ],
         "fields": [
             {
-                "heading": "Mode",
+                "heading": "Input",
+                "type": "text",
+                "inPinId": "value_in",
+                "required": true
+            },
+            {
+                "heading": "Type",
                 "type": "select",
                 "required": true,
                 "options": [
-                    "array",
-                    "object"
+                    {
+                        "label": "Array",
+                        "value": "array"
+                    },
+                    {
+                        "label": "Object",
+                        "value": "object"
+                    }
                 ]
             },
             {
-                "heading": "Input",
-                "type": "textInput",
+                "heading": "Key_n",
+                "type": "text",
                 "required": true,
-                "inPinId": "value_in_1"
+                "inPinId": "value_in_n",
+                "outPinId": "value_out_n",
+                "description": "One entry per field/index you want to expose."
             }
         ],
         "pins": {
             "exec_in": "EXEC_IN",
             "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
             "value_in_1": "VALUE_IN",
-            "value_out": "VALUE_OUT"
+            "value_out_1": "VALUE_OUT"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
-            "value_out": "dynamic"
+            "exec_in": "Runs when upstream execution arrives.",
+            "exec_out": "Finishes immediately after projecting values.",
+            "value_out": "Multiple dynamic value_out_n pins carry slices of the input."
         },
         "keywords": [
-            "array",
-            "break",
-            "data",
-            "deconstruct",
-            "elements",
-            "extract",
-            "fields",
+            "pluck",
+            "select",
             "object",
-            "split",
-            "unpack",
-            "values"
+            "array",
+            "split"
         ]
     },
     {
-        "id": "iterator",
-        "label": "Iterator",
-        "category": "Data",
-        "description": "Loop over collection elements; emits each item sequentially.",
-        "icon": "Repeat",
-        "color": "green",
+        "id": "delay",
+        "label": "Delay",
+        "category": "Utility",
+        "description": "Pause execution for a configurable number of milliseconds before continuing.",
+        "icon": "Clock",
+        "color": "amber",
         "features": [
-            "Iterate over arrays and collections",
-            "Forward and reverse iteration order",
-            "Range-based iteration with start/end limits",
-            "Maximum iteration count limits",
-            "Sequential item emission for processing",
-            "Loop control and iteration management"
+            "Accepts exact millisecond durations and blocks downstream exec until the timer completes.",
+            "Can be cancelled via abort signals when workflows are aborted.",
+            "Passes the inbound value through unchanged after the delay.",
+            "Useful for rate limiting, polling, or giving external systems time to settle."
         ],
         "fields": [
             {
-                "heading": "Input",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in"
-            },
-            {
-                "heading": "Order",
-                "type": "select",
-                "required": true,
-                "options": [
-                    "forward",
-                    "reverse"
-                ]
-            },
-            {
-                "heading": "Range Start",
+                "heading": "Delay",
                 "type": "number",
-                "default": 0
-            },
-            {
-                "heading": "Range End",
-                "type": "number"
-            },
-            {
-                "heading": "Cap Iterations",
-                "type": "number",
-                "placeholder": "0 = unlimited"
+                "required": true,
+                "description": "Milliseconds to wait before emitting exec_out."
             }
         ],
         "pins": {
             "exec_in": "EXEC_IN",
-            "exec_out": "EXEC_OUT",
-            "exec_out_1": "EXEC_OUT",
-            "value_in": "VALUE_IN",
-            "value_out": "VALUE_OUT"
+            "exec_out": "EXEC_OUT"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out_1": true,
-            "value_in": true,
-            "value_out": true
+            "exec_in": "Starts the timer.",
+            "exec_out": "Fires after the delay."
         },
         "keywords": [
-            "array",
-            "collection",
-            "data",
-            "each",
-            "for",
-            "iterate",
-            "iterator",
-            "items",
-            "loop",
-            "object",
-            "order",
-            "sequential"
-        ]
-    },
-    {
-        "id": "aggregator",
-        "label": "Aggregator",
-        "category": "Data",
-        "description": "Accumulate multiple values using sum, multiply, min or max.",
-        "icon": "Layers",
-        "color": "purple",
-        "features": [
-            "Accumulate multiple input values using mathematical operations",
-            "Support for sum, multiply, min, and max operations",
-            "Configurable initial values",
-            "Dynamic input pin generation based on connections",
-            "Running total and result tracking",
-            "Data aggregation and summarization"
-        ],
-        "fields": [
-            {
-                "heading": "Operation",
-                "type": "select",
-                "required": true,
-                "options": [
-                    "sum",
-                    "multiply",
-                    "min",
-                    "max"
-                ]
-            },
-            {
-                "heading": "Initial Value",
-                "type": "number"
-            },
-            {
-                "heading": "Accumulated",
-                "type": "number",
-                "readonly": true
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "exec_out": "EXEC_OUT",
-            "value_in": "VALUE_IN",
-            "value_out": "VALUE_OUT"
-        },
-        "pinStructure": {
-            "exec_in": "dynamic",
-            "exec_out": true,
-            "value_in": "dynamic",
-            "value_out": true
-        },
-        "keywords": [
-            "accumulate",
-            "aggregate",
-            "aggregator",
-            "combine",
-            "data",
-            "max",
-            "min",
-            "multiply",
-            "sum",
-            "values"
+            "delay",
+            "sleep",
+            "wait",
+            "timer"
         ]
     },
     {
         "id": "filter",
         "label": "Filter",
-        "category": "Data",
-        "description": "Filter arrays or object collections by condition.",
+        "category": "Data Transformation",
+        "description": "Filter arrays, primitives or objects using field/value comparisons.",
         "icon": "Filter",
-        "color": "blue",
+        "color": "rose",
         "features": [
-            "Filter arrays and object collections based on conditions",
-            "Support for primitive and object filtering",
-            "Multiple comparison operators (equal, contains, greater than, etc.)",
-            "Property-based filtering for objects",
-            "Dynamic filter value input via pin connections",
-            "Data subset extraction and filtering"
+            "Supports primitive arrays and arrays of objects with per-field comparisons.",
+            "Operators include equals, contains, not_contains and numeric comparisons.",
+            "Single-object/primitive mode can short-circuit downstream execution when the predicate fails.",
+            "Property and Filter Value inputs can be wired for dynamic criteria."
         ],
         "fields": [
             {
                 "heading": "Input",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in"
+                "type": "text",
+                "inPinId": "value_in",
+                "required": true
             },
             {
-                "heading": "Input Type",
+                "heading": "Type",
                 "type": "select",
                 "required": true,
                 "options": [
@@ -1035,27 +690,53 @@
             {
                 "heading": "Property",
                 "type": "textInput",
-                "inPinId": "value_in_1"
+                "inPinId": "value_in_1",
+                "required": false
             },
             {
                 "heading": "Operator",
                 "type": "select",
                 "required": true,
                 "options": [
-                    "equal",
-                    "not_equal",
-                    "contains",
-                    "not_contains",
-                    "greater_than",
-                    "less_than",
-                    "greater_or_equal",
-                    "less_or_equal"
+                    {
+                        "label": "Equal",
+                        "value": "equal"
+                    },
+                    {
+                        "label": "Not Equal",
+                        "value": "not_equal"
+                    },
+                    {
+                        "label": "Contains",
+                        "value": "contains"
+                    },
+                    {
+                        "label": "Does Not Contain",
+                        "value": "not_contains"
+                    },
+                    {
+                        "label": "Greater Than",
+                        "value": "greater_than"
+                    },
+                    {
+                        "label": "Less Than",
+                        "value": "less_than"
+                    },
+                    {
+                        "label": "Greater or Equal",
+                        "value": "greater_or_equal"
+                    },
+                    {
+                        "label": "Less or Equal",
+                        "value": "less_or_equal"
+                    }
                 ]
             },
             {
                 "heading": "Filter Value",
                 "type": "textInput",
-                "inPinId": "value_in_2"
+                "inPinId": "value_in_2",
+                "required": false
             }
         ],
         "pins": {
@@ -1067,51 +748,66 @@
             "value_out": "VALUE_OUT"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": "dynamic",
-            "value_out": true
+            "exec_out": "Runs with the filtered collection or halts when predicate fails in single-value mode.",
+            "value_out": "Filtered output array/object."
         },
         "keywords": [
-            "array",
-            "collection",
-            "condition",
-            "data",
-            "equal",
             "filter",
-            "greater",
-            "include",
-            "less",
-            "not",
+            "where",
+            "predicate",
+            "array",
             "object"
         ]
     },
     {
-        "id": "sqlRunner",
-        "label": "SQL Runner",
-        "category": "Database",
-        "description": "Execute SQL query against a configured DB connection.",
-        "icon": "Terminal",
-        "color": "green",
+        "id": "iterator",
+        "label": "Iterator",
+        "category": "Flow Control",
+        "description": "Loop over arrays or objects, emitting each item and an on-complete signal.",
+        "icon": "Repeat",
+        "color": "lime",
         "features": [
-            "Execute SQL queries against database connections",
-            "Support for various database types (PostgreSQL, MySQL, etc.)",
-            "Database connection management and configuration",
-            "Query result processing and output",
-            "Error handling for database operations",
-            "Success and error execution paths"
+            "Accepts arrays/objects via value_in or generates numeric ranges when no input is provided.",
+            "Range Start/End restrict slices; Max flag forces iterating the entire collection regardless of range.",
+            "Order can be forward or reverse.",
+            "exec_out fires for each element while exec_out_1 fires once after completion."
         ],
         "fields": [
             {
-                "heading": "Query",
-                "type": "textarea",
-                "required": true,
-                "inPinId": "value_in"
+                "heading": "Input",
+                "type": "text",
+                "inPinId": "value_in",
+                "required": false
             },
             {
-                "heading": "Connection",
+                "heading": "Order",
                 "type": "select",
-                "required": true
+                "required": true,
+                "options": [
+                    {
+                        "label": "Forward",
+                        "value": "forward"
+                    },
+                    {
+                        "label": "Reverse",
+                        "value": "reverse"
+                    }
+                ]
+            },
+            {
+                "heading": "Range Start",
+                "type": "textInput",
+                "required": false
+            },
+            {
+                "heading": "Range End",
+                "type": "textInput",
+                "required": false
+            },
+            {
+                "heading": "Max",
+                "type": "checkbox",
+                "required": false
             }
         ],
         "pins": {
@@ -1122,281 +818,279 @@
             "value_out": "VALUE_OUT"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
-            "value_out": true
+            "exec_out": "Per-item branch.",
+            "exec_out_1": "On-complete branch.",
+            "value_out": "Current item (primitive or { key, value } for objects)."
         },
         "keywords": [
-            "database",
-            "db",
-            "execute",
-            "query",
-            "run",
-            "select",
-            "sql",
-            "statement",
-            "update"
-        ]
-    },
-    {
-        "id": "codeRunner",
-        "label": "Code Runner",
-        "category": "Development",
-        "description": "Execute custom code snippet inside Node, Python, or Ruby sandbox.",
-        "icon": "Code2",
-        "color": "purple",
-        "features": [
-            "Execute custom code in sandboxed environments",
-            "Support for Node.js, Python, and Ruby",
-            "Dynamic code input via pin connections",
-            "Sandboxed execution for security",
-            "Custom logic and data processing",
-            "Code execution result handling"
-        ],
-        "fields": [
-            {
-                "heading": "Environment",
-                "type": "select",
-                "required": true,
-                "options": [
-                    "nodejs",
-                    "python",
-                    "ruby"
-                ]
-            },
-            {
-                "heading": "Code",
-                "type": "textarea",
-                "required": true,
-                "inPinId": "value_in"
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "exec_out": "EXEC_OUT",
-            "value_in": "VALUE_IN",
-            "value_out": "VALUE_OUT"
-        },
-        "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
-            "value_out": true
-        },
-        "keywords": [
-            "code",
-            "custom",
-            "development",
-            "execute",
-            "nodejs",
-            "python",
-            "ruby",
-            "sandbox",
-            "script",
-            "snippet"
-        ]
-    },
-    {
-        "id": "delay",
-        "label": "Delay",
-        "category": "Timing",
-        "description": "Pause execution for a fixed duration.",
-        "icon": "Clock3",
-        "color": "yellow",
-        "features": [
-            "Pause workflow execution for specified duration",
-            "Millisecond-precision timing control",
-            "Dynamic delay duration via pin connections",
-            "Rate limiting and throttling support",
-            "Execution flow control and timing",
-            "Synchronization and coordination"
-        ],
-        "fields": [
-            {
-                "heading": "Duration (ms)",
-                "type": "number",
-                "required": true,
-                "inPinId": "value_in",
-                "placeholder": "e.g. 5000"
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "exec_out": "EXEC_OUT",
-            "value_in": "VALUE_IN"
-        },
-        "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": true,
-            "value_out": false
-        },
-        "keywords": [
-            "duration",
-            "execution",
-            "hold",
-            "milliseconds",
-            "pause",
-            "sleep",
-            "timeout",
-            "timing",
-            "wait"
+            "loop",
+            "for each",
+            "iterate",
+            "range",
+            "collection"
         ]
     },
     {
         "id": "mapper",
         "label": "Mapper",
-        "category": "Data",
-        "description": "Transform an object/array by mapping or renaming keys.",
-        "icon": "ListOrdered",
-        "color": "blue",
+        "category": "Data Transformation",
+        "description": "Rename object keys (top-level) in objects or arrays of objects.",
+        "icon": "Shuffle",
+        "color": "pink",
         "features": [
-            "Transform objects and arrays by mapping keys",
-            "Rename object properties and array elements",
-            "Support for multiple mapping rules",
-            "Dynamic mapping rule input via pin connections",
-            "Data structure transformation",
-            "Key-value mapping and conversion"
+            "Input can be a single object or an array of objects.",
+            "Define rename pairs via Input_n fields that each hold [from, to].",
+            "PreserveOtherData flag controls whether untouched fields are retained or dropped.",
+            "Non-object inputs pass through unchanged."
         ],
         "fields": [
             {
                 "heading": "Input",
-                "type": "textInput",
-                "required": true,
-                "inPinId": "value_in"
+                "type": "text",
+                "inPinId": "value_in",
+                "required": true
             },
             {
-                "heading": "Rule 1",
+                "heading": "Input_n",
                 "type": "textInput",
                 "required": true,
-                "inPinId": "value_in_1",
-                "placeholder": "e.g. name->fullName"
+                "inPinId": "value_in_n",
+                "description": "Each entry stores a [from, to] tuple for renaming."
+            },
+            {
+                "heading": "PreserveOtherData",
+                "type": "checkbox",
+                "required": false
             }
         ],
         "pins": {
             "exec_in": "EXEC_IN",
             "exec_out": "EXEC_OUT",
             "value_in": "VALUE_IN",
-            "value_in_1": "VALUE_IN",
             "value_out": "VALUE_OUT"
         },
         "pinStructure": {
-            "exec_in": true,
-            "exec_out": true,
-            "value_in": "dynamic",
-            "value_out": true
+            "value_out": "Mapped object/array with renamed keys."
         },
         "keywords": [
-            "array",
-            "convert",
-            "data",
-            "keys",
             "map",
-            "mapper",
-            "object",
             "rename",
-            "rule",
-            "transform"
+            "transform",
+            "fields"
+        ]
+    },
+    {
+        "id": "print",
+        "label": "Print",
+        "category": "Utility",
+        "description": "Render text templates during workflow execution for debugging or user-visible responses.",
+        "icon": "Printer",
+        "color": "gray",
+        "features": [
+            "Supports {{placeholder}} token replacement with keys from ctx.input.",
+            "If no template is defined, prints the entire inbound object as JSON.",
+            "Resulting string is emitted on value_out for chaining or Response dominos.",
+            "Handy for quick instrumentation without leaving the workflow."
+        ],
+        "fields": [
+            {
+                "heading": "Text",
+                "type": "textInput",
+                "inPinId": "value_in",
+                "required": true,
+                "description": "Template string that may contain {{variable}} tokens."
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "keywords": [
+            "log",
+            "print",
+            "template",
+            "string"
+        ]
+    },
+    {
+        "id": "readexcel",
+        "label": "Read Excel",
+        "category": "Input",
+        "description": "Load .xlsx/.xls/.csv files from uploads, URLs or GCS and output parsed rows.",
+        "icon": "FileSpreadsheet",
+        "color": "blue",
+        "features": [
+            "Uploads files through Dominofy storage or accepts dynamic file descriptors on value_in.",
+            "Understands emulator/local buckets as well as production GCS.",
+            "Parses into JSON arrays that can feed Iterator, Filter, etc.",
+            "Emits metadata (sheet name, columns) along with row data."
+        ],
+        "fields": [
+            {
+                "heading": "File",
+                "type": "file",
+                "inPinId": "value_in",
+                "required": true,
+                "description": "File object { key, url, bucket } or uploaded asset reference."
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "keywords": [
+            "excel",
+            "csv",
+            "read",
+            "file",
+            "ingest"
         ]
     },
     {
         "id": "slacktrigger",
         "label": "Slack Trigger",
-        "category": "Communication",
-        "description": "Start workflow on Slack message or event.",
+        "category": "Trigger",
+        "description": "Start workflows from Slack channel messages using a connected Slack app.",
         "icon": "Slack",
-        "color": "purple",
+        "color": "sky",
         "features": [
-            "Trigger workflows based on Slack events and messages",
-            "Slack bot integration and connection management",
-            "Channel-based event monitoring",
-            "Message and event data extraction",
-            "Slack API integration",
-            "Real-time workflow triggering"
+            "Propagates Slack OAuth vaultId and slackChannelId to backend for event subscriptions.",
+            "Automatically unwraps Slack message payloads so downstream nodes receive user, text, ts, files, etc.",
+            "Bot invite helper ensures the Dominofy app is present in the selected channel.",
+            "value_out always contains the cleaned event payload."
         ],
         "fields": [
             {
-                "heading": "Connection",
+                "heading": "vaultId",
                 "type": "select",
-                "required": true
+                "required": true,
+                "description": "Slack connection / vault identifier obtained from OAuth."
             },
             {
-                "heading": "Channel",
+                "heading": "slackChannelId",
                 "type": "select",
-                "required": true
+                "required": true,
+                "description": "Channel to subscribe to."
             }
         ],
         "pins": {
             "exec_out": "EXEC_OUT",
             "value_out": "VALUE_OUT"
         },
-        "pinStructure": {
-            "exec_in": false,
-            "exec_out": true,
-            "value_in": false,
-            "value_out": true
-        },
         "keywords": [
-            "bot",
-            "channel",
-            "communication",
-            "event",
-            "message",
             "slack",
-            "start",
             "trigger",
-            "workflow"
+            "chat",
+            "channel",
+            "webhook"
         ]
     },
     {
-        "id": "connector",
-        "label": "Connector",
-        "category": "Flow",
-        "description": "Wait for multiple execs then continue; optionally label each branch.",
-        "icon": "Plug",
-        "color": "gray",
+        "id": "slackaction",
+        "label": "Slack Action",
+        "category": "Slack",
+        "description": "Post messages to Slack channels or threads using a stored connection.",
+        "icon": "Slack",
+        "color": "purple",
         "features": [
-            "Synchronize multiple execution branches",
-            "Wait for all connected inputs before proceeding",
-            "Optional branch labeling for identification",
-            "Flow control and synchronization",
-            "Multi-branch workflow coordination",
-            "Execution gate and join functionality"
+            "Accepts vaultId (connection), channelId and text from static config or runtime value pins.",
+            "Optional thread_ts lets you reply in an existing Slack thread.",
+            "Uses the shared SlackService backend so tokens are never exposed to the workflow JSON.",
+            "value_out exposes Slack response (channel + ts)."
         ],
         "fields": [
             {
-                "heading": "Case_0",
-                "type": "textInput"
+                "heading": "vaultId",
+                "type": "select",
+                "required": true
             },
             {
-                "heading": "Case_1",
-                "type": "textInput"
+                "heading": "channelId",
+                "type": "select",
+                "required": true
+            },
+            {
+                "heading": "text",
+                "type": "textInput",
+                "inPinId": "value_in",
+                "required": true
+            },
+            {
+                "heading": "thread_ts",
+                "type": "textInput",
+                "required": false,
+                "description": "Optional thread timestamp."
             }
         ],
         "pins": {
             "exec_in": "EXEC_IN",
-            "exec_in_1": "EXEC_IN",
-            "exec_out": "EXEC_OUT"
-        },
-        "pinStructure": {
-            "exec_in": "dynamic",
-            "exec_out": true,
-            "value_in": false,
-            "value_out": false
+            "exec_out": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_out": "VALUE_OUT"
         },
         "keywords": [
-            "branches",
-            "combine",
-            "connector",
-            "exec",
-            "flow",
-            "gate",
-            "join",
-            "merge",
-            "multiple",
-            "sync",
-            "wait"
+            "slack",
+            "message",
+            "chat",
+            "action"
+        ]
+    },
+    {
+        "id": "switchcase",
+        "label": "Switch",
+        "category": "Logic",
+        "description": "Multi-branch switch that routes execution based on matching string cases.",
+        "icon": "ToggleLeft",
+        "color": "indigo",
+        "features": [
+            "Input value can be static or provided via value_in.",
+            "Add unlimited cases; each Case_n gets its own exec_out_n handle.",
+            "Unmatched inputs fall through to exec_out_default.",
+            "Case values can also be overridden through dedicated value_in_n pins."
+        ],
+        "fields": [
+            {
+                "heading": "Input",
+                "type": "text",
+                "inPinId": "value_in",
+                "required": true
+            },
+            {
+                "heading": "Case_n",
+                "type": "textInput",
+                "inPinId": "value_in_n",
+                "required": true,
+                "description": "Each case row defines the string to match for exec_out_n."
+            },
+            {
+                "heading": "Case_Default",
+                "type": "text",
+                "required": false,
+                "description": "Optional label for default branch."
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out_1": "EXEC_OUT",
+            "exec_out_2": "EXEC_OUT",
+            "exec_out_default": "EXEC_OUT",
+            "value_in": "VALUE_IN",
+            "value_in_1": "VALUE_IN"
+        },
+        "pinStructure": {
+            "exec_out_n": "Emitted for each matching case (supports multiple matches).",
+            "exec_out_default": "Used when no cases match."
+        },
+        "keywords": [
+            "switch",
+            "case",
+            "branch",
+            "route",
+            "multi"
         ]
     }
 ]
