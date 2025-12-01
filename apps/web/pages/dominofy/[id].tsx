@@ -284,6 +284,10 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [canRedo, setCanRedo] = useState(false);
 
   const [noteToolActive, setNoteToolActive] = useState(false);
+  const latestEdgesRef = useRef<Edge[]>(edges);
+  useEffect(() => {
+    latestEdgesRef.current = edges;
+  }, [edges]);
 
   const clone = useCallback(<T,>(x: T): T => JSON.parse(JSON.stringify(x)), []);
 
@@ -367,51 +371,102 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     queueMicrotask(() => { pushGuard.current = false; });
   }, [nodes, edges, clone, publishFlags]);
 
-  // Wrap setters so ANY change via setNodes/setEdges records (DetailsPanel etc.)
-  const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node[]>>>(
-    (updater) => {
+  const wrapNodesUpdater = useCallback(
+    (
+      updater: React.SetStateAction<Node[]>,
+      overrideEdges?: Edge[]
+    ): React.SetStateAction<Node[]> => {
+      const edgesToUse = overrideEdges ?? latestEdgesRef.current;
+      if (typeof updater === 'function') {
+        const fn = updater as (prev: Node[]) => Node[];
+        return (prev: Node[]) => hydrateNodesWithAIOverrides(fn(prev), edgesToUse);
+      }
+      return hydrateNodesWithAIOverrides(updater, edgesToUse);
+    },
+    []
+  );
+
+  const runNodeUpdate = useCallback(
+    (updater: React.SetStateAction<Node[]>, overrideEdges?: Edge[]) => {
+      const hydratedUpdater = wrapNodesUpdater(updater, overrideEdges);
+      const nextNodes =
+        typeof hydratedUpdater === 'function'
+          ? hydratedUpdater(nodes)
+          : hydratedUpdater;
+      const edgesSnapshot = overrideEdges ?? edges;
+
       if (!isRestoring.current && !isDraggingRef.current) {
-                // Check if this is a selection-only change
         const prevNodes = nodes;
-        const newNodes = typeof updater === 'function' ? updater(prevNodes) : updater;
-        
-                // Only push history if there are non-selection differences
-        const hasNonSelectionChanges = prevNodes.some((prevNode, i) => {
-          const newNode = newNodes[i];
-                    if (!newNode) return true; // node removed
-                    if (prevNode.id !== newNode.id) return true; // different node
-                    if (prevNode.position.x !== newNode.position.x || prevNode.position.y !== newNode.position.y) return true; // moved
-                    if (JSON.stringify(prevNode.data) !== JSON.stringify(newNode.data)) return true; // data changed
-          return false;
-                }) || prevNodes.length !== newNodes.length; // nodes added/removed
-        
+        const hasNonSelectionChanges =
+          prevNodes.length !== nextNodes.length ||
+          prevNodes.some((prevNode, i) => {
+            const newNode = nextNodes[i];
+            if (!newNode) return true;
+            if (prevNode.id !== newNode.id) return true;
+            if (
+              prevNode.position.x !== newNode.position.x ||
+              prevNode.position.y !== newNode.position.y
+            )
+              return true;
+            return JSON.stringify(prevNode.data) !== JSON.stringify(newNode.data);
+          });
+
         if (hasNonSelectionChanges && hasHydratedRef.current) {
-          const markDirty = hasMeaningfulNodeDifferences(prevNodes, newNodes);
+          const markDirty = hasMeaningfulNodeDifferences(prevNodes, nextNodes);
           pushHistory();
-                    // Auto-save after node changes
-          setTimeout(() => autoSaveWorkflow(newNodes, edges, markDirty), 100);
-          if (markDirty && hasHydratedRef.current) {
+          setTimeout(
+            () => autoSaveWorkflow(nextNodes, edgesSnapshot, markDirty),
+            100
+          );
+          if (markDirty) {
             setHasUnsavedChanges(true);
           }
         }
       }
-      _setNodes(updater);
+
+      if (typeof hydratedUpdater === 'function') {
+        _setNodes(hydratedUpdater);
+      } else {
+        _setNodes(hydratedUpdater);
+      }
     },
-    [_setNodes, pushHistory, nodes, autoSaveWorkflow, edges, setHasUnsavedChanges]
+    [
+      wrapNodesUpdater,
+      nodes,
+      edges,
+      autoSaveWorkflow,
+      setHasUnsavedChanges,
+      pushHistory,
+    ]
+  );
+
+  const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node[]>>>(
+    updater => runNodeUpdate(updater),
+    [runNodeUpdate]
   );
 
   const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
     (updater) => {
+      const previewEdges =
+        typeof updater === 'function' ? updater(edges) : updater;
+
       if (!isRestoring.current && !isDraggingRef.current && hasHydratedRef.current) {
         pushHistory();
-                // Auto-save after edge changes
-        const newEdges = typeof updater === 'function' ? updater(edges) : updater;
-        setTimeout(() => autoSaveWorkflow(nodes, newEdges), 100);
+        setTimeout(() => autoSaveWorkflow(nodes, previewEdges), 100);
         setHasUnsavedChanges(true);
       }
-      _setEdges(updater);
+
+      latestEdgesRef.current = previewEdges;
+
+      if (typeof updater === 'function') {
+        _setEdges(prev => (updater as (prev: Edge[]) => Edge[])(prev));
+      } else {
+        _setEdges(previewEdges);
+      }
+
+      runNodeUpdate(prev => prev, previewEdges);
     },
-    [_setEdges, pushHistory, autoSaveWorkflow, nodes, edges, setHasUnsavedChanges]
+    [_setEdges, pushHistory, autoSaveWorkflow, nodes, edges, setHasUnsavedChanges, runNodeUpdate]
   );
 
   const onNodesChange = useCallback(
@@ -988,6 +1043,138 @@ const hasMeaningfulNodeDifferences = (prevNodes: Node[], newNodes: Node[]) => {
   }
 
   return false;
+};
+
+const normaliseHeadingSafe = (heading?: string | null) =>
+  (heading ?? '').toString().trim().toLowerCase();
+
+const hydrateNodesWithAIOverrides = (
+  nodes: Node[],
+  edges: Edge[]
+): Node[] => {
+  let mutated = false;
+
+  const nodesAfterOverrides = nodes.map(node => {
+    const overrides = node.data?.pendingFieldOverrides as any[] | undefined;
+    const details = node.data?.details;
+    if (!overrides || !details?.fields?.length) {
+      return node;
+    }
+
+    const overrideMap = new Map(
+      overrides
+        .filter(field => field?.heading)
+        .map(field => [normaliseHeadingSafe(field.heading), field])
+    );
+
+    let nodeChanged = false;
+    const mergedFields = details.fields.map((field: any) => {
+      const key = normaliseHeadingSafe(field.heading);
+      const override = overrideMap.get(key);
+      if (!override) {
+        return field;
+      }
+      overrideMap.delete(key);
+      nodeChanged = true;
+      const hasValue =
+        override.value !== null && override.value !== undefined;
+      return {
+        ...field,
+        ...override,
+        heading: field.heading,
+        value: hasValue ? override.value : field.value,
+      };
+    });
+
+    overrideMap.forEach(override => {
+      nodeChanged = true;
+      mergedFields.push(override);
+    });
+
+    const { pendingFieldOverrides, ...restData } = node.data ?? {};
+    mutated = mutated || nodeChanged || Boolean(pendingFieldOverrides);
+
+    return {
+      ...node,
+      data: {
+        ...restData,
+        details: nodeChanged
+          ? { ...details, fields: mergedFields }
+          : details,
+      },
+    };
+  });
+
+  if (!edges.length) {
+    return mutated ? nodesAfterOverrides : nodes;
+  }
+
+  const edgesByTarget = new Map<string, Edge[]>();
+  edges.forEach(edge => {
+    if (!edge.target || !edge.targetHandle) return;
+    if (!edgesByTarget.has(edge.target)) {
+      edgesByTarget.set(edge.target, []);
+    }
+    edgesByTarget.get(edge.target)!.push(edge);
+  });
+
+  const finalNodes = nodesAfterOverrides.map(node => {
+    const details = node.data?.details;
+    if (!details?.fields?.length) {
+      return node;
+    }
+
+    const relevant = edgesByTarget.get(node.id);
+    let nodeChanged = false;
+    const fields = details.fields.map((field: any) => {
+      if (!field.inPinId || !field.inPinId.startsWith('value_in')) {
+        return field;
+      }
+
+      const match = relevant?.find(
+        edge => edge.targetHandle === field.inPinId
+      );
+      if (match) {
+        if (
+          field.connectedValue === match.source &&
+          field.connectedPin === match.sourceHandle
+        ) {
+          return field;
+        }
+        nodeChanged = true;
+        return {
+          ...field,
+          connectedValue: match.source,
+          connectedPin: match.sourceHandle,
+        };
+      }
+
+      if (field.connectedValue || field.connectedPin) {
+        nodeChanged = true;
+        return {
+          ...field,
+          connectedValue: undefined,
+          connectedPin: undefined,
+        };
+      }
+
+      return field;
+    });
+
+    if (!nodeChanged) {
+      return node;
+    }
+    mutated = true;
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        details: { ...details, fields },
+      },
+    };
+  });
+
+  return mutated ? finalNodes : nodes;
 };
 
 const isMeaningfulNodeChangeType = (type: NodeChange['type']) =>

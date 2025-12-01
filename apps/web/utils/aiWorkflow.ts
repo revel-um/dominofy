@@ -138,15 +138,15 @@ const normaliseDetails = (details: any, fallbackLabel: string) => {
 const mergeDominoDetails = (
   typeId: string,
   fallbackLabel: string,
-  templateDetails: any | undefined,
+  baseDetails: any | undefined,
   incomingDetails: any | undefined
 ) => {
   const defaultDetails = DOMINO_DEFAULT_DETAILS.get(typeId);
-  const baseDetails = templateDetails
+  const effectiveBase = baseDetails
     ? {
-        ...templateDetails,
-        fields: Array.isArray(templateDetails.fields)
-          ? templateDetails.fields.map((field: any) => ({ ...field }))
+        ...baseDetails,
+        fields: Array.isArray(baseDetails.fields)
+          ? baseDetails.fields.map((field: any) => ({ ...field }))
           : [],
       }
     : defaultDetails
@@ -157,7 +157,7 @@ const mergeDominoDetails = (
     : { type: fallbackLabel, description: '', fields: [] };
 
   if (!incomingDetails) {
-    return baseDetails;
+    return effectiveBase;
   }
 
   const incoming = normaliseDetails(incomingDetails, fallbackLabel);
@@ -168,9 +168,11 @@ const mergeDominoDetails = (
   );
 
   const mergedFields =
-    baseDetails.fields.length > 0
-      ? baseDetails.fields.map((field: any) => {
-          const override = headingMap.get(normaliseHeading(field.heading));
+    effectiveBase.fields.length > 0
+      ? effectiveBase.fields.map((field: any) => {
+          const override = headingMap.get(normaliseHeading(field.heading)) as
+            | Record<string, any>
+            | undefined;
           if (override) {
             const hasValue = override.value !== null && override.value !== undefined;
             return {
@@ -196,11 +198,11 @@ const mergeDominoDetails = (
   });
 
   return {
-    ...baseDetails,
+    ...effectiveBase,
     ...incoming,
     fields: mergedFields,
-    type: incoming.type || baseDetails.type || fallbackLabel,
-    description: incoming.description ?? baseDetails.description ?? '',
+    type: incoming.type || effectiveBase.type || fallbackLabel,
+    description: incoming.description ?? effectiveBase.description ?? '',
   };
 };
 
@@ -258,11 +260,12 @@ export function normalizeAIResponseToWorkflow(
   if (!rawNodes.length) {
     return null;
   }
+
   const existingNodes = options.existingNodes ?? [];
   const existingById = new Map(existingNodes.map(node => [node.id, node]));
   const firstOfType = new Map<string, Node>();
   existingNodes.forEach(node => {
-    if (!firstOfType.has(node.type)) {
+    if (typeof node.type === 'string' && !firstOfType.has(node.type)) {
       firstOfType.set(node.type, node);
     }
   });
@@ -280,45 +283,96 @@ export function normalizeAIResponseToWorkflow(
       rawNode && typeof rawNode === 'object'
         ? (rawNode.data as Record<string, any>)
         : {};
+
     const templateNode =
       existing ?? firstOfType.get(type) ?? undefined;
-    const baseData = existing
-      ? sanitise(existing.data ?? {})
-      : templateNode?.data
-      ? sanitise(templateNode.data)
+    const templateData = templateNode
+      ? sanitise(templateNode.data ?? {})
       : {};
-    const resolvedLabel =
-      rawData?.label ??
-      rawNode?.label ??
-      baseData?.label ??
-      dominoEntry.label;
+    const { details: templateDetailsRaw, ...templateDataRest } = templateData;
+    const defaultDetails = DOMINO_DEFAULT_DETAILS.get(type);
+    const normalizedDefaultDetails = defaultDetails
+      ? normaliseDetails(defaultDetails, dominoEntry.label)
+      : undefined;
+    const baseDetails = templateDetailsRaw
+      ? normaliseDetails(templateDetailsRaw, dominoEntry.label)
+      : normalizedDefaultDetails;
+
+    const baseDataRest = {
+      ...templateDataRest,
+      label: templateDataRest?.label ?? dominoEntry.label ?? `${type} node`,
+      workflowId: templateDataRest?.workflowId ?? options.workflowId,
+      exportFields:
+        templateDataRest?.exportFields ??
+        (normalizedDefaultDetails
+          ? normalizedDefaultDetails.fields
+              .map((field: any) => field.heading)
+              .filter(Boolean)
+          : []),
+    };
 
     const sanitizedRaw = sanitise(rawData ?? {}) || {};
     const { details: rawDetails, ...restRawData } = sanitizedRaw;
-    const templateDetails = baseData?.details
-      ? normaliseDetails(baseData.details, dominoEntry.label)
+    const overrideFields = rawDetails
+      ? normaliseDetails(rawDetails, dominoEntry.label).fields
       : undefined;
-  const mergedDetails = mergeDominoDetails(
-    type,
-    dominoEntry.label,
-    templateDetails,
-    rawDetails
-  );
 
-    const data = {
-      ...baseData,
-      ...restRawData,
-      label: resolvedLabel,
-      details: mergedDetails,
-      workflowId:
-        restRawData?.workflowId ?? baseData?.workflowId ?? options.workflowId,
-      setNodes: options.setNodes,
-      suggested: true,
-      aiMeta: {
-        originalType: rawNode?.type ?? rawNode?.nodeType ?? '',
-        originalLabel: rawNode?.label ?? restRawData?.label ?? '',
-      },
-    };
+    let data: Record<string, any>;
+
+    if (existing) {
+      const existingData = sanitise(existing.data ?? {});
+      const { details: existingDetailsRaw, ...existingRestData } = existingData;
+      const existingDetails = existingDetailsRaw
+        ? normaliseDetails(existingDetailsRaw, dominoEntry.label)
+        : baseDetails;
+      const mergedDetails = mergeDominoDetails(
+        type,
+        dominoEntry.label,
+        existingDetails,
+        rawDetails
+      );
+
+      data = {
+        ...existingRestData,
+        ...restRawData,
+        label:
+          restRawData?.label ??
+          rawNode?.label ??
+          existingRestData?.label ??
+          dominoEntry.label,
+        details: mergedDetails,
+        workflowId:
+          restRawData?.workflowId ??
+          existingRestData?.workflowId ??
+          options.workflowId,
+        setNodes: options.setNodes,
+        suggested: existingRestData?.suggested ?? false,
+        pendingFieldOverrides: undefined,
+        aiMeta: {
+          originalType: rawNode?.type ?? rawNode?.nodeType ?? '',
+          originalLabel: rawNode?.label ?? restRawData?.label ?? '',
+        },
+      };
+    } else {
+      data = {
+        ...baseDataRest,
+        ...restRawData,
+        label:
+          restRawData?.label ??
+          rawNode?.label ??
+          baseDataRest.label ??
+          dominoEntry.label,
+        workflowId:
+          restRawData?.workflowId ?? baseDataRest.workflowId ?? options.workflowId,
+        setNodes: options.setNodes,
+        suggested: true,
+        pendingFieldOverrides: overrideFields,
+        aiMeta: {
+          originalType: rawNode?.type ?? rawNode?.nodeType ?? '',
+          originalLabel: rawNode?.label ?? restRawData?.label ?? '',
+        },
+      };
+    }
 
     return {
       id: nodeId,
