@@ -1,4 +1,5 @@
 // src/dominos/iterator.tsx
+'use client';
 import { NodeProps } from 'reactflow';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import DominoPin from '../components/shared/dominoPin';

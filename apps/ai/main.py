@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Set
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import google.generativeai as genai
 
 from prompt_template import build_prompt
@@ -47,6 +48,16 @@ atexit.register(lambda: _RAG_EXECUTOR.shutdown(wait=False))
 
 # ───────────────────────── 2. FastAPI app ───────────────────────
 app = FastAPI(title="Dominofy AI Service", version="1.4.0")
+
+cors_origins = os.getenv("AI_CORS_ORIGINS", "*")
+origins = [o.strip() for o in cors_origins.split(",")] if cors_origins else ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
 
 
 @app.get("/ping", tags=["health"])

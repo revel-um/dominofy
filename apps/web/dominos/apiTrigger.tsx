@@ -1,4 +1,5 @@
 // src/dominos/apiTrigger.tsx
+'use client';
 import {
   NodeProps,
   useUpdateNodeInternals,
@@ -25,11 +26,11 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
   /* checkbox-derived */
   const requireFileUpload =
     data.details?.fields?.some(
-      (      f: { heading: string; value: boolean; }) => f.heading === 'Require File Upload' && f.value === true
+      (f: { heading: string; value: boolean; }) => f.heading === 'Require File Upload' && f.value === true
     ) ?? false;
   const requireBody =
     data.details?.fields?.some(
-      (      f: { heading: string; value: boolean; }) => f.heading === 'Require Body' && f.value === true
+      (f: { heading: string; value: boolean; }) => f.heading === 'Require Body' && f.value === true
     ) ?? false;
 
   const showValueOutPin = requireFileUpload || requireBody;
@@ -61,18 +62,18 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
       nodes.map((n: { id: string; data: { details: { fields: any[]; }; }; }) =>
         detachedTargets.includes(n.id)
           ? {
-              ...n,
-              data: {
-                ...n.data,
-                valueConnected: false,
-                details: {
-                  ...n.data.details,
-                  fields: n.data.details.fields.map((f: any) =>
-                    f.connectedValue === id ? { ...f, connectedValue: null } : f
-                  ),
-                },
+            ...n,
+            data: {
+              ...n.data,
+              valueConnected: false,
+              details: {
+                ...n.data.details,
+                fields: n.data.details.fields.map((f: any) =>
+                  f.connectedValue === id ? { ...f, connectedValue: null } : f
+                ),
               },
-            }
+            },
+          }
           : n
       )
     );
@@ -97,26 +98,26 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
           nodes.map((n: { id: string; data: { details: { fields: DominoField[]; }; workflowId: any; }; }) =>
             n.id === id
               ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    details: {
-                      ...n.data.details,
-                      fields: n.data.details.fields.map((f: DominoField) =>
-                        f.heading === heading
-                          ? { ...f, value: v }
-                          : f.heading === 'Api Url' && heading === 'Function'
+                ...n,
+                data: {
+                  ...n.data,
+                  details: {
+                    ...n.data.details,
+                    fields: n.data.details.fields.map((f: DominoField) =>
+                      f.heading === heading
+                        ? { ...f, value: v }
+                        : f.heading === 'Api Url' && heading === 'Function'
                           ? {
-                              ...f,
-                              value:
-                                `${config.backendBaseUrl}/workflow/${n.data.workflowId}/trigger/` +
-                                v,
-                            }
+                            ...f,
+                            value:
+                              `${config.backendBaseUrl}/workflow/${n.data.workflowId}/trigger/` +
+                              v,
+                          }
                           : f
-                      ),
-                    },
+                    ),
                   },
-                }
+                },
+              }
               : n
           )
         );
@@ -127,48 +128,48 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
           node.id !== id
             ? node
             : {
-                ...node,
-                data: {
-                  ...node.data,
-                  setFieldValue,
-                  exportFields: ['Function', 'Require File Upload', 'Require Body'],
-                  details:
-                    node.data.details ??
-                    ({
-                      type: 'ApiTrigger',
-                      description:
-                        'Invoke this workflow via HTTP using the generated URL.',
-                      isTrigger: true,
-                      fields: [
-                        {
-                          type: 'copy',
-                          heading: 'Api Url',
-                          required: true,
-                          value:
-                            `${config.backendBaseUrl}/workflow/${node.data.workflowId}/trigger/` +
-                            fnName,
-                        },
-                        {
-                          type: 'textInput',
-                          heading: 'Function',
-                          placeholder: 'Enter trigger name…',
-                          value: fnName,
-                          required: true,
-                        },
-                        {
-                          type: 'checkbox',
-                          heading: 'Require File Upload',
-                          value: false,
-                        },
-                        {
-                          type: 'checkbox',
-                          heading: 'Require Body',
-                          value: false,
-                        },
-                      ],
-                    } as DominoNodeData),
-                },
-              }
+              ...node,
+              data: {
+                ...node.data,
+                setFieldValue,
+                exportFields: ['Function', 'Require File Upload', 'Require Body'],
+                details:
+                  node.data.details ??
+                  ({
+                    type: 'ApiTrigger',
+                    description:
+                      'Invoke this workflow via HTTP using the generated URL.',
+                    isTrigger: true,
+                    fields: [
+                      {
+                        type: 'copy',
+                        heading: 'Api Url',
+                        required: true,
+                        value:
+                          `${config.backendBaseUrl}/workflow/${node.data.workflowId}/trigger/` +
+                          fnName,
+                      },
+                      {
+                        type: 'textInput',
+                        heading: 'Function',
+                        placeholder: 'Enter trigger name…',
+                        value: fnName,
+                        required: true,
+                      },
+                      {
+                        type: 'checkbox',
+                        heading: 'Require File Upload',
+                        value: false,
+                      },
+                      {
+                        type: 'checkbox',
+                        heading: 'Require Body',
+                        value: false,
+                      },
+                    ],
+                  } as DominoNodeData),
+              },
+            }
         )
       );
     }
@@ -212,18 +213,17 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
       </div>
 
       {/* Render all fields */}
+      {/* Render all fields */}
       <div className="flex flex-col gap-3 px-3 py-2">
         {data?.details?.fields?.map((field: DominoField, idx: number) => (
           <div key={idx} className="flex flex-col gap-1">
             <div className="flex items-center gap-1 text-xs font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
-              {field.inPinId && <DominoPin id={field.inPinId} pinType={PinType.VALUE_IN} inline />}
+              {field.inPinId && (
+                <DominoPin id={field.inPinId} pinType={PinType.VALUE_IN} inline />
+              )}
               <span>{field.heading}</span>
-              {(field.outPinId || (field.heading === 'Function' && showValueOutPin)) && (
-                <DominoPin
-                  id="value_out"
-                  pinType={PinType.VALUE_OUT}
-                  inline
-                />
+              {field.outPinId && (
+                <DominoPin id={field.outPinId} pinType={PinType.VALUE_OUT} inline />
               )}
             </div>
 
@@ -234,7 +234,9 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
                 value={field.heading === 'Function' ? fnName : field.value ?? ''}
                 onChange={(e) => {
                   if (field.heading === 'Function') {
-                    let v = e.target.value.replace(/\s+/g, '').replace(/[^a-zA-Z0-9_]/g, '');
+                    let v = e.target.value
+                      .replace(/\s+/g, '')
+                      .replace(/[^a-zA-Z0-9_]/g, '');
                     if (/^[0-9]/.test(v)) v = v.slice(1);
                     setFnName(v);
                     data.setFieldValue?.('Function', v);
@@ -248,18 +250,6 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
                           text-dominofy-light-text dark:text-dominofy-dark-text"
               />
             )}
-
-            {/* {field.type === 'copy' && (
-              <div
-                className="px-2 py-1 text-sm border rounded break-all cursor-pointer select-all
-                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                          text-dominofy-light-text dark:text-dominofy-dark-text"
-                title="Click to copy"
-                onClick={() => navigator.clipboard.writeText(field.value ?? '')}
-              >
-                {field.value}
-              </div>
-            )} */}
 
             {field.type === 'checkbox' && (
               <label className="flex items-center gap-2 text-sm">
@@ -278,13 +268,28 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         ))}
       </div>
 
-     
+      {/* Output row (UI only, uses existing showValueOutPin logic) */}
+      {showValueOutPin && (
+        <div className="px-3 py-2 flex items-center justify-between relative">
+          <div></div>
+          <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
+            Output
+          </span>
+          <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+        </div>
+      )}
 
-        {hasError && (
-          <p className="mt-1 text-xs text-red-500">
-            ⚠️ Value input pin is connected but execution pin is missing.
-          </p>
-        )}
+      {hasError && (
+        <p className="mt-1 text-xs text-red-500">
+          ⚠️ Value input pin is connected but execution pin is missing.
+        </p>
+      )}
+
+      {hasError && (
+        <p className="mt-1 text-xs text-red-500">
+          ⚠️ Value input pin is connected but execution pin is missing.
+        </p>
+      )}
     </div>
   );
 }

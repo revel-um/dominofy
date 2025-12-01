@@ -214,7 +214,16 @@ export default function Canvas(props: CanvasProps) {
   /* helpers */
   const getNodes = () => nodes;
   const getEdges = () => edges;
-  const updatePipeline = (n = nodes, e = edges) => setPipeline(buildPipeline(n, e));
+  const updatePipeline = useCallback(
+    (currentNodes: Node[] = nodes, currentEdges: Edge[] = edges) => {
+      setPipeline(buildPipeline(currentNodes, currentEdges));
+    },
+    [nodes, edges]
+  );
+
+  useEffect(() => {
+    updatePipeline(nodes, edges);
+  }, [nodes, edges, updatePipeline]);
 
   /* validation */
   useEffect(() => {
@@ -432,11 +441,10 @@ export default function Canvas(props: CanvasProps) {
     setTimeout(() => setIsProgrammaticMove(false), 200);
   }, [rfInstance, nodes, detailsPanelWidth, id]);
 
-  // Handle MiniMap click
+  // Handle MiniMap click (disabled)
   const handleMiniMapClick = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
-    recenterToPopulatedArea();
-  }, [recenterToPopulatedArea]);
+  }, []);
 
   // Get initial viewport for current workflow
   const getInitialViewport = useCallback(() => {
@@ -930,10 +938,9 @@ export default function Canvas(props: CanvasProps) {
           <Background />
           {!readonly && !id.includes('dashboard') && (
             <div
-              onClick={handleMiniMapClick}
               className={`${
                 showMiniMap ? 'opacity-100' : 'opacity-0'
-              } transition-all duration-300 ease-in-out cursor-pointer hover:scale-105 active:scale-95`}
+              } transition-all duration-300 ease-in-out pointer-events-none`}
               style={{
                 position: 'absolute',
                 top: '2px',     // Top margin from canvas edge

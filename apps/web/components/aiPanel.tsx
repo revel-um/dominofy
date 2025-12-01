@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FiSend } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
-import fakeworkflow from '../pages/fakeWorkflow.json';
+import { config } from '../config/config';
+import { AIWorkflowResponse, normalizeAIResponseToWorkflow, serializeWorkflowForAI } from '../utils/aiWorkflow';
 
 interface Message {
     id: string;
@@ -31,16 +32,15 @@ export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNod
         sender: 'ai',
         timestamp: new Date(),
     }]);
+    const [isLoading, setIsLoading] = useState(false);
 
     // find all suggested nodes
-    const suggestedNodes = useMemo(
-        () => getNodes().filter(n => n.data?.suggested),
-        [getNodes()]
-    );
+    const suggestedNodes = getNodes().filter(n => n.data?.suggested);
     
     // 📦 keep a ref to the “real” nodes/edges before injecting fake
     const origNodesRef = useRef<Node[]>([]);
     const origEdgesRef = useRef<Edge[]>([]);
+    const revisionLogRef = useRef<string[]>([]);
 
     // Accept all suggested dominoes
     const acceptAllSuggestions = useCallback(() => {
@@ -62,39 +62,98 @@ export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNod
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const handleSendMessage = (e: React.FormEvent) => {
+    const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!inputValue.trim()) return;
+        if (!inputValue.trim() || isLoading) return;
+        const prompt = inputValue.trim();
+
         const userMessage: Message = {
             id: Date.now().toString(),
-            content: inputValue,
+            content: prompt,
             sender: 'user',
             timestamp: new Date(),
         };
         setMessages(prev => [...prev, userMessage]);
         setInputValue('');
 
-        setTimeout(() => {
+        setIsLoading(true);
+        const currentNodes = getNodes();
+        const currentEdges = getEdges();
+        const workflowSnapshot = serializeWorkflowForAI(currentNodes, currentEdges);
+        const revisionEntries = [...revisionLogRef.current, `User: ${prompt}`].slice(-20);
+        revisionLogRef.current = revisionEntries;
+
+        try {
+            const endpoint = `${config.aiBaseUrl.replace(/\/$/, '')}/generate`;
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: prompt,
+                    current_json: workflowSnapshot,
+                    revision_log: revisionEntries,
+                }),
+            });
+
+            const raw = await response.text();
+            let parsed: AIWorkflowResponse | { detail?: string } | null = null;
+            if (raw) {
+                try {
+                    parsed = JSON.parse(raw);
+                } catch (error) {
+                    console.error('[AI] Failed to parse response JSON:', error, raw);
+                    throw new Error('AI returned an unreadable response.');
+                }
+            }
+
+            if (!response.ok) {
+                const detail = (parsed as any)?.detail ?? response.statusText;
+                throw new Error(detail || 'AI request failed.');
+            }
+
+            const normalized = normalizeAIResponseToWorkflow(parsed as AIWorkflowResponse, {
+                workflowId: workflowSnapshot.workflowId,
+                setNodes,
+                existingNodes: currentNodes,
+                existingEdges: currentEdges,
+            });
+
+            if (normalized) {
+                origNodesRef.current = currentNodes;
+                origEdgesRef.current = currentEdges;
+                setNodes(normalized.nodes);
+                setEdges(normalized.edges);
+            }
+
+            const explanation = (parsed as AIWorkflowResponse)?.explanation || 'AI generated an update for your workflow.';
+            const status = (parsed as AIWorkflowResponse)?.status;
+            const aiText = status ? `${explanation}\nStatus: ${status}` : explanation;
             const aiMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                content: `Simulated response to: "${userMessage.content}"`,
+                id: `${Date.now()}-ai`,
+                content: aiText,
                 sender: 'ai',
                 timestamp: new Date(),
             };
             setMessages(prev => [...prev, aiMessage]);
-
-            if (aiMessage.content.includes('suggested')) {
-                // Capture current workflow before injecting suggestions
-                origNodesRef.current = getNodes();
-                origEdgesRef.current = getEdges(); {
-                // Here you would handle the AI's suggestion, e.g., updating nodes/edges
-                // setNodes([...]); // Update nodes based on AI suggestion
-                // setEdges([...]); // Update edges based on AI suggestion
-                setNodes(fakeworkflow.nodes);
-                setEdges(fakeworkflow.edges);
-            }
+            revisionLogRef.current = [...revisionLogRef.current, `AI: ${explanation}`].slice(-20);
+        } catch (err) {
+            console.error('[AI] request failed:', err);
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : 'Unexpected error while contacting the AI service.';
+            const aiMessage: Message = {
+                id: `${Date.now()}-err`,
+                content: `Error: ${message}`,
+                sender: 'ai',
+                timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, aiMessage]);
+        } finally {
+            setIsLoading(false);
         }
-        }, 800);
     };
 
     useEffect(() => {
@@ -139,12 +198,15 @@ export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNod
                     />
                     <button
                         type="submit"
-                        disabled={!inputValue.trim()}
-                        className="p-2 rounded-lg bg-dominofy-light-accent text-white hover:bg-dominofy-light-accent/90"
+                        disabled={!inputValue.trim() || isLoading}
+                        className="p-2 rounded-lg bg-dominofy-light-accent text-white hover:bg-dominofy-light-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <FiSend size={18} />
+                        {isLoading ? <span className="text-xs px-1">...</span> : <FiSend size={18} />}
                     </button>
                 </div>
+                {isLoading && (
+                    <p className="mt-2 text-xs text-gray-500">Generating workflow suggestions…</p>
+                )}
                 
                 {/* ─── accept/reject ALL suggestions ─── */}
                 {suggestedNodes.length > 0 && (
