@@ -313,10 +313,6 @@ export function normalizeAIResponseToWorkflow(
 
     const sanitizedRaw = sanitise(rawData ?? {}) || {};
     const { details: rawDetails, ...restRawData } = sanitizedRaw;
-    const overrideFields = rawDetails
-      ? normaliseDetails(rawDetails, dominoEntry.label).fields
-      : undefined;
-
     let data: Record<string, any>;
 
     if (existing) {
@@ -354,6 +350,13 @@ export function normalizeAIResponseToWorkflow(
         },
       };
     } else {
+      const mergedDetails = mergeDominoDetails(
+        type,
+        dominoEntry.label,
+        baseDetails,
+        rawDetails
+      );
+
       data = {
         ...baseDataRest,
         ...restRawData,
@@ -366,7 +369,8 @@ export function normalizeAIResponseToWorkflow(
           restRawData?.workflowId ?? baseDataRest.workflowId ?? options.workflowId,
         setNodes: options.setNodes,
         suggested: true,
-        pendingFieldOverrides: overrideFields,
+        pendingFieldOverrides: undefined,
+        details: mergedDetails,
         aiMeta: {
           originalType: rawNode?.type ?? rawNode?.nodeType ?? '',
           originalLabel: rawNode?.label ?? restRawData?.label ?? '',
