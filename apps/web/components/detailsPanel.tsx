@@ -6,9 +6,10 @@ import DetailsMainPanel from './detailsMainPanel';
 import DetailsRightStrip from './detailsStripPanel';
 import AIPanelDocked from './aiPanel';
 
-const MIN_WIDTH = 280;
-const MAX_WIDTH = 480;
-const BAR_WIDTH = 40;
+  const MIN_WIDTH = 280;
+  const MAX_WIDTH = 480;
+  const BAR_WIDTH = 40;
+  const widthTransition = 'width 220ms ease-in-out';
 
 interface Props {
   selectedNode?: Node;
@@ -39,8 +40,10 @@ export default function DetailsPanel({
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [userClosedAI, setUserClosedAI] = useState(false);
   const [userClosedDetails, setUserClosedDetails] = useState(false); // 🧠 new state
-
   const dragRef = useRef(false);
+  const restoreWidthRef = useRef(width);
+  const userWidthRef = useRef(width);
+  const hoverCountRef = useRef(0);
 
   useEffect(() => {
     if (selectedNode) {
@@ -102,6 +105,8 @@ export default function DetailsPanel({
     if (!dragRef.current) return;
     const newW = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, window.innerWidth - e.clientX - BAR_WIDTH));
     setWidth(newW);
+    userWidthRef.current = newW;
+    restoreWidthRef.current = newW;
     if (isDetailsOpen || isAIOpen) {
       onWidthChange?.(newW + BAR_WIDTH);
     }
@@ -112,6 +117,26 @@ export default function DetailsPanel({
     document.body.classList.remove('select-none');
     document.removeEventListener('mousemove', onDrag);
     document.removeEventListener('mouseup', stopDrag);
+  };
+
+  const handleHoverStart = () => {
+    hoverCountRef.current += 1;
+    if (hoverCountRef.current > 1) return;
+    restoreWidthRef.current = userWidthRef.current || width;
+    setWidth(MAX_WIDTH);
+    if (isDetailsOpen || isAIOpen) {
+      onWidthChange?.(MAX_WIDTH + BAR_WIDTH);
+    }
+  };
+
+  const handleHoverEnd = () => {
+    hoverCountRef.current = Math.max(0, hoverCountRef.current - 1);
+    if (hoverCountRef.current > 0) return;
+    const targetWidth = userWidthRef.current || restoreWidthRef.current || width;
+    setWidth(targetWidth);
+    if (isDetailsOpen || isAIOpen) {
+      onWidthChange?.(targetWidth + BAR_WIDTH);
+    }
   };
 
   const asideW = isDetailsOpen || isAIOpen ? width + BAR_WIDTH : BAR_WIDTH;
@@ -127,12 +152,16 @@ export default function DetailsPanel({
     <aside
       className="absolute right-0 top-0 z-60 flex flex-row
                  bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
-      style={{ width: asideW, bottom: `${bottomOffset}px` }}
+      style={{ width: asideW, bottom: `${bottomOffset}px`, transition: widthTransition }}
+      onMouseLeave={handleHoverEnd}
     >
       {isDetailsOpen && selectedNode && (
         <DetailsMainPanel
           selectedNode={selectedNode}
           width={width}
+          transition={widthTransition}
+          onHoverStart={handleHoverStart}
+          onHoverEnd={handleHoverEnd}
           onClose={() => {
             setIsDetailsOpen(false);
             setUserClosedDetails(true); // ✅ mark as manually closed
@@ -145,7 +174,10 @@ export default function DetailsPanel({
         <AIPanelDocked
           isOpen={isAIOpen}
           width={width}
+          transition={widthTransition}
           workflowId={workflowId}
+          onHoverStart={handleHoverStart}
+          onHoverEnd={handleHoverEnd}
           onClose={() => {
             setIsAIOpen(false);
             setUserClosedAI(true);
@@ -165,6 +197,9 @@ export default function DetailsPanel({
         isAIOpen={isAIOpen}
         onDetailsClick={() => togglePanel('details')}
         onAIClick={() => togglePanel('ai')}
+        onHoverStart={handleHoverStart}
+        onHoverEnd={handleHoverEnd}
+        transition={widthTransition}
       />
 
       {(isDetailsOpen || isAIOpen) && (

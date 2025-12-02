@@ -9,15 +9,20 @@ interface Props {
     selectedNode?: Node;
     width: number;
     onClose: () => void;
+    transition?: string;
+    onHoverStart?: () => void;
+    onHoverEnd?: () => void;
 }
 
-export default function DetailsMainPanel({ selectedNode, width, onClose }: Props) {
+export default function DetailsMainPanel({ selectedNode, width, onClose, transition, onHoverStart, onHoverEnd }: Props) {
     const { clearValidationForDominoId } = useDomino();
 
     return (
         <div
             className="flex-1 overflow-y-auto px-4 pb-6 space-y-6 border-l border-gray-200 dark:border-gray-700 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
-            style={{ width }}
+            style={{ width, transition }}
+            onMouseEnter={onHoverStart}
+            onMouseLeave={onHoverEnd}
         >
 
             {/* Placeholder */}

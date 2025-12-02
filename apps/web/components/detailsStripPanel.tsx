@@ -4,6 +4,9 @@ interface Props {
     isAIOpen: boolean;
     onDetailsClick: () => void;
     onAIClick: () => void;
+    onHoverStart?: () => void;
+    onHoverEnd?: () => void;
+    transition?: string;
   }
   
   export default function DetailsRightStrip({
@@ -12,6 +15,9 @@ interface Props {
     isAIOpen,
     onDetailsClick,
     onAIClick,
+    onHoverStart,
+    onHoverEnd,
+    transition,
   }: Props) {
     const commonStyle =
       "text-sm font-medium cursor-pointer transition-colors rounded";
@@ -29,7 +35,9 @@ interface Props {
         className="flex items-start justify-center select-none
                    bg-dominofy-light-panel dark:bg-dominofy-dark-panel
                    border-l border-gray-200 dark:border-gray-700"
-        style={{ width: 40 }}
+        style={{ width: 40, transition }}
+        onMouseEnter={onHoverStart}
+        onMouseLeave={onHoverEnd}
       >
         <div className="flex flex-col space-y-2 mt-2">
           {showDetails && (

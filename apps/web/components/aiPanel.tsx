@@ -20,13 +20,16 @@ interface Props {
     width: number;
     workflowId?: string;
     onClose: () => void;
+    transition?: string;
+    onHoverStart?: () => void;
+    onHoverEnd?: () => void;
     setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
     setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
     getNodes: () => Node[];
     getEdges: () => Edge[];
 }
 
-export default function AIPanelDocked({ isOpen, width, workflowId, onClose, setEdges, setNodes, getNodes, getEdges }: Props) {
+export default function AIPanelDocked({ isOpen, width, workflowId, onClose, transition, onHoverStart, onHoverEnd, setEdges, setNodes, getNodes, getEdges }: Props) {
     const router = useRouter();
 
     const [inputValue, setInputValue] = useState('');
@@ -367,7 +370,9 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, setE
     return (
         <div
             className="flex flex-col bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-l border-gray-200 dark:border-gray-700"
-            style={{ width }}
+            style={{ width, transition }}
+            onMouseEnter={onHoverStart}
+            onMouseLeave={onHoverEnd}
         >
             <div
                 className="flex-1 overflow-y-auto p-4 space-y-4"
