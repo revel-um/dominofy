@@ -16,6 +16,7 @@ interface Props {
   getEdges: () => Edge[];
   setNodes: React.Dispatch<React.SetStateAction<Node[]>>;  
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+  workflowId?: string;
   bottomOffset?: number;
 }
 
@@ -30,6 +31,7 @@ export default function DetailsPanel({
   setNodes,
   getEdges,
   getNodes,
+  workflowId,
   onWidthChange,
 }: DetailsPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
@@ -143,6 +145,7 @@ export default function DetailsPanel({
         <AIPanelDocked
           isOpen={isAIOpen}
           width={width}
+          workflowId={workflowId}
           onClose={() => {
             setIsAIOpen(false);
             setUserClosedAI(true);

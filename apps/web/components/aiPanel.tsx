@@ -1,21 +1,24 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FiSend } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
+import { useRouter } from 'next/router';
 import { config } from '../config/config';
+import { AiChatApi, AiChatMessageDto, AiChatSender } from '../apis/aiChat.apis';
 import { AIWorkflowResponse, normalizeAIResponseToWorkflow, serializeWorkflowForAI } from '../utils/aiWorkflow';
 
 interface Message {
     id: string;
     content: string;
-    sender: 'user' | 'ai';
+    sender: AiChatSender;
     timestamp: Date;
 }
 
 interface Props {
     isOpen: boolean;
     width: number;
+    workflowId?: string;
     onClose: () => void;
     setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
     setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
@@ -23,44 +26,237 @@ interface Props {
     getEdges: () => Edge[];
 }
 
-export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNodes, getNodes, getEdges }: Props) {
+export default function AIPanelDocked({ isOpen, width, workflowId, onClose, setEdges, setNodes, getNodes, getEdges }: Props) {
+    const router = useRouter();
 
     const [inputValue, setInputValue] = useState('');
-    const [messages, setMessages] = useState<Message[]>([{
-        id: 'init',
-        content: `Hello! I'm your AI assistant. How can I help you with your workflow today?`,
-        sender: 'ai',
-        timestamp: new Date(),
-    }]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [hasMoreHistory, setHasMoreHistory] = useState(true);
+    const [historyCursor, setHistoryCursor] = useState<string | null>(null);
 
     // find all suggested nodes
-    const suggestedNodes = getNodes().filter(n => n.data?.suggested);
+    const suggestedNodes = useMemo(() => getNodes().filter(n => n.data?.suggested), [getNodes]);
     
     // 📦 keep a ref to the “real” nodes/edges before injecting fake
     const origNodesRef = useRef<Node[]>([]);
     const origEdgesRef = useRef<Edge[]>([]);
     const revisionLogRef = useRef<string[]>([]);
+    const messagesRef = useRef<Message[]>([]);
+
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const suppressAutoScrollRef = useRef(false);
+
+    const defaultAiGreeting = useMemo<Message>(() => ({
+        id: 'init',
+        content: `Hello! I'm your AI assistant. How can I help you with your workflow today?`,
+        sender: 'ai',
+        timestamp: new Date(),
+    }), []);
 
     // Accept all suggested dominoes
     const acceptAllSuggestions = useCallback(() => {
         setNodes(nds =>
-        nds.map(n =>
-            n.data?.suggested
-            ? { ...n, data: { ...n.data, suggested: false } }
-            : n
-        )
+            nds.map(n =>
+                n.data?.suggested
+                    ? { ...n, data: { ...n.data, suggested: false } }
+                    : n
+            )
         );
     }, [setNodes]);
 
-    // Reject (remove) all suggested dominoes  their edges
+    // Reject (remove) all suggested dominoes + their edges
     const rejectAllSuggestions = useCallback(() => {
-        // simply restore the pre-suggestion state
         setNodes(origNodesRef.current);
         setEdges(origEdgesRef.current);
     }, [setNodes, setEdges]);
 
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const sortChronologically = useCallback((items: Message[]) => {
+        return [...items].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    }, []);
+
+    const dedupeMessages = useCallback((items: Message[]) => {
+        const seen = new Set<string>();
+        return items.filter((msg) => {
+            if (seen.has(msg.id)) return false;
+            seen.add(msg.id);
+            return true;
+        });
+    }, []);
+
+    const mapDtoToMessage = useCallback((dto: AiChatMessageDto): Message => ({
+        id: dto.id,
+        content: dto.content,
+        sender: dto.sender,
+        timestamp: new Date(dto.createdAt),
+    }), []);
+
+    const normalizeDtos = useCallback((items: AiChatMessageDto[] = []) => {
+        return sortChronologically(dedupeMessages(items.map(mapDtoToMessage)));
+    }, [dedupeMessages, mapDtoToMessage, sortChronologically]);
+
+    const getToken = useCallback(() => {
+        if (typeof window === 'undefined') return null;
+        return localStorage.getItem('token');
+    }, []);
+
+    const buildRevisionLog = useCallback((list: Message[]) =>
+        list.slice(-20).map(m => `${m.sender === 'user' ? 'User' : 'AI'}: ${m.content}`),
+    []);
+
+    const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
+    }, []);
+
+    const isNearBottom = useCallback(() => {
+        const container = messagesContainerRef.current;
+        if (!container) return true;
+        const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        return distanceFromBottom < 120;
+    }, []);
+
+    useEffect(() => {
+        messagesRef.current = messages;
+        revisionLogRef.current = buildRevisionLog(messages);
+    }, [messages, buildRevisionLog]);
+
+    const ensureGreeting = useCallback(() => {
+        setMessages(prev => prev.length ? prev : [defaultAiGreeting]);
+    }, [defaultAiGreeting]);
+
+    const loadLatestMessages = useCallback(async () => {
+        if (!workflowId) {
+            ensureGreeting();
+            setHasMoreHistory(false);
+            return;
+        }
+
+        const token = getToken();
+        if (!token) {
+            ensureGreeting();
+            setHasMoreHistory(false);
+            return;
+        }
+
+        setHistoryLoading(true);
+        try {
+            const response = await AiChatApi.getMessages(workflowId, token, router, { limit: 25 });
+            if (!response?.ok) {
+                ensureGreeting();
+                setHasMoreHistory(false);
+                return;
+            }
+
+            const data = await response.json();
+            const normalized = normalizeDtos(Array.isArray(data?.items) ? data.items : []);
+            setMessages(normalized.length ? normalized : [defaultAiGreeting]);
+            setHasMoreHistory(Boolean(data?.hasMore));
+            setHistoryCursor(data?.nextCursor ?? null);
+            requestAnimationFrame(() => scrollToBottom('auto'));
+        } catch (err) {
+            console.error('[AI] failed to load chat history', err);
+            ensureGreeting();
+        } finally {
+            setHistoryLoading(false);
+        }
+    }, [workflowId, getToken, router, normalizeDtos, defaultAiGreeting, ensureGreeting, scrollToBottom]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setMessages([]);
+        setHistoryCursor(null);
+        setHasMoreHistory(true);
+        loadLatestMessages();
+    }, [isOpen, workflowId, loadLatestMessages]);
+
+    const loadOlderMessages = useCallback(async () => {
+        if (!workflowId || !hasMoreHistory || historyLoading) return;
+
+        const token = getToken();
+        if (!token) return;
+
+        const cursor = historyCursor ?? messagesRef.current[0]?.timestamp?.toISOString();
+        if (!cursor) return;
+
+        const container = messagesContainerRef.current;
+        const prevScrollHeight = container?.scrollHeight ?? 0;
+        const prevScrollTop = container?.scrollTop ?? 0;
+
+        suppressAutoScrollRef.current = true;
+        setHistoryLoading(true);
+        try {
+            const response = await AiChatApi.getMessages(workflowId, token, router, { limit: 25, before: cursor });
+            if (!response?.ok) return;
+
+            const data = await response.json();
+            const normalized = normalizeDtos(Array.isArray(data?.items) ? data.items : []);
+
+            if (!normalized.length) {
+                setHasMoreHistory(false);
+                return;
+            }
+
+            setHasMoreHistory(Boolean(data?.hasMore));
+            setHistoryCursor(data?.nextCursor ?? null);
+            setMessages(prev => {
+                const merged = sortChronologically(dedupeMessages([...normalized, ...prev]));
+                return merged;
+            });
+
+            requestAnimationFrame(() => {
+                if (!container) return;
+                const newScrollHeight = container.scrollHeight;
+                container.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+                suppressAutoScrollRef.current = false;
+            });
+        } catch (err) {
+            console.error('[AI] failed to load older chat messages', err);
+        } finally {
+            setHistoryLoading(false);
+            suppressAutoScrollRef.current = false;
+        }
+    }, [workflowId, hasMoreHistory, historyLoading, getToken, historyCursor, normalizeDtos, sortChronologically, dedupeMessages, router]);
+
+    const handleScroll = useCallback(() => {
+        const container = messagesContainerRef.current;
+        if (!container || historyLoading || !hasMoreHistory) return;
+        if (container.scrollTop < 60) {
+            loadOlderMessages();
+        }
+    }, [historyLoading, hasMoreHistory, loadOlderMessages]);
+
+    const persistMessage = useCallback(async (tempId: string, payload: { content: string; sender: AiChatSender }) => {
+        if (!workflowId) return;
+        const token = getToken();
+        if (!token) return;
+
+        try {
+            const response = await AiChatApi.saveMessage(workflowId, payload, token, router);
+            if (!response?.ok) return;
+            const saved = await response.json() as AiChatMessageDto;
+            setMessages(prev => prev.map(msg =>
+                msg.id === tempId
+                    ? {
+                        ...msg,
+                        id: saved.id || msg.id,
+                        timestamp: saved.createdAt ? new Date(saved.createdAt) : msg.timestamp,
+                      }
+                    : msg
+            ));
+        } catch (err) {
+            console.error('[AI] failed to persist chat message', err);
+        }
+    }, [workflowId, getToken, router]);
+
+    const mergeMessages = useCallback((incoming: Message[]) => {
+        setMessages(prev => {
+            const merged = sortChronologically(dedupeMessages([...prev, ...incoming]));
+            messagesRef.current = merged;
+            return merged;
+        });
+    }, [dedupeMessages, sortChronologically]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -68,19 +264,20 @@ export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNod
         const prompt = inputValue.trim();
 
         const userMessage: Message = {
-            id: Date.now().toString(),
+            id: `local-${Date.now()}`,
             content: prompt,
             sender: 'user',
             timestamp: new Date(),
         };
-        setMessages(prev => [...prev, userMessage]);
+        mergeMessages([userMessage]);
         setInputValue('');
+        persistMessage(userMessage.id, { content: prompt, sender: 'user' });
 
         setIsLoading(true);
         const currentNodes = getNodes();
         const currentEdges = getEdges();
         const workflowSnapshot = serializeWorkflowForAI(currentNodes, currentEdges);
-        const revisionEntries = [...revisionLogRef.current, `User: ${prompt}`].slice(-20);
+        const revisionEntries = buildRevisionLog([...messagesRef.current, userMessage]);
         revisionLogRef.current = revisionEntries;
 
         try {
@@ -131,13 +328,14 @@ export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNod
             const status = (parsed as AIWorkflowResponse)?.status;
             const aiText = status ? `${explanation}\nStatus: ${status}` : explanation;
             const aiMessage: Message = {
-                id: `${Date.now()}-ai`,
+                id: `local-ai-${Date.now()}`,
                 content: aiText,
                 sender: 'ai',
                 timestamp: new Date(),
             };
-            setMessages(prev => [...prev, aiMessage]);
-            revisionLogRef.current = [...revisionLogRef.current, `AI: ${explanation}`].slice(-20);
+            mergeMessages([aiMessage]);
+            revisionLogRef.current = buildRevisionLog([...messagesRef.current, aiMessage]);
+            persistMessage(aiMessage.id, { content: aiText, sender: 'ai' });
         } catch (err) {
             console.error('[AI] request failed:', err);
             const message =
@@ -150,15 +348,19 @@ export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNod
                 sender: 'ai',
                 timestamp: new Date(),
             };
-            setMessages(prev => [...prev, aiMessage]);
+            mergeMessages([aiMessage]);
+            persistMessage(aiMessage.id, { content: aiMessage.content, sender: 'ai' });
         } finally {
             setIsLoading(false);
         }
     };
 
     useEffect(() => {
-        if (isOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isOpen]);
+        if (!isOpen || suppressAutoScrollRef.current) return;
+        if (isNearBottom()) {
+            scrollToBottom(messagesRef.current.length > 15 ? 'smooth' : 'auto');
+        }
+    }, [messages, isOpen, isNearBottom, scrollToBottom]);
 
     if (!isOpen) return null;
 
@@ -167,7 +369,17 @@ export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNod
             className="flex flex-col bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-l border-gray-200 dark:border-gray-700"
             style={{ width }}
         >
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div
+                className="flex-1 overflow-y-auto p-4 space-y-4"
+                onScroll={handleScroll}
+                ref={messagesContainerRef}
+            >
+                {historyLoading && hasMoreHistory && (
+                    <div className="text-center text-xs text-gray-500 py-2">
+                        Loading earlier messages…
+                    </div>
+                )}
+
                 {messages.map((m) => (
                     <div key={m.id} className={`flex ${m.sender === 'ai' ? 'justify-start' : 'justify-end'}`}>
                         <div className={`max-w-[80%] p-3 rounded-lg text-sm ${m.sender === 'ai'
@@ -214,12 +426,14 @@ export default function AIPanelDocked({ isOpen, width, onClose, setEdges, setNod
                     style={{ pointerEvents: 'auto' }}
                     >
                     <button
+                        type="button"
                         onClick={acceptAllSuggestions}
                         className="px-2 py-1 bg-green-600 text-white rounded text-sm shadow"
                     >
                         Accept All
                     </button>
                     <button
+                        type="button"
                         onClick={rejectAllSuggestions}
                         className="px-2 py-1 bg-red-600 text-white rounded text-sm shadow"
                     >

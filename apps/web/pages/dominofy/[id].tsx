@@ -975,6 +975,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                   getEdges={() => edges}
                   setNodes={setNodes}                 // wrapped setter so edits are recorded
                   setEdges={setEdges}                 // wrapped setter so edits are recorded
+                  workflowId={workflowId}
                   onWidthChange={setPanelWidth}
                 />
               </ReactFlowProvider>

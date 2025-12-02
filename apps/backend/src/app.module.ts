@@ -14,6 +14,7 @@ import { SlackModule } from './slack/slack.module';
 import { RunnerLauncherModule } from './runner-launcher/runner-launcher.module';
 import { AuthModule } from './auth/auth.module';
 import { SupportModule } from './support/support.module';
+import { AiChatModule } from './ai-chat/ai-chat.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { SupportModule } from './support/support.module';
     RunnerLauncherModule,
     AuthModule,
     SupportModule,
+    AiChatModule,
   ],
   controllers: [AppController],
   providers: [AppService, VerifyTokenMiddleware],
