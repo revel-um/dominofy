@@ -7,7 +7,7 @@ import { ResponsiveProvider } from '../contexts/responsiveContext';
 import Layout from './layout';
 import '../styles/globals.css';
 
-const EXCLUDED_ROUTES = ['/auth', '/dominofy'];
+const EXCLUDED_ROUTES = ['/', '/auth', '/dominofy'];
 
 function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   useEffect(() => {

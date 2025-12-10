@@ -63,12 +63,23 @@ export default function DominofyDashboard() {
     const [user, setUser] = useState<User>({ name: "", email: "" });
     const [templates, setTemplates] = useState<any[]>([]);
     const [isExchanging, setIsExchanging] = useState(false);
+    const [booting, setBooting] = useState(true);
 
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const router = useRouter();
     const { status, data: session } = useSession();
+
+    useEffect(() => {
+        if (status === "loading") return;
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        if (!token && status === "unauthenticated") {
+            router.replace("/auth");
+            return;
+        }
+        setBooting(false);
+    }, [status, router]);
 
 
     // Helpers -------------------------------------------------------------
@@ -116,11 +127,11 @@ export default function DominofyDashboard() {
     // Data ----------------------------------------------------------------
     const fetchProjects = async () => {
         // Wait until NextAuth resolves the session (undefined means pending in v5)
-        if (session === undefined) return;
+        if (booting || session === undefined) return;
         const token = localStorage.getItem("token");
         let currentToken = token;
         // If user is unauthenticated via NextAuth and also no backend token, redirect to /auth
-        if (!token && status === "unauthenticated") return router.push("/auth");
+        if (!token && status === "unauthenticated") return router.replace("/auth");
         // If authenticated via NextAuth but backend token is missing, try exchanging for a backend token
         if (!token && status === "authenticated") {
             setIsExchanging(true);
@@ -451,10 +462,10 @@ export default function DominofyDashboard() {
     };
 
     useEffect(() => {
-        if (session === undefined) return;
+        if (booting || session === undefined) return;
         fetchProjects();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, limit, query, status, session]);
+    }, [page, limit, query, status, session, booting]);
 
     const createProject = async (name: string, description?: string) => {
         const token = localStorage.getItem("token");
@@ -524,6 +535,18 @@ export default function DominofyDashboard() {
     };
 
     // UI ------------------------------------------------------------------
+    const showBlockingLoader = booting || status === "loading" || isExchanging;
+    if (showBlockingLoader) {
+        return (
+            <div className="flex h-screen w-screen items-center justify-center bg-dominofy-light-background dark:bg-dominofy-dark-background">
+                <div className="flex items-center gap-3 text-dominofy-light-text dark:text-dominofy-dark-text">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-dominofy-light-accent border-t-transparent" />
+                    <span className="text-sm font-medium">Loading your workspace…</span>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-950">
             {(session === undefined || isExchanging) && (
