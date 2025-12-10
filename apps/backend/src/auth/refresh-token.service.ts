@@ -16,10 +16,9 @@ export class RefreshTokenService {
   async generateRefreshToken(userId: number): Promise<RefreshToken> {
     // Generate a secure random token
     const token = crypto.randomBytes(40).toString('hex');
-    
-    // Set expiration (e.g., 7 days from now)
+    const ttlDays = Number(this.config.get('REFRESH_TOKEN_TTL_DAYS') || 30);
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + (Number.isFinite(ttlDays) ? ttlDays : 30));
 
     const refreshToken = this.refreshTokenRepository.create({
       token,

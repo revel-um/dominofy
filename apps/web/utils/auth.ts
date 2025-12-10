@@ -16,12 +16,28 @@ class TokenManager {
   private static readonly USER_KEY = 'user';
   private static readonly TOKEN_EXPIRY_KEY = 'tokenExpiresAt';
 
+  private static decodeExp(token: string): number | null {
+    try {
+      const [, payload] = token.split('.');
+      const decoded = JSON.parse(atob(payload));
+      return typeof decoded?.exp === 'number' ? decoded.exp * 1000 : null;
+    } catch (err) {
+      console.warn('Failed to decode token exp', err);
+      return null;
+    }
+  }
+
   static setTokens(accessToken: string, refreshToken: string): void {
     if (typeof window === 'undefined') return;
-    
-    // Calculate expiry time (24 hours from now)
-    const expiresAt = Date.now() + (24 * 60 * 60 * 1000);
-    
+
+    const decodedExp = this.decodeExp(accessToken);
+    const fallbackSeconds =
+      Number(process.env.NEXT_PUBLIC_ACCESS_TOKEN_TTL_SECONDS) || 24 * 60 * 60;
+    const expiresAt =
+      decodedExp && Number.isFinite(decodedExp)
+        ? decodedExp
+        : Date.now() + fallbackSeconds * 1000;
+
     localStorage.setItem(this.ACCESS_TOKEN_KEY, accessToken);
     localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
     localStorage.setItem(this.TOKEN_EXPIRY_KEY, expiresAt.toString());

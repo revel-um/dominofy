@@ -31,6 +31,7 @@ export class AuthController {
     const accessToken = generateAccessToken(
       { id: (user as any).id, email: (user as any).email },
       this.config.get<string>('JWT_SECRET')!,
+      this.config.get<string>('ACCESS_TOKEN_TTL'),
     );
 
     // Generate refresh token
@@ -67,6 +68,7 @@ export class AuthController {
     const newAccessToken = generateAccessToken(
       { id: refreshToken.user.id, email: refreshToken.user.email },
       this.config.get<string>('JWT_SECRET')!,
+      this.config.get<string>('ACCESS_TOKEN_TTL'),
     );
 
     // Generate new refresh token (token rotation)

@@ -64,6 +64,7 @@ export default function DominofyDashboard() {
     const [templates, setTemplates] = useState<any[]>([]);
     const [isExchanging, setIsExchanging] = useState(false);
     const [booting, setBooting] = useState(true);
+    const [lastActiveWorkflowId, setLastActiveWorkflowId] = useState<string | null>(null);
 
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -74,6 +75,8 @@ export default function DominofyDashboard() {
     useEffect(() => {
         if (status === "loading") return;
         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        const storedActive = typeof window !== "undefined" ? localStorage.getItem("dominofy-last-active-tab") : null;
+        setLastActiveWorkflowId(storedActive || null);
         if (!token && status === "unauthenticated") {
             router.replace("/auth");
             return;
@@ -453,7 +456,8 @@ export default function DominofyDashboard() {
             setUser({ name: user.name, email: user.email });
             setWorkflowCount(wfCount);
             if (count > 0) {
-                const recentWorkflowWithCache = mergeCachedWorkflow(workflows[0]);
+                const preferred = workflows.find((w: any) => w.id === lastActiveWorkflowId) || workflows[0];
+                const recentWorkflowWithCache = mergeCachedWorkflow(preferred);
                 setRecentWorkflow(recentWorkflowWithCache);
             }
         } catch (err) {
@@ -465,7 +469,7 @@ export default function DominofyDashboard() {
         if (booting || session === undefined) return;
         fetchProjects();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, limit, query, status, session, booting]);
+    }, [page, limit, query, status, session, booting, lastActiveWorkflowId]);
 
     const createProject = async (name: string, description?: string) => {
         const token = localStorage.getItem("token");

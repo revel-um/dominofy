@@ -32,6 +32,7 @@ import { WorkflowTabMeta, WorkflowTabs } from "@/components/workflowTabs";
 
 // Key for session storage of open tabs
 const TABS_STORAGE_KEY = "dominofy-tabs";
+const LAST_ACTIVE_TAB_KEY = "dominofy-last-active-tab";
 
 interface Props {
   currWorkflow?: {
@@ -165,30 +166,24 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   // ⭐ TABS: simple tab meta state
   // ──────────────────────────────
 
-  const [tabs, setTabs] = useState<WorkflowTabMeta[]>(() => {
-    // initial read from sessionStorage (client only)
-    if (typeof window === "undefined") return [];
+  const readTabState = useCallback(() => {
+    if (typeof window === "undefined") return { tabs: [], activeTabId: null as string | null };
     try {
-      const stored = sessionStorage.getItem(TABS_STORAGE_KEY);
-      if (!stored) return [];
-      const parsed = JSON.parse(stored) as { tabs?: WorkflowTabMeta[] };
-      return parsed.tabs ?? [];
+      const stored = localStorage.getItem(TABS_STORAGE_KEY);
+      if (!stored) return { tabs: [], activeTabId: null };
+      const parsed = JSON.parse(stored) as { tabs?: WorkflowTabMeta[]; activeTabId?: string | null };
+      return {
+        tabs: parsed.tabs ?? [],
+        activeTabId: parsed.activeTabId ?? null,
+      };
     } catch {
-      return [];
+      return { tabs: [], activeTabId: null };
     }
-  });
+  }, []);
 
-  const [activeTabId, setActiveTabId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const stored = sessionStorage.getItem(TABS_STORAGE_KEY);
-      if (!stored) return null;
-      const parsed = JSON.parse(stored) as { activeTabId?: string | null };
-      return parsed.activeTabId ?? null;
-    } catch {
-      return null;
-    }
-  });
+  const initialTabState = readTabState();
+  const [tabs, setTabs] = useState<WorkflowTabMeta[]>(initialTabState.tabs);
+  const [activeTabId, setActiveTabId] = useState<string | null>(initialTabState.activeTabId);
 
   // Ensure current `workflow` is in the tabs list and set default active tab
   useEffect(() => {
@@ -219,10 +214,13 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   // Persist tabs + active tab whenever they change
   useEffect(() => {
     try {
-      sessionStorage.setItem(
+      localStorage.setItem(
         TABS_STORAGE_KEY,
         JSON.stringify({ tabs, activeTabId })
       );
+      if (activeTabId) {
+        localStorage.setItem(LAST_ACTIVE_TAB_KEY, activeTabId);
+      }
     } catch (e) {
       console.error("Error saving tabs to storage", e);
     }
