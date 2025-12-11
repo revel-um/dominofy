@@ -18,6 +18,7 @@ interface Props {
   setNodes: React.Dispatch<React.SetStateAction<Node[]>>;  
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   workflowId?: string;
+  updatePipeline: (nodes?: Node[], edges?: Edge[]) => void;
   bottomOffset?: number;
 }
 
@@ -33,6 +34,7 @@ export default function DetailsPanel({
   getEdges,
   getNodes,
   workflowId,
+  updatePipeline,
   onWidthChange,
 }: DetailsPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
@@ -176,6 +178,7 @@ export default function DetailsPanel({
           width={width}
           transition={widthTransition}
           workflowId={workflowId}
+          updatePipeline={updatePipeline}
           onHoverStart={handleHoverStart}
           onHoverEnd={handleHoverEnd}
           onClose={() => {

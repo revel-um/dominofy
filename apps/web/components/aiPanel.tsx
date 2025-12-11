@@ -21,6 +21,7 @@ interface Props {
     workflowId?: string;
     onClose: () => void;
     transition?: string;
+    updatePipeline: (nodes?: Node[], edges?: Edge[]) => void;
     onHoverStart?: () => void;
     onHoverEnd?: () => void;
     setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
@@ -29,7 +30,7 @@ interface Props {
     getEdges: () => Edge[];
 }
 
-export default function AIPanelDocked({ isOpen, width, workflowId, onClose, transition, onHoverStart, onHoverEnd, setEdges, setNodes, getNodes, getEdges }: Props) {
+export default function AIPanelDocked({ isOpen, width, workflowId, onClose, transition, updatePipeline, onHoverStart, onHoverEnd, setEdges, setNodes, getNodes, getEdges }: Props) {
     const router = useRouter();
 
     const [inputValue, setInputValue] = useState('');
@@ -321,9 +322,23 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             });
 
             if (normalized) {
+                const enhancedNodes = normalized.nodes.map((node, idx) => {
+                    const currentKey =
+                        typeof node.data?.renderKey === 'number' ? node.data.renderKey : 0;
+                    return {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            setNodes,
+                            updatePipeline,
+                            renderKey: currentKey + 1, // force rerender after AI update
+                        },
+                        selected: idx === 0,
+                    };
+                });
                 origNodesRef.current = currentNodes;
                 origEdgesRef.current = currentEdges;
-                setNodes(normalized.nodes);
+                setNodes(enhancedNodes);
                 setEdges(normalized.edges);
             }
 

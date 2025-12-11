@@ -283,6 +283,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   const [noteToolActive, setNoteToolActive] = useState(false);
   const latestEdgesRef = useRef<Edge[]>(edges);
+  const nodeSetterRef = useRef<React.Dispatch<React.SetStateAction<Node[]>>>(() => []);
   useEffect(() => {
     latestEdgesRef.current = edges;
   }, [edges]);
@@ -369,6 +370,21 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     queueMicrotask(() => { pushGuard.current = false; });
   }, [nodes, edges, clone, publishFlags]);
 
+  const attachHelpers = useCallback(
+    (list: Node[]) =>
+      list.map((n, idx) => ({
+        ...n,
+        data: {
+          ...n.data,
+          setNodes: nodeSetterRef.current,
+          updatePipeline,
+          renderKey: typeof n.data?.renderKey === 'number' ? n.data.renderKey : 0,
+        },
+        selected: typeof n.selected === 'boolean' ? n.selected : idx === 0,
+      })),
+    [updatePipeline]
+  );
+
   const wrapNodesUpdater = useCallback(
     (
       updater: React.SetStateAction<Node[]>,
@@ -377,11 +393,12 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       const edgesToUse = overrideEdges ?? latestEdgesRef.current;
       if (typeof updater === 'function') {
         const fn = updater as (prev: Node[]) => Node[];
-        return (prev: Node[]) => hydrateNodesWithAIOverrides(fn(prev), edgesToUse);
+        return (prev: Node[]) =>
+          attachHelpers(hydrateNodesWithAIOverrides(fn(prev), edgesToUse));
       }
-      return hydrateNodesWithAIOverrides(updater, edgesToUse);
+      return attachHelpers(hydrateNodesWithAIOverrides(updater, edgesToUse));
     },
-    []
+    [attachHelpers]
   );
 
   const runNodeUpdate = useCallback(
@@ -442,6 +459,9 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     updater => runNodeUpdate(updater),
     [runNodeUpdate]
   );
+  useEffect(() => {
+    nodeSetterRef.current = setNodes;
+  }, [setNodes]);
 
   const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
     (updater) => {
@@ -974,6 +994,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                   setNodes={setNodes}                 // wrapped setter so edits are recorded
                   setEdges={setEdges}                 // wrapped setter so edits are recorded
                   workflowId={workflowId}
+                  updatePipeline={updatePipeline}
                   onWidthChange={setPanelWidth}
                 />
               </ReactFlowProvider>
@@ -1067,6 +1088,7 @@ const hydrateNodesWithAIOverrides = (
     );
 
     let nodeChanged = false;
+    let renderKey = typeof node.data?.renderKey === 'number' ? node.data.renderKey : 0;
     const mergedFields = details.fields.map((field: any) => {
       const key = normaliseHeadingSafe(field.heading);
       const override = overrideMap.get(key);
@@ -1075,6 +1097,7 @@ const hydrateNodesWithAIOverrides = (
       }
       overrideMap.delete(key);
       nodeChanged = true;
+      renderKey += 1;
       const hasValue =
         override.value !== null && override.value !== undefined;
       return {
@@ -1087,6 +1110,7 @@ const hydrateNodesWithAIOverrides = (
 
     overrideMap.forEach(override => {
       nodeChanged = true;
+      renderKey += 1;
       mergedFields.push(override);
     });
 
@@ -1100,6 +1124,7 @@ const hydrateNodesWithAIOverrides = (
         details: nodeChanged
           ? { ...details, fields: mergedFields }
           : details,
+        renderKey,
       },
     };
   });
@@ -1125,6 +1150,7 @@ const hydrateNodesWithAIOverrides = (
 
     const relevant = edgesByTarget.get(node.id);
     let nodeChanged = false;
+    let renderKey = typeof node.data?.renderKey === 'number' ? node.data.renderKey : 0;
     const fields = details.fields.map((field: any) => {
       if (!field.inPinId || !field.inPinId.startsWith('value_in')) {
         return field;
@@ -1141,6 +1167,7 @@ const hydrateNodesWithAIOverrides = (
           return field;
         }
         nodeChanged = true;
+        renderKey += 1;
         return {
           ...field,
           connectedValue: match.source,
@@ -1150,6 +1177,7 @@ const hydrateNodesWithAIOverrides = (
 
       if (field.connectedValue || field.connectedPin) {
         nodeChanged = true;
+        renderKey += 1;
         return {
           ...field,
           connectedValue: undefined,
@@ -1169,6 +1197,7 @@ const hydrateNodesWithAIOverrides = (
       data: {
         ...node.data,
         details: { ...details, fields },
+        renderKey,
       },
     };
   });

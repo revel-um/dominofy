@@ -54,6 +54,11 @@ import { useDomino } from "../contexts/dominoContext";
 import { useRouter } from "next/router";
 import { useCopyPaste } from '../hooks/useCopyPaste';
 
+const withRenderKey = (Component: any) => (props: any) => {
+  const renderKey = props?.data?.renderKey ?? 0;
+  return <Component key={`${props.id}-${renderKey}`} {...props} />;
+};
+
 import {
   createDropHandler,
   createSearchKeyDownHandler,
@@ -63,32 +68,32 @@ import {
 } from "@/helpers/canvasUtils";
 
 const nodeTypes = {
-  csvwriter: CSVWriterDomino,
-  llm: LLMDomino,
-  response: ResponseDomino,
-  print: PrintDomino,
-  apicall: ApiCallDomino,
-  apitrigger: ApiTriggerDomino,
-  condition: ConditionDomino,
-  switchcase: SwitchDomino,
-  arithmetic: ArithmeticDomino,
-  readexcel: ReadExcelDomino,
-  deconstructor: DeconstrctDomino,
-  iterator: IteratorDomino,
-  filter: FilterDomino,
-  aggregator: AggregatorDomino,
-  sqlRunner: SQLRunnerDomino,
-  codeRunner: CustomCodeDomino,
-  emailsender: EmailSenderDomino,
-  delay: DelayDomino,
-  mapper: MapperDomino,
-  slacktrigger: SlackTriggerDomino,
-  slackaction: SlackActionDomino,
-  SchedulerDomino: SchedulerDomino,
-  connector: ConnectorDomino,
-  shopify: ShopifyDomino,
+  csvwriter: withRenderKey(CSVWriterDomino),
+  llm: withRenderKey(LLMDomino),
+  response: withRenderKey(ResponseDomino),
+  print: withRenderKey(PrintDomino),
+  apicall: withRenderKey(ApiCallDomino),
+  apitrigger: withRenderKey(ApiTriggerDomino),
+  condition: withRenderKey(ConditionDomino),
+  switchcase: withRenderKey(SwitchDomino),
+  arithmetic: withRenderKey(ArithmeticDomino),
+  readexcel: withRenderKey(ReadExcelDomino),
+  deconstructor: withRenderKey(DeconstrctDomino),
+  iterator: withRenderKey(IteratorDomino),
+  filter: withRenderKey(FilterDomino),
+  aggregator: withRenderKey(AggregatorDomino),
+  sqlRunner: withRenderKey(SQLRunnerDomino),
+  codeRunner: withRenderKey(CustomCodeDomino),
+  emailsender: withRenderKey(EmailSenderDomino),
+  delay: withRenderKey(DelayDomino),
+  mapper: withRenderKey(MapperDomino),
+  slacktrigger: withRenderKey(SlackTriggerDomino),
+  slackaction: withRenderKey(SlackActionDomino),
+  SchedulerDomino: withRenderKey(SchedulerDomino),
+  connector: withRenderKey(ConnectorDomino),
+  shopify: withRenderKey(ShopifyDomino),
   /* NEW */
-  note: NoteDomino,
+  note: withRenderKey(NoteDomino),
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */

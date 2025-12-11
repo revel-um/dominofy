@@ -58,7 +58,7 @@ interface Props {
             }`}
             style={labelStyle}
           >
-            <div className="rotate-180 px-2 py-2">Perrot AI</div>
+            <div className="rotate-180 px-2 py-2">Jelly AI</div>
           </span>
         </div>
       </div>
