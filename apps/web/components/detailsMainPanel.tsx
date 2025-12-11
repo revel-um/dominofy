@@ -10,17 +10,18 @@ interface Props {
     width: number;
     onClose: () => void;
     transition?: string;
+    isResizing?: boolean;
     onHoverStart?: () => void;
     onHoverEnd?: () => void;
 }
 
-export default function DetailsMainPanel({ selectedNode, width, onClose, transition, onHoverStart, onHoverEnd }: Props) {
+export default function DetailsMainPanel({ selectedNode, width, onClose, transition, isResizing, onHoverStart, onHoverEnd }: Props) {
     const { clearValidationForDominoId } = useDomino();
 
     return (
         <div
             className="flex-1 overflow-y-auto px-4 pb-6 space-y-6 border-l border-gray-200 dark:border-gray-700 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
-            style={{ width, transition }}
+            style={{ width, transition: isResizing ? 'none' : transition }}
             onMouseEnter={onHoverStart}
             onMouseLeave={onHoverEnd}
         >

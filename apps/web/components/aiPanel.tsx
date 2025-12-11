@@ -21,6 +21,7 @@ interface Props {
     workflowId?: string;
     onClose: () => void;
     transition?: string;
+    isResizing?: boolean;
     updatePipeline: (nodes?: Node[], edges?: Edge[]) => void;
     onHoverStart?: () => void;
     onHoverEnd?: () => void;
@@ -30,7 +31,7 @@ interface Props {
     getEdges: () => Edge[];
 }
 
-export default function AIPanelDocked({ isOpen, width, workflowId, onClose, transition, updatePipeline, onHoverStart, onHoverEnd, setEdges, setNodes, getNodes, getEdges }: Props) {
+export default function AIPanelDocked({ isOpen, width, workflowId, onClose, transition, isResizing, updatePipeline, onHoverStart, onHoverEnd, setEdges, setNodes, getNodes, getEdges }: Props) {
     const router = useRouter();
 
     const [inputValue, setInputValue] = useState('');
@@ -385,12 +386,12 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     return (
         <div
             className="flex flex-col bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-l border-gray-200 dark:border-gray-700"
-            style={{ width, transition }}
+            style={{ width, transition: isResizing ? 'none' : transition }}
             onMouseEnter={onHoverStart}
             onMouseLeave={onHoverEnd}
         >
             <div
-                className="flex-1 overflow-y-auto p-4 space-y-4"
+                className={`flex-1 overflow-y-auto p-4 space-y-4 ${isResizing ? 'transition-none' : ''}`}
                 onScroll={handleScroll}
                 ref={messagesContainerRef}
             >
@@ -406,7 +407,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                             ? 'bg-dominofy-light-accent/10 dark:bg-dominofy-dark-accent/20'
                             : 'bg-dominofy-light-accent/20 dark:bg-dominofy-dark-accent/30'}
             `}>
-                            <p>{m.content}</p>
+                            <p className="whitespace-pre-wrap break-words">{m.content}</p>
                             <div className="text-xs text-gray-500 mt-1">
                                 {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>

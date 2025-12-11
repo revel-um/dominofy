@@ -30,14 +30,14 @@ interface Props {
     const hoverStyle = "hover:bg-gray-100 dark:hover:bg-black/20";
     const inactiveStyle = `text-gray-400 dark:text-gray-300 ${hoverStyle}`;
   
-    return (
-      <div
-        className="flex items-start justify-center select-none
-                   bg-dominofy-light-panel dark:bg-dominofy-dark-panel
-                   border-l border-gray-200 dark:border-gray-700"
-        style={{ width: 40, transition }}
-        onMouseEnter={onHoverStart}
-        onMouseLeave={onHoverEnd}
+  return (
+    <div
+      className="flex items-start justify-center select-none flex-shrink-0
+                 bg-dominofy-light-panel dark:bg-dominofy-dark-panel
+                 border-l border-gray-200 dark:border-gray-700"
+      style={{ width: 40, transition }}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
       >
         <div className="flex flex-col space-y-2 mt-2">
           {showDetails && (

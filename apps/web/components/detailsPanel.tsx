@@ -37,14 +37,15 @@ export default function DetailsPanel({
   updatePipeline,
   onWidthChange,
 }: DetailsPanelProps) {
-  const [width, setWidth] = useState(MIN_WIDTH);
+  const [width, setWidth] = useState(MAX_WIDTH);
   const [isDetailsOpen, setIsDetailsOpen] = useState(!!selectedNode);
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [userClosedAI, setUserClosedAI] = useState(false);
   const [userClosedDetails, setUserClosedDetails] = useState(false); // 🧠 new state
+  const [isResizing, setIsResizing] = useState(false);
   const dragRef = useRef(false);
-  const restoreWidthRef = useRef(width);
-  const userWidthRef = useRef(width);
+  const restoreWidthRef = useRef(MAX_WIDTH);
+  const userWidthRef = useRef(MAX_WIDTH);
   const hoverCountRef = useRef(0);
 
   useEffect(() => {
@@ -98,6 +99,7 @@ export default function DetailsPanel({
 
   const startDrag = () => {
     dragRef.current = true;
+    setIsResizing(true);
     document.body.classList.add('select-none');
     document.addEventListener('mousemove', onDrag);
     document.addEventListener('mouseup', stopDrag);
@@ -105,43 +107,26 @@ export default function DetailsPanel({
 
   const onDrag = (e: MouseEvent) => {
     if (!dragRef.current) return;
-    const newW = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, window.innerWidth - e.clientX - BAR_WIDTH));
-    setWidth(newW);
-    userWidthRef.current = newW;
-    restoreWidthRef.current = newW;
+    const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, window.innerWidth - e.clientX - BAR_WIDTH));
+    setWidth(next);
+    userWidthRef.current = next;
+    restoreWidthRef.current = next;
     if (isDetailsOpen || isAIOpen) {
-      onWidthChange?.(newW + BAR_WIDTH);
+      onWidthChange?.(next + BAR_WIDTH);
     }
   };
 
   const stopDrag = () => {
     dragRef.current = false;
+    setIsResizing(false);
     document.body.classList.remove('select-none');
     document.removeEventListener('mousemove', onDrag);
     document.removeEventListener('mouseup', stopDrag);
   };
 
-  const handleHoverStart = () => {
-    hoverCountRef.current += 1;
-    if (hoverCountRef.current > 1) return;
-    restoreWidthRef.current = userWidthRef.current || width;
-    setWidth(MAX_WIDTH);
-    if (isDetailsOpen || isAIOpen) {
-      onWidthChange?.(MAX_WIDTH + BAR_WIDTH);
-    }
-  };
+  const handleHoverStart = () => {};
+  const handleHoverEnd = () => {};
 
-  const handleHoverEnd = () => {
-    hoverCountRef.current = Math.max(0, hoverCountRef.current - 1);
-    if (hoverCountRef.current > 0) return;
-    const targetWidth = userWidthRef.current || restoreWidthRef.current || width;
-    setWidth(targetWidth);
-    if (isDetailsOpen || isAIOpen) {
-      onWidthChange?.(targetWidth + BAR_WIDTH);
-    }
-  };
-
-  const asideW = isDetailsOpen || isAIOpen ? width + BAR_WIDTH : BAR_WIDTH;
   useEffect(() => {
     if (isDetailsOpen || isAIOpen) {
       onWidthChange?.(width + BAR_WIDTH);
@@ -154,16 +139,16 @@ export default function DetailsPanel({
     <aside
       className="absolute right-0 top-0 z-60 flex flex-row
                  bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
-      style={{ width: asideW, bottom: `${bottomOffset}px`, transition: widthTransition }}
-      onMouseLeave={handleHoverEnd}
+      style={{ bottom: `${bottomOffset}px` }}
     >
       {isDetailsOpen && selectedNode && (
         <DetailsMainPanel
           selectedNode={selectedNode}
           width={width}
-          transition={widthTransition}
+          transition={isResizing ? 'none' : widthTransition}
           onHoverStart={handleHoverStart}
           onHoverEnd={handleHoverEnd}
+          isResizing={isResizing}
           onClose={() => {
             setIsDetailsOpen(false);
             setUserClosedDetails(true); // ✅ mark as manually closed
@@ -176,11 +161,12 @@ export default function DetailsPanel({
         <AIPanelDocked
           isOpen={isAIOpen}
           width={width}
-          transition={widthTransition}
+          transition={isResizing ? 'none' : widthTransition}
           workflowId={workflowId}
           updatePipeline={updatePipeline}
           onHoverStart={handleHoverStart}
           onHoverEnd={handleHoverEnd}
+          isResizing={isResizing}
           onClose={() => {
             setIsAIOpen(false);
             setUserClosedAI(true);
@@ -208,10 +194,10 @@ export default function DetailsPanel({
       {(isDetailsOpen || isAIOpen) && (
         <div
           onMouseDown={startDrag}
-          className="absolute top-0 left-0"
-          style={{ width: '6px', height: '100%', cursor: 'ew-resize' }}
-        />
-      )}
-    </aside>
-  );
+      className="absolute top-0 left-0"
+      style={{ width: '10px', height: '100%', cursor: 'ew-resize', transition: 'opacity 120ms ease-in-out', opacity: 0.6 }}
+    />
+  )}
+</aside>
+);
 }
