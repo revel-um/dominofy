@@ -270,6 +270,8 @@ export function normalizeAIResponseToWorkflow(
     }
   });
 
+  const occupied = new Set<string>();
+
   const nodes: Node[] = rawNodes.map((rawNode, index) => {
     const dominoEntry = resolveDominoEntry(rawNode);
     const nodeId =
@@ -378,10 +380,25 @@ export function normalizeAIResponseToWorkflow(
       };
     }
 
+    let position = normalisePosition(rawNode?.position, existing, index);
+    const dedupeKey = (pos: { x: number; y: number }) =>
+      `${Math.round(pos.x)}:${Math.round(pos.y)}`;
+    let key = dedupeKey(position);
+    let bump = 0;
+    while (occupied.has(key)) {
+      bump += 1;
+      position = {
+        x: position.x + 24 * bump,
+        y: position.y + 24 * bump,
+      };
+      key = dedupeKey(position);
+    }
+    occupied.add(key);
+
     return {
       id: nodeId,
       type,
-      position: normalisePosition(rawNode?.position, existing, index),
+      position,
       data,
       draggable: true,
       selected: index === 0,
