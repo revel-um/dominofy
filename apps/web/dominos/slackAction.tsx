@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { NodeProps, useReactFlow } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
@@ -34,10 +34,11 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
   const [channels, setChannels] = useState<SlackChannel[]>([]);
   const [loadingConns, setLoadingConns] = useState(true);
   const [loadingCh, setLoadingCh] = useState(false);
+  const bootstrappedRef = useRef(false);
 
   // Initialize node details + exportFields once
   useEffect(() => {
-    if (!data.setNodes) return;
+    if (!data.setNodes || bootstrappedRef.current) return;
     data.setNodes((prev: any[]) => {
       let changed = false;
       const next = prev.map(node => {
@@ -63,7 +64,12 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
         }
         return changed ? { ...node, data: newData } : node;
       });
-      return changed ? next : prev;
+      if (changed) {
+        bootstrappedRef.current = true;
+        return next;
+      }
+      bootstrappedRef.current = true;
+      return prev;
     });
   }, [data.setNodes, id]);
 
@@ -114,7 +120,9 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
       setLoadingCh(true);
       try {
         const list = await SlackApi.getChannels(token, router, vaultId);
-        if (mounted) setChannels(list ?? []);
+        if (mounted) {
+          setChannels(Array.isArray(list) ? list : []);
+        }
       } finally {
         if (mounted) setLoadingCh(false);
       }
@@ -232,5 +240,3 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
     </div>
   );
 }
-
-

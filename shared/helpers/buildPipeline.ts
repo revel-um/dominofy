@@ -19,7 +19,7 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
 
   // Build the graph
   execEdges.forEach(({ source, target, sourceHandle }) => {
-    if (source && target && sourceHandle) {
+    if (source && target && sourceHandle && adjacency[source]) {
       if (!adjacency[source][sourceHandle]) {
         adjacency[source][sourceHandle] = [];
       }
@@ -35,8 +35,12 @@ export function buildPipeline(nodes: Node[], edges: Edge[]): PipelineStep[] {
 
   // Helper to convert a Node to PipelineStep
   const makeStep = (node: Node): PipelineStep => {
-    const exportFields: string[] = node.data?.exportFields || [];
-    const fields = node.data?.details?.fields || [];
+    const exportFields: string[] = Array.isArray(node.data?.exportFields)
+      ? node.data.exportFields
+      : [];
+    const fields = Array.isArray(node.data?.details?.fields)
+      ? node.data.details.fields
+      : [];
 
     const cleanedData: Record<string, any> = {};
     exportFields.forEach(fieldHeading => {

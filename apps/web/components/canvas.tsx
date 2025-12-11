@@ -221,7 +221,12 @@ export default function Canvas(props: CanvasProps) {
   const getEdges = () => edges;
   const updatePipeline = useCallback(
     (currentNodes: Node[] = nodes, currentEdges: Edge[] = edges) => {
-      setPipeline(buildPipeline(currentNodes, currentEdges));
+      try {
+        setPipeline(buildPipeline(currentNodes, currentEdges));
+      } catch (err) {
+        console.error('[pipeline] failed to build', err);
+        setPipeline([]);
+      }
     },
     [nodes, edges]
   );

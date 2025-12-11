@@ -103,9 +103,22 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       setValidationErrors(prev => prev.filter(errId => errId !== dominoId)),
   };
 
-  const updatePipeline = useCallback((currentNodes = nodes, currentEdges = edges) => {
-    buildPipeline(currentNodes, currentEdges);
-  }, [nodes, edges]);
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+
+  const updatePipeline = useCallback((currentNodes = nodesRef.current, currentEdges = edgesRef.current) => {
+    try {
+      buildPipeline(currentNodes, currentEdges);
+    } catch (err) {
+      console.error('[pipeline] failed to build', err);
+    }
+  }, []);
 
   // Auto-save workflow to cache whenever nodes or edges change
   const isRestoring = useRef(false); // moved up a bit so we can use it
@@ -372,16 +385,32 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   const attachHelpers = useCallback(
     (list: Node[]) =>
-      list.map((n, idx) => ({
-        ...n,
-        data: {
-          ...n.data,
-          setNodes: nodeSetterRef.current,
-          updatePipeline,
-          renderKey: typeof n.data?.renderKey === 'number' ? n.data.renderKey : 0,
-        },
-        selected: typeof n.selected === 'boolean' ? n.selected : idx === 0,
-      })),
+      list.map((n, idx) => {
+        const existingSetNodes = (n.data as any)?.setNodes;
+        const existingUpdate = (n.data as any)?.updatePipeline;
+        const existingRenderKey =
+          typeof (n.data as any)?.renderKey === 'number' ? (n.data as any).renderKey : 0;
+
+        const needsHelpers =
+          existingSetNodes !== nodeSetterRef.current || existingUpdate !== updatePipeline;
+        const needsRenderKey = typeof (n.data as any)?.renderKey !== 'number';
+        const needsSelected = typeof n.selected !== 'boolean';
+
+        if (!needsHelpers && !needsRenderKey && !needsSelected) {
+          return n;
+        }
+
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            setNodes: nodeSetterRef.current,
+            updatePipeline,
+            renderKey: needsRenderKey ? existingRenderKey : existingRenderKey,
+          },
+          selected: needsSelected ? idx === 0 : n.selected,
+        };
+      }),
     [updatePipeline]
   );
 
@@ -403,15 +432,24 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   const runNodeUpdate = useCallback(
     (updater: React.SetStateAction<Node[]>, overrideEdges?: Edge[]) => {
+      const baseNodes = nodesRef.current;
+      const baseEdges = edgesRef.current;
       const hydratedUpdater = wrapNodesUpdater(updater, overrideEdges);
       const nextNodes =
         typeof hydratedUpdater === 'function'
-          ? hydratedUpdater(nodes)
+          ? hydratedUpdater(baseNodes)
           : hydratedUpdater;
-      const edgesSnapshot = overrideEdges ?? edges;
+      // Skip if nothing changed to avoid ReactFlow/store churn
+      if (
+        nextNodes.length === baseNodes.length &&
+        nextNodes.every((n, idx) => n === baseNodes[idx])
+      ) {
+        return;
+      }
+      const edgesSnapshot = overrideEdges ?? baseEdges;
 
       if (!isRestoring.current && !isDraggingRef.current) {
-        const prevNodes = nodes;
+        const prevNodes = baseNodes;
         const hasNonSelectionChanges =
           prevNodes.length !== nextNodes.length ||
           prevNodes.some((prevNode, i) => {
@@ -447,8 +485,6 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     },
     [
       wrapNodesUpdater,
-      nodes,
-      edges,
       autoSaveWorkflow,
       setHasUnsavedChanges,
       pushHistory,

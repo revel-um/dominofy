@@ -406,8 +406,8 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                         <div className={`max-w-[80%] p-3 rounded-lg text-sm ${m.sender === 'ai'
                             ? 'bg-dominofy-light-accent/10 dark:bg-dominofy-dark-accent/20'
                             : 'bg-dominofy-light-accent/20 dark:bg-dominofy-dark-accent/30'}
-            `}>
-                            <p className="whitespace-pre-wrap break-words">{m.content}</p>
+            `} style={{ userSelect: 'text' }}>
+                            <p className="whitespace-pre-wrap break-words" style={{ userSelect: 'text' }}>{m.content}</p>
                             <div className="text-xs text-gray-500 mt-1">
                                 {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>
