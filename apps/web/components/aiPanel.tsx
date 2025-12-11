@@ -391,10 +391,17 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             onMouseLeave={onHoverEnd}
         >
             <div
-                className={`flex-1 overflow-y-auto p-4 space-y-4 ${isResizing ? 'transition-none' : ''}`}
+                className={`relative flex-1 overflow-y-auto p-4 space-y-4 ${isResizing ? 'transition-none' : ''}`}
                 onScroll={handleScroll}
                 ref={messagesContainerRef}
             >
+                {isLoading && (
+                    <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">
+                        <div className="mt-1 h-1 w-32 overflow-hidden rounded-full bg-white/10">
+                            <div className="h-full w-1/3 animate-[slide_1.8s_ease_infinite] rounded-full bg-white/70" />
+                        </div>
+                    </div>
+                )}
                 {historyLoading && hasMoreHistory && (
                     <div className="text-center text-xs text-gray-500 py-2">
                         Loading earlier messages…
@@ -418,29 +425,47 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             </div>
 
             <form onSubmit={handleSendMessage} className="p-3 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex space-x-2">
-                    <input
-                        type="text"
+                <div className="flex space-x-2 items-start">
+                    <textarea
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder="Ask me anything..."
+                        rows={1}
                         className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600
                             bg-dominofy-light-background dark:bg-dominofy-dark-background
                             text-dominofy-light-text dark:text-dominofy-dark-text
-                            focus:outline-none focus:ring-2 focus:ring-dominofy-light-accent/50 dark:focus:ring-dominofy-dark-accent/50"
+                            focus:outline-none focus:ring-2 focus:ring-dominofy-light-accent/50 dark:focus:ring-dominofy-dark-accent/50
+                            resize-none overflow-auto leading-5"
+                        style={{ minHeight: '38px', maxHeight: '140px' }}
+                        onInput={(e) => {
+                            const el = e.currentTarget;
+                            el.style.height = 'auto';
+                            const next = Math.min(el.scrollHeight, 140);
+                            el.style.height = `${next}px`;
+                        }}
                     />
                     <button
                         type="submit"
                         disabled={!inputValue.trim() || isLoading}
-                        className="p-2 rounded-lg bg-dominofy-light-accent text-white hover:bg-dominofy-light-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`px-3 py-2 rounded-lg bg-dominofy-light-accent text-white hover:bg-dominofy-light-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 transition-transform duration-150 ${isLoading ? 'scale-95' : 'hover:scale-105'}`}
+                        style={{
+                            minWidth: '42px',
+                            minHeight: '38px',
+                            backgroundImage: isLoading
+                                ? "url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 300 150\"><path fill=\"none\" stroke=\"%23FFFFFF\" stroke-width=\"15\" stroke-linecap=\"round\" stroke-dasharray=\"300 385\" stroke-dashoffset=\"0\" d=\"M275 75c0 31-27 50-50 50-58 0-92-100-150-100-28 0-50 22-50 50s23 50 50 50c58 0 92-100 150-100 24 0 50 19 50 50Z\"><animate attributeName=\"stroke-dashoffset\" calcMode=\"spline\" dur=\"2\" values=\"685;-685\" keySplines=\"0 0 1 1\" repeatCount=\"indefinite\"></animate></path></svg>')"
+                                : 'none',
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'center',
+                            backgroundSize: isLoading ? '20px 20px' : 'auto',
+                        }}
                     >
-                        {isLoading ? <span className="text-xs px-1">...</span> : <FiSend size={18} />}
+                        {isLoading ? (
+                            <span className="sr-only">Sending…</span>
+                        ) : (
+                            <FiSend size={18} />
+                        )}
                     </button>
                 </div>
-                {isLoading && (
-                    <p className="mt-2 text-xs text-gray-500">Generating workflow suggestions…</p>
-                )}
-                
                 {/* ─── accept/reject ALL suggestions ─── */}
                 {suggestedNodes.length > 0 && (
                     <div className="relative top-2 z-20 flex gap-2"
