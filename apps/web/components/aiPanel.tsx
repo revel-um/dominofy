@@ -293,7 +293,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    text: prompt,
+                    text: `${prompt}\n\nUser priority: this instruction overrides any past revision logs. If this prompt conflicts with previous requests, follow this prompt.`,
                     current_json: workflowSnapshot,
                     revision_log: revisionEntries,
                 }),
@@ -315,7 +315,21 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                 throw new Error(detail || 'AI request failed.');
             }
 
-            const normalized = normalizeAIResponseToWorkflow(parsed as AIWorkflowResponse, {
+            const parsedResponse = parsed as AIWorkflowResponse;
+            const promptText = prompt.toLowerCase();
+
+            // Heuristic: if user explicitly asks to "print" and didn't mention Slack, coerce slackaction -> print
+            if (
+                Array.isArray(parsedResponse?.nodes) &&
+                promptText.includes('print') &&
+                !promptText.includes('slack')
+            ) {
+                parsedResponse.nodes = parsedResponse.nodes.map((n: any) =>
+                    n?.type === 'slackaction' ? { ...n, type: 'print' } : n
+                );
+            }
+
+            const normalized = normalizeAIResponseToWorkflow(parsedResponse, {
                 workflowId: workflowSnapshot.workflowId,
                 setNodes,
                 existingNodes: currentNodes,
@@ -386,14 +400,16 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     return (
         <div
             className="flex flex-col bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-l border-gray-200 dark:border-gray-700"
-            style={{ width, transition: isResizing ? 'none' : transition }}
+            style={{ width, transition: isResizing ? 'none' : transition, userSelect: 'text', WebkitUserSelect: 'text' }}
             onMouseEnter={onHoverStart}
             onMouseLeave={onHoverEnd}
+            data-allow-copy="true"
         >
             <div
                 className={`relative flex-1 overflow-y-auto p-4 space-y-4 ${isResizing ? 'transition-none' : ''}`}
                 onScroll={handleScroll}
                 ref={messagesContainerRef}
+                style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
             >
                 {isLoading && (
                     <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">
@@ -413,8 +429,8 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                         <div className={`max-w-[80%] p-3 rounded-lg text-sm ${m.sender === 'ai'
                             ? 'bg-dominofy-light-accent/10 dark:bg-dominofy-dark-accent/20'
                             : 'bg-dominofy-light-accent/20 dark:bg-dominofy-dark-accent/30'}
-            `} style={{ userSelect: 'text' }}>
-                            <p className="whitespace-pre-wrap break-words" style={{ userSelect: 'text' }}>{m.content}</p>
+            `} style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
+                            <p className="whitespace-pre-wrap break-words" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{m.content}</p>
                             <div className="text-xs text-gray-500 mt-1">
                                 {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>
@@ -424,7 +440,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                 <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSendMessage} className="p-3 border-t border-gray-200 dark:border-gray-700">
+            <form onSubmit={handleSendMessage} className="p-3 border-t border-gray-200 dark:border-gray-700" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
                 <div className="flex space-x-2 items-start">
                     <textarea
                         value={inputValue}

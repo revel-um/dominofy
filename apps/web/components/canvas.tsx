@@ -849,9 +849,27 @@ export default function Canvas(props: CanvasProps) {
 
       if (!mod) return;
 
-      // Avoid interfering with inputs
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+      const targetEl = e.target as HTMLElement | null;
+      const tag = targetEl?.tagName?.toLowerCase();
+      // Avoid interfering with inputs or copy-allowed zones (e.g., AI panel)
+      const selectionInCopyZone = (() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) return false;
+        const anchorEl = (sel.anchorNode as HTMLElement | null)?.parentElement;
+        const focusEl = (sel.focusNode as HTMLElement | null)?.parentElement;
+        return (
+          anchorEl?.closest('[data-allow-copy="true"]') ||
+          focusEl?.closest('[data-allow-copy="true"]')
+        );
+      })();
+
+      if (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        targetEl?.isContentEditable ||
+        targetEl?.closest('[data-allow-copy="true"]') ||
+        selectionInCopyZone
+      ) {
         return;
       }
 
