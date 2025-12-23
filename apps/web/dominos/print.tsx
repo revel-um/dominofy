@@ -2,7 +2,7 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 
@@ -10,28 +10,36 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
 
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const textField = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text');
-  const isValueConnected = textField?.connectedValue;
-
+  const getField = useCallback(
+    () => (data.details as DominoNodeData | undefined)?.fields?.find(f => f.heading === 'Text'),
+    [data.details]
+  );
   const [value, setValue] = useState("");
+  const [isValueConnected, setIsValueConnected] = useState(false);
+  const bootstrappedRef = useRef(false);
 
-  // Sync value from details field
+  // Sync value/connection from details field (handles AI rehydrates)
   useEffect(() => {
-    const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Text');
-    if (field && field.value !== value) {
-      setValue(field.value);
+    const field = getField();
+    if (field) {
+      const nextConnected = Boolean(field.connectedValue || field.connectedPin);
+      if (nextConnected !== isValueConnected) setIsValueConnected(nextConnected);
+      if (field.value !== undefined && field.value !== value) {
+        setValue(field.value);
+      }
     }
-  }, [data?.details?.fields]);
+  }, [getField, value, isValueConnected]);
 
   // Ensure setFieldValue exists and initialize details
   useEffect(() => {
-    if ((!data.setFieldValue || !data.details) && data.setNodes) {
-      const setFieldValue = (heading: string, newValue: any) => {
-        setValue(newValue);
-        data.setNodes?.((nodes: any[]) =>
-          nodes.map((n: { id: string; data: { details: { fields: DominoField[]; }; }; }) =>
-            n.id === id
-              ? {
+    if (!data.setNodes || bootstrappedRef.current) return;
+    const hasDetails = Boolean(data.details);
+    const setFieldValue = (heading: string, newValue: any) => {
+      setValue(newValue);
+      data.setNodes?.((nodes: any[]) =>
+        nodes.map((n: { id: string; data: { details: { fields: DominoField[]; }; }; }) =>
+          n.id === id
+            ? {
                 ...n,
                 data: {
                   ...n.data,
@@ -43,16 +51,16 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
                   },
                 },
               }
-              : n
-          )
-        );
-      };
+            : n
+        )
+      );
+    };
 
-      data.setNodes((prev: any[]) =>
-        prev.map((node: { id: string; data: { details: any; }; }) =>
-          node.id !== id
-            ? node
-            : {
+    data.setNodes((prev: any[]) =>
+      prev.map((node: { id: string; data: { details: any; }; }) =>
+        node.id !== id
+          ? node
+          : {
               ...node,
               data: {
                 ...node.data,
@@ -70,13 +78,13 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
                     } as DominoField,
                   ],
                 } as DominoNodeData,
-                exportFields: ['Text'],
-                setFieldValue,
+                exportFields: (node.data as any).exportFields ?? ['Text'],
+                setFieldValue: (node.data as any).setFieldValue ?? setFieldValue,
               },
             }
-        )
-      );
-    }
+      )
+    );
+    bootstrappedRef.current = true;
   }, [data, id, value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

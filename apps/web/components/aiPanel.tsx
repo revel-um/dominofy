@@ -346,6 +346,9 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                             ...node.data,
                             setNodes,
                             updatePipeline,
+                            suggested: true,
+                            // clear stale pending overrides on suggested nodes so accept/reject prompt appears
+                            pendingFieldOverrides: undefined,
                             renderKey: currentKey + 1, // force rerender after AI update
                         },
                         selected: idx === 0,
