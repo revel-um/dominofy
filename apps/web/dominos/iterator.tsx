@@ -47,8 +47,9 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
   );
 
   /* ───────── connection flags */
-  const isInputConnected = Boolean(getField('Input')?.connectedValue);
+  const isInputConnected = Boolean(getField('Input')?.connectedValue || getField('Input')?.connectedPin);
   const prevConnected = useRef(isInputConnected);
+  const bootstrappedRef = useRef(false);
 
   /* auto-toggle Max when value pin connects / disconnects */
   useEffect(() => {
@@ -64,6 +65,12 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
     if (!isInputConnected && prevConnected.current) {
       setIsMax(false);
       updateFieldValue('Max', false);
+    }
+    // Also ensure default Max=true on first mount when already connected
+    if (isInputConnected && !bootstrappedRef.current) {
+      setIsMax(true);
+      updateFieldValue('Max', true);
+      bootstrappedRef.current = true;
     }
     prevConnected.current = isInputConnected;
   }, [isInputConnected, updateFieldValue]);

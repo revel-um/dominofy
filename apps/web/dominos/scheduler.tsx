@@ -18,6 +18,7 @@ interface ScheduleConfig {
   lastRun: Date | null;
   nextRun: Date | null;
   timeZone: string;
+  isActive: boolean;
 }
 
 export default function SchedulerDomino({ data, id, selected }: NodeProps) {
@@ -31,7 +32,8 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     daysOfWeek: [1, 2, 3, 4, 5], // Default: Weekdays
     lastRun: null,
     nextRun: null,
-    timeZone: 'local'
+    timeZone: 'local',
+    isActive: true,
   });
 
   // Update node fields in the React Flow graph
@@ -39,6 +41,14 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     if (!data.setNodes) return;
 
     const updatedFields = [
+      {
+        type: 'checkbox',
+        heading: 'Active',
+        value: updatedSchedule.isActive,
+        inPinId: 'value_in_active',
+        required: false,
+        shouldRender: true,
+      },
       {
         type: 'select',
         heading: 'Frequency',
@@ -105,11 +115,11 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
           ? {
               ...n,
               data: {
-                ...n.data,
-                details: { ...n.data.details, fields: updatedFields },
-                exportFields: ['Frequency', 'Interval', 'Time', 'Days of Week', 'Time Zone'],
-              },
-            }
+              ...n.data,
+              details: { ...n.data.details, fields: updatedFields },
+              exportFields: ['Active', 'Frequency', 'Interval', 'Time', 'Days of Week', 'Time Zone'],
+            },
+          }
           : n
       )
     );
@@ -122,6 +132,14 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     // Only initialize if fields don't exist yet
     if (!data.details?.fields || data.details.fields.length === 0) {
       const initialFields = [
+        {
+          type: 'checkbox',
+          heading: 'Active',
+          value: schedule.isActive,
+          inPinId: 'value_in_active',
+          required: false,
+          shouldRender: true,
+        },
         {
           type: 'select',
           heading: 'Frequency',
@@ -188,11 +206,11 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
             ? {
                 ...n,
                 data: {
-                  ...n.data,
-                  details: { ...n.data.details, fields: initialFields },
-                  exportFields: ['Frequency', 'Interval', 'Time', 'Days of Week', 'Time Zone'],
-                },
-              }
+                ...n.data,
+                details: { ...n.data.details, fields: initialFields },
+                exportFields: ['Active', 'Frequency', 'Interval', 'Time', 'Days of Week', 'Time Zone'],
+              },
+            }
             : n
         )
       );
@@ -210,6 +228,8 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
         .filter(Boolean)
         .map(Number);
       const timeZone = getFieldValue('Time Zone', schedule.timeZone);
+      const isActiveRaw = getFieldValue('Active', schedule.isActive);
+      const isActive = typeof isActiveRaw === 'string' ? isActiveRaw === 'true' || isActiveRaw === '1' : Boolean(isActiveRaw);
 
       setSchedule({
         frequency,
@@ -219,6 +239,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
         lastRun: schedule.lastRun,
         nextRun: schedule.nextRun,
         timeZone,
+        isActive,
       });
     }
   }, [data.setNodes, id]);
@@ -251,7 +272,8 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     data.setFieldValue('Time', schedule.time);
     data.setFieldValue('DaysOfWeek', schedule.daysOfWeek);
     data.setFieldValue('Time Zone', schedule.timeZone);
-  }, [data, schedule.frequency, schedule.interval, schedule.time, schedule.daysOfWeek, schedule.timeZone]);
+    data.setFieldValue('Active', schedule.isActive);
+  }, [data, schedule.frequency, schedule.interval, schedule.time, schedule.daysOfWeek, schedule.timeZone, schedule.isActive]);
 
   // Expose raw data for details panel
   useEffect(() => {
@@ -264,7 +286,8 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
       daysOfWeek: schedule.daysOfWeek.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]),
       timeZone: schedule.timeZone,
       lastRun: schedule.lastRun?.toISOString() || 'Never',
-      nextRun: schedule.nextRun?.toISOString() || 'Not scheduled'
+      nextRun: schedule.nextRun?.toISOString() || 'Not scheduled',
+      active: schedule.isActive ? 'Active' : 'Inactive',
     });
   }, [data, schedule]);
 
@@ -285,7 +308,8 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
         interval: data.details['Interval'] || 1,
         time: data.details['Time'] || '09:00',
         daysOfWeek: data.details['DaysOfWeek'] || [1, 2, 3, 4, 5],
-        timeZone: data.details['Time Zone'] || 'local'
+        timeZone: data.details['Time Zone'] || 'local',
+        isActive: data.details['Active'] ?? true,
       }));
     }
   }, [data, id]);
@@ -308,6 +332,14 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     clearValidationForDominoId(id);
   };
 
+  const handleActiveChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isActive = e.target.checked;
+    const updatedSchedule = { ...schedule, isActive };
+    setSchedule(updatedSchedule);
+    updateNodeFields(updatedSchedule);
+    clearValidationForDominoId(id);
+  };
+
   const handleFrequencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newFrequency = e.target.value as Frequency;
     const updatedSchedule = {
@@ -322,7 +354,13 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
   };
 
   const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const interval = Math.max(1, parseInt(e.target.value, 10) || 1);
+    const raw = e.target.value;
+    // Reject non-digits (blocks floats/decimals) to enforce whole numbers only
+    if (!/^\d*$/.test(raw)) return;
+
+    const maxAllowed = schedule.frequency === 'minute' ? 59 : 23;
+    const parsed = raw === '' ? 1 : parseInt(raw, 10);
+    const interval = Math.min(maxAllowed, Math.max(1, parsed));
     const updatedSchedule = { ...schedule, interval };
     setSchedule(updatedSchedule);
     updateNodeFields(updatedSchedule);
@@ -361,6 +399,8 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
 
   // Convert schedule to human-readable format
   const getScheduleDescription = () => {
+    if (!schedule.isActive) return 'Scheduler inactive';
+
     const { frequency, interval, time, daysOfWeek } = schedule;
     const timeStr = new Date(`2000-01-01T${time}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
@@ -395,24 +435,36 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     >
       {/* Header */}
       <div
-        className="flex justify-between text-sm font-semibold text-white border-b rounded-t-md"
+        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
         style={{
           backgroundColor: '#8b5cf6',
           borderBottomColor: '#7c3aed',
           borderRadius: '0.23rem 0.23rem 0 0',
         }}
       >
-        <div className="flex items-center gap-1 px-3 py-2">
+        <div className="flex items-center gap-1">
           <FiClock className="w-4 h-4" />
-          <span>Scheduler</span>
+          <span className="truncate">Scheduler</span>
         </div>
-        <div className="flex items-center pr-2">
-          <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
-        </div>
+        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
       {/* Form fields */}
       <div className="space-y-3 p-3">
+        {/* Active toggle */}
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Active</span>
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={schedule.isActive}
+              onChange={handleActiveChange}
+              className="w-4 h-4"
+            />
+            <span className="text-xs text-gray-600 dark:text-gray-300">{schedule.isActive ? 'On' : 'Off'}</span>
+          </label>
+        </div>
+
         {/* Schedule Preview */}
         <div className="p-2 mb-2 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded">
           {getScheduleDescription()}
@@ -444,9 +496,9 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
               {schedule.frequency === 'minute' ? 'Minutes' : 'Hours'} between runs
             </label>
             <input
-              type="number"
-              min="1"
-              max={schedule.frequency === 'minute' ? '59' : '23'}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={schedule.interval}
               onChange={handleIntervalChange}
               className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
