@@ -15,6 +15,7 @@ import { RunnerLauncherModule } from './runner-launcher/runner-launcher.module';
 import { AuthModule } from './auth/auth.module';
 import { SupportModule } from './support/support.module';
 import { AiChatModule } from './ai-chat/ai-chat.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { AiChatModule } from './ai-chat/ai-chat.module';
     AuthModule,
     SupportModule,
     AiChatModule,
+    SchedulerModule,
   ],
   controllers: [AppController],
   providers: [AppService, VerifyTokenMiddleware],

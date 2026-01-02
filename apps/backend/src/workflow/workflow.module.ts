@@ -6,12 +6,14 @@ import { Workflow } from './workflow.entity';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
 import { UserModule } from 'src/user/user.module';
 import { RunnerLauncherModule } from 'src/runner-launcher/runner-launcher.module';
+import { SchedulerModule } from 'src/scheduler/scheduler.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Workflow]),
     UserModule,
-    RunnerLauncherModule
+    RunnerLauncherModule,
+    SchedulerModule,
   ],
   controllers: [WorkflowController],
   providers: [WorkflowService],

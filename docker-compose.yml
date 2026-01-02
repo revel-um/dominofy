@@ -12,6 +12,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: dominofy-redis
+    restart: always
+    ports:
+      - "6379:6379"
+
   gcs:
     image: fsouza/fake-gcs-server:latest
     container_name: dominofy-gcs
@@ -43,6 +50,7 @@ services:
     depends_on:
       - postgres
       - gcs
+      - redis
     ports:
       - "3001:3001"
     environment:
@@ -60,6 +68,8 @@ services:
       DATABASE_PASSWORD: secret
       DATABASE_NAME: dominofy
       DATABASE_SCHEMA: public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       
       ENCRYPTION_KEY: qty43qasdfghjgew23456sdfgh
       JWT_SECRET: 34tgfdw345tyhgfdsew4r5tgbvcxs

@@ -18,6 +18,7 @@ import { CreateWorkflowDto } from './workflow.dto';
 import { WorkflowService } from './workflow.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
+import { SchedulerService } from 'src/scheduler/scheduler.service';
 
 @Controller('workflow')
 export class WorkflowController extends BaseController<
@@ -27,7 +28,10 @@ export class WorkflowController extends BaseController<
   string,
   WorkflowService
 > {
-  constructor(private readonly workflowService: WorkflowService) {
+  constructor(
+    private readonly workflowService: WorkflowService,
+    private readonly schedulerService: SchedulerService,
+  ) {
     super(workflowService, CreateWorkflowDto);
   }
 
@@ -87,7 +91,9 @@ export class WorkflowController extends BaseController<
     }
     
     workflow.visualJson = JSON.parse(visualJson);
-    return this.workflowService.update(id, workflow);
+    const updated = await this.workflowService.update(id, workflow);
+    await this.schedulerService.syncWorkflowSchedules(updated);
+    return updated;
   }
 
   @Post(':workflowId/trigger/:functionName')

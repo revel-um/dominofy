@@ -21,6 +21,7 @@ import { CsvWriterDomino } from "./dominos/csvWriter";
 import { MapperDomino } from "./dominos/mapper";
 import { DelayDomino } from "./dominos/delay";
 import { CustomCodeDomino } from "./dominos/customCode";
+import { SchedulerDomino } from "./dominos/scheduler";
 
 type DominoCtor = new (node: PipelineStep) => DominoExecutable;
 
@@ -47,6 +48,7 @@ class DominoRegistry {
     this.register("mapper", MapperDomino);
     this.register("delay", DelayDomino);
     this.register("codeRunner", CustomCodeDomino);
+    this.register("SchedulerDomino", SchedulerDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {

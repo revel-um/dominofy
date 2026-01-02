@@ -34,6 +34,7 @@
     "@nestjs/typeorm": "^11.0.0",
     "@slack/web-api": "^7.9.3",
     "axios": "^1.11.0",
+    "bullmq": "^5.66.2",
     "deep-diff": "^1.0.2",
     "jsondiffpatch": "^0.7.3",
     "p-queue": "^6.6.2",
