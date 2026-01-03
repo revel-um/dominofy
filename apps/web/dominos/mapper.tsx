@@ -2,7 +2,7 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
@@ -10,6 +10,10 @@ import { Trash } from 'lucide-react';
 export default function MapperDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const setNodesRef = useRef(data.setNodes);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   // pairs: [fromKey, toKey]
   const [inputs, setInputs] = useState<[string, string][]>([['', '']]);
@@ -41,7 +45,8 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
   }, []);
 
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
     const prevFlds: DominoField[] = data.details?.fields ?? [];
     const getOld = (h: string) => prevFlds.find(f => f.heading === h);
@@ -81,21 +86,32 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
       }),
     ];
 
-    data.setNodes((nodes: any[]) =>
-      nodes.map((n: { id: string; data: { details: any } }) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                details: { ...n.data.details, fields: newFields },
-                exportFields: newFields.map(f => f.heading),
-              },
-            }
-          : n
-      )
+    const nextExport = newFields.map(f => f.heading);
+
+    setNodes((nodes: any[]) =>
+      nodes.map((n: { id: string; data: { details: any; exportFields?: string[] } }) => {
+        if (n.id !== id) return n;
+        const existing = n.data.details?.fields ?? [];
+        const sameFields =
+          existing.length === newFields.length &&
+          existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(newFields[idx]));
+        const sameExport =
+          Array.isArray(n.data.exportFields) &&
+          n.data.exportFields.length === nextExport.length &&
+          n.data.exportFields.every((h: string, i: number) => h === nextExport[i]);
+        if (sameFields && sameExport) return n;
+
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            details: { ...n.data.details, fields: newFields },
+            exportFields: nextExport,
+          },
+        };
+      })
     );
-  }, [inputs, preserveOtherData, data.setNodes, id]);
+  }, [inputs, preserveOtherData, id]);
 
   const addInput = () => {
     clearValidationForDominoId(id);

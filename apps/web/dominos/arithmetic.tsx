@@ -2,7 +2,7 @@
 import { NodeProps, useReactFlow } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { ChangeEvent, useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
@@ -16,6 +16,10 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
   const { getEdges } = useReactFlow();
   const edges = getEdges();
   const edgeCount = edges.length;
+  const setNodesRef = useRef(data.setNodes);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
@@ -86,7 +90,8 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
 
   /* sync → node data, preserving connectedValue / file */
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
     const current = getEdges();
     const prevFlds: DominoField[] = data.details?.fields ?? [];
@@ -136,21 +141,32 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
       }),
     ];
 
-    data.setNodes((nodes: any[]) =>
-      nodes.map((n: { id: string; data: { details: any; }; }) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                details: { ...n.data.details, fields: newFields },
-                exportFields: newFields.map(f => f.heading),
-              },
-            }
-          : n
-      )
+    const nextExport = newFields.map(f => f.heading);
+
+    setNodes((nodes: any[]) =>
+      nodes.map((n: { id: string; data: { details: any; exportFields?: string[] } }) => {
+        if (n.id !== id) return n;
+        const existingFields = n.data.details?.fields ?? [];
+        const sameFields =
+          existingFields.length === newFields.length &&
+          existingFields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(newFields[idx]));
+        const sameExport =
+          Array.isArray(n.data.exportFields) &&
+          n.data.exportFields.length === nextExport.length &&
+          n.data.exportFields.every((h: string, i: number) => h === nextExport[i]);
+        if (sameFields && sameExport) return n;
+
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            details: { ...n.data.details, fields: newFields },
+            exportFields: nextExport,
+          },
+        };
+      })
     );
-  }, [value, inputs, operators, edgeCount, data.setNodes, id]);
+  }, [value, inputs, operators, edgeCount, id]);
 
   /* ─────────── ui handlers ─────────── */
   const addInput = () => {

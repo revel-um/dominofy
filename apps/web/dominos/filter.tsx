@@ -1,6 +1,6 @@
 // src/dominos/filterDomino.tsx
 import { NodeProps, useReactFlow } from 'reactflow';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import {
@@ -10,31 +10,34 @@ import {
 } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 
+const OPERATOR_OPTIONS: DominoFieldOption[] = [
+  { label: 'Equal to', value: 'equal' },
+  { label: 'Not Equal to', value: 'not_equal' },
+  { label: 'Contains', value: 'contains' },
+  { label: 'Does not contain', value: 'not_contains' },
+  { label: 'Greater than', value: 'greater_than' },
+  { label: 'Less than', value: 'less_than' },
+  { label: 'Greater than or equal', value: 'greater_or_equal' },
+  { label: 'Less than or equal', value: 'less_or_equal' },
+];
+
+const TYPE_OPTIONS: DominoFieldOption[] = [
+  { label: 'Each item is a simple value (number or text)', value: 'primitive' },
+  { label: 'Each item is an object (with fields)', value: 'object' },
+];
+
 export default function FilterDomino({ data, id, selected }: NodeProps) {
   // React Flow context & live edges count (like ConditionDomino)
   const { getEdges } = useReactFlow();
   const edges = getEdges();
   const edgeCount = edges.length;
+  const setNodesRef = useRef(data.setNodes);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-
-  /* ───────── dropdown options */
-  const operatorOptions: DominoFieldOption[] = [
-    { label: 'Equal to', value: 'equal' },
-    { label: 'Not Equal to', value: 'not_equal' },
-    { label: 'Contains', value: 'contains' },
-    { label: 'Does not contain', value: 'not_contains' },
-    { label: 'Greater than', value: 'greater_than' },
-    { label: 'Less than', value: 'less_than' },
-    { label: 'Greater than or equal', value: 'greater_or_equal' },
-    { label: 'Less than or equal', value: 'less_or_equal' },
-  ];
-
-  const typeOptions: DominoFieldOption[] = [
-    { label: 'Each item is a simple value (number or text)', value: 'primitive' },
-    { label: 'Each item is an object (with fields)', value: 'object' },
-  ];
 
   // helpers to read existing fields
   const getField = (heading: string) =>
@@ -43,14 +46,14 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
   /* ───────── state (mirrors ConditionDomino style) */
   const [filterType, setFilterType] = useState<string>(getField('Type')?.value ?? 'object');
   const [property, setProperty] = useState<string>(getField('Property')?.value ?? '');
-  const [operator, setOperator] = useState<string>(getField('Operator')?.value ?? operatorOptions[0].value);
+  const [operator, setOperator] = useState<string>(getField('Operator')?.value ?? OPERATOR_OPTIONS[0].value);
   const [filterValue, setFilterValue] = useState<string>(getField('Filter Value')?.value ?? '');
 
   /* sync from node details when workflow is loaded/imported */
   useEffect(() => {
     setFilterType(getField('Type')?.value ?? 'object');
     setProperty(getField('Property')?.value ?? '');
-    setOperator(getField('Operator')?.value ?? operatorOptions[0].value);
+    setOperator(getField('Operator')?.value ?? OPERATOR_OPTIONS[0].value);
     setFilterValue(getField('Filter Value')?.value ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.details?.fields]);
@@ -70,24 +73,29 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
     ) {
       setProperty('');
       // also push to node data
-      if (data.setNodes) {
-        data.setNodes((nodes: any[]) =>
-          nodes.map(n =>
-            n.id === id
-              ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    details: {
-                      ...(n.data.details as DominoNodeData),
-                      fields: (n.data.details as DominoNodeData).fields.map(f =>
-                        f.heading === 'Property' ? { ...f, value: '' } : f
-                      ),
-                    },
-                  },
-                }
-              : n
-          )
+      const setNodes = setNodesRef.current;
+      if (setNodes) {
+        setNodes((nodes: any[]) =>
+          nodes.map(n => {
+            if (n.id !== id) return n;
+            const nextFields = (n.data.details as DominoNodeData).fields.map(f =>
+              f.heading === 'Property' ? { ...f, value: '' } : f
+            );
+            const same =
+              n.data.details?.fields?.length === nextFields.length &&
+              n.data.details.fields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(nextFields[idx]));
+            if (same) return n;
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                details: {
+                  ...(n.data.details as DominoNodeData),
+                  fields: nextFields,
+                },
+              },
+            };
+          })
         );
       }
     }
@@ -97,24 +105,29 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
       filterValue !== ''
     ) {
       setFilterValue('');
-      if (data.setNodes) {
-        data.setNodes((nodes: any[]) =>
-          nodes.map(n =>
-            n.id === id
-              ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    details: {
-                      ...(n.data.details as DominoNodeData),
-                      fields: (n.data.details as DominoNodeData).fields.map(f =>
-                        f.heading === 'Filter Value' ? { ...f, value: '' } : f
-                      ),
-                    },
-                  },
-                }
-              : n
-          )
+      const setNodes = setNodesRef.current;
+      if (setNodes) {
+        setNodes((nodes: any[]) =>
+          nodes.map(n => {
+            if (n.id !== id) return n;
+            const nextFields = (n.data.details as DominoNodeData).fields.map(f =>
+              f.heading === 'Filter Value' ? { ...f, value: '' } : f
+            );
+            const same =
+              n.data.details?.fields?.length === nextFields.length &&
+              n.data.details.fields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(nextFields[idx]));
+            if (same) return n;
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                details: {
+                  ...(n.data.details as DominoNodeData),
+                  fields: nextFields,
+                },
+              },
+            };
+          })
         );
       }
     }
@@ -129,33 +142,39 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
       else if (heading === 'Operator') setOperator(val);
       else if (heading === 'Filter Value') setFilterValue(val);
 
-      if (!data.setNodes) return;
-      data.setNodes((nodes: any[]) =>
-        nodes.map(n =>
-          n.id === id
-            ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  details: {
-                    ...(n.data.details as DominoNodeData),
-                    fields: (n.data.details as DominoNodeData).fields.map(f =>
-                      f.heading === heading ? { ...f, value: val } : f
-                    ),
-                  },
-                },
-              }
-            : n
-        )
+      const setNodes = setNodesRef.current;
+      if (!setNodes) return;
+      setNodes((nodes: any[]) =>
+        nodes.map(n => {
+          if (n.id !== id) return n;
+          const nextFields = (n.data.details as DominoNodeData).fields.map(f =>
+            f.heading === heading ? { ...f, value: val } : f
+          );
+          const same =
+            n.data.details?.fields?.length === nextFields.length &&
+            n.data.details.fields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(nextFields[idx]));
+          if (same) return n;
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              details: {
+                ...(n.data.details as DominoNodeData),
+                fields: nextFields,
+              },
+            },
+          };
+        })
       );
     },
-    [data.setNodes, id]
+    [id]
   );
 
   /* one-time bootstrap (details + setFieldValue) and keep fields/exportFields in sync */
   useEffect(() => {
-    if (!data.setNodes) return;
-    data.setNodes((prev: any[]) => {
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
+    setNodes((prev: any[]) => {
       let changed = false;
       const next = prev.map(node => {
         if (node.id !== id) return node;
@@ -173,11 +192,11 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
             description: 'Filter an array of values or objects based on conditions',
             fields: [
               { type: 'input', heading: 'Input', inPinId: 'value_in', required: true, shouldRender: false },
-              { type: 'dropdown', heading: 'Type', value: filterType, options: typeOptions, required: true, shouldRender: false },
+              { type: 'dropdown', heading: 'Type', value: filterType, options: TYPE_OPTIONS, required: true, shouldRender: false },
               ...(filterType === 'object'
                 ? [{ type: 'textInput', heading: 'Property', value: property, inPinId: 'value_in_1', required: true, shouldRender: false } as DominoField]
                 : []),
-              { type: 'dropdown', heading: 'Operator', value: operator, options: operatorOptions, required: true, shouldRender: false },
+              { type: 'dropdown', heading: 'Operator', value: operator, options: OPERATOR_OPTIONS, required: true, shouldRender: false },
               { type: 'textInput', heading: 'Filter Value', value: filterValue, inPinId: 'value_in_2', required: false, shouldRender: false },
             ],
           } as DominoNodeData;
@@ -238,15 +257,12 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
       return changed ? next : prev;
     });
   }, [
-    data.setNodes,
     id,
     setFieldValue,
     filterType,
     property,
     operator,
     filterValue,
-    typeOptions,
-    operatorOptions,
   ]);
 
   /* input handler (prevents edits while connected, like ConditionDomino UI) */
@@ -296,7 +312,7 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
           onChange={handleChange}
           className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
         >
-          {typeOptions.map(opt => (
+          {TYPE_OPTIONS.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
@@ -328,7 +344,7 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
           onChange={handleChange}
           className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
         >
-          {operatorOptions.map(opt => (
+          {OPERATOR_OPTIONS.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>

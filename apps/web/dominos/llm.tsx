@@ -1,7 +1,7 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { FiCpu, FiChevronDown, FiSliders, FiZap, FiAlertCircle } from 'react-icons/fi';
@@ -92,6 +92,14 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const isPromptConnected = data?.promptConnected ?? false;
+  const setNodesRef = useRef(data.setNodes);
+  const setFieldValueRef = useRef(data.setFieldValue);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
+  useEffect(() => {
+    setFieldValueRef.current = data.setFieldValue;
+  }, [data.setFieldValue]);
   
   // State for the prompt, config, and UI
   const [prompt, setPrompt] = useState("");
@@ -111,7 +119,8 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
 
   // Update node fields in the React Flow graph
   const updateNodeFields = useCallback((currentConfig: LLMConfig, currentModel: LLMModel) => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
     const updatedFields = [
       {
@@ -191,33 +200,45 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
       },
     ];
 
-    data.setNodes((nodes: any[]) =>
-      nodes.map((n: any) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                details: { ...n.data.details, fields: updatedFields },
-                exportFields: [
-                  'Model', 
-                  'Temperature', 
-                  'Max Tokens', 
-                  'Top P', 
-                  'Frequency Penalty', 
-                  'Presence Penalty',
-                  'Stream'
-                ],
-              },
-            }
-          : n
-      )
+    const exportFields = [
+      'Model',
+      'Temperature',
+      'Max Tokens',
+      'Top P',
+      'Frequency Penalty',
+      'Presence Penalty',
+      'Stream'
+    ];
+
+    setNodes((nodes: any[]) =>
+      nodes.map((n: any) => {
+        if (n.id !== id) return n;
+        const existing = n.data.details?.fields ?? [];
+        const sameFields =
+          existing.length === updatedFields.length &&
+          existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(updatedFields[idx]));
+        const sameExport =
+          Array.isArray(n.data.exportFields) &&
+          n.data.exportFields.length === exportFields.length &&
+          n.data.exportFields.every((h: string, i: number) => h === exportFields[i]);
+        if (sameFields && sameExport) return n;
+
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            details: { ...n.data.details, fields: updatedFields },
+            exportFields,
+          },
+        };
+      })
     );
-  }, [data.setNodes, id, showAdvanced]);
+  }, [id, showAdvanced]);
 
   // Initialize node data on mount
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
     // Only initialize if fields don't exist yet
     if (!data.details?.fields || data.details.fields.length === 0) {
@@ -256,11 +277,12 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
     }
     // We only want to run this effect when the component mounts or when the node data changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.details?.fields, data.setNodes, id]);
+  }, [data.details?.fields, id]);
 
   // Update node fields when config or selected model changes
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
     
     const newModel = AVAILABLE_MODELS.find(m => m.id === config.model) || AVAILABLE_MODELS[0];
     
@@ -308,7 +330,8 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
 
   // Initialize node data if not already set
   useEffect(() => {
-    if (data.setNodes && (!data.details?.fields || data.details.fields.length === 0)) {
+    const setNodes = setNodesRef.current;
+    if (setNodes && (!data.details?.fields || data.details.fields.length === 0)) {
       const initialFields = [
         {
           type: 'textInput' as const,
@@ -326,7 +349,7 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
         },
       ];
 
-      data.setNodes((nodes: any[]) =>
+      setNodes((nodes: any[]) =>
         nodes.map(node =>
           node.id === id
             ? {
@@ -361,14 +384,14 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
         )
       );
     }
-  }, [data, id, config]);
+  }, [data.details?.fields?.length, id, config]);
 
   const handlePromptChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setPrompt(newValue);
-    data.setFieldValue?.('Prompt', newValue);
+    setFieldValueRef.current?.('Prompt', newValue);
     clearValidationForDominoId(id);
-  }, [clearValidationForDominoId, data, id]);
+  }, [clearValidationForDominoId, id]);
   
   const toggleAdvanced = useCallback(() => {
     setShowAdvanced(prev => !prev);

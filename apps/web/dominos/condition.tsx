@@ -1,6 +1,6 @@
 // src/dominos/condition.tsx
 import { NodeProps, useReactFlow } from 'reactflow';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import {
@@ -15,11 +15,15 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
   const { getEdges } = useReactFlow();
   const edges = getEdges();
   const edgeCount = edges.length;
+  const setNodesRef = useRef(data.setNodes);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
-  const options: DominoFieldOption[] = [
+  const options: DominoFieldOption[] = useMemo(() => ([
     { label: 'Equal to', value: 'equal' },
     { label: 'Less Than', value: 'less_than' },
     { label: 'Greater Than', value: 'greater_than' },
@@ -27,7 +31,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
     { label: 'Greater Than Or Equal', value: 'greater_or_equal' },
     { label: 'Not Equal to', value: 'not_equal' },
     { label: 'Contains', value: 'contains' },
-  ];
+  ]), []);
 
   // initial field values from node details
   const getField = (heading: string) =>
@@ -73,8 +77,9 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
       else if (heading === 'Text2') setValue2(val);
       else setOperator(val);
 
-      if (!data.setNodes) return;
-      data.setNodes((nodes: any[]) =>
+      const setNodes = setNodesRef.current;
+      if (!setNodes) return;
+      setNodes((nodes: any[]) =>
         nodes.map(n =>
           n.id === id
             ? {
@@ -93,13 +98,14 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
         ),
       );
     },
-    [data.setNodes, id],
+    [id],
   );
 
   // one-time bootstrap of node details and setFieldValue
   useEffect(() => {
-    if (!data.setNodes) return;
-    data.setNodes((prev: any[]) => {
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
+    setNodes((prev: any[]) => {
       let changed = false;
       const next = prev.map(node => {
         if (node.id !== id) return node;
@@ -125,7 +131,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
       });
       return changed ? next : prev;
     });
-  }, [data.setNodes, id, setFieldValue, value1, value2, operator, options]);
+  }, [id, setFieldValue, value1, value2, operator, options]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,

@@ -2,7 +2,7 @@
 import { NodeProps, useReactFlow } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
 import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
@@ -14,6 +14,10 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
   // React Flow context
   const { getEdges } = useReactFlow();
   const edges = getEdges();
+  const setNodesRef = useRef(data.setNodes);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
@@ -83,9 +87,10 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
 
   /* ---------- sync → node.data ---------- */
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
-    data.setNodes((nodes: any[]) =>
+    setNodes((nodes: any[]) =>
       nodes.map((node: { id: string; data: { details: { fields: any; }; }; }) => {
         if (node.id !== id) return node;
 
@@ -127,17 +132,27 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
           })),
         ];
 
+        const exportFields = ['Input', 'Type', ...inputs.map((_, i) => `Key_${i + 1}`)];
+        const sameFields =
+          (node.data.details?.fields?.length === newFields.length) &&
+          node.data.details.fields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(newFields[idx]));
+        const sameExport =
+          Array.isArray(node.data.exportFields) &&
+          node.data.exportFields.length === exportFields.length &&
+          node.data.exportFields.every((h: string, i: number) => h === exportFields[i]);
+        if (sameFields && sameExport) return node;
+
         return {
           ...node,
           data: {
             ...node.data,
             details: { ...node.data.details, fields: newFields },
-            exportFields: ['Input', 'Type', ...inputs.map((_, i) => `Key_${i + 1}`)],
+            exportFields,
           },
         };
       })
     );
-  }, [inputs, type, data.setNodes, id]);
+  }, [inputs, type, id]);
 
   /* =============== render =============== */
   return (

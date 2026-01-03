@@ -1,6 +1,6 @@
 // src/dominos/ShopifyDomino.tsx
 import { NodeProps, useEdges } from 'reactflow';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoFieldOption, DominoNodeData } from '../types/dominoFieldTypes';
@@ -43,6 +43,10 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
   const edges = useEdges();
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const setNodesRef = useRef(data.setNodes);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   // Initialize fields state
   const [fields, setFields] = useState<ShopifyField[]>(() => {
@@ -80,9 +84,10 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
 
   // Sync to node data and details
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
-    data.setNodes((nds: any[]) =>
+    setNodes((nds: any[]) =>
       nds.map((node: any) => {
         if (node.id !== id) return node;
 
@@ -115,21 +120,27 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
         });
 
         // Avoid infinite loops by skipping identical
-        if (JSON.stringify(existing) === JSON.stringify(newFields)) {
-          return node;
-        }
+        const nextExport = newFields.map(f => f.heading);
+        const sameFields =
+          existing.length === newFields.length &&
+          existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(newFields[idx]));
+        const sameExport =
+          Array.isArray(node.data.exportFields) &&
+          node.data.exportFields.length === nextExport.length &&
+          node.data.exportFields.every((h: string, i: number) => h === nextExport[i]);
+        if (sameFields && sameExport) return node;
 
         return {
           ...node,
           data: {
             ...node.data,
             details: { ...node.data.details, fields: newFields },
-            exportFields: newFields.map(f => f.heading),
+            exportFields: nextExport,
           },
         };
       })
     );
-  }, [fields, edges, data.setNodes, id]);
+  }, [fields, edges, id]);
 
   const renderField = (f: ShopifyField) => {
     const connected = edges.some(edge => edge.target === id && edge.targetHandle === f.pinId);

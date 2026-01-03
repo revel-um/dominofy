@@ -2,7 +2,7 @@
 import { NodeProps, useReactFlow } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash, X } from 'lucide-react';
 import { DominoField } from '../types/dominoFieldTypes';
@@ -17,6 +17,10 @@ type CaseRow = {
 export default function SwitchDomino({ data, id, selected }: NodeProps) {
   // Ghost/shadow mode for AI-suggested dominos
   const isGhost = data.suggested === true;
+  const setNodesRef = useRef(data.setNodes);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   // React Flow context
   const { getEdges } = useReactFlow();
@@ -86,21 +90,23 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
 
   // Accept (promote) suggested domino to normal
   const acceptSuggestion = useCallback(() => {
-    if (!data.setNodes) return;
-    data.setNodes((nds: any[]) =>
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
+    setNodes((nds: any[]) =>
       nds.map(n =>
         n.id === id
           ? { ...n, data: { ...n.data, suggested: false } }
           : n
       )
     );
-  }, [data.setNodes, id]);
+  }, [id]);
 
   /* push → node (sync fields) */
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
-    data.setNodes((nds: any[]) =>
+    setNodes((nds: any[]) =>
       nds.map((n: any) => {
         if (n.id !== id) return n;
         const existing: any[] = n.data.details?.fields ?? [];
@@ -145,7 +151,7 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
         };
       })
     );
-  }, [cases, data.setNodes, id]);
+  }, [cases, id]);
 
   /* ───────── render */
   return (

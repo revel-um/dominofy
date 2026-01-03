@@ -1,6 +1,6 @@
 // src/components/searchableDropdown.tsx
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 
 export interface Option {
   label: string;
@@ -52,17 +52,20 @@ export default function SearchableSelect({
   }, []);
 
   // Filter options based on query
-  const filtered =
-    query === ''
-      ? options
-      : options.filter((o) =>
-          o.label.toLowerCase().includes(query.toLowerCase()),
-        );
+  const filtered = useMemo(
+    () =>
+      query === ''
+        ? options
+        : options.filter((o) =>
+            o.label.toLowerCase().includes(query.toLowerCase()),
+          ),
+    [options, query]
+  );
 
   // Reset highlight when options change
   useEffect(() => {
     setHighlightedIndex(filtered.length > 0 ? 0 : -1);
-  }, [filtered]);
+  }, [filtered.length]);
 
   // Find label for current value
   const selectedOpt = options.find((o) => o.value === value);

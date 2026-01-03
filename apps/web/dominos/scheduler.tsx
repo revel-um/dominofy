@@ -1,14 +1,11 @@
 import { NodeProps } from 'reactflow';
-import { useCallback, useEffect, useState } from 'react';
-import { FiClock, FiPlay } from 'react-icons/fi';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { FiClock } from 'react-icons/fi';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 
 type Frequency = 'once' | 'minute' | 'hour' | 'day' | 'week' | 'month';
-
-type TimeUnit = 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
 
 interface ScheduleConfig {
   frequency: Frequency;
@@ -21,24 +18,53 @@ interface ScheduleConfig {
   isActive: boolean;
 }
 
+const DEFAULT_SCHEDULE: ScheduleConfig = {
+  frequency: 'day',
+  interval: 1,
+  time: '09:00',
+  daysOfWeek: [1, 2, 3, 4, 5], // Default: Weekdays
+  lastRun: null,
+  nextRun: null,
+  timeZone: 'local',
+  isActive: true,
+};
+
+const schedulesEqual = (a: ScheduleConfig, b: ScheduleConfig) =>
+  a.frequency === b.frequency &&
+  a.interval === b.interval &&
+  a.time === b.time &&
+  a.timeZone === b.timeZone &&
+  a.isActive === b.isActive &&
+  a.daysOfWeek.length === b.daysOfWeek.length &&
+  a.daysOfWeek.every((d, i) => d === b.daysOfWeek[i]);
+
 export default function SchedulerDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  
-  const [schedule, setSchedule] = useState<ScheduleConfig>({
-    frequency: 'day',
-    interval: 1,
-    time: '09:00',
-    daysOfWeek: [1, 2, 3, 4, 5], // Default: Weekdays
-    lastRun: null,
-    nextRun: null,
-    timeZone: 'local',
-    isActive: true,
-  });
+  const { setNodes: incomingSetNodes, setFieldValue: incomingSetFieldValue, setRawData: incomingSetRawData, details } = data;
+
+  const setNodesRef = useRef(incomingSetNodes);
+  const setFieldValueRef = useRef(incomingSetFieldValue);
+  const setRawDataRef = useRef(incomingSetRawData);
+  useEffect(() => {
+    setNodesRef.current = incomingSetNodes;
+  }, [incomingSetNodes]);
+  useEffect(() => {
+    setFieldValueRef.current = incomingSetFieldValue;
+  }, [incomingSetFieldValue]);
+  useEffect(() => {
+    setRawDataRef.current = incomingSetRawData;
+  }, [incomingSetRawData]);
+
+  const [schedule, setSchedule] = useState<ScheduleConfig>(() => ({
+    ...DEFAULT_SCHEDULE,
+    daysOfWeek: [...DEFAULT_SCHEDULE.daysOfWeek],
+  }));
 
   // Update node fields in the React Flow graph
   const updateNodeFields = useCallback((updatedSchedule: ScheduleConfig) => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
     const updatedFields = [
       {
@@ -109,25 +135,31 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
       },
     ];
 
-    data.setNodes((nodes: any[]) =>
-      nodes.map((n: any) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-              ...n.data,
-              details: { ...n.data.details, fields: updatedFields },
-              exportFields: ['Active', 'Frequency', 'Interval', 'Time', 'Days of Week', 'Time Zone'],
-            },
-          }
-          : n
-      )
+    setNodes((nodes: any[]) =>
+      nodes.map((n: any) => {
+        if (n.id !== id) return n;
+        const existing = n.data.details?.fields ?? [];
+        const same =
+          existing.length === updatedFields.length &&
+          existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(updatedFields[idx]));
+        if (same) return n;
+
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            details: { ...n.data.details, fields: updatedFields },
+            exportFields: ['Active', 'Frequency', 'Interval', 'Time', 'Days of Week', 'Time Zone'],
+          },
+        };
+      })
     );
-  }, [data.setNodes, id]);
+  }, [id]);
 
   // Initialize node data on mount
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
     // Only initialize if fields don't exist yet
     if (!data.details?.fields || data.details.fields.length === 0) {
@@ -200,7 +232,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
         },
       ];
 
-      data.setNodes((nodes: any[]) =>
+      setNodes((nodes: any[]) =>
         nodes.map((n: any) =>
           n.id === id
             ? {
@@ -220,29 +252,30 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
       const getFieldValue = (heading: string, defaultValue: any) => 
         fields.find((f: any) => f.heading === heading)?.value ?? defaultValue;
 
-      const frequency = getFieldValue('Frequency', schedule.frequency) as Frequency;
-      const interval = parseInt(getFieldValue('Interval', schedule.interval), 10);
-      const time = getFieldValue('Time', schedule.time);
-      const daysOfWeek = getFieldValue('Days of Week', schedule.daysOfWeek.join(','))
+      const frequency = getFieldValue('Frequency', DEFAULT_SCHEDULE.frequency) as Frequency;
+      const interval = parseInt(getFieldValue('Interval', DEFAULT_SCHEDULE.interval), 10);
+      const time = getFieldValue('Time', DEFAULT_SCHEDULE.time);
+      const daysOfWeek = getFieldValue('Days of Week', DEFAULT_SCHEDULE.daysOfWeek.join(','))
         .split(',')
         .filter(Boolean)
         .map(Number);
-      const timeZone = getFieldValue('Time Zone', schedule.timeZone);
-      const isActiveRaw = getFieldValue('Active', schedule.isActive);
+      const timeZone = getFieldValue('Time Zone', DEFAULT_SCHEDULE.timeZone);
+      const isActiveRaw = getFieldValue('Active', DEFAULT_SCHEDULE.isActive);
       const isActive = typeof isActiveRaw === 'string' ? isActiveRaw === 'true' || isActiveRaw === '1' : Boolean(isActiveRaw);
 
-      setSchedule({
+      const next: ScheduleConfig = {
+        ...DEFAULT_SCHEDULE,
         frequency,
         interval,
         time,
-        daysOfWeek: daysOfWeek.length ? daysOfWeek : schedule.daysOfWeek,
-        lastRun: schedule.lastRun,
-        nextRun: schedule.nextRun,
+        daysOfWeek: daysOfWeek.length ? daysOfWeek : DEFAULT_SCHEDULE.daysOfWeek,
         timeZone,
         isActive,
-      });
+      };
+
+      setSchedule(prev => (schedulesEqual(prev, next) ? prev : next));
     }
-  }, [data.setNodes, id]);
+  }, [data.details?.fields, id]);
 
   const frequencyOptions = [
     { value: 'once', label: 'Once' },
@@ -265,21 +298,23 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
 
   // Sync schedule changes back to node data
   useEffect(() => {
-    if (!data.setFieldValue) return;
+    const setFieldValue = setFieldValueRef.current;
+    if (!setFieldValue) return;
     
-    data.setFieldValue('Frequency', schedule.frequency);
-    data.setFieldValue('Interval', schedule.interval);
-    data.setFieldValue('Time', schedule.time);
-    data.setFieldValue('DaysOfWeek', schedule.daysOfWeek);
-    data.setFieldValue('Time Zone', schedule.timeZone);
-    data.setFieldValue('Active', schedule.isActive);
-  }, [data, schedule.frequency, schedule.interval, schedule.time, schedule.daysOfWeek, schedule.timeZone, schedule.isActive]);
+    setFieldValue('Frequency', schedule.frequency);
+    setFieldValue('Interval', schedule.interval);
+    setFieldValue('Time', schedule.time);
+    setFieldValue('DaysOfWeek', schedule.daysOfWeek);
+    setFieldValue('Time Zone', schedule.timeZone);
+    setFieldValue('Active', schedule.isActive);
+  }, [schedule]);
 
   // Expose raw data for details panel
   useEffect(() => {
-    if (!data.setRawData) return;
+    const setRawData = setRawDataRef.current;
+    if (!setRawData) return;
     
-    data.setRawData({
+    setRawData({
       frequency: schedule.frequency,
       interval: schedule.interval,
       time: schedule.time,
@@ -289,30 +324,33 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
       nextRun: schedule.nextRun?.toISOString() || 'Not scheduled',
       active: schedule.isActive ? 'Active' : 'Inactive',
     });
-  }, [data, schedule]);
+  }, [schedule]);
 
   // Initialize node data
   useEffect(() => {
-    if (!data.setFieldValue || !data.details) return;
+    const setFieldValue = setFieldValueRef.current;
+    if (!setFieldValue || !data.details) return;
 
-    const setFieldValue = (heading: string, value: any) => {
-      data.setFieldValue?.(heading, value);
-      clearValidationForDominoId(id);
-    };
+    const hasFrequency = data.details['Frequency'] !== undefined;
+    if (!hasFrequency) return;
 
-    // Set initial values if they exist in node data
-    if (data.details['Frequency']) {
-      setSchedule(prev => ({
+    const parsedDays = Array.isArray(data.details['DaysOfWeek'])
+      ? data.details['DaysOfWeek']
+      : DEFAULT_SCHEDULE.daysOfWeek;
+
+    setSchedule((prev) => {
+      const next: ScheduleConfig = {
         ...prev,
-        frequency: data.details['Frequency'] || 'day',
-        interval: data.details['Interval'] || 1,
-        time: data.details['Time'] || '09:00',
-        daysOfWeek: data.details['DaysOfWeek'] || [1, 2, 3, 4, 5],
-        timeZone: data.details['Time Zone'] || 'local',
-        isActive: data.details['Active'] ?? true,
-      }));
-    }
-  }, [data, id]);
+        frequency: data.details['Frequency'] || DEFAULT_SCHEDULE.frequency,
+        interval: data.details['Interval'] || DEFAULT_SCHEDULE.interval,
+        time: data.details['Time'] || DEFAULT_SCHEDULE.time,
+        daysOfWeek: parsedDays,
+        timeZone: data.details['Time Zone'] || DEFAULT_SCHEDULE.timeZone,
+        isActive: data.details['Active'] ?? DEFAULT_SCHEDULE.isActive,
+      };
+      return schedulesEqual(prev, next) ? prev : next;
+    });
+  }, [data.details]);
 
   // Handle field changes
   const handleFieldChange = (field: keyof ScheduleConfig, value: any) => {

@@ -2,7 +2,7 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDomino } from '../contexts/dominoContext';
 import { Trash } from 'lucide-react';
 
@@ -16,6 +16,10 @@ type CaseRow = {
 export default function ConnectorDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const setNodesRef = useRef(data.setNodes);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   /* hydrate cases from node data */
   const [cases, setCases] = useState<CaseRow[]>(() => {
@@ -64,9 +68,10 @@ export default function ConnectorDomino({ data, id, selected }: NodeProps) {
 
   /* push → node */
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
-    data.setNodes((nodes: any[]) =>
+    setNodes((nodes: any[]) =>
       nodes.map((n: any) => {
         if (n.id !== id) return n;
 
@@ -90,6 +95,11 @@ export default function ConnectorDomino({ data, id, selected }: NodeProps) {
           };
         });
 
+        const same =
+          (n.data.details?.fields?.length === newFields.length) &&
+          n.data.details.fields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(newFields[idx]));
+        if (same) return n;
+
         return {
           ...n,
           data: {
@@ -99,7 +109,7 @@ export default function ConnectorDomino({ data, id, selected }: NodeProps) {
         };
       }),
     );
-  }, [cases, data.setNodes, id]);
+  }, [cases, id]);
 
   /* ───────── render */
   return (

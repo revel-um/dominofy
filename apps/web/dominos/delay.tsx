@@ -1,7 +1,7 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { ChangeEvent, useEffect, useState, ClipboardEvent, KeyboardEvent, FormEvent } from 'react';
+import { ChangeEvent, useEffect, useRef, useState, ClipboardEvent, KeyboardEvent, FormEvent } from 'react';
 import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { FiClock } from 'react-icons/fi';
@@ -9,6 +9,10 @@ import { FiClock } from 'react-icons/fi';
 export default function DelayDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const setNodesRef = useRef(data.setNodes);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   const [delayMs, setDelayMs] = useState<number>(1000);
 
@@ -23,7 +27,8 @@ export default function DelayDomino({ data, id, selected }: NodeProps) {
 
   // Sync to node data
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
     const getOld = (heading: string): DominoField | undefined =>
       data.details?.fields?.find((f: DominoField) => f.heading === heading);
@@ -43,21 +48,32 @@ export default function DelayDomino({ data, id, selected }: NodeProps) {
       }),
     ];
 
-    data.setNodes((nodes: any[]) =>
-      nodes.map((n: { id: string; data: { details: any } }) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                details: { ...n.data.details, fields: newFields },
-                exportFields: ['Delay']
-              },
-            }
-          : n
-      )
+    const nextExport = ['Delay'];
+
+    setNodes((nodes: any[]) =>
+      nodes.map((n: { id: string; data: { details: any; exportFields?: string[] } }) => {
+        if (n.id !== id) return n;
+        const existing = n.data.details?.fields ?? [];
+        const sameFields =
+          existing.length === newFields.length &&
+          existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(newFields[idx]));
+        const sameExport =
+          Array.isArray(n.data.exportFields) &&
+          n.data.exportFields.length === nextExport.length &&
+          n.data.exportFields.every((h: string, i: number) => h === nextExport[i]);
+        if (sameFields && sameExport) return n;
+
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            details: { ...n.data.details, fields: newFields },
+            exportFields: nextExport,
+          },
+        };
+      })
     );
-  }, [delayMs, data.setNodes, id]);
+  }, [delayMs, id]);
 
   // --- Strict numeric-only helpers ---
   const sanitizeToMs = (raw: string | number): number => {

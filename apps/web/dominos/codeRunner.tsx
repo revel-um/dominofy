@@ -2,7 +2,7 @@
 import { NodeProps } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   DominoField,
   DominoNodeData,
@@ -24,6 +24,14 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const router = useRouter();
+  const setNodesRef = useRef(data.setNodes);
+  const setFieldValueRef = useRef(data.setFieldValue);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
+  useEffect(() => {
+    setFieldValueRef.current = data.setFieldValue;
+  }, [data.setFieldValue]);
 
   const detailsFields: DominoField[] = data?.details?.fields ?? [];
 
@@ -92,9 +100,10 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
 
   /* ───────── Push → node (sync fields + pin ids, PRESERVE connections) */
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
-    data.setNodes((nodes: any[]) =>
+    setNodes((nodes: any[]) =>
       nodes.map((n) => {
         if (n.id !== id) return n;
 
@@ -181,48 +190,48 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
         };
       })
     );
-  }, [data.setNodes, id, functionName, code, variables]);
+  }, [id, functionName, code, variables]);
 
   /* ───────── Attach setFieldValue to data */
   useEffect(() => {
-    if (!data.setFieldValue && data.setNodes) {
-      const setFieldValue = (heading: string, newValue: any) => {
-        if (heading === 'FunctionName') setFunctionName(newValue);
-        if (heading === 'Code') setCode(newValue);
+    const setNodes = setNodesRef.current;
+    if (setFieldValueRef.current || !setNodes) return;
+    const setFieldValue = (heading: string, newValue: any) => {
+      if (heading === 'FunctionName') setFunctionName(newValue);
+      if (heading === 'Code') setCode(newValue);
 
-        const varMatch = /^Variable_(\d+)_(\w+)$/.exec(heading);
-        if (varMatch) {
-          const varId = Number(varMatch[1]);
-          const field = varMatch[2] as 'name' | 'value';
-          handleVariableChange(varId, field, newValue);
-        }
+      const varMatch = /^Variable_(\d+)_(\w+)$/.exec(heading);
+      if (varMatch) {
+        const varId = Number(varMatch[1]);
+        const field = varMatch[2] as 'name' | 'value';
+        handleVariableChange(varId, field, newValue);
+      }
 
-        data.setNodes!((nodes: any[]) =>
-          nodes.map((n) => {
-            if (n.id !== id) return n;
-            return {
-              ...n,
-              data: {
-                ...n.data,
-                details: {
-                  ...n.data.details,
-                  fields: n.data.details.fields.map((f: DominoField) =>
-                    f.heading === heading ? { ...f, value: newValue } : f
-                  ),
-                },
+      setNodes((nodes: any[]) =>
+        nodes.map((n) => {
+          if (n.id !== id) return n;
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              details: {
+                ...n.data.details,
+                fields: n.data.details.fields.map((f: DominoField) =>
+                  f.heading === heading ? { ...f, value: newValue } : f
+                ),
               },
-            };
-          })
-        );
-      };
-
-      data.setNodes!((nodes: any[]) =>
-        nodes.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, setFieldValue } } : n
-        )
+            },
+          };
+        })
       );
-    }
-  }, [data.setNodes, data.setFieldValue, id]);
+    };
+
+    setNodes((nodes: any[]) =>
+      nodes.map((n) =>
+        n.id === id ? { ...n, data: { ...n.data, setFieldValue } } : n
+      )
+    );
+  }, [handleVariableChange, id]);
 
   // Handle code input changes
   const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

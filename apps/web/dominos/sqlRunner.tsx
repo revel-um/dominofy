@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { NodeProps } from 'reactflow';
 import SqlRunnerPopup from '../components/modals/SqlRunnerPopup';
 import ConnectionModal, { ConnectionConfig } from '../components/modals/ConnectionModal';
@@ -15,6 +15,14 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
   const router = useRouter();
+  const setNodesRef = useRef(data.setNodes);
+  const setFieldValueRef = useRef(data.setFieldValue);
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
+  useEffect(() => {
+    setFieldValueRef.current = data.setFieldValue;
+  }, [data.setFieldValue]);
 
   // Connection state
   const [connectionId, setConnectionId] = useState<string>('');
@@ -47,37 +55,50 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
 
   // — Sync node fields into ReactFlow’s details panel —
   useEffect(() => {
-    if (!data.setNodes) return;
-    data.setNodes((nodes: any[]) =>
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
+    const nextFields: DominoField[] = [
+      {
+        type: 'textArea',
+        heading: 'Query',
+        value: query,
+        required: true,
+        placeholder: 'SELECT …',
+        shouldRender: true,
+      },
+      {
+        type: 'button',
+        label: 'Connect',
+        onClick: () => setShowConfigModal(true),
+        value: '',
+        required: true,
+        shouldRender: true,
+      },
+    ];
+    if (connectionId) {
+      nextFields.push({
+        type: 'text',
+        heading: 'Connection Name',
+        value: connectionConfig.database,
+        required: true,
+        shouldRender: true,
+      });
+    }
+    const nextExport = ['Query'];
+
+    setNodes((nodes: any[]) =>
       nodes.map((n: any) => {
         if (n.id !== id) return n;
-        const fields: DominoField[] = [
-          {
-            type: 'textArea',
-            heading: 'Query',
-            value: query,
-            required: true,
-            placeholder: 'SELECT …',
-            shouldRender: true,
-          },
-          {
-            type: 'button',
-            label: 'Connect',
-            onClick: () => setShowConfigModal(true),
-            value: '',
-            required: true,
-            shouldRender: true,
-          },
-        ];
-        if (connectionId) {
-          fields.push({
-            type: 'text',
-            heading: 'Connection Name',
-            value: connectionConfig.database,
-            required: true,
-            shouldRender: true,
-          });
-        }
+        const existing = n.data.details?.fields ?? [];
+        const sameFields =
+          existing.length === nextFields.length &&
+          existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(nextFields[idx]));
+        const sameExport =
+          Array.isArray(n.data.exportFields) &&
+          n.data.exportFields.length === nextExport.length &&
+          n.data.exportFields.every((h: string, i: number) => h === nextExport[i]);
+        if (sameFields && sameExport) return n;
+
         return {
           ...n,
           data: {
@@ -85,21 +106,22 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
             details: {
               type: 'SQLRunner',
               description: 'Run a SQL query against an existing database connection',
-              fields,
+              fields: nextFields,
             } as DominoNodeData,
-            exportFields: ['Query'],
+            exportFields: nextExport,
           },
         };
       })
     );
-  }, [data.setNodes, id, query, connectionId, connectionConfig.database]);
+  }, [connectionConfig.database, connectionId, id, query, setShowConfigModal]);
 
   // — Allow details-panel to update Query field —
   useEffect(() => {
-    if (data.setFieldValue || !data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (setFieldValueRef.current || !setNodes) return;
     const setFieldValue = (heading: string, newValue: any) => {
       if (heading === 'Query') setQuery(newValue);
-      data.setNodes!((nodes: any[]) =>
+      setNodes((nodes: any[]) =>
         nodes.map(n =>
           n.id !== id
             ? n
@@ -118,10 +140,10 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
         )
       );
     };
-    data.setNodes((nodes: any[]) =>
+    setNodes((nodes: any[]) =>
       nodes.map(n => (n.id === id ? { ...n, data: { ...n.data, setFieldValue } } : n))
     );
-  }, [data.setFieldValue, data.setNodes, id]);
+  }, [id]);
 
   // Test and save connection settings
   const handleSaveConfig = async () => {
@@ -244,7 +266,8 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
 
   // Update node data when query changes
   useEffect(() => {
-    if (!data.setNodes) return;
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
     
     const fields: DominoField[] = [
       {
@@ -262,23 +285,28 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
       },
     ];
 
-    data.setNodes((nodes: any[]) =>
-      nodes.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                details: {
-                  ...n.data.details,
-                  fields,
-                },
-              },
-            }
-          : n
-      )
+    setNodes((nodes: any[]) =>
+      nodes.map((n) => {
+        if (n.id !== id) return n;
+        const existing = n.data.details?.fields ?? [];
+        const sameFields =
+          existing.length === fields.length &&
+          existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(fields[idx]));
+        if (sameFields) return n;
+
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            details: {
+              ...n.data.details,
+              fields,
+            },
+          },
+        };
+      })
     );
-  }, [id, data.setNodes, query, connectionStatus]);
+  }, [connectionStatus, id, query]);
 
   // Listen for code editor results
   useEffect(() => {
