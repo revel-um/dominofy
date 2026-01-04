@@ -18,6 +18,8 @@ import { SwitchCaseDomino } from "./dominos/switchCase";
 import { FilterDomino } from "./dominos/filter";
 import { SlackActionDomino } from "./dominos/slackAction";
 import { CsvWriterDomino } from "./dominos/csvWriter";
+import { EmailActionDomino } from "./dominos/emailAction";
+import { EmailTriggerDomino } from "./dominos/emailTrigger";
 import { MapperDomino } from "./dominos/mapper";
 import { DelayDomino } from "./dominos/delay";
 import { CustomCodeDomino } from "./dominos/customCode";
@@ -42,6 +44,9 @@ class DominoRegistry {
     this.register("aggregator", AggregatorDomino);
     this.register("slacktrigger", SlackTriggerDomino);
     this.register("slackaction", SlackActionDomino);
+    this.register("emailsender", EmailActionDomino);
+    this.register("emailaction", EmailActionDomino);
+    this.register("emailtrigger", EmailTriggerDomino);
     this.register("connector", ConnectorDomino);
     this.register("filter", FilterDomino);
     this.register("csvwriter", CsvWriterDomino);

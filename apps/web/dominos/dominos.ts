@@ -46,10 +46,16 @@ export default [
     categories: ['Trigger']
   },
   {
-    id: 'emailsender',
-    label: 'Email Sender',
+    id: 'emailtrigger',
+    label: 'Email Trigger',
     icon: FiMail,
-    categories: ['Action']
+    categories: ['Trigger', 'Email']
+  },
+  {
+    id: 'emailsender',
+    label: 'Email Action',
+    icon: FiMail,
+    categories: ['Action', 'Email']
   },
   {
     id: 'csvwriter',

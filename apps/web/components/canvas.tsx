@@ -36,6 +36,7 @@ import CustomCodeDomino from "../dominos/codeRunner";
 import SlackTriggerDomino from "@/dominos/slackTrigger";
 import SlackActionDomino from "@/dominos/slackAction";
 import EmailSenderDomino from "../dominos/emailSender";
+import EmailTriggerDomino from "@/dominos/emailTrigger";
 import CSVWriterDomino from "../dominos/csvWriter";
 import DelayDomino from "@/dominos/delay";
 import MapperDomino from "@/dominos/mapper";
@@ -85,6 +86,7 @@ const nodeTypes = {
   sqlRunner: withRenderKey(SQLRunnerDomino),
   codeRunner: withRenderKey(CustomCodeDomino),
   emailsender: withRenderKey(EmailSenderDomino),
+  emailtrigger: withRenderKey(EmailTriggerDomino),
   delay: withRenderKey(DelayDomino),
   mapper: withRenderKey(MapperDomino),
   slacktrigger: withRenderKey(SlackTriggerDomino),

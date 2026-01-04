@@ -17,7 +17,7 @@ export default function VaultManager() {
   const [showForm, setShowForm] = useState(false);
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [name, setName] = useState('');
-  const [type, setType] = useState<'postgres' | 'mongodb' | 'aws'>('postgres');
+  const [type, setType] = useState<'postgres' | 'mongodb' | 'aws' | 'email'>('postgres');
   const [connectionJson, setConnectionJson] = useState('{}');
 
   const token =
@@ -111,7 +111,7 @@ export default function VaultManager() {
     setConnectionJson('{}');
   };
 
-  const selectTypeAndOpen = (selected: 'postgres' | 'mongodb' | 'aws') => {
+  const selectTypeAndOpen = (selected: 'postgres' | 'mongodb' | 'aws' | 'email') => {
     setType(selected);
     setShowTypeMenu(false);
     setShowForm(true);
@@ -141,7 +141,7 @@ export default function VaultManager() {
                 ref={typeMenuRef}
                 className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shadow-lg z-20"
               >
-                {(['postgres', 'mongodb', 'aws'] as const).map((opt) => (
+                {(['postgres', 'mongodb', 'aws', 'email'] as const).map((opt) => (
                   <button
                     key={opt}
                     onClick={() => selectTypeAndOpen(opt)}

@@ -1040,6 +1040,112 @@
         ]
     },
     {
+        "id": "emailtrigger",
+        "label": "Email Trigger",
+        "category": "Trigger",
+        "description": "Start workflows when a connected Gmail inbox receives a new email.",
+        "icon": "Mail",
+        "color": "emerald",
+        "features": [
+            "Matches Gmail notifications against the selected connection and optional inbox address filter.",
+            "Normalizes email payloads (from, to, cc, subject, snippet, ids) onto value_out.",
+            "Requires a Gmail OAuth connection; Pub/Sub watch or polling drives triggers."
+        ],
+        "fields": [
+            {
+                "heading": "vaultId",
+                "type": "select",
+                "required": true,
+                "description": "Gmail connection / vault obtained via OAuth."
+            },
+            {
+                "heading": "inboxAddress",
+                "type": "textInput",
+                "required": false,
+                "description": "Lower-case recipient address to match. Leave blank to trigger on any email for this Gmail connection."
+            }
+        ],
+        "pins": {
+            "exec_out": "EXEC_OUT",
+            "value_out": "VALUE_OUT"
+        },
+        "keywords": [
+            "email",
+            "gmail",
+            "inbox",
+            "trigger",
+            "mail"
+        ]
+    },
+    {
+        "id": "emailsender",
+        "label": "Email Action",
+        "category": "Email",
+        "description": "Send emails through a connected Gmail account with optional HTML and reply metadata.",
+        "icon": "Mail",
+        "color": "sky",
+        "features": [
+            "Uses vaultId to pull Gmail tokens server-side; workflow JSON never stores secrets.",
+            "to, subject, body, html and from can be provided statically or via value pins for dynamic templates.",
+            "value_out returns the Gmail messageId for logging or threading."
+        ],
+        "fields": [
+            {
+                "heading": "vaultId",
+                "type": "select",
+                "required": true
+            },
+            {
+                "heading": "to",
+                "type": "textInput",
+                "inPinId": "value_in_1",
+                "required": true
+            },
+            {
+                "heading": "subject",
+                "type": "textInput",
+                "inPinId": "value_in_2",
+                "required": true
+            },
+            {
+                "heading": "body",
+                "type": "textArea",
+                "inPinId": "value_in_3",
+                "required": true
+            },
+            {
+                "heading": "html",
+                "type": "textArea",
+                "inPinId": "value_in_4",
+                "required": false
+            },
+            {
+                "heading": "from",
+                "type": "textInput",
+                "inPinId": "value_in_5",
+                "required": false,
+                "description": "Optional from override; defaults to connection fromEmail."
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in_1": "VALUE_IN",
+            "value_in_2": "VALUE_IN",
+            "value_in_3": "VALUE_IN",
+            "value_in_4": "VALUE_IN",
+            "value_in_5": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "keywords": [
+            "email",
+            "smtp",
+            "send",
+            "mail",
+            "outbound"
+        ]
+    },
+    {
         "id": "switchcase",
         "label": "Switch",
         "category": "Logic",

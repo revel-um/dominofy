@@ -55,6 +55,33 @@ export class WorkflowService extends BaseService<Workflow> {
     return qb.getMany();
   }
 
+  async findWorkflowsByEmailTrigger(
+    vaultId: string,
+    inboxAddress?: string
+  ): Promise<Workflow[]> {
+    const data: any = { vaultId };
+    if (inboxAddress) {
+      data.inboxAddress = inboxAddress;
+    }
+
+    const matchFragment = {
+      nodes: [
+        {
+          type: 'emailtrigger',
+          data,
+        },
+      ],
+    };
+
+    const qb = this.workflowRepository
+      .createQueryBuilder('workflow')
+      .where('workflow.visualJson @> :match', {
+        match: JSON.stringify(matchFragment),
+      });
+
+    return qb.getMany();
+  }
+
 
   async getRecentWorkflows(userId: string) {
     const user = await this.userService.findOne(userId);

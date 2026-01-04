@@ -21,7 +21,8 @@ export enum VaultType {
   MONGODB = 'mongodb',
   AWS = 'aws',
   CUSTOM = 'custom',
-  SLACK = 'slack'
+  SLACK = 'slack',
+  EMAIL = 'email'
 }
 
 /* ───────────────────────────────

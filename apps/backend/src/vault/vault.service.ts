@@ -103,6 +103,18 @@ export class VaultService extends BaseService<Vault> {
         });
     }
 
+    async updateConnection(
+        id: string,
+        connection: Record<string, any>,
+    ): Promise<Vault> {
+        const vault = await this.vaultRepository.findOne({ where: { id } });
+        if (!vault) {
+            throw new Error(`Vault ${id} not found`);
+        }
+        vault.connection = connection;
+        return this.vaultRepository.save(vault);
+    }
+
     /* ─────────────────────────────
      * Pagination
      * ────────────────────────────*/

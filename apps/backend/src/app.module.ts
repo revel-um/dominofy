@@ -16,6 +16,7 @@ import { AuthModule } from './auth/auth.module';
 import { SupportModule } from './support/support.module';
 import { AiChatModule } from './ai-chat/ai-chat.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     WorkflowLoggerModule,
     VaultModule,
     SlackModule,
+    EmailModule,
     RunnerLauncherModule,
     AuthModule,
     SupportModule,
