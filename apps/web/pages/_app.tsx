@@ -19,9 +19,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
     }
   }, []);
   const router = useRouter();
-  const isExcluded = EXCLUDED_ROUTES.some((path) =>
-    router.pathname.includes(path)
-  );
+  const isExcluded = EXCLUDED_ROUTES.includes(router.pathname);
 
   return (
     <SessionProvider session={pageProps.session}>
