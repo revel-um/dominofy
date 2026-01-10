@@ -1,9 +1,7 @@
 import { NextRouter } from 'next/router';
-import {
-  handleServerError,
-  handleUnauthorizedError,
-} from '@/utils/error.handler';
+import { handleServerError } from '@/utils/error.handler';
 import { config } from '@/config/config';
+import { authFetch } from '@/utils/authFetch';
 
 export interface EmailConnection {
   id: string;
@@ -25,10 +23,10 @@ export interface CreateEmailConnectionPayload {
 export class EmailApi {
   static async getInstallUrl(token: string, router: NextRouter) {
     try {
-      const r = await fetch(`${config.backendBaseUrl}/email/google/install-url`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (r.status === 401) return handleUnauthorizedError(router);
+      const r = await authFetch(`${config.backendBaseUrl}/email/google/install-url`, {
+        token,
+      }, router);
+      if (r.status === 401) return '';
       const { url } = await r.json();
       return url as string;
     } catch (err) {
@@ -42,13 +40,10 @@ export class EmailApi {
     router: NextRouter,
   ): Promise<EmailConnection[]> {
     try {
-      const r = await fetch(`${config.backendBaseUrl}/email/connections`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (r.status === 401) {
-        handleUnauthorizedError(router);
-        return [];
-      }
+      const r = await authFetch(`${config.backendBaseUrl}/email/connections`, {
+        token,
+      }, router);
+      if (r.status === 401) return [];
       return (await r.json()) as EmailConnection[];
     } catch (err) {
       handleServerError(router, err);
@@ -62,18 +57,15 @@ export class EmailApi {
     payload: CreateEmailConnectionPayload,
   ): Promise<EmailConnection | null> {
     try {
-      const r = await fetch(`${config.backendBaseUrl}/email/connections`, {
+      const r = await authFetch(`${config.backendBaseUrl}/email/connections`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      });
-      if (r.status === 401) {
-        handleUnauthorizedError(router);
-        return null;
-      }
+        token,
+      }, router);
+      if (r.status === 401) return null;
       if (!r.ok) {
         const j = await r.json();
         throw new Error(j?.message || `HTTP ${r.status}`);

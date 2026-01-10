@@ -1,6 +1,7 @@
 import { NextRouter } from "next/router";
 import { config } from "../config/config";
-import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
+import { handleServerError } from "../utils/error.handler";
+import { authFetch } from "../utils/authFetch";
 
 export type AiChatSender = 'user' | 'ai';
 
@@ -32,16 +33,10 @@ export class AiChatApi {
 
       const url = `${config.backendBaseUrl}/ai-chat/workflow/${workflowId}/messages?${query.toString()}`;
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {
@@ -56,18 +51,14 @@ export class AiChatApi {
     router: NextRouter
   ) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/ai-chat/workflow/${workflowId}/messages`, {
+      const response = await authFetch(`${config.backendBaseUrl}/ai-chat/workflow/${workflowId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {

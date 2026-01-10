@@ -74,6 +74,23 @@ export const LogsPanel = React.memo(function LogsPanel({
   const [isLive, setIsLive] = useState<boolean>(true);
 
   const isPastEndDate = rangeEnd !== '' && rangeEnd < today;
+  const MAX_RANGE_MONTHS = 3;
+
+  const formatDate = (date: Date) => date.toISOString().split('T')[0];
+  const addMonthsClamped = (dateStr: string, months: number) => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const base = new Date(Date.UTC(year, month - 1, 1));
+    base.setUTCMonth(base.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).getUTCDate();
+    const clampedDay = Math.min(day, lastDay);
+    return formatDate(new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), clampedDay)));
+  };
+  const minDate = (a: string, b: string) => (a && b ? (a < b ? a : b) : a || b);
+  const maxDate = (a: string, b: string) => (a && b ? (a > b ? a : b) : a || b);
+  const maxEndDate = rangeStart ? minDate(addMonthsClamped(rangeStart, MAX_RANGE_MONTHS), today) : today;
+  const minStartDate = rangeEnd ? maxDate(addMonthsClamped(rangeEnd, -MAX_RANGE_MONTHS), '') : '';
+  const maxStartDate = rangeEnd ? minDate(rangeEnd, today) : today;
 
   const offset = 0;
   const limit = 50;
@@ -451,20 +468,39 @@ export const LogsPanel = React.memo(function LogsPanel({
               <label>From:</label>
               <input
                 type="date"
-                max={today}
+                max={maxStartDate}
+                min={minStartDate}
                 className="border px-1 py-0.5 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                 value={rangeStart}
-                onChange={(e) => setRangeStart(e.target.value)}
+                onChange={(e) => {
+                  const nextStart = e.target.value;
+                  setRangeStart(nextStart);
+                  if (rangeEnd) {
+                    const nextMaxEnd = minDate(addMonthsClamped(nextStart, MAX_RANGE_MONTHS), today);
+                    if (rangeEnd > nextMaxEnd) {
+                      setRangeEnd(nextMaxEnd);
+                    }
+                  }
+                }}
                 onClick={(e) => e.stopPropagation()}
               />
               <label>To:</label>
               <input
                 type="date"
-                min={rangeStart}
-                max={today}
+                min={rangeStart || minStartDate}
+                max={maxEndDate}
                 className="border px-1 py-0.5 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                 value={rangeEnd}
-                onChange={(e) => setRangeEnd(e.target.value)}
+                onChange={(e) => {
+                  const nextEnd = e.target.value;
+                  setRangeEnd(nextEnd);
+                  if (rangeStart) {
+                    const nextMinStart = addMonthsClamped(nextEnd, -MAX_RANGE_MONTHS);
+                    if (rangeStart < nextMinStart) {
+                      setRangeStart(nextMinStart);
+                    }
+                  }
+                }}
                 onClick={(e) => e.stopPropagation()}
               />
               <button

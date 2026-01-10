@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { ToastContainer, toast } from "react-toastify";
 import { ProjectsApi } from "../apis/projects.apis";
 import { WorkflowsApi } from "../apis/workflow.apis";
+import { TokenManager } from "../utils/auth";
 
 // Update SortField type to include workflow fields
 type SortField = 'name' | 'workflowCount' | 'scheduledCount' | 'deployedCount' | 'description' | 'projectName' | 'isPublished';
@@ -132,9 +133,9 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
             const resp = await fetch('/api/auth/exchange', { method: 'POST' });
             if (resp.ok) {
               const data = await resp.json();
-              if (data?.token) {
-                localStorage.setItem('token', data.token);
-                token = data.token;
+              if (data?.accessToken && data?.refreshToken) {
+                TokenManager.setTokens(data.accessToken, data.refreshToken);
+                token = data.accessToken;
               } else {
                 console.warn('Exchange succeeded but no token returned');
                 setOverviewCounts({ projectCount: 0, workflowCount: 0, publishedCount: 0 });
@@ -182,9 +183,9 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
             const resp = await fetch('/api/auth/exchange', { method: 'POST' });
             if (resp.ok) {
               const data = await resp.json();
-              if (data?.token) {
-                localStorage.setItem('token', data.token);
-                token = data.token;
+              if (data?.accessToken && data?.refreshToken) {
+                TokenManager.setTokens(data.accessToken, data.refreshToken);
+                token = data.accessToken;
               } else {
                 console.warn('Exchange succeeded but no token returned');
                 setProjects([]);
