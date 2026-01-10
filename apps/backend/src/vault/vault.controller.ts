@@ -8,12 +8,16 @@ import {
   Param,
   Query,
   Req,
+  BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { BaseController } from 'src/common/base.controller';
-import { Vault } from './vault.entity';
+import { Vault, VaultType } from './vault.entity';
 import { VaultService } from './vault.service';
 import { CreateVaultDto } from './vault.dto';
+import { EmailService } from 'src/email/email.service';
 
 @Controller('vault')
 export class VaultController extends BaseController<
@@ -23,7 +27,11 @@ export class VaultController extends BaseController<
   string,
   VaultService
 > {
-  constructor(protected readonly service: VaultService) {
+  constructor(
+    protected readonly service: VaultService,
+    @Inject(forwardRef(() => EmailService))
+    private readonly emailService: EmailService,
+  ) {
     super(service, CreateVaultDto);
   }
 
@@ -88,5 +96,22 @@ export class VaultController extends BaseController<
     @Body('userIds') userIds: string[],
   ): Promise<void> {
     await this.service.removeUsers(id, userIds);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    const vault = await this.service.findOne(id);
+    if (!vault) {
+      throw new BadRequestException('Vault not found');
+    }
+
+    if (vault.type === VaultType.EMAIL) {
+      const provider = (vault.connection as any)?.provider;
+      if (provider === 'gmail') {
+        await this.emailService.stopGmailWatch(vault.connection as any);
+      }
+    }
+
+    return this.service.remove(id);
   }
 }

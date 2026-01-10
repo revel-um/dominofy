@@ -1,13 +1,15 @@
-import { Module, NestModule } from '@nestjs/common';
+import { Module, NestModule, forwardRef } from '@nestjs/common';
 import { VaultController } from './vault.controller';
 import { VaultService } from './vault.service';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Vault } from './vault.entity';
+import { EmailModule } from 'src/email/email.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Vault]),
+    forwardRef(() => EmailModule),
   ],
   controllers: [VaultController],
   providers: [VaultService],

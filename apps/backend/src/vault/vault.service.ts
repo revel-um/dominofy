@@ -6,6 +6,7 @@ import { BaseService } from 'src/common/base.service';
 import { User } from 'src/user/user.entity';
 import { CreateVaultDto } from './vault.dto';
 import { Vault, VaultType } from './vault.entity';
+import { encrypt } from 'src/helper/encryption';
 
 @Injectable()
 export class VaultService extends BaseService<Vault> {
@@ -107,12 +108,16 @@ export class VaultService extends BaseService<Vault> {
         id: string,
         connection: Record<string, any>,
     ): Promise<Vault> {
+        const encrypted = await encrypt(JSON.stringify(connection));
+        await this.vaultRepository.update(
+            id,
+            { connectionEnc: encrypted } as any,
+        );
         const vault = await this.vaultRepository.findOne({ where: { id } });
         if (!vault) {
             throw new Error(`Vault ${id} not found`);
         }
-        vault.connection = connection;
-        return this.vaultRepository.save(vault);
+        return vault;
     }
 
     /* ─────────────────────────────

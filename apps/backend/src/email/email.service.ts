@@ -30,7 +30,7 @@ type GmailConnection = {
   refreshToken: string;
   accessToken?: string;
   expiryDate?: number;
-  historyId?: string;
+  historyId?: string; // last processed historyId (cursor)
 };
 
 type SmtpConnection = {
@@ -50,7 +50,24 @@ type EmailConnection = GmailConnection | SmtpConnection;
 export class EmailService {
   private static _instance: EmailService | null = null;
   private readonly logger = new Logger(EmailService.name);
+
   private readonly stateStore = new Map<string, string>();
+
+  // Serialize Gmail processing per mailbox
+  private readonly gmailHistoryQueue = new Map<string, Promise<void>>();
+
+  // Debounce Pub/Sub bursts per mailbox
+  private readonly gmailDebounceTimers = new Map<string, NodeJS.Timeout>();
+  private readonly gmailLatestHistoryId = new Map<string, string>();
+  private readonly gmailDebounceMs = 1500;
+  private readonly gmailLastProcessedHistoryId = new Map<string, string>();
+  private readonly gmailPersistTimers = new Map<string, NodeJS.Timeout>();
+  private readonly gmailPersistLatestHistoryId = new Map<string, string>();
+  private readonly gmailPersistContexts = new Map<
+    string,
+    { vaultId: string; conn: GmailConnection }
+  >();
+  private readonly gmailPersistDebounceMs = 2000;
 
   constructor(
     private readonly vaultService: VaultService,
@@ -114,14 +131,88 @@ export class EmailService {
       access_token: conn.accessToken,
       expiry_date: conn.expiryDate,
     });
+
     const tokens = await oauth2.getAccessToken();
     if (!tokens?.token) {
       throw new UnauthorizedException('Failed to refresh Gmail access token');
     }
+
     const credentials = oauth2.credentials;
     conn.accessToken = tokens.token;
     conn.expiryDate = credentials.expiry_date ?? undefined;
+
     return { client: oauth2, accessToken: tokens.token };
+  }
+
+  private compareHistoryId(a: string, b: string): number {
+    try {
+      const aBig = BigInt(a);
+      const bBig = BigInt(b);
+      if (aBig === bBig) return 0;
+      return aBig > bBig ? 1 : -1;
+    } catch {
+      return a.localeCompare(b);
+    }
+  }
+
+  /** Gmail history cursor must be exclusive. Use last+1 when we have a stored cursor. */
+  private nextStartHistoryId(lastProcessed: string): string {
+    try {
+      return (BigInt(lastProcessed) + 1n).toString();
+    } catch {
+      // fallback: if not bigint parseable, just reuse (best effort)
+      return lastProcessed;
+    }
+  }
+
+  private decodeGmailBody(data?: string): string | undefined {
+    if (!data) return undefined;
+    const normalized = data.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      '=',
+    );
+    return Buffer.from(padded, 'base64').toString('utf8');
+  }
+
+  private extractTextPlain(
+    payload?: gmail_v1.Schema$MessagePart,
+  ): string | undefined {
+    if (!payload) return undefined;
+    if (payload.mimeType === 'text/plain' && payload.body?.data) {
+      return this.decodeGmailBody(payload.body.data);
+    }
+    for (const part of payload.parts || []) {
+      const found = this.extractTextPlain(part);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  private async flushGmailHistoryPersist(email: string): Promise<void> {
+    const latestHistoryId = this.gmailPersistLatestHistoryId.get(email);
+    const ctx = this.gmailPersistContexts.get(email);
+    if (!latestHistoryId || !ctx) {
+      this.gmailPersistLatestHistoryId.delete(email);
+      this.gmailPersistContexts.delete(email);
+      this.gmailPersistTimers.delete(email);
+      return;
+    }
+
+    const { vaultId, conn } = ctx;
+    conn.historyId = latestHistoryId;
+    this.gmailLastProcessedHistoryId.set(conn.email, conn.historyId);
+    this.logger.log(
+      `Gmail history cursor persist (debounced): email=${conn.email}, vaultId=${vaultId}, historyId=${conn.historyId}`,
+    );
+    await this.vaultService.updateConnection(vaultId, conn as any);
+    this.logger.log(
+      `Gmail history cursor persisted (debounced): email=${conn.email}, vaultId=${vaultId}, historyId=${conn.historyId}`,
+    );
+
+    this.gmailPersistLatestHistoryId.delete(email);
+    this.gmailPersistContexts.delete(email);
+    this.gmailPersistTimers.delete(email);
   }
 
   /* ───────────────────── OAuth (Gmail) ───────────────────── */
@@ -157,9 +248,7 @@ export class EmailService {
     const gmail = google.gmail({ version: 'v1', auth: oauth2 });
     const profile = await gmail.users.getProfile({ userId: 'me' });
     const email = profile.data.emailAddress?.toLowerCase();
-    if (!email) {
-      throw new BadRequestException('Could not retrieve Gmail address');
-    }
+    if (!email) throw new BadRequestException('Could not retrieve Gmail address');
 
     const existing = await this.vaultService.findWhere(
       {
@@ -183,7 +272,9 @@ export class EmailService {
 
     const topic = this.config.get<string>('GMAIL_PUBSUB_TOPIC');
     if (!topic) {
-      throw new BadRequestException('GMAIL_PUBSUB_TOPIC is not configured; cannot create Gmail watch.');
+      throw new BadRequestException(
+        'GMAIL_PUBSUB_TOPIC is not configured; cannot create Gmail watch.',
+      );
     }
 
     let historyId: string | undefined;
@@ -202,9 +293,10 @@ export class EmailService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Gmail watch setup failed: ${msg}`);
-      throw new BadRequestException('Could not create Gmail watch; please verify Pub/Sub topic and permissions.');
+      throw new BadRequestException(
+        'Could not create Gmail watch; please verify Pub/Sub topic and permissions.',
+      );
     }
-
 
     const vaultDto = {
       name: `Gmail – ${email}`,
@@ -216,6 +308,8 @@ export class EmailService {
         refreshToken: tokens.refresh_token,
         accessToken: tokens.access_token ?? undefined,
         expiryDate: tokens.expiry_date ?? undefined,
+        // IMPORTANT: store the watch historyId as baseline cursor.
+        // We will start from cursor+1, so we won't re-process older inbox.
         historyId,
       } satisfies GmailConnection,
     };
@@ -234,10 +328,9 @@ export class EmailService {
     const existing = await this.vaultService.findWhere(
       {
         type: VaultType.EMAIL,
-        lookupIds: Raw(
-          alias => `${alias} ->> 'fromEmail' = :fromEmail`,
-          { fromEmail },
-        ),
+        lookupIds: Raw(alias => `${alias} ->> 'fromEmail' = :fromEmail`, {
+          fromEmail,
+        }),
       },
       { users: true },
     );
@@ -342,8 +435,14 @@ export class EmailService {
       `Subject: ${opts.subject}`,
       'MIME-Version: 1.0',
     ];
-    if (opts.cc) headers.push(`Cc: ${Array.isArray(opts.cc) ? opts.cc.join(', ') : opts.cc}`);
-    if (opts.bcc) headers.push(`Bcc: ${Array.isArray(opts.bcc) ? opts.bcc.join(', ') : opts.bcc}`);
+    if (opts.cc)
+      headers.push(
+        `Cc: ${Array.isArray(opts.cc) ? opts.cc.join(', ') : opts.cc}`,
+      );
+    if (opts.bcc)
+      headers.push(
+        `Bcc: ${Array.isArray(opts.bcc) ? opts.bcc.join(', ') : opts.bcc}`,
+      );
     if (opts.replyTo) headers.push(`Reply-To: ${opts.replyTo}`);
 
     const body =
@@ -464,41 +563,120 @@ export class EmailService {
   }
 
   /* ───────────────────── Gmail notifications (Pub/Sub push) ───────────────────── */
-  private parseHeader(
-    headers: gmail_v1.Schema$MessagePartHeader[] | undefined,
-    name: string,
-  ): string | undefined {
-    return headers?.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || undefined;
+
+  private async withGmailHistoryLock(
+    email: string,
+    task: () => Promise<void>,
+  ): Promise<void> {
+    const key = email.toLowerCase();
+    const prev = this.gmailHistoryQueue.get(key) || Promise.resolve();
+    const chained = prev.catch(() => undefined).then(() => task());
+    this.gmailHistoryQueue.set(key, chained);
+    try {
+      await chained;
+    } finally {
+      if (this.gmailHistoryQueue.get(key) === chained) {
+        this.gmailHistoryQueue.delete(key);
+      }
+    }
   }
 
+  /**
+   * FIXED: This function now:
+   * - starts from (lastCursor + 1) to avoid re-reading boundary items
+   * - fetches payload to extract text/plain body (no HTML)
+   * - updates cursor ONLY after successful processing (at-least-once safe)
+   * - dedupes messageIds inside this batch
+   */
   private async processGmailHistory(
     vaultId: string,
     conn: GmailConnection,
-    historyId: string,
+    incomingHistoryId: string,
   ) {
+    const lastKnown =
+      this.gmailLastProcessedHistoryId.get(conn.email) || conn.historyId;
+
+    // Skip stale notifications
+    if (lastKnown && this.compareHistoryId(incomingHistoryId, lastKnown) <= 0) {
+      this.logger.log(
+        `Gmail notification skipped as stale for ${conn.email}: historyId=${incomingHistoryId}, last=${lastKnown}`,
+      );
+      return;
+    }
+
     const { client } = await this.refreshAccessToken(conn);
     const gmail = google.gmail({ version: 'v1', auth: client });
 
-    const startHistoryId = conn.historyId || historyId;
+    // IMPORTANT FIX: history cursor is exclusive; use last+1
+    const startHistoryId = lastKnown
+      ? this.nextStartHistoryId(lastKnown)
+      : incomingHistoryId;
+    this.logger.log(
+      `Gmail history fetch start: email=${conn.email}, startHistoryId=${startHistoryId}, lastKnown=${lastKnown ?? 'n/a'}, incomingHistoryId=${incomingHistoryId}`,
+    );
 
-    const historyResp = await gmail.users.history.list({
-      userId: 'me',
-      startHistoryId,
-      historyTypes: ['messageAdded'],
-      labelId: 'INBOX',
-    });
+    let historyResp: gmail_v1.Schema$ListHistoryResponse | undefined;
+    try {
+      const resp = await gmail.users.history.list({
+        userId: 'me',
+        startHistoryId,
+        historyTypes: ['messageAdded'],
+        labelId: 'INBOX',
+      });
+      historyResp = resp.data;
+    } catch (err: any) {
+      const msg = err?.message || String(err);
 
-    const history = historyResp.data.history || [];
-    const messages: gmail_v1.Schema$HistoryMessageAdded[] = [];
-    history.forEach(h => {
-      (h.messagesAdded || []).forEach(m => messages.push(m));
-    });
+      // Gmail can return "HistoryId not found" if cursor is too old.
+      // In that case, you should reset cursor to incomingHistoryId and NOT backfill.
+      if (typeof msg === 'string' && msg.toLowerCase().includes('history')) {
+        this.logger.warn(
+          `Gmail history cursor invalid for ${conn.email}. Resetting cursor to ${incomingHistoryId}. Error=${msg}`,
+        );
+        conn.historyId = incomingHistoryId;
+        this.gmailLastProcessedHistoryId.set(conn.email, conn.historyId);
+        this.logger.log(
+          `Gmail history cursor reset: email=${conn.email}, vaultId=${vaultId}, historyId=${conn.historyId}`,
+        );
+        await this.vaultService.updateConnection(vaultId, conn as any);
+        this.logger.log(
+          `Gmail history cursor reset persisted: email=${conn.email}, vaultId=${vaultId}, historyId=${conn.historyId}`,
+        );
+        return;
+      }
 
-    // Update historyId
-    conn.historyId = historyResp.data.historyId?.toString() || historyId;
-    await this.vaultService.updateConnection(vaultId, conn as any);
+      this.logger.error(`Gmail history.list failed for ${conn.email}: ${msg}`);
+      throw err;
+    }
 
-    if (!messages.length) {
+    const history = historyResp?.history || [];
+    const newestHistoryId = historyResp?.historyId?.toString() || incomingHistoryId;
+
+    // Collect message IDs and de-dupe within this batch (track historyId per message)
+    const messageIds = new Set<string>();
+    const messageHistoryIds = new Map<string, string>();
+    for (const h of history) {
+      const hId = h.id?.toString();
+      for (const m of h.messagesAdded || []) {
+        const msgId = m.message?.id;
+        if (!msgId) continue;
+        messageIds.add(msgId);
+        if (hId) messageHistoryIds.set(msgId, hId);
+      }
+    }
+
+    if (!messageIds.size) {
+      // No new messages, safe to advance cursor
+      conn.historyId = newestHistoryId;
+      this.gmailLastProcessedHistoryId.set(conn.email, conn.historyId);
+      this.logger.log(
+        `Gmail history cursor persist (no messages): email=${conn.email}, vaultId=${vaultId}, historyId=${conn.historyId}`,
+      );
+      await this.vaultService.updateConnection(vaultId, conn as any);
+      this.logger.log(
+        `Gmail history cursor persisted (no messages): email=${conn.email}, vaultId=${vaultId}, historyId=${conn.historyId}`,
+      );
+
       this.logger.log(
         `Gmail history for ${conn.email}: no new messages (start=${startHistoryId}, end=${conn.historyId})`,
       );
@@ -506,51 +684,100 @@ export class EmailService {
     }
 
     this.logger.log(
-      `Gmail history for ${conn.email}: ${messages.length} message(s) (start=${startHistoryId}, end=${conn.historyId})`,
+      `Gmail history for ${conn.email}: ${messageIds.size} message(s) (start=${startHistoryId}, end=${newestHistoryId})`,
     );
 
-    for (const entry of messages) {
-      const msgId = entry.message?.id;
-      if (!msgId) continue;
+    const messageEntries = Array.from(messageIds).map(id => ({
+      id,
+      historyId: messageHistoryIds.get(id) || incomingHistoryId,
+    }));
+    messageEntries.sort((a, b) => this.compareHistoryId(a.historyId, b.historyId));
+
+    let latestPersisted = lastKnown;
+    const persistHistoryId = (nextId: string) => {
+      if (!nextId) return;
+      if (!latestPersisted || this.compareHistoryId(nextId, latestPersisted) > 0) {
+        latestPersisted = nextId;
+        this.gmailPersistLatestHistoryId.set(conn.email, latestPersisted);
+        this.gmailPersistContexts.set(conn.email, { vaultId, conn });
+        const existingTimer = this.gmailPersistTimers.get(conn.email);
+        if (existingTimer) clearTimeout(existingTimer);
+        const timer = setTimeout(() => {
+          this.flushGmailHistoryPersist(conn.email).catch(err => {
+            const msg = err?.message || 'Unknown error';
+            this.logger.error(
+              `Gmail history persist flush failed for ${conn.email}: ${msg}`,
+            );
+          });
+        }, this.gmailPersistDebounceMs);
+        this.gmailPersistTimers.set(conn.email, timer);
+      }
+    };
+
+    // Process each message and extract text/plain body only
+    for (const entry of messageEntries) {
+      const msgId = entry.id;
       const msg = await gmail.users.messages.get({
         userId: 'me',
         id: msgId,
-        format: 'metadata',
-        metadataHeaders: ['From', 'To', 'Cc', 'Bcc', 'Subject', 'Date'],
+        format: 'full',
       });
 
-      const headers = msg.data.payload?.headers;
+      const msgHistoryId = entry.historyId;
+
+      const headers = msg.data.payload?.headers || [];
+      const header = (n: string) =>
+        headers.find(h => h.name?.toLowerCase() === n.toLowerCase())?.value;
+      const subject = header('Subject') || '';
+      const body = this.extractTextPlain(msg.data.payload) || msg.data.snippet || '';
+
+      this.logger.log(
+        `Gmail message processed: messageId=${msgId}, historyId=${msgHistoryId}, title=${subject}, body=${body}`,
+      );
+
       const payload = {
         provider: 'gmail',
         vaultId,
         emailAddress: conn.email,
         messageId: msg.data.id,
         threadId: msg.data.threadId,
-        historyId,
-        subject: this.parseHeader(headers, 'Subject'),
-        from: this.parseHeader(headers, 'From'),
-        to: this.parseHeader(headers, 'To'),
-        cc: this.parseHeader(headers, 'Cc'),
-        bcc: this.parseHeader(headers, 'Bcc'),
+        historyId: incomingHistoryId,
+        subject,
+        from: header('From'),
+        to: header('To'),
+        cc: header('Cc'),
+        bcc: header('Bcc'),
         snippet: msg.data.snippet,
         internalDate: msg.data.internalDate,
       };
 
-      const inboxAddress = conn.email;
-      await this.triggerWorkflows(vaultId, inboxAddress, payload);
+      await this.triggerWorkflows(vaultId, conn.email, payload);
+
+      persistHistoryId(msgHistoryId);
     }
+
+    // IMPORTANT FIX: advance cursor ONLY after successful processing
+    persistHistoryId(newestHistoryId);
+    // Ensure we persist once per batch so restarts don't replay
+    await this.flushGmailHistoryPersist(conn.email);
   }
 
+  /**
+   * Debounced Pub/Sub handler:
+   * - stores latest historyId per emailAddress
+   * - flushes after a short delay
+   */
   async handleGmailNotification(body: any) {
     const message = body?.message;
     if (!message?.data) {
       this.logger.warn('Gmail notification missing data');
       return;
     }
+
     const decoded = JSON.parse(
       Buffer.from(message.data, 'base64').toString('utf8'),
     );
-    console.log('Decoded Gmail notification:', decoded);
+
     const emailAddress = decoded?.emailAddress?.toLowerCase();
     const historyId = decoded?.historyId?.toString();
     if (!emailAddress || !historyId) {
@@ -562,20 +789,70 @@ export class EmailService {
       `Gmail notification received: emailAddress=${emailAddress}, historyId=${historyId}`,
     );
 
-    const vault = await this.vaultService.findWhere(
-      {
-        type: VaultType.EMAIL,
-        lookupIds: Raw(alias => `${alias} ->> 'email' = :email`, { email: emailAddress }),
-      },
-      {},
-    );
-    if (!vault) {
-      this.logger.warn(`No vault found for Gmail address ${emailAddress}`);
+    const prev = this.gmailLatestHistoryId.get(emailAddress);
+    if (!prev || this.compareHistoryId(historyId, prev) > 0) {
+      this.gmailLatestHistoryId.set(emailAddress, historyId);
+    }
+
+    const existingTimer = this.gmailDebounceTimers.get(emailAddress);
+    if (existingTimer) clearTimeout(existingTimer);
+
+    const timer = setTimeout(() => {
+      this.flushGmailHistory(emailAddress).catch(err => {
+        const msg = err?.message || 'Unknown error';
+        this.logger.error(
+          `Gmail debounce flush failed for ${emailAddress}: ${msg}`,
+        );
+      });
+    }, this.gmailDebounceMs);
+
+    this.gmailDebounceTimers.set(emailAddress, timer);
+  }
+
+  private async flushGmailHistory(emailAddress: string): Promise<void> {
+    const historyId = this.gmailLatestHistoryId.get(emailAddress);
+    if (!historyId) {
+      this.gmailDebounceTimers.delete(emailAddress);
       return;
     }
 
-    const conn = vault.connection as GmailConnection;
-    await this.processGmailHistory(vault.id.toString(), conn, historyId);
+    this.gmailLatestHistoryId.delete(emailAddress);
+    this.gmailDebounceTimers.delete(emailAddress);
+
+    await this.withGmailHistoryLock(emailAddress, async () => {
+      const vault = await this.vaultService.findWhere(
+        {
+          type: VaultType.EMAIL,
+          lookupIds: Raw(alias => `${alias} ->> 'email' = :email`, {
+            email: emailAddress,
+          }),
+        },
+        {},
+      );
+      if (!vault) {
+        this.logger.warn(`No vault found for Gmail address ${emailAddress}`);
+        return;
+      }
+
+      const conn = vault.connection as GmailConnection;
+      this.logger.log(
+        `Gmail connection loaded: email=${conn.email}, historyId=${conn.historyId ?? 'n/a'}`,
+      );
+      await this.processGmailHistory(vault.id.toString(), conn, historyId);
+    });
+  }
+
+  async stopGmailWatch(conn: GmailConnection): Promise<void> {
+    const { client } = await this.refreshAccessToken(conn);
+    const gmail = google.gmail({ version: 'v1', auth: client });
+    try {
+      await gmail.users.stop({ userId: 'me' });
+      this.logger.log(`Gmail watch stopped for ${conn.email}`);
+    } catch (err: any) {
+      const msg = err?.message || 'Unknown error';
+      this.logger.error(`Gmail watch stop failed for ${conn.email}: ${msg}`);
+      throw new BadRequestException('Could not stop Gmail watch; please retry.');
+    }
   }
 
   /* ───────────────────── Workflow execution ───────────────────── */
@@ -588,19 +865,16 @@ export class EmailService {
       `Email notification received for vault ${vaultId} (${inboxAddress || 'any inbox'}); dispatching workflows.`,
     );
 
-    // Workflows explicitly filtered to this inbox
     const exact = await this.workflowService.findWorkflowsByEmailTrigger(
       vaultId,
       inboxAddress,
     );
 
-    // Workflows listening to any inbox on this vault (no filter)
     const anyInbox = await this.workflowService.findWorkflowsByEmailTrigger(
       vaultId,
       undefined,
     );
 
-    // Merge without duplicates
     const seen = new Set<string>();
     const workflows = [...exact, ...anyInbox].filter(w => {
       if (seen.has(w.id)) return false;
@@ -608,7 +882,7 @@ export class EmailService {
       return true;
     });
 
-    workflows.forEach(workflow => {
+    for (const workflow of workflows) {
       const { nodes, edges } = workflow.visualJson;
       const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
 
@@ -620,8 +894,9 @@ export class EmailService {
         20,
         workflow.visualJson,
       );
-      return runner.run(runId, payload);
-    });
+
+      await runner.run(runId, payload);
+    }
 
     if (!workflows.length) {
       this.logger.warn(

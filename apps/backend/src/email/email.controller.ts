@@ -83,9 +83,7 @@ export class EmailController {
   }
 
   @Post('notifications/gmail')
-  async gmailNotification(@Body() body: any) {
-    console.log('Gmail notification received:', body);
-    
+  async gmailNotification(@Body() body: any) {    
     await this.email.handleGmailNotification(body);
     return { ok: true };
   }
