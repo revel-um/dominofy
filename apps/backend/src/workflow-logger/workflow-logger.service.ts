@@ -5,6 +5,8 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { EventEmitter } from 'events';
+import { Observable } from 'rxjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, MoreThanOrEqual, LessThanOrEqual, Between } from 'typeorm';
 
@@ -34,6 +36,9 @@ export interface WorkflowLogDto {
 @Injectable()
 export class WorkflowLoggerService extends BaseService<WorkflowLog> implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(WorkflowLoggerService.name);
+
+  private readonly streamEmitter = new EventEmitter();
+  private readonly streamEvent = 'workflow_log';
   
   private readonly flushMs = Number(process.env.LOGGER_FLUSH_MS ?? 5_000);
   private readonly cap = Number(process.env.LOGGER_BUFFER_CAP ?? 10_000);
@@ -46,6 +51,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
     private readonly logsRepo: Repository<WorkflowLog>,
   ) {
     super(logsRepo);
+    this.streamEmitter.setMaxListeners(0);
   }
 
   /* ------------------------------------------------------------------------ */
@@ -84,6 +90,24 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
 
     dto.ts = dto.ts ?? new Date();
     this.buffer.push(dto);
+  }
+
+  /** Live stream for newly persisted log rows. */
+  streamLogs(workflowId: string, runId?: string) {
+    return new Observable<string>((subscriber) => {
+      const handler = (payload: {
+        workflowId: string;
+        runId: string;
+        log: Record<string, unknown>;
+      }) => {
+        if (payload.workflowId !== workflowId) return;
+        if (runId && payload.runId !== runId) return;
+        subscriber.next(JSON.stringify(payload));
+      };
+
+      this.streamEmitter.on(this.streamEvent, handler);
+      return () => this.streamEmitter.off(this.streamEvent, handler);
+    });
   }
 
   /* ------------------------------ Query helper ----------------------------- */
@@ -270,7 +294,26 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
     /* ----------------------------- Persist (upsert) ----------------------------- */
 
     try {
-      await this.logsRepo.save(toSave, { chunk: 100 });
+      const savedLogs = await this.logsRepo.save(toSave, { chunk: 100 });
+      for (const log of savedLogs) {
+        const workflowId =
+          (log.workflow as any)?.id ?? (log as any).workflowId;
+        if (!workflowId) continue;
+        this.streamEmitter.emit(this.streamEvent, {
+          workflowId,
+          runId: log.runId,
+          log: {
+            id: log.id,
+            runId: log.runId,
+            dominoId: log.dominoId,
+            status: log.status,
+            output: log.output,
+            error: log.error,
+            createdAt: log.createdAt,
+            updatedAt: log.updatedAt,
+          },
+        });
+      }
       this.log.debug(`Flushed ${toSave.length} workflow logs`);
     } catch (err) {
       // Re‑queue so nothing is lost (no FS spill anymore)
