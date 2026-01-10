@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils';
 import { FiX, FiFile } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import { LogsApi } from '@/apis/logs.apis';
-import { useSSE } from '@/contexts/sseContext';
+import { EventSourcePolyfill } from 'event-source-polyfill';
+import { config } from '@/config/config';
 
 export interface WorkflowLog {
   id: string;
@@ -17,6 +18,7 @@ export interface WorkflowLog {
 
 interface LogsPanelProps {
   workflowId: string;
+  openWorkflowIds?: string[];
   className?: string;
   maxHeight?: string;
   defaultHeight?: string;
@@ -41,6 +43,7 @@ const timeOptions: { value: number; label: string }[] = [
 
 export const LogsPanel = React.memo(function LogsPanel({
   workflowId,
+  openWorkflowIds = [],
   className,
   maxHeight = '100vh',
   defaultHeight = '60px',
@@ -77,8 +80,31 @@ export const LogsPanel = React.memo(function LogsPanel({
   const dateSelected = rangeStart !== '' && rangeEnd !== '';
   const isFiltering = minutesFilter !== null || dateSelected;
 
-  // pull shared SSE events
-  const { events: sseEvents, clearEvents } = useSSE();
+  const liveLogsRef = useRef<Record<string, WorkflowLog[]>>({});
+  const sseRefs = useRef<Map<string, EventSource>>(new Map());
+
+  const appendLiveLog = useCallback(
+    (wfId: string, entry: WorkflowLog) => {
+      const list = liveLogsRef.current[wfId] ?? [];
+      const idx = list.findIndex((l) => l.id === entry.id);
+      if (idx === -1) {
+        list.push(entry);
+      } else {
+        const prev = list[idx];
+        list[idx] = {
+          ...prev,
+          type: entry.type,
+          timestamp: entry.timestamp,
+          message: prev.message ? `${prev.message}\n${entry.message}` : entry.message,
+        };
+      }
+      liveLogsRef.current[wfId] = list;
+      if (wfId === workflowId) {
+        setLogs([...list]);
+      }
+    },
+    [workflowId]
+  );
 
   // auto-scroll state
   const [autoScroll, setAutoScroll] = useState(true);
@@ -134,38 +160,86 @@ export const LogsPanel = React.memo(function LogsPanel({
     );
   }, [workflowId, router, offset, limit, minutesFilter, rangeStart, rangeEnd, dateSelected]);
 
-  // append SSE events when live is on, grouping by runId
+  // subscribe to workflow log streams for all open tabs when live + panel open
   useEffect(() => {
-    if (!isLive || sseEvents.length === 0) return;
+    const closeAll = () => {
+      sseRefs.current.forEach((es) => es.close());
+      sseRefs.current.clear();
+    };
 
-    const incoming: Record<string, WorkflowLog> = {};
-    sseEvents
-      .filter((e: any) => e.id?.split('-')[0] === 'print')
-      .forEach((e: any) => {
-        const runId = e.runId;
-        const msg = e.output;
-        const ts = new Date(e.finishedAt || e.timestamp);
+    if (!isLive || isMinimized) {
+      closeAll();
+      return;
+    }
 
-        if (!incoming[runId]) {
-          incoming[runId] = {
+    const token = localStorage.getItem('token') || '';
+    const ids = (openWorkflowIds.length ? openWorkflowIds : [workflowId]).filter(Boolean);
+
+    // close removed streams
+    sseRefs.current.forEach((es, id) => {
+      if (!ids.includes(id)) {
+        es.close();
+        sseRefs.current.delete(id);
+      }
+    });
+
+    // open missing streams
+    ids.forEach((id) => {
+      if (sseRefs.current.has(id)) return;
+      const es = new EventSourcePolyfill(
+        `${config.backendBaseUrl}/workflows/${encodeURIComponent(id)}/logs/stream`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      es.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          const wfId = payload.workflowId || id;
+          const log = payload.log;
+          if (!log) return;
+
+          const dominoId = log.dominoId || '';
+          if (!dominoId.startsWith('print')) return;
+
+          const msg = log.output
+            ? Array.isArray(log.output)
+              ? log.output.map((o: any) => o?.output ?? o).join('\n')
+              : JSON.stringify(log.output)
+            : log.error?.message || '';
+          const ts = new Date(log.updatedAt || log.createdAt || Date.now());
+          const type = log.status === 'failure' ? 'error' : 'log';
+          const runId = log.runId || payload.runId || `${Date.now()}`;
+
+          appendLiveLog(wfId, {
             id: runId,
-            type: 'info',
+            type,
             message: msg,
             timestamp: ts,
             source: runId,
-          };
-        } else {
-          incoming[runId].message += `\n${msg}`;
-          if (ts > incoming[runId].timestamp) incoming[runId].timestamp = ts;
+          });
+        } catch (err) {
+          console.warn('Could not parse workflow log SSE payload:', e.data, err);
         }
-      });
+      };
 
-    setLogs((prev) => {
-      const map = new Map(prev.map((log) => [log.id, { ...log }]));
-      Object.values(incoming).forEach((log) => map.set(log.id, log));
-      return Array.from(map.values());
+      es.onerror = () => {
+        es.close();
+        sseRefs.current.delete(id);
+      };
+
+      sseRefs.current.set(id, es);
     });
-  }, [sseEvents, isLive]);
+
+    return () => {
+      closeAll();
+    };
+  }, [isLive, isMinimized, workflowId, openWorkflowIds, appendLiveLog]);
+
+  // when active tab changes, show buffered live logs for that tab
+  useEffect(() => {
+    if (!isLive) return;
+    setLogs(liveLogsRef.current[workflowId] ?? []);
+  }, [workflowId, isLive]);
 
   // auto-scroll on logs update or panel open
   useEffect(() => {
@@ -414,7 +488,7 @@ export const LogsPanel = React.memo(function LogsPanel({
                 checked={isLive}
                 onChange={(e) => {
                   handleClear();
-                  clearEvents();
+                  // live events are now buffered per workflow
                   setIsLive(e.target.checked);
                 }}
                 className="form-checkbox h-4 w-4 text-blue-600"
