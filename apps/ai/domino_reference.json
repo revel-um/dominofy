@@ -1009,7 +1009,58 @@
             "storage",
             "file"
         ]
-    },    {
+    },
+    {
+        "id": "googleDriveDownload",
+        "label": "Google Drive Download",
+        "category": "Storage",
+        "description": "Download a file from Google Drive into the workflow.",
+        "icon": "Download",
+        "color": "blue",
+        "features": [
+            "Connects to a Drive vault and fetches a file by full path.",
+            "Stores the downloaded file in storage for downstream use.",
+            "Outputs file metadata and a storage URL."
+        ],
+        "fields": [
+            {
+                "heading": "Connect",
+                "type": "textInput",
+                "inPinId": "value_connect",
+                "required": true,
+                "description": "Drive connection name or vault id."
+            },
+            {
+                "heading": "Full Path",
+                "type": "textInput",
+                "inPinId": "value_full_path",
+                "required": true,
+                "description": "Drive path to download, e.g. /My Drive/Folder/file.ext."
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_connect": "VALUE_IN",
+            "value_full_path": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": "Starts the Drive download.",
+            "exec_out": "Continues after the Drive download completes.",
+            "value_connect": "Provides the Drive connection identifier.",
+            "value_full_path": "Specifies the Drive path to download.",
+            "value_out": "Outputs file metadata and storage location."
+        },
+        "keywords": [
+            "drive",
+            "google",
+            "download",
+            "storage",
+            "file"
+        ]
+    },
+    {
         "id": "slacktrigger",
         "label": "Slack Trigger",
         "category": "Trigger",

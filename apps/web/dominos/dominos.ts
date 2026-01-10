@@ -95,6 +95,12 @@ export default [
     categories: ['Action', 'Storage']
   },
   {
+    id: 'googleDriveDownload',
+    label: 'Google Drive Download',
+    icon: FiDownload,
+    categories: ['Action', 'Storage']
+  },
+  {
     id: 'condition',
     label: 'Condition',
     icon: FileQuestion,

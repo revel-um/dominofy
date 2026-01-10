@@ -12,6 +12,8 @@ import { google, drive_v3, oauth2_v2 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import fetch from 'node-fetch';
 import { Readable } from 'stream';
+import { v4 as uuidv4 } from 'uuid';
+import { CreateAssetDto } from 'src/gcs/gcs.dto';
 
 import { VaultService } from 'src/vault/vault.service';
 import { VaultType } from 'src/vault/vault.entity';
@@ -232,6 +234,26 @@ export class DriveService {
     return created.data.id;
   }
 
+  private async findFolder(
+    drive: drive_v3.Drive,
+    name: string,
+    parentId: string,
+  ): Promise<string> {
+    const escaped = this.escapeQueryValue(name);
+    const q = `'${parentId}' in parents and name='${escaped}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const res = await drive.files.list({
+      q,
+      fields: 'files(id, name)',
+      spaces: 'drive',
+      pageSize: 1,
+    });
+    const existing = res.data.files?.[0];
+    if (!existing?.id) {
+      throw new BadRequestException(`Drive folder not found: ${name}`);
+    }
+    return existing.id;
+  }
+
   private async ensureFolderPath(
     drive: drive_v3.Drive,
     segments: string[],
@@ -241,6 +263,37 @@ export class DriveService {
       parentId = await this.getOrCreateFolder(drive, segment, parentId);
     }
     return parentId;
+  }
+
+  private async findFolderPath(
+    drive: drive_v3.Drive,
+    segments: string[],
+  ): Promise<string> {
+    let parentId = 'root';
+    for (const segment of segments) {
+      parentId = await this.findFolder(drive, segment, parentId);
+    }
+    return parentId;
+  }
+
+  private async findFileInFolder(
+    drive: drive_v3.Drive,
+    parentId: string,
+    fileName: string,
+  ): Promise<drive_v3.Schema$File> {
+    const escaped = this.escapeQueryValue(fileName);
+    const q = `'${parentId}' in parents and name='${escaped}' and trashed=false and mimeType != 'application/vnd.google-apps.folder'`;
+    const res = await drive.files.list({
+      q,
+      fields: 'files(id, name, mimeType, size, webViewLink, webContentLink)',
+      spaces: 'drive',
+      pageSize: 1,
+    });
+    const file = res.data.files?.[0];
+    if (!file?.id) {
+      throw new BadRequestException(`Drive file not found: ${fileName}`);
+    }
+    return file;
   }
 
   private splitFullPath(fullPath: string, fallbackName?: string) {
@@ -368,6 +421,68 @@ export class DriveService {
       parents: data.parents,
       size: data.size,
       path: fullPath,
+    };
+  }
+
+  async downloadFileFromDrive(
+    vaultId: string,
+    fullPath: string,
+  ): Promise<Record<string, any>> {
+    if (!vaultId) throw new BadRequestException('Drive vaultId is required');
+    if (!fullPath) throw new BadRequestException('Drive fullPath is required');
+
+    const { client } = await this.getDriveClient(vaultId);
+    const drive = google.drive({ version: 'v3', auth: client });
+
+    const { folderSegments, fileName } = this.splitFullPath(fullPath);
+    const parentId = await this.findFolderPath(drive, folderSegments);
+    const file = await this.findFileInFolder(drive, parentId, fileName);
+
+    const download = await drive.files.get(
+      { fileId: file.id!, alt: 'media' },
+      { responseType: 'arraybuffer' },
+    );
+    const buffer = Buffer.from(download.data as ArrayBuffer);
+    const contentType = file.mimeType || 'application/octet-stream';
+    const size = file.size ? Number(file.size) : buffer.length;
+
+    const key = `drive-downloads/${uuidv4()}-${fileName}`;
+    const uploadResult = await this.gcs.upload(key, buffer, contentType);
+    const gcsUrl = await this.gcs.getReadUrl(key);
+
+    const createAssetDto: CreateAssetDto = {
+      fileName,
+      originalName: fileName,
+      key,
+      bucketName: process.env.GCS_BUCKET || 'dominofy-local',
+      contentType,
+      size,
+      etag: uploadResult.etag,
+      md5Hash: uploadResult.md5Hash,
+      gcsUrl,
+      publicUrl: gcsUrl,
+      systemUpload: true,
+      description: `Downloaded from Google Drive: ${fullPath}`,
+      isPublic: false,
+      metadata: {
+        driveFileId: file.id,
+        drivePath: fullPath,
+      },
+    };
+
+    const asset = await this.gcs.createAsset(createAssetDto);
+
+    return {
+      id: file.id,
+      name: file.name,
+      mimeType: file.mimeType,
+      size,
+      webViewLink: file.webViewLink,
+      webContentLink: file.webContentLink,
+      drivePath: fullPath,
+      key,
+      url: gcsUrl,
+      assetId: asset.id,
     };
   }
 }
