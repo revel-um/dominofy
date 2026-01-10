@@ -14,6 +14,7 @@ import { BaseController } from 'src/common/base.controller';
 import { Vault } from './vault.entity';
 import { VaultService } from './vault.service';
 import { CreateVaultDto } from './vault.dto';
+import { VaultType } from './vault.entity';
 
 @Controller('vault')
 export class VaultController extends BaseController<
@@ -25,6 +26,27 @@ export class VaultController extends BaseController<
 > {
   constructor(protected readonly service: VaultService) {
     super(service, CreateVaultDto);
+  }
+
+  @Get('types')
+  async listTypes() {
+    const oauthInstallPaths: Partial<Record<VaultType, string>> = {
+      [VaultType.EMAIL]: '/email/google/install-url',
+      [VaultType.GOOGLE_DRIVE]: '/drive/google/install-url',
+      [VaultType.SLACK]: '/slack/install-url',
+    };
+
+    const formatLabel = (value: string) =>
+      value
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+    return Object.values(VaultType).map(type => ({
+      type,
+      label: formatLabel(type),
+      installUrlPath: oauthInstallPaths[type],
+    }));
   }
 
   /**

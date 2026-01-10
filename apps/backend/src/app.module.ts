@@ -17,6 +17,7 @@ import { SupportModule } from './support/support.module';
 import { AiChatModule } from './ai-chat/ai-chat.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { EmailModule } from './email/email.module';
+import { DriveModule } from './drive/drive.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { EmailModule } from './email/email.module';
     VaultModule,
     SlackModule,
     EmailModule,
+    DriveModule,
     RunnerLauncherModule,
     AuthModule,
     SupportModule,

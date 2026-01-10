@@ -2,6 +2,7 @@ import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { FiPlus, FiMoreVertical } from 'react-icons/fi';
 import { VaultsApi, CreateVaultPayload } from '@/apis/vault.apis';
+import { config } from '@/config/config';
 
 interface VaultItem {
   id: string;
@@ -10,14 +11,21 @@ interface VaultItem {
   connection: Record<string, any>;
 }
 
+interface VaultTypeOption {
+  type: string;
+  label: string;
+  installUrlPath?: string;
+}
+
 export default function VaultManager() {
   const router = useRouter();
   const [vaults, setVaults] = useState<VaultItem[]>([]);
+  const [vaultTypes, setVaultTypes] = useState<VaultTypeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [name, setName] = useState('');
-  const [type, setType] = useState<'postgres' | 'mongodb' | 'aws' | 'email'>('postgres');
+  const [type, setType] = useState<string>('postgres');
   const [connectionJson, setConnectionJson] = useState('{}');
 
   const token =
@@ -30,10 +38,21 @@ export default function VaultManager() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await VaultsApi.getVaults(token, router);
-        if (res?.ok) {
-          const { items } = await res.json();
+        const [vaultRes, typesRes] = await Promise.all([
+          VaultsApi.getVaults(token, router),
+          VaultsApi.getVaultTypes(token, router),
+        ]);
+        if (vaultRes?.ok) {
+          const { items } = await vaultRes.json();
           setVaults(items);
+        }
+        if (typesRes?.ok) {
+          const types = await typesRes.json();
+          const normalized = Array.isArray(types) ? types : [];
+          setVaultTypes(normalized);
+          if (normalized.length && !normalized.find((t: VaultTypeOption) => t.type === type)) {
+            setType(normalized[0].type);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -78,6 +97,24 @@ export default function VaultManager() {
     }
   };
 
+  const handleOAuthConnect = async () => {
+    const selectedType = vaultTypes.find((t) => t.type === type);
+    if (!selectedType?.installUrlPath) return;
+    try {
+      const res = await fetch(
+        `${config.backendBaseUrl}${selectedType.installUrlPath}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (!res.ok) return;
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this connection?')) return;
     try {
@@ -107,14 +144,23 @@ export default function VaultManager() {
     setShowForm(false);
     setShowTypeMenu(false);
     setName('');
-    setType('postgres');
+    setType(vaultTypes[0]?.type || 'postgres');
     setConnectionJson('{}');
   };
 
-  const selectTypeAndOpen = (selected: 'postgres' | 'mongodb' | 'aws' | 'email') => {
+  const selectTypeAndOpen = (selected: string) => {
     setType(selected);
     setShowTypeMenu(false);
     setShowForm(true);
+  };
+
+  const formatTypeLabel = (value: string) => {
+    const option = vaultTypes.find((t) => t.type === value);
+    if (option?.label) return option.label;
+    return value
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
   return (
@@ -141,15 +187,19 @@ export default function VaultManager() {
                 ref={typeMenuRef}
                 className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shadow-lg z-20"
               >
-                {(['postgres', 'mongodb', 'aws', 'email'] as const).map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => selectTypeAndOpen(opt)}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                  >
-                    {opt.charAt(0).toUpperCase() + opt.slice(1)}
-                  </button>
-                ))}
+                {vaultTypes.length ? (
+                  vaultTypes.map((opt) => (
+                    <button
+                      key={opt.type}
+                      onClick={() => selectTypeAndOpen(opt.type)}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                    >
+                      {opt.label}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-2 text-sm text-gray-500">No types available</div>
+                )}
               </div>
             )}
           </div>
@@ -224,7 +274,7 @@ export default function VaultManager() {
           >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                New {type.charAt(0).toUpperCase() + type.slice(1)} Connection
+                New {formatTypeLabel(type)} Connection
               </h2>
               <button
                 onClick={resetForm}
@@ -255,7 +305,7 @@ export default function VaultManager() {
                 <input
                   readOnly
                   className="mt-1 block w-full border rounded p-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 cursor-not-allowed"
-                  value={type}
+                  value={formatTypeLabel(type)}
                 />
               </div>
 
@@ -280,6 +330,15 @@ export default function VaultManager() {
                 >
                   Cancel
                 </button>
+                {vaultTypes.find((t) => t.type === type)?.installUrlPath ? (
+                  <button
+                    type="button"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    onClick={handleOAuthConnect}
+                  >
+                    Connect via OAuth
+                  </button>
+                ) : null}
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"

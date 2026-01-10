@@ -22,7 +22,8 @@ export enum VaultType {
   AWS = 'aws',
   CUSTOM = 'custom',
   SLACK = 'slack',
-  EMAIL = 'email'
+  EMAIL = 'email',
+  GOOGLE_DRIVE = 'google_drive'
 }
 
 /* ───────────────────────────────

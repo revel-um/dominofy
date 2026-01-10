@@ -10,6 +10,25 @@ export interface CreateVaultPayload {
 }
 
 export class VaultsApi {
+  static async getVaultTypes(token: string, router: NextRouter) {
+    try {
+      const response = await fetch(`${config.backendBaseUrl}/vault/types`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        handleUnauthorizedError(router);
+      }
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
   /**
    * Fetch paginated list of vault connections.
    */

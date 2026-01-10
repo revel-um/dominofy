@@ -1,5 +1,5 @@
 // src/vault/dto/create-vault.dto.ts
-import { IsEnum, IsNotEmpty, IsObject } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsObject, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 import { VaultType } from './vault.entity';
 import { Optional } from '@nestjs/common';
@@ -19,7 +19,7 @@ export class CreateVaultDto {
   @IsEnum(VaultType)
   type: VaultType;
 
-  @Optional()
+  @IsOptional()
   lookupIds?: any;
 
   /** Arbitrary provider-specific details (will be encrypted at rest). */

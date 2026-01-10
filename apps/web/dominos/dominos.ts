@@ -24,6 +24,7 @@ import {
   FiCheckCircle,
   FiCpu,
   FiShoppingBag,
+  FiCloud,
 } from 'react-icons/fi';
 
 export default [
@@ -86,6 +87,12 @@ export default [
     label: 'Read Excel',
     icon: FiFileText,
     categories: ['Input']
+  },
+  {
+    id: 'googleDrive',
+    label: 'Google Drive',
+    icon: FiCloud,
+    categories: ['Action', 'Storage']
   },
   {
     id: 'condition',
