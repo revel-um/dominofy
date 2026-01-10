@@ -6,6 +6,8 @@ import {
   UnauthorizedException,
   Inject,
   forwardRef,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Raw } from 'typeorm';
@@ -47,7 +49,7 @@ type SmtpConnection = {
 type EmailConnection = GmailConnection | SmtpConnection;
 
 @Injectable()
-export class EmailService {
+export class EmailService implements OnModuleInit, OnModuleDestroy {
   private static _instance: EmailService | null = null;
   private readonly logger = new Logger(EmailService.name);
 
@@ -68,6 +70,10 @@ export class EmailService {
     { vaultId: string; conn: GmailConnection }
   >();
   private readonly gmailPersistDebounceMs = 2000;
+  private readonly gmailCatchupIntervalMs = 10 * 60 * 1000;
+  private readonly gmailCatchupLimit = 1000;
+  private gmailCatchupTimer?: NodeJS.Timeout;
+  private gmailCatchupRunning = false;
 
   constructor(
     private readonly vaultService: VaultService,
@@ -90,6 +96,29 @@ export class EmailService {
   /** Set singleton on first construction by Nest */
   onModuleInit() {
     if (!EmailService._instance) EmailService._instance = this;
+    this.logger.log('Gmail catchup scheduler initializing');
+    if (!this.gmailCatchupTimer) {
+      this.gmailCatchupTimer = setInterval(() => {
+        this.runGmailCatchupJob().catch(err => {
+          const msg = err?.message || 'Unknown error';
+          this.logger.error(`Gmail catchup job failed: ${msg}`);
+        });
+      }, this.gmailCatchupIntervalMs);
+    }
+    // Kick off a first pass immediately on startup (non-blocking)
+    setTimeout(() => {
+      this.runGmailCatchupJob().catch(err => {
+        const msg = err?.message || 'Unknown error';
+        this.logger.error(`Gmail catchup job failed on startup: ${msg}`);
+      });
+    }, 0);
+  }
+
+  onModuleDestroy() {
+    if (this.gmailCatchupTimer) {
+      clearInterval(this.gmailCatchupTimer);
+      this.gmailCatchupTimer = undefined;
+    }
   }
 
   /* ───────────────────── Helpers ───────────────────── */
@@ -213,6 +242,62 @@ export class EmailService {
     this.gmailPersistLatestHistoryId.delete(email);
     this.gmailPersistContexts.delete(email);
     this.gmailPersistTimers.delete(email);
+  }
+
+  private async runGmailCatchupJob(): Promise<void> {
+    console.log('Gmail catchup job started'); // --- IGNORE ---
+    if (this.gmailCatchupRunning) return;
+    this.gmailCatchupRunning = true;
+    try {
+      const olderThan = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const vaults = await this.vaultService.findOldestGmailVaults(
+        this.gmailCatchupLimit,
+        olderThan,
+      );
+      console.log(`Gmail catchup job found ${vaults.length} vault(s) to process.`); // --- IGNORE ---
+      if (!vaults.length) return;
+
+      this.logger.log(
+        `Gmail catchup job: checking ${vaults.length} vault(s) updated before ${olderThan.toISOString()}`,
+      );
+
+      for (const vault of vaults) {
+        const conn = vault.connection as GmailConnection;
+        const vaultId = vault.id.toString();
+        try {
+          if (!conn?.email || !conn?.refreshToken || !conn?.historyId) {
+            this.logger.warn(
+              `Gmail catchup skipped: missing connection data for vault ${vaultId}`,
+            );
+            continue;
+          }
+
+          await this.withGmailHistoryLock(conn.email, async () => {
+            const { client } = await this.refreshAccessToken(conn);
+            const gmail = google.gmail({ version: 'v1', auth: client });
+            const profile = await gmail.users.getProfile({ userId: 'me' });
+            const incomingHistoryId = profile.data.historyId?.toString();
+            if (!incomingHistoryId) {
+              this.logger.warn(
+                `Gmail catchup skipped: missing historyId for ${conn.email}`,
+              );
+              return;
+            }
+
+            await this.processGmailHistory(vaultId, conn, incomingHistoryId);
+          });
+        } catch (err: any) {
+          const msg = err?.message || 'Unknown error';
+          this.logger.error(
+            `Gmail catchup failed for vault ${vaultId} (${conn?.email ?? 'n/a'}): ${msg}`,
+          );
+        } finally {
+          await this.vaultService.touchUpdatedAt(vaultId);
+        }
+      }
+    } finally {
+      this.gmailCatchupRunning = false;
+    }
   }
 
   /* ───────────────────── OAuth (Gmail) ───────────────────── */

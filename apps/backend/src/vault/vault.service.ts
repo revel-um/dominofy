@@ -120,6 +120,26 @@ export class VaultService extends BaseService<Vault> {
         return vault;
     }
 
+    async touchUpdatedAt(id: string, updatedAt: Date = new Date()): Promise<void> {
+        await this.vaultRepository.update(id, { updatedAt } as any);
+    }
+
+    async findOldestGmailVaults(
+        limit: number,
+        olderThan: Date,
+    ): Promise<Vault[]> {
+        return this.vaultRepository
+            .createQueryBuilder('vault')
+            .where('vault.type = :type', { type: VaultType.EMAIL })
+            .andWhere("vault.lookupIds ->> 'provider' = :provider", {
+                provider: 'gmail',
+            })
+            .andWhere('vault.updatedAt <= :olderThan', { olderThan })
+            .orderBy('vault.updatedAt', 'ASC')
+            .limit(limit)
+            .getMany();
+    }
+
     /* ─────────────────────────────
      * Pagination
      * ────────────────────────────*/
