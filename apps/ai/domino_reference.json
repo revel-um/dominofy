@@ -950,58 +950,148 @@
             "ingest"
         ]
     },
-    {
-        "id": "googleDrive",
-        "label": "Google Drive",
-        "category": "Storage",
-        "description": "Upload a file to Google Drive or reference a full path.",
-        "icon": "Cloud",
-        "color": "blue",
-        "features": [
-            "Attach a Drive connection identifier and upload files via the workflow UI.",
-            "Accepts runtime overrides for connection, file metadata, or destination path.",
-            "Emits uploaded file metadata for downstream processing.",
-            "Useful for archiving generated assets or syncing outputs to Drive."
-        ],
-        "fields": [
-            {
-                "heading": "Connect",
-                "type": "textInput",
-                "inPinId": "value_connect",
-                "required": true,
-                "description": "Drive connection name or vault id."
-            },
-            {
-                "heading": "File Upload",
-                "type": "file",
-                "inPinId": "value_file",
-                "required": true,
-                "description": "File object { key, url, name, size } or uploaded asset reference."
-            },
-            {
-                "heading": "Full Path",
-                "type": "textInput",
-                "inPinId": "value_full_path",
-                "required": true,
-                "description": "Destination path in Drive, e.g. /My Drive/Folder/file.ext."
-            }
-        ],
-        "pins": {
-            "exec_in": "EXEC_IN",
-            "exec_out": "EXEC_OUT",
-            "value_connect": "VALUE_IN",
-            "value_file": "VALUE_IN",
-            "value_full_path": "VALUE_IN",
-            "value_out": "VALUE_OUT"
-        },
-        "pinStructure": {
-            "exec_in": "Starts the Drive upload or path resolution.",
-            "exec_out": "Continues after the Drive operation completes.",
-            "value_connect": "Provides the Drive connection identifier.",
-            "value_file": "Supplies the file metadata or upload reference.",
-            "value_full_path": "Specifies the target Drive path.",
-            "value_out": "Outputs file metadata and Drive location info."
-        },
+      {
+          "id": "googleDrive",
+          "label": "Google Drive",
+          "category": "Storage",
+          "description": "Upload a file or run bulk actions in Google Drive.",
+          "icon": "Cloud",
+          "color": "blue",
+          "features": [
+              "Attach a Drive connection identifier and upload files via the workflow UI.",
+              "Accepts runtime overrides for connection, file metadata, or destination path.",
+              "Emits uploaded file metadata for downstream processing.",
+              "Run bulk tag, move, rename, or access updates across multiple files."
+          ],
+          "fields": [
+              {
+                  "heading": "Connect",
+                  "type": "textInput",
+                  "inPinId": "value_connect",
+                  "required": true,
+                  "description": "Drive connection name or vault id."
+              },
+              {
+                  "heading": "Action",
+                  "type": "dropdown",
+                  "inPinId": "value_action",
+                  "required": true,
+                  "description": "Choose upload or bulk action mode."
+              },
+              {
+                  "heading": "File Upload",
+                  "type": "file",
+                  "inPinId": "value_file",
+                  "required": true,
+                  "description": "File object { key, url, name, size } or uploaded asset reference."
+              },
+              {
+                  "heading": "Full Path",
+                  "type": "textInput",
+                  "inPinId": "value_full_path",
+                  "required": true,
+                  "description": "Destination path in Drive, e.g. /My Drive/Folder/file.ext."
+              },
+              {
+                  "heading": "Bulk Action",
+                  "type": "dropdown",
+                  "inPinId": "value_bulk_action",
+                  "required": false,
+                  "description": "Bulk action to apply: tag, move, rename, or access."
+              },
+              {
+                  "heading": "Targets",
+                  "type": "textArea",
+                  "inPinId": "value_bulk_targets",
+                  "required": false,
+                  "description": "One path per line or JSON array of { path, id }."
+              },
+              {
+                  "heading": "Tags",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_tags",
+                  "required": false,
+                  "description": "Comma-separated tags to apply."
+              },
+              {
+                  "heading": "Destination Path",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_destination",
+                  "required": false,
+                  "description": "Folder path to move files into."
+              },
+              {
+                  "heading": "Rename Template",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_rename_template",
+                  "required": false,
+                  "description": "Rename template (supports {name} and {ext})."
+              },
+              {
+                  "heading": "Access Role",
+                  "type": "dropdown",
+                  "inPinId": "value_bulk_access_role",
+                  "required": false,
+                  "description": "Access role for permissions."
+              },
+              {
+                  "heading": "Access Type",
+                  "type": "dropdown",
+                  "inPinId": "value_bulk_access_type",
+                  "required": false,
+                  "description": "Access type: user, group, domain, or anyone."
+              },
+              {
+                  "heading": "Access Email",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_access_email",
+                  "required": false,
+                  "description": "Email address for user or group access."
+              },
+              {
+                  "heading": "Access Domain",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_access_domain",
+                  "required": false,
+                  "description": "Domain for domain-wide access."
+              }
+          ],
+          "pins": {
+              "exec_in": "EXEC_IN",
+              "exec_out": "EXEC_OUT",
+              "value_connect": "VALUE_IN",
+              "value_action": "VALUE_IN",
+              "value_file": "VALUE_IN",
+              "value_full_path": "VALUE_IN",
+              "value_bulk_action": "VALUE_IN",
+              "value_bulk_targets": "VALUE_IN",
+              "value_bulk_tags": "VALUE_IN",
+              "value_bulk_destination": "VALUE_IN",
+              "value_bulk_rename_template": "VALUE_IN",
+              "value_bulk_access_role": "VALUE_IN",
+              "value_bulk_access_type": "VALUE_IN",
+              "value_bulk_access_email": "VALUE_IN",
+              "value_bulk_access_domain": "VALUE_IN",
+              "value_out": "VALUE_OUT"
+          },
+          "pinStructure": {
+              "exec_in": "Starts the Drive upload or path resolution.",
+              "exec_out": "Continues after the Drive operation completes.",
+              "value_connect": "Provides the Drive connection identifier.",
+              "value_action": "Selects upload or bulk action mode.",
+              "value_file": "Supplies the file metadata or upload reference.",
+              "value_full_path": "Specifies the target Drive path.",
+              "value_bulk_action": "Selects the bulk operation to run.",
+              "value_bulk_targets": "Provides target file paths or ids.",
+              "value_bulk_tags": "Supplies tag values for bulk tagging.",
+              "value_bulk_destination": "Supplies the destination folder for bulk moves.",
+              "value_bulk_rename_template": "Supplies the rename template for bulk rename.",
+              "value_bulk_access_role": "Supplies the permission role for bulk access.",
+              "value_bulk_access_type": "Supplies the permission type for bulk access.",
+              "value_bulk_access_email": "Supplies the email for bulk access.",
+              "value_bulk_access_domain": "Supplies the domain for bulk access.",
+              "value_out": "Outputs file metadata and Drive location info."
+          },
         "keywords": [
             "drive",
             "google",

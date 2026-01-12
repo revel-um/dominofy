@@ -29,6 +29,21 @@ type DriveConnection = {
   expiryDate?: number;
 };
 
+type DriveBulkAction = 'tag' | 'move' | 'rename' | 'access';
+
+type DriveBulkTarget = {
+  id?: string;
+  path?: string;
+  newName?: string;
+};
+
+type DriveBulkAccessConfig = {
+  role: string;
+  type: string;
+  email?: string;
+  domain?: string;
+};
+
 @Injectable()
 export class DriveService {
   private static _instance: DriveService | null = null;
@@ -216,6 +231,8 @@ export class DriveService {
       fields: 'files(id, name)',
       spaces: 'drive',
       pageSize: 1,
+      includeItemsFromAllDrives: true,
+      supportsAllDrives: true,
     });
     const existing = res.data.files?.[0];
     if (existing?.id) return existing.id;
@@ -246,6 +263,8 @@ export class DriveService {
       fields: 'files(id, name)',
       spaces: 'drive',
       pageSize: 1,
+      includeItemsFromAllDrives: true,
+      supportsAllDrives: true,
     });
     const existing = res.data.files?.[0];
     if (!existing?.id) {
@@ -288,6 +307,8 @@ export class DriveService {
       fields: 'files(id, name, mimeType, size, webViewLink, webContentLink)',
       spaces: 'drive',
       pageSize: 1,
+      includeItemsFromAllDrives: true,
+      supportsAllDrives: true,
     });
     const file = res.data.files?.[0];
     if (!file?.id) {
@@ -376,6 +397,158 @@ export class DriveService {
     }
 
     throw new BadRequestException('Drive upload requires a file payload');
+  }
+
+  private normalizeBulkAction(raw: any): DriveBulkAction {
+    const value = String(raw ?? '').trim().toLowerCase();
+    if (value === 'tag' || value === 'tags' || value === 'label') return 'tag';
+    if (value === 'move' || value === 'mv') return 'move';
+    if (value === 'rename' || value === 'ren') return 'rename';
+    if (value === 'access' || value === 'permission' || value === 'share') return 'access';
+    throw new BadRequestException('Drive bulk action is required');
+  }
+
+  private normalizeTarget(raw: any): DriveBulkTarget | null {
+    if (!raw) return null;
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (!trimmed) return null;
+      if (trimmed.toLowerCase().startsWith('id:')) {
+        return { id: trimmed.slice(3).trim() };
+      }
+      if (trimmed.toLowerCase().startsWith('path:')) {
+        return { path: trimmed.slice(5).trim() };
+      }
+      return { path: trimmed };
+    }
+    if (typeof raw === 'object') {
+      const id = typeof raw.id === 'string' ? raw.id : undefined;
+      const path = typeof raw.path === 'string' ? raw.path : undefined;
+      const newName = typeof raw.newName === 'string' ? raw.newName : undefined;
+      if (!id && !path) return null;
+      return { id, path, newName };
+    }
+    return null;
+  }
+
+  private parseTargets(rawTargets: any): DriveBulkTarget[] {
+    if (!rawTargets) return [];
+    if (Array.isArray(rawTargets)) {
+      return rawTargets
+        .map(t => this.normalizeTarget(t))
+        .filter(Boolean) as DriveBulkTarget[];
+    }
+    if (typeof rawTargets === 'string') {
+      const trimmed = rawTargets.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        return this.parseTargets(parsed);
+      } catch {
+        return trimmed
+          .split(/\r?\n|,/)
+          .map(s => s.trim())
+          .filter(Boolean)
+          .map(t => this.normalizeTarget(t))
+          .filter(Boolean) as DriveBulkTarget[];
+      }
+    }
+    if (typeof rawTargets === 'object') {
+      const maybeTargets = (rawTargets as any).targets;
+      if (Array.isArray(maybeTargets)) {
+        return this.parseTargets(maybeTargets);
+      }
+      const normalized = this.normalizeTarget(rawTargets);
+      return normalized ? [normalized] : [];
+    }
+    return [];
+  }
+
+  private parseTags(rawTags: any): string[] {
+    if (!rawTags) return [];
+    if (Array.isArray(rawTags)) {
+      return rawTags.map(t => String(t).trim()).filter(Boolean);
+    }
+    if (typeof rawTags === 'string') {
+      const trimmed = rawTags.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.map(t => String(t).trim()).filter(Boolean);
+        }
+      } catch {}
+      return trimmed
+        .split(/\r?\n|,/)
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+    return [String(rawTags).trim()].filter(Boolean);
+  }
+
+  private normalizeFolderSegments(path: string): string[] {
+    const trimmed = path.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Drive destination path is required');
+    }
+    const segments = trimmed.split('/').filter(Boolean);
+    if (segments[0]?.toLowerCase() === 'my drive') {
+      segments.shift();
+    }
+    return segments;
+  }
+
+  private applyRenameTemplate(originalName: string, template: string): string {
+    if (!template) return originalName;
+    const lastDot = originalName.lastIndexOf('.');
+    const base = lastDot > 0 ? originalName.slice(0, lastDot) : originalName;
+    const ext = lastDot > 0 ? originalName.slice(lastDot + 1) : '';
+    return template
+      .replace(/\{name\}/g, base)
+      .replace(/\{ext\}/g, ext);
+  }
+
+  private async getFileMeta(drive: drive_v3.Drive, fileId: string) {
+    const res = await drive.files.get({
+      fileId,
+      fields:
+        'id,name,parents,appProperties,mimeType,shortcutDetails,ownedByMe,capabilities',
+      supportsAllDrives: true,
+    });
+    if (!res.data?.id) {
+      throw new BadRequestException(`Drive file not found: ${fileId}`);
+    }
+    return res.data;
+  }
+
+  private async resolveTarget(
+    drive: drive_v3.Drive,
+    target: DriveBulkTarget,
+  ): Promise<drive_v3.Schema$File> {
+    if (target.id) {
+      const meta = await this.getFileMeta(drive, target.id);
+      if (
+        meta.mimeType === 'application/vnd.google-apps.shortcut' &&
+        meta.shortcutDetails?.targetId
+      ) {
+        return this.getFileMeta(drive, meta.shortcutDetails.targetId);
+      }
+      return meta;
+    }
+    if (target.path) {
+      const { folderSegments, fileName } = this.splitFullPath(target.path);
+      const parentId = await this.findFolderPath(drive, folderSegments);
+      const file = await this.findFileInFolder(drive, parentId, fileName);
+      const meta = await this.getFileMeta(drive, file.id!);
+      if (
+        meta.mimeType === 'application/vnd.google-apps.shortcut' &&
+        meta.shortcutDetails?.targetId
+      ) {
+        return this.getFileMeta(drive, meta.shortcutDetails.targetId);
+      }
+      return meta;
+    }
+    throw new BadRequestException('Drive target must include id or path');
   }
 
   async uploadFileToDrive(
@@ -483,6 +656,232 @@ export class DriveService {
       key,
       url: gcsUrl,
       assetId: asset.id,
+    };
+  }
+
+  async bulkApplyDriveAction(
+    vaultId: string,
+    rawAction: any,
+    rawTargets: any,
+    options: {
+      tags?: any;
+      destinationPath?: string;
+      renameTemplate?: string;
+      access?: DriveBulkAccessConfig;
+    },
+  ): Promise<Record<string, any>> {
+    if (!vaultId) throw new BadRequestException('Drive vaultId is required');
+
+    const action = this.normalizeBulkAction(rawAction);
+    const targets = this.parseTargets(rawTargets);
+    if (!targets.length) {
+      throw new BadRequestException('Drive bulk targets are required');
+    }
+
+    const tags = this.parseTags(options.tags);
+    const destinationPath = options.destinationPath?.trim();
+    const renameTemplate = options.renameTemplate?.trim();
+    const access = options.access
+      ? {
+          role: options.access.role?.trim().toLowerCase(),
+          type: options.access.type?.trim().toLowerCase(),
+          email: options.access.email?.trim(),
+          domain: options.access.domain?.trim(),
+        }
+      : undefined;
+
+    if (action === 'tag' && !tags.length) {
+      throw new BadRequestException('Drive bulk tags are required');
+    }
+    if (action === 'move' && !destinationPath) {
+      throw new BadRequestException('Drive bulk destination path is required');
+    }
+    if (action === 'rename' && !renameTemplate) {
+      throw new BadRequestException('Drive rename template is required');
+    }
+    if (action === 'access' && (!access?.role || !access?.type)) {
+      throw new BadRequestException('Drive access role and type are required');
+    }
+    if (action === 'access' && access?.type === 'domain' && !access.domain) {
+      throw new BadRequestException('Drive access domain is required');
+    }
+    if (
+      action === 'access' &&
+      (access?.type === 'user' || access?.type === 'group') &&
+      !access.email
+    ) {
+      throw new BadRequestException('Drive access email is required');
+    }
+    if (action === 'access' && access?.type === 'anyone') {
+      if (access.role === 'writer') {
+        access.role = 'reader';
+      }
+    }
+
+    const { client } = await this.getDriveClient(vaultId);
+    const drive = google.drive({ version: 'v3', auth: client });
+    const results: Record<string, any>[] = [];
+    let destinationId: string | undefined;
+
+    if (action === 'move') {
+      const segments = this.normalizeFolderSegments(destinationPath!);
+      destinationId = await this.ensureFolderPath(drive, segments);
+    }
+
+    for (const target of targets) {
+      try {
+        const meta = await this.resolveTarget(drive, target);
+        if (!meta.id) throw new BadRequestException('Drive file id missing');
+
+        if (action === 'tag') {
+          if (meta.capabilities?.canEdit === false) {
+            throw new BadRequestException(
+              'Drive file does not allow edits for the connected account.',
+            );
+          }
+          const existingProps = meta.appProperties ?? {};
+          const nextProps = {
+            ...existingProps,
+            dominofyTags: JSON.stringify(tags),
+          };
+          await drive.files.update({
+            fileId: meta.id,
+            requestBody: { appProperties: nextProps },
+            fields: 'id,appProperties',
+            supportsAllDrives: true,
+          });
+          results.push({
+            id: meta.id,
+            name: meta.name,
+            status: 'ok',
+            action,
+            tags,
+          });
+          continue;
+        }
+
+        if (action === 'move') {
+          const removeParents = Array.isArray(meta.parents)
+            ? meta.parents.join(',')
+            : undefined;
+          await drive.files.update({
+            fileId: meta.id,
+            addParents: destinationId,
+            removeParents,
+            fields: 'id,parents',
+            supportsAllDrives: true,
+          });
+          results.push({
+            id: meta.id,
+            name: meta.name,
+            status: 'ok',
+            action,
+            destinationPath,
+          });
+          continue;
+        }
+
+        if (action === 'rename') {
+          const nextName =
+            target.newName || this.applyRenameTemplate(meta.name || '', renameTemplate!);
+          if (!nextName) {
+            throw new BadRequestException('Drive rename requires a new name');
+          }
+          await drive.files.update({
+            fileId: meta.id,
+            requestBody: { name: nextName },
+            fields: 'id,name',
+            supportsAllDrives: true,
+          });
+          results.push({
+            id: meta.id,
+            name: nextName,
+            status: 'ok',
+            action,
+          });
+          continue;
+        }
+
+        if (action === 'access') {
+          const permission: drive_v3.Schema$Permission = {
+            role: access!.role,
+            type: access!.type,
+          };
+          if (access!.type === 'user' || access!.type === 'group') {
+            permission.emailAddress = access!.email;
+          }
+          if (access!.type === 'domain') {
+            permission.domain = access!.domain;
+          }
+          const list = await drive.permissions.list({
+            fileId: meta.id,
+            fields: 'permissions(id,type,emailAddress,domain,role)',
+            supportsAllDrives: true,
+          });
+          const existing = (list.data.permissions ?? []).find((p) => {
+            if (p.type !== permission.type) return false;
+            if (p.type === 'user' || p.type === 'group') {
+              return (
+                p.emailAddress?.toLowerCase() ===
+                permission.emailAddress?.toLowerCase()
+              );
+            }
+            if (p.type === 'domain') {
+              return (
+                p.domain?.toLowerCase() === permission.domain?.toLowerCase()
+              );
+            }
+            return p.type === 'anyone';
+          });
+          if (existing?.id) {
+            if (existing.role !== permission.role) {
+              await drive.permissions.update({
+                fileId: meta.id,
+                permissionId: existing.id,
+                requestBody: { role: permission.role },
+                fields: 'id,role',
+                supportsAllDrives: true,
+              });
+            }
+          } else {
+            await drive.permissions.create({
+              fileId: meta.id,
+              requestBody: permission,
+              sendNotificationEmail: false,
+              fields: 'id',
+              supportsAllDrives: true,
+            });
+          }
+          results.push({
+            id: meta.id,
+            name: meta.name,
+            status: 'ok',
+            action,
+          });
+          continue;
+        }
+      } catch (err: any) {
+        const apiError =
+          err?.response?.data?.error?.message ||
+          err?.response?.data?.error?.errors?.[0]?.message ||
+          err?.message;
+        results.push({
+          target,
+          status: 'error',
+          action,
+          error: apiError || 'Drive bulk action failed',
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.status === 'ok').length;
+    const failureCount = results.filter(r => r.status === 'error').length;
+
+    return {
+      action,
+      successCount,
+      failureCount,
+      results,
     };
   }
 }
