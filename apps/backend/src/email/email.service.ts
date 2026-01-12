@@ -12,7 +12,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Raw } from 'typeorm';
 import * as crypto from 'crypto';
-import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
 import { google, gmail_v1 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
@@ -25,33 +24,19 @@ import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.servi
 import { CreateEmailConnectionDto } from './email.dto';
 import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../types/pipelineStepType';
-
-type GmailConnection = {
-  provider: 'gmail';
-  email: string;
-  refreshToken: string;
-  accessToken?: string;
-  expiryDate?: number;
-  historyId?: string; // last processed historyId (cursor)
-};
-
-type SmtpConnection = {
-  provider?: 'smtp';
-  fromEmail: string;
-  smtpHost: string;
-  smtpPort: number;
-  smtpUser: string;
-  smtpPass: string;
-  secure?: boolean;
-  inboundSecret?: string;
-};
-
-type EmailConnection = GmailConnection | SmtpConnection;
+import {
+  EmailConnection,
+  GmailConnection,
+  SendEmailBody,
+  SmtpConnection,
+} from './email.types';
+import { EmailProviderFactory } from './providers/email-provider.factory';
 
 @Injectable()
 export class EmailService implements OnModuleInit, OnModuleDestroy {
   private static _instance: EmailService | null = null;
   private readonly logger = new Logger(EmailService.name);
+  private readonly providerFactory: EmailProviderFactory;
 
   private readonly stateStore = new Map<string, string>();
 
@@ -83,7 +68,12 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     private readonly workflowService: WorkflowService,
     @Inject(forwardRef(() => RunnerLauncherService))
     private readonly runnerLauncherService: RunnerLauncherService,
-  ) {}
+  ) {
+    this.providerFactory = new EmailProviderFactory({
+      refreshAccessToken: this.refreshAccessToken.bind(this),
+      buildRawEmail: this.buildRawEmail.bind(this),
+    });
+  }
 
   /** Singleton accessor for non-DI consumers (domino classes) */
   static get instance(): EmailService {
@@ -547,62 +537,11 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     vaultId: string,
     to: string,
     subject: string,
-    body: {
-      text?: string;
-      html?: string;
-      from?: string;
-      cc?: string | string[];
-      bcc?: string | string[];
-      replyTo?: string;
-    },
+    body: SendEmailBody,
   ) {
     const { conn } = await this.getEmailVault(vaultId);
-
-    if ((conn as GmailConnection).provider === 'gmail') {
-      const gmailConn = conn as GmailConnection;
-      const { client } = await this.refreshAccessToken(gmailConn);
-      const gmail = google.gmail({ version: 'v1', auth: client });
-      const from = body.from || gmailConn.email;
-      const raw = this.buildRawEmail({
-        from,
-        to,
-        subject,
-        text: body.text,
-        html: body.html,
-        cc: body.cc,
-        bcc: body.bcc,
-        replyTo: body.replyTo,
-      });
-      const res = await gmail.users.messages.send({
-        userId: 'me',
-        requestBody: { raw },
-      });
-      return { messageId: res.data.id };
-    }
-
-    const smtpConn = conn as SmtpConnection;
-    const transporter = nodemailer.createTransport({
-      host: smtpConn.smtpHost,
-      port: smtpConn.smtpPort,
-      secure: smtpConn.secure ?? smtpConn.smtpPort === 465,
-      auth: {
-        user: smtpConn.smtpUser,
-        pass: smtpConn.smtpPass,
-      },
-    });
-
-    const info = await transporter.sendMail({
-      from: body.from || smtpConn.fromEmail,
-      to,
-      subject,
-      text: body.text,
-      html: body.html,
-      cc: body.cc,
-      bcc: body.bcc,
-      replyTo: body.replyTo,
-    });
-
-    return { messageId: info.messageId };
+    const provider = this.providerFactory.create(conn);
+    return provider.sendEmail({ conn, to, subject, body });
   }
 
   /* ───────────────────── Inbound (SMTP webhook fallback) ───────────────────── */
@@ -621,6 +560,16 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   private extractInbox(to: string[] | undefined): string {
     if (!to || !to.length) return '';
     return to[0]?.toLowerCase?.() ?? '';
+  }
+
+  private extractEmailAddress(raw?: string): string | undefined {
+    if (!raw || typeof raw !== 'string') return undefined;
+    const first = raw.split(',')[0]?.trim();
+    if (!first) return undefined;
+    const match = first.match(/<([^>]+)>/);
+    const addr = match ? match[1] : first;
+    const cleaned = addr.trim().toLowerCase();
+    return cleaned || undefined;
   }
 
   async handleInbound(vaultId: string, secret: string | undefined, body: any) {
@@ -946,28 +895,33 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     inboxAddress: string,
     payload: any,
   ) {
+    const senderAddress = this.extractEmailAddress(payload?.from);
     this.logger.log(
       `Email notification received for vault ${vaultId} (${inboxAddress || 'any inbox'}); dispatching workflows.`,
     );
 
-    const exact = await this.workflowService.findWorkflowsByEmailTrigger(
+    const candidates = await this.workflowService.findWorkflowsByEmailTrigger(
       vaultId,
-      inboxAddress,
     );
 
-    const anyInbox = await this.workflowService.findWorkflowsByEmailTrigger(
-      vaultId,
-      undefined,
-    );
+    const matches = candidates.filter(workflow => {
+      const triggerNode = workflow.visualJson?.nodes?.find(
+        (node: any) => node?.type === 'emailtrigger',
+      );
+      const data = triggerNode?.data || {};
+      const inboxFilter = typeof data.inboxAddress === 'string'
+        ? data.inboxAddress.toLowerCase()
+        : '';
+      const senderFilter = typeof data.senderAddress === 'string'
+        ? data.senderAddress.toLowerCase()
+        : '';
 
-    const seen = new Set<string>();
-    const workflows = [...exact, ...anyInbox].filter(w => {
-      if (seen.has(w.id)) return false;
-      seen.add(w.id);
+      if (inboxFilter && inboxFilter !== inboxAddress) return false;
+      if (senderFilter && senderFilter !== (senderAddress || '')) return false;
       return true;
     });
 
-    for (const workflow of workflows) {
+    for (const workflow of matches) {
       const { nodes, edges } = workflow.visualJson;
       const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
 
@@ -983,7 +937,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       await runner.run(runId, payload);
     }
 
-    if (!workflows.length) {
+    if (!matches.length) {
       this.logger.warn(
         `No workflows matched email trigger for vault ${vaultId} (${inboxAddress || 'any'})`,
       );
