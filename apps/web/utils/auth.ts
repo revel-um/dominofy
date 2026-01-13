@@ -38,6 +38,8 @@ class TokenManager {
         ? decodedExp
         : Date.now() + fallbackSeconds * 1000;
 
+    // Keep legacy token key in sync for existing callers
+    localStorage.setItem("token", accessToken);
     localStorage.setItem(this.ACCESS_TOKEN_KEY, accessToken);
     localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
     localStorage.setItem(this.TOKEN_EXPIRY_KEY, expiresAt.toString());
@@ -65,6 +67,7 @@ class TokenManager {
   static clearTokens(): void {
     if (typeof window === 'undefined') return;
     
+    localStorage.removeItem("token");
     localStorage.removeItem(this.ACCESS_TOKEN_KEY);
     localStorage.removeItem(this.REFRESH_TOKEN_KEY);
     localStorage.removeItem(this.TOKEN_EXPIRY_KEY);

@@ -4,8 +4,10 @@ import {
     Param,
     Query,
     Req,
+    Sse,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { from, mergeMap } from 'rxjs';
 import { WorkflowLoggerService } from './workflow-logger.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { WorkflowLog } from './workflow-logger.entity';
@@ -82,6 +84,18 @@ export class WorkflowLoggerController extends BaseController<
 
         const [logs, count] = logsResult;
         return { count, logs };
+    }
+
+    @Sse('stream')
+    streamLogs(
+        @Param('workflowId') workflowId: string,
+        @Req() req: Request,
+        @Query('runId') runId?: string,
+    ) {
+        const userId = (req as any).user.id;
+        return from(this.workflowService.findOneAndVerify(workflowId, userId)).pipe(
+            mergeMap(() => this.loggerService.streamLogs(workflowId, runId)),
+        );
     }
 
 }

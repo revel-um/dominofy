@@ -12,6 +12,7 @@ import { EmailApi, EmailConnection } from '@/apis/email.apis';
 interface EmailTriggerData extends DominoNodeData {
   vaultId?: string;
   inboxAddress?: string;
+  senderAddress?: string;
 }
 
 export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
@@ -28,6 +29,10 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
     (data as EmailTriggerData).inboxAddress ||
     (data as any).inboxAddress ||
     '';
+  const senderAddress: string =
+    (data as EmailTriggerData).senderAddress ||
+    (data as any).senderAddress ||
+    '';
 
   const [connections, setConnections] = useState<EmailConnection[]>([]);
   const [loadingConns, setLoadingConns] = useState(true);
@@ -39,7 +44,11 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
   /* Initialise node schema on first mount */
   useEffect(() => {
     if (!data.setNodes) return;
-    if (!('vaultId' in data) && !('inboxAddress' in data)) {
+    if (
+      !('vaultId' in data) &&
+      !('inboxAddress' in data) &&
+      !('senderAddress' in data)
+    ) {
       const init: DominoNodeData = {
         type: 'EmailTrigger',
         description: 'Triggers when a Gmail inbox receives a new email.',
@@ -58,6 +67,7 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
                   exportFields: [],
                   vaultId: '',
                   inboxAddress: '',
+                  senderAddress: '',
                 },
               }
             : n,
@@ -106,6 +116,18 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
       nodes.map((n: { id: string; data: any }) =>
         n.id === id
           ? { ...n, data: { ...n.data, inboxAddress: cleaned } }
+          : n,
+      ),
+    );
+  };
+
+  const updateSender = (addr: string) => {
+    clearValidationForDominoId?.(id);
+    const cleaned = addr.trim().toLowerCase();
+    data.setNodes?.((nodes: any[]) =>
+      nodes.map((n: { id: string; data: any }) =>
+        n.id === id
+          ? { ...n, data: { ...n.data, senderAddress: cleaned } }
           : n,
       ),
     );
@@ -182,6 +204,22 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
             />
             <p className="text-[11px] text-gray-500">
               Leave blank to trigger on any email for this Gmail connection.
+            </p>
+          </div>
+        )}
+
+        {vaultId && (
+          <div className="flex flex-col gap-1 px-3">
+            <label className="text-xs font-medium">Sender Address (optional filter)</label>
+            <input
+              type="text"
+              placeholder="sender@example.com"
+              value={senderAddress}
+              onChange={e => updateSender(e.target.value)}
+              className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+            />
+            <p className="text-[11px] text-gray-500">
+              Leave blank to allow any sender.
             </p>
           </div>
         )}

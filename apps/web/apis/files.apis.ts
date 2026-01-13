@@ -1,7 +1,8 @@
 // src/apis/files.api.ts
 import { NextRouter } from 'next/router';
-import { handleServerError, handleUnauthorizedError } from '../utils/error.handler';
+import { handleServerError } from '../utils/error.handler';
 import { config } from '../config/config';
+import { authFetch } from '../utils/authFetch';
 
 export interface UploadResponse {
   key: string;
@@ -33,21 +34,19 @@ export class FilesApi {
         formData.append('workflowId', workflowId);
       }
 
-      const response = await fetch(
+      const response = await authFetch(
         `${config.backendBaseUrl}/files/upload`,
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${token}`,
           },
           body: formData,
+          token,
         },
+        router,
       );
 
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-        return;
-      }
+      if (response.status === 401) return;
 
       if (!response.ok) {
         throw new Error(`Upload failed with status ${response.status}`);
@@ -72,20 +71,18 @@ export class FilesApi {
   ): Promise<DeleteResponse | void> {
     try {
       const encodedKey = encodeURIComponent(key);
-      const response = await fetch(
+      const response = await authFetch(
         `${config.backendBaseUrl}/files/${encodedKey}`,
         {
           method: 'DELETE',
           headers: {
-            Authorization: `Bearer ${token}`,
           },
+          token,
         },
+        router,
       );
 
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-        return;
-      }
+      if (response.status === 401) return;
 
       if (!response.ok) {
         throw new Error(`Delete failed with status ${response.status}`);

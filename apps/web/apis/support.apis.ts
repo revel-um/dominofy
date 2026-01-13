@@ -1,20 +1,16 @@
 import { NextRouter } from "next/router";
 import { Ticket, TicketStatus, TicketFormData } from "../types/support";
-import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
+import { handleServerError } from "../utils/error.handler";
+import { authFetch } from "../utils/authFetch";
 
 const BASE_URL = "http://localhost:3001/api/v1/support";
 
 export class SupportApi {
   static async getTickets(token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${BASE_URL}/tickets`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+      const response = await authFetch(`${BASE_URL}/tickets`, {
+        token,
+      }, router);
       return response;
     } catch (err) {
       handleServerError(router, err);
@@ -29,17 +25,14 @@ export class SupportApi {
         category: formData.category,
         priority: formData.priority,
       };
-      const response = await fetch(`${BASE_URL}/tickets`, {
+      const response = await authFetch(`${BASE_URL}/tickets`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
-      });
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
       return response;
     } catch (err) {
       handleServerError(router, err);
@@ -48,17 +41,14 @@ export class SupportApi {
 
   static async updateTicket(token: string, router: NextRouter, ticketId: string, updates: Partial<Ticket>) {
     try {
-      const response = await fetch(`${BASE_URL}/tickets/${ticketId}`, {
+      const response = await authFetch(`${BASE_URL}/tickets/${ticketId}`, {
         method: "PATCH",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(updates),
-      });
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
       return response;
     } catch (err) {
       handleServerError(router, err);
@@ -67,15 +57,10 @@ export class SupportApi {
 
   static async deleteTicket(token: string, router: NextRouter, ticketId: string) {
     try {
-      const response = await fetch(`${BASE_URL}/tickets/${ticketId}`, {
+      const response = await authFetch(`${BASE_URL}/tickets/${ticketId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
       return response;
     } catch (err) {
       handleServerError(router, err);
@@ -84,18 +69,14 @@ export class SupportApi {
 
   static async updateTicketStatus(token: string, router: NextRouter, ticketId: string, status: TicketStatus) {
     try {
-      const response = await fetch(`${BASE_URL}/tickets/${ticketId}/status`, {
+      const response = await authFetch(`${BASE_URL}/tickets/${ticketId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ status })
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (error) {

@@ -1,21 +1,16 @@
 // src/apis/workflows.api.ts
 import { NextRouter } from "next/router";
-import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
+import { handleServerError } from "../utils/error.handler";
 import { config } from "../config/config";
+import { authFetch } from "../utils/authFetch";
 
 export class WorkflowsApi {
   static async getRecentWorkflowsAndCount(token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/workflow/recent`, {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/recent`, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {
@@ -31,16 +26,10 @@ export class WorkflowsApi {
 
       const url = `${config.backendBaseUrl}/workflow/user/all${params.toString() ? '?' + params.toString() : ''}`;
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {
@@ -50,16 +39,10 @@ export class WorkflowsApi {
 
   static async getWorkflowById(id: string, token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/workflow/${id}`, {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/${id}`, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       if (response.status === 404 || response.status === 403) {
         handleServerError(router, new Error("Access denied to this workflow"));
@@ -73,18 +56,14 @@ export class WorkflowsApi {
 
   static async saveWorkflow(id: string, visualJson: string, token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/workflow/${id}`, {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/${id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ visualJson }),
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {
@@ -94,18 +73,14 @@ export class WorkflowsApi {
 
   static async renameWorkflow(workflowId: string, newName: string, token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/workflow/${workflowId}/rename`, {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/${workflowId}/rename`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ name: newName }),
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {
@@ -115,16 +90,10 @@ export class WorkflowsApi {
 
   static async deleteWorkflow(workflowId: string, token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/workflow/${workflowId}`, {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/${workflowId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {
@@ -134,16 +103,10 @@ export class WorkflowsApi {
 
   static async getEntryWorkflow(projectId: string, token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/workflow/project/${projectId}/entry`, {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/project/${projectId}/entry`, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {
@@ -153,22 +116,18 @@ export class WorkflowsApi {
 
   static async createWorkflow(name: string, projectId: string, token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/workflow`, {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name,
           projectId,
           visualJson: { nodes: [], edges: [] } // Empty workflow
         }),
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {

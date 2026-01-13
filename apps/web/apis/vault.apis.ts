@@ -1,7 +1,8 @@
 // src/apis/vaults.api.ts
 import { NextRouter } from "next/router";
-import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
+import { handleServerError } from "../utils/error.handler";
 import { config } from "../config/config";
+import { authFetch } from "../utils/authFetch";
 
 export interface CreateVaultPayload {
   name: string;
@@ -39,19 +40,14 @@ export class VaultsApi {
     limit: number = 10
   ) {
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${config.backendBaseUrl}/vault?page=${page}&limit=${limit}`,
         {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+          token,
+        },
+        router
       );
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
 
       return response;
     } catch (err) {
@@ -68,18 +64,14 @@ export class VaultsApi {
     router: NextRouter
   ) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/vault`, {
+      const response = await authFetch(`${config.backendBaseUrl}/vault`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {
@@ -96,19 +88,14 @@ export class VaultsApi {
     router: NextRouter
   ) {
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${config.backendBaseUrl}/vault/${id}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+          token,
+        },
+        router
       );
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
 
       return response;
     } catch (err) {

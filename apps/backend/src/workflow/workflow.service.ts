@@ -57,11 +57,15 @@ export class WorkflowService extends BaseService<Workflow> {
 
   async findWorkflowsByEmailTrigger(
     vaultId: string,
-    inboxAddress?: string
+    inboxAddress?: string,
+    senderAddress?: string
   ): Promise<Workflow[]> {
     const data: any = { vaultId };
     if (inboxAddress) {
       data.inboxAddress = inboxAddress;
+    }
+    if (senderAddress) {
+      data.senderAddress = senderAddress;
     }
 
     const matchFragment = {

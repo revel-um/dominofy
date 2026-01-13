@@ -18,7 +18,7 @@ import { RunnerLauncherModule } from 'src/runner-launcher/runner-launcher.module
 @Module({
   imports: [
     ConfigModule,
-    VaultModule,
+    forwardRef(() => VaultModule),
     UserModule,
     forwardRef(() => WorkflowModule),
     forwardRef(() => RunnerLauncherModule),
