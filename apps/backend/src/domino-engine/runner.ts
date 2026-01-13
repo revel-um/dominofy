@@ -12,6 +12,7 @@ export class Runner extends EventEmitter {
   private localState = new Map<string, Record<string, any>>(); // per-domino state
   private multiOut = new Set<string>();                        // multi-pin dominos
   private doneFlags = new Map<string, boolean>();              // cascade flags
+  private skipped = new Set<string>();                         // pruned branch nodes
 
   constructor(private pipeline: PipelineStep[], private maxConcurrency = 20, private visualJson: any) {
     super();
@@ -46,6 +47,7 @@ export class Runner extends EventEmitter {
     this.scheduled.clear();
     this.multiOut.clear();
     this.doneFlags.clear();
+    this.skipped.clear();
 
     /* schedule roots (no control dependencies) */
     depsClone.forEach((depSet, nodeId) => {
@@ -83,6 +85,7 @@ export class Runner extends EventEmitter {
     this.localState.clear();
     this.multiOut.clear();
     this.doneFlags.clear();
+    this.skipped.clear();
     this.removeAllListeners();
   }
 
@@ -95,6 +98,7 @@ export class Runner extends EventEmitter {
     results: Record<string, any>,
     unresolved: Set<string>,
   ) {
+    if (this.skipped.has(id)) return;
     if (this.scheduled.has(id)) return;
     this.scheduled.add(id);
     this.queue.add(() => this.executeNode(id, runId, globalInput, children, deps, results, unresolved));
@@ -111,6 +115,7 @@ export class Runner extends EventEmitter {
     results: Record<string, any>,
     unresolved: Set<string>
   ) {
+    if (this.skipped.has(id)) return;
     this.scheduled.delete(id);
     const step = this.pipeline.find(n => n.id === id);
     if (!step) throw new Error(`Node ${id} not found in pipeline`);
@@ -179,6 +184,10 @@ export class Runner extends EventEmitter {
         res.nextChainKeys.forEach(k => step.next[k]?.forEach(cid => branchChildren.add(cid)));
       }
 
+      // prune unused branches so they don't count as deadlock
+      const skippedChildren = [...controlChildren].filter(cid => !branchChildren.has(cid));
+      skippedChildren.forEach(cid => this.skipSubtree(cid, children, deps, unresolved));
+
       // 4️⃣ enqueue control-flow children
       for (const childId of allChildren) {
         const childDeps = deps.get(childId)!;
@@ -195,6 +204,26 @@ export class Runner extends EventEmitter {
     } catch (err) {
       this.emit("error", { nodeId: id, error: err });
       // unresolved left for deadlock detection
+    }
+  }
+
+  private skipSubtree(
+    startId: string,
+    children: Map<string, string[]>,
+    deps: Map<string, Set<string>>,
+    unresolved: Set<string>
+  ) {
+    const stack = [startId];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (this.skipped.has(id)) continue;
+      this.skipped.add(id);
+      unresolved.delete(id);
+      const childIds = children.get(id) || [];
+      childIds.forEach(childId => {
+        deps.get(childId)?.delete(id);
+        if (!this.skipped.has(childId)) stack.push(childId);
+      });
     }
   }
 }
