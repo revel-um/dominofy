@@ -1,117 +1,166 @@
-import { NodeProps, useEdges } from 'reactflow';
-import { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { NodeProps, useReactFlow } from 'reactflow';
+import { useRouter, NextRouter } from 'next/router';
+
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { DominoField } from '../types/dominoFieldTypes';
+import { DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import SearchableSelect from '@/components/searchableDropdown';
+import { EmailApi, EmailConnection } from '@/apis/email.apis';
 
 export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
-  const edges = useEdges();
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
-  type EmailField = {
-    key: string;
-    label: string;
-    value: string;
-    pinId: string;
-    required: boolean;
-    isTextArea?: boolean;
-  };
+  const router: NextRouter = useRouter();
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
+  const { getEdges } = useReactFlow();
 
-  const baseFields: EmailField[] = [
-    { key: 'from', label: 'From', value: '', pinId: 'value_in_1', required: true },
-    { key: 'to', label: 'To', value: '', pinId: 'value_in_2', required: true },
-    { key: 'subject', label: 'Subject', value: '', pinId: 'value_in_3', required: false },
-    { key: 'body', label: 'Body', value: '', pinId: 'value_in_4', required: true, isTextArea: true },
-  ];
+  const getField = useCallback(
+    (heading: string) =>
+      (data.details as DominoNodeData | undefined)?.fields?.find(
+        f => f.heading === heading,
+      ),
+    [data.details],
+  );
 
-  const [fields, setFields] = useState<EmailField[]>(baseFields);
+  const vaultId: string = getField('vaultId')?.value ?? '';
+  const toValue: string = getField('to')?.value ?? '';
+  const subjectValue: string = getField('subject')?.value ?? '';
+  const bodyValue: string = getField('body')?.value ?? '';
+  const htmlValue: string = getField('html')?.value ?? '';
+  const fromValue: string = getField('from')?.value ?? '';
 
-  const isConnected = (pinId: string) =>
-    edges.some(edge => edge.target === id && edge.targetHandle === pinId);
+  const [connections, setConnections] = useState<EmailConnection[]>([]);
+  const [loadingConns, setLoadingConns] = useState(true);
+  const bootstrappedRef = useRef(false);
 
-  const handleChange = (index: number, value: string) => {
-    clearValidationForDominoId(id);
-    setFields(prev => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], value };
-      return copy;
-    });
-  };
-
+  /* Initialise node schema once */
   useEffect(() => {
-    if (!data.setNodes) return;
+    if (!data.setNodes || bootstrappedRef.current) return;
+    data.setNodes((prev: any[]) => {
+      let changed = false;
+      const next = prev.map(node => {
+        if (node.id !== id) return node;
+        const newData: any = { ...node.data };
+        const details: DominoNodeData | undefined = newData.details;
+        const exportFields = ['vaultId', 'to', 'subject', 'body', 'html', 'from'];
+        if (!details?.fields) {
+          newData.details = {
+            type: 'EmailAction',
+            description: 'Send an email using a connected Gmail account.',
+            isTrigger: false,
+            fields: [
+              { type: 'dropdown', heading: 'vaultId', value: '', options: [], required: true, shouldRender: false },
+              { type: 'textInput', heading: 'to', value: '', inPinId: 'value_in_1', required: true, shouldRender: false },
+              { type: 'textInput', heading: 'subject', value: '', inPinId: 'value_in_2', required: true, shouldRender: false },
+              { type: 'textArea', heading: 'body', value: '', inPinId: 'value_in_3', required: true, shouldRender: false },
+              { type: 'textArea', heading: 'html', value: '', inPinId: 'value_in_4', required: false, shouldRender: false },
+              { type: 'textInput', heading: 'from', value: '', inPinId: 'value_in_5', required: false, shouldRender: false },
+            ],
+          } as DominoNodeData;
+          newData.exportFields = exportFields;
+          changed = true;
+        } else if (!newData.exportFields) {
+          newData.exportFields = exportFields;
+          changed = true;
+        }
+        return changed ? { ...node, data: newData } : node;
+      });
+      bootstrappedRef.current = true;
+      return changed ? next : prev;
+    });
+  }, [data.setNodes, id]);
 
-    data.setNodes((nodes: any[]) =>
-      nodes.map(n => {
-        if (n.id !== id) return n;
+  /* Helper to set a field inside details.fields */
+  const setFieldValue = useCallback(
+    (heading: string, val: string) => {
+      clearValidationForDominoId?.(id);
+      data.setNodes?.((nodes: any[]) =>
+        nodes.map((n: { id: string; data: any }) =>
+          n.id === id
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  details: {
+                    ...(n.data.details as DominoNodeData),
+                    fields: (n.data.details as DominoNodeData).fields.map(f =>
+                      f.heading === heading ? { ...f, value: val } : f,
+                    ),
+                  },
+                },
+              }
+            : n,
+        ),
+      );
+    },
+    [data.setNodes, id, clearValidationForDominoId],
+  );
 
-        const dominoFields: DominoField[] = fields.map(field => {
-          const connected = isConnected(field.pinId);
-          return {
-            heading: field.label,
-            value: connected ? '' : field.value,
-            inPinId: field.pinId,
-            type: field.isTextArea ? 'textArea' : 'textInput',
-            required: field.required,
-            shouldRender: false,
-            connectedValue: connected ? 'connected' : '', // ✅ FIXED HERE
+  const isConnected = useCallback(
+    (pinId: string) =>
+      getEdges().some(e => e.target === id && e.targetHandle === pinId),
+    [getEdges, id],
+  );
 
-          };
-        });
+  /* Load Gmail connections */
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoadingConns(true);
+      try {
+        const list = await EmailApi.getConnections(token, router);
+        if (mounted) setConnections(list ?? []);
+      } catch (err) {
+        console.error('Error fetching email connections', err);
+      } finally {
+        if (mounted) setLoadingConns(false);
+      }
+    })();
+    return () => void (mounted = false);
+  }, [token, router]);
 
-        return {
-          ...n,
-          data: {
-            ...n.data,
-            details: {
-              ...n.data.details,
-              fields: dominoFields,
-            },
-            exportFields: dominoFields.map(f => f.heading),
-          },
-        };
-      })
-    );
-  }, [fields, edges, id]);
+  const startOAuth = async () => {
+    const url = await EmailApi.getInstallUrl(token, router);
+    if (url) window.location.href = url;
+  };
 
-  const renderField = (field: EmailField, index: number) => {
-    const connected = isConnected(field.pinId);
-
+  const renderTextField = (
+    label: string,
+    value: string,
+    pinId: string,
+    onChange: (val: string) => void,
+    placeholder: string,
+    isTextArea: boolean = false,
+  ) => {
+    const connected = isConnected(pinId);
     return (
-      <div key={field.key} className="flex items-center gap-2 relative px-3">
-        <DominoPin id={field.pinId} pinType={PinType.VALUE_IN} inline />
+      <div className="flex items-start gap-2 relative px-3">
+        <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline />
         <div className="flex-1">
           <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-            {field.label}
-            {field.required && <span className="text-red-500 ml-1">*</span>}
+            {label}
           </label>
-          {field.isTextArea ? (
+          {connected ? (
+            <div className="px-2 py-1 italic text-gray-500 text-sm">Connected</div>
+          ) : isTextArea ? (
             <textarea
-              name={field.key}
-              value={field.value}
-              onChange={e => handleChange(index, e.target.value)}
-              placeholder={connected ? 'Connected' : field.label}
-              readOnly={connected}
-              disabled={connected}
+              value={value}
+              onChange={e => onChange(e.target.value)}
+              placeholder={placeholder}
               rows={3}
-              className="mt-1 w-full px-2 py-1 text-sm border rounded
-                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                         text-dominofy-light-text dark:text-dominofy-dark-text"
+              className="mt-1 w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
             />
           ) : (
             <input
               type="text"
-              name={field.key}
-              value={field.value}
-              onChange={e => handleChange(index, e.target.value)}
-              placeholder={connected ? 'Connected' : field.label}
-              readOnly={connected}
-              disabled={connected}
-              className="mt-1 w-full px-2 py-1 text-sm border rounded
-                         bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                         text-dominofy-light-text dark:text-dominofy-dark-text"
+              value={value}
+              onChange={e => onChange(e.target.value)}
+              placeholder={placeholder}
+              className="mt-1 w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
             />
           )}
         </div>
@@ -128,22 +177,65 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
     >
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{ backgroundColor: '#10b981', borderBottomColor: '#059669' }}
+        style={{ backgroundColor: '#0ea5e9', borderBottomColor: '#0284c7' }}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <span>Email Sender</span>
-          <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+          <span>Email Action</span>
         </div>
+        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      <div className="flex flex-col gap-2 pb-2 pt-2">
-        {fields.map(renderField)}
+      <div className="flex flex-col gap-3 py-2 text-dominofy-light-text dark:text-dominofy-dark-text">
+        {/* Connect Gmail */}
+        <div className="px-3">
+          <button
+            type="button"
+            className="w-full px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
+            onClick={startOAuth}
+          >
+            {connections.length === 0 ? 'Connect Gmail' : 'Add Gmail connection'}
+          </button>
+        </div>
+
+        {/* Select connection */}
+        {loadingConns ? (
+          <p className="text-sm px-3">Loading Gmail connections…</p>
+        ) : connections.length > 0 ? (
+          <div className="flex flex-col gap-1 px-3">
+            <label className="text-xs font-medium">Gmail Account</label>
+            <SearchableSelect
+              value={vaultId}
+              onChange={val => setFieldValue('vaultId', val)}
+              placeholder="Select account"
+              options={connections.map(c => ({
+                label: c.email || c.name,
+                value: c.id,
+              }))}
+            />
+          </div>
+        ) : (
+          <p className="text-sm px-3 text-gray-600">
+            Connect Gmail to send emails.
+          </p>
+        )}
+
+        {renderTextField('To', toValue, 'value_in_1', val => setFieldValue('to', val), 'user@example.com')}
+        {renderTextField('Subject', subjectValue, 'value_in_2', val => setFieldValue('subject', val), 'Hello from Dominofy')}
+        {renderTextField('Body', bodyValue, 'value_in_3', val => setFieldValue('body', val), 'Plain text body', true)}
+        {renderTextField('HTML (optional)', htmlValue, 'value_in_4', val => setFieldValue('html', val), '<p>Rich email body</p>', true)}
+        {renderTextField('From override (optional)', fromValue, 'value_in_5', val => setFieldValue('from', val), 'you@gmail.com')}
+
+        <div className="px-3 flex items-center justify-between relative">
+          <div></div>
+          <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">Output</span>
+          <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+        </div>
       </div>
 
       {hasError && (
         <p className="px-3 pb-2 text-xs text-red-500">
-          ⚠️ Execution pin is missing or required fields are empty.
+          ⚠️ Please configure connection, execution, and required fields.
         </p>
       )}
     </div>

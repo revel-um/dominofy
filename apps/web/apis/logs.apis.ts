@@ -1,6 +1,7 @@
 import { NextRouter } from "next/router";
-import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
+import { handleServerError } from "../utils/error.handler";
 import { config } from "../config/config";
+import { authFetch } from "../utils/authFetch";
 
 export interface GetLogsParams {
   runId?: string;
@@ -61,16 +62,10 @@ export class LogsApi {
       }
 
       const url = `${config.backendBaseUrl}/workflows/${workflowId}/logs?${query.toString()}`;
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {

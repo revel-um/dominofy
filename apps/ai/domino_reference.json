@@ -950,6 +950,206 @@
             "ingest"
         ]
     },
+      {
+          "id": "googleDrive",
+          "label": "Google Drive",
+          "category": "Storage",
+          "description": "Upload a file or run bulk actions in Google Drive.",
+          "icon": "Cloud",
+          "color": "blue",
+          "features": [
+              "Attach a Drive connection identifier and upload files via the workflow UI.",
+              "Accepts runtime overrides for connection, file metadata, or destination path.",
+              "Emits uploaded file metadata for downstream processing.",
+              "Run bulk tag, move, rename, or access updates across multiple files."
+          ],
+          "fields": [
+              {
+                  "heading": "Connect",
+                  "type": "textInput",
+                  "inPinId": "value_connect",
+                  "required": true,
+                  "description": "Drive connection name or vault id."
+              },
+              {
+                  "heading": "Action",
+                  "type": "dropdown",
+                  "inPinId": "value_action",
+                  "required": true,
+                  "description": "Choose upload or bulk action mode."
+              },
+              {
+                  "heading": "File Upload",
+                  "type": "file",
+                  "inPinId": "value_file",
+                  "required": true,
+                  "description": "File object { key, url, name, size } or uploaded asset reference."
+              },
+              {
+                  "heading": "Full Path",
+                  "type": "textInput",
+                  "inPinId": "value_full_path",
+                  "required": true,
+                  "description": "Destination path in Drive, e.g. /My Drive/Folder/file.ext."
+              },
+              {
+                  "heading": "Bulk Action",
+                  "type": "dropdown",
+                  "inPinId": "value_bulk_action",
+                  "required": false,
+                  "description": "Bulk action to apply: tag, move, rename, or access."
+              },
+              {
+                  "heading": "Targets",
+                  "type": "textArea",
+                  "inPinId": "value_bulk_targets",
+                  "required": false,
+                  "description": "One path per line or JSON array of { path, id }."
+              },
+              {
+                  "heading": "Tags",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_tags",
+                  "required": false,
+                  "description": "Comma-separated tags to apply."
+              },
+              {
+                  "heading": "Destination Path",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_destination",
+                  "required": false,
+                  "description": "Folder path to move files into."
+              },
+              {
+                  "heading": "Rename Template",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_rename_template",
+                  "required": false,
+                  "description": "Rename template (supports {name} and {ext})."
+              },
+              {
+                  "heading": "Access Role",
+                  "type": "dropdown",
+                  "inPinId": "value_bulk_access_role",
+                  "required": false,
+                  "description": "Access role for permissions."
+              },
+              {
+                  "heading": "Access Type",
+                  "type": "dropdown",
+                  "inPinId": "value_bulk_access_type",
+                  "required": false,
+                  "description": "Access type: user, group, domain, or anyone."
+              },
+              {
+                  "heading": "Access Email",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_access_email",
+                  "required": false,
+                  "description": "Email address for user or group access."
+              },
+              {
+                  "heading": "Access Domain",
+                  "type": "textInput",
+                  "inPinId": "value_bulk_access_domain",
+                  "required": false,
+                  "description": "Domain for domain-wide access."
+              }
+          ],
+          "pins": {
+              "exec_in": "EXEC_IN",
+              "exec_out": "EXEC_OUT",
+              "value_connect": "VALUE_IN",
+              "value_action": "VALUE_IN",
+              "value_file": "VALUE_IN",
+              "value_full_path": "VALUE_IN",
+              "value_bulk_action": "VALUE_IN",
+              "value_bulk_targets": "VALUE_IN",
+              "value_bulk_tags": "VALUE_IN",
+              "value_bulk_destination": "VALUE_IN",
+              "value_bulk_rename_template": "VALUE_IN",
+              "value_bulk_access_role": "VALUE_IN",
+              "value_bulk_access_type": "VALUE_IN",
+              "value_bulk_access_email": "VALUE_IN",
+              "value_bulk_access_domain": "VALUE_IN",
+              "value_out": "VALUE_OUT"
+          },
+          "pinStructure": {
+              "exec_in": "Starts the Drive upload or path resolution.",
+              "exec_out": "Continues after the Drive operation completes.",
+              "value_connect": "Provides the Drive connection identifier.",
+              "value_action": "Selects upload or bulk action mode.",
+              "value_file": "Supplies the file metadata or upload reference.",
+              "value_full_path": "Specifies the target Drive path.",
+              "value_bulk_action": "Selects the bulk operation to run.",
+              "value_bulk_targets": "Provides target file paths or ids.",
+              "value_bulk_tags": "Supplies tag values for bulk tagging.",
+              "value_bulk_destination": "Supplies the destination folder for bulk moves.",
+              "value_bulk_rename_template": "Supplies the rename template for bulk rename.",
+              "value_bulk_access_role": "Supplies the permission role for bulk access.",
+              "value_bulk_access_type": "Supplies the permission type for bulk access.",
+              "value_bulk_access_email": "Supplies the email for bulk access.",
+              "value_bulk_access_domain": "Supplies the domain for bulk access.",
+              "value_out": "Outputs file metadata and Drive location info."
+          },
+        "keywords": [
+            "drive",
+            "google",
+            "upload",
+            "storage",
+            "file"
+        ]
+    },
+    {
+        "id": "googleDriveDownload",
+        "label": "Google Drive Download",
+        "category": "Storage",
+        "description": "Download a file from Google Drive into the workflow.",
+        "icon": "Download",
+        "color": "blue",
+        "features": [
+            "Connects to a Drive vault and fetches a file by full path.",
+            "Stores the downloaded file in storage for downstream use.",
+            "Outputs file metadata and a storage URL."
+        ],
+        "fields": [
+            {
+                "heading": "Connect",
+                "type": "textInput",
+                "inPinId": "value_connect",
+                "required": true,
+                "description": "Drive connection name or vault id."
+            },
+            {
+                "heading": "Full Path",
+                "type": "textInput",
+                "inPinId": "value_full_path",
+                "required": true,
+                "description": "Drive path to download, e.g. /My Drive/Folder/file.ext."
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_connect": "VALUE_IN",
+            "value_full_path": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "pinStructure": {
+            "exec_in": "Starts the Drive download.",
+            "exec_out": "Continues after the Drive download completes.",
+            "value_connect": "Provides the Drive connection identifier.",
+            "value_full_path": "Specifies the Drive path to download.",
+            "value_out": "Outputs file metadata and storage location."
+        },
+        "keywords": [
+            "drive",
+            "google",
+            "download",
+            "storage",
+            "file"
+        ]
+    },
     {
         "id": "slacktrigger",
         "label": "Slack Trigger",
@@ -1040,6 +1240,112 @@
         ]
     },
     {
+        "id": "emailtrigger",
+        "label": "Email Trigger",
+        "category": "Trigger",
+        "description": "Start workflows when a connected Gmail inbox receives a new email.",
+        "icon": "Mail",
+        "color": "emerald",
+        "features": [
+            "Matches Gmail notifications against the selected connection and optional inbox address filter.",
+            "Normalizes email payloads (from, to, cc, subject, snippet, ids) onto value_out.",
+            "Requires a Gmail OAuth connection; Pub/Sub watch or polling drives triggers."
+        ],
+        "fields": [
+            {
+                "heading": "vaultId",
+                "type": "select",
+                "required": true,
+                "description": "Gmail connection / vault obtained via OAuth."
+            },
+            {
+                "heading": "inboxAddress",
+                "type": "textInput",
+                "required": false,
+                "description": "Lower-case recipient address to match. Leave blank to trigger on any email for this Gmail connection."
+            }
+        ],
+        "pins": {
+            "exec_out": "EXEC_OUT",
+            "value_out": "VALUE_OUT"
+        },
+        "keywords": [
+            "email",
+            "gmail",
+            "inbox",
+            "trigger",
+            "mail"
+        ]
+    },
+    {
+        "id": "emailsender",
+        "label": "Email Action",
+        "category": "Email",
+        "description": "Send emails through a connected Gmail account with optional HTML and reply metadata.",
+        "icon": "Mail",
+        "color": "sky",
+        "features": [
+            "Uses vaultId to pull Gmail tokens server-side; workflow JSON never stores secrets.",
+            "to, subject, body, html and from can be provided statically or via value pins for dynamic templates.",
+            "value_out returns the Gmail messageId for logging or threading."
+        ],
+        "fields": [
+            {
+                "heading": "vaultId",
+                "type": "select",
+                "required": true
+            },
+            {
+                "heading": "to",
+                "type": "textInput",
+                "inPinId": "value_in_1",
+                "required": true
+            },
+            {
+                "heading": "subject",
+                "type": "textInput",
+                "inPinId": "value_in_2",
+                "required": true
+            },
+            {
+                "heading": "body",
+                "type": "textArea",
+                "inPinId": "value_in_3",
+                "required": true
+            },
+            {
+                "heading": "html",
+                "type": "textArea",
+                "inPinId": "value_in_4",
+                "required": false
+            },
+            {
+                "heading": "from",
+                "type": "textInput",
+                "inPinId": "value_in_5",
+                "required": false,
+                "description": "Optional from override; defaults to connection fromEmail."
+            }
+        ],
+        "pins": {
+            "exec_in": "EXEC_IN",
+            "exec_out": "EXEC_OUT",
+            "value_in_1": "VALUE_IN",
+            "value_in_2": "VALUE_IN",
+            "value_in_3": "VALUE_IN",
+            "value_in_4": "VALUE_IN",
+            "value_in_5": "VALUE_IN",
+            "value_out": "VALUE_OUT"
+        },
+        "keywords": [
+            "email",
+            "smtp",
+            "send",
+            "mail",
+            "outbound"
+        ]
+    },
+    {
         "id": "switchcase",
         "label": "Switch",
         "category": "Logic",
@@ -1094,3 +1400,5 @@
         ]
     }
 ]
+
+

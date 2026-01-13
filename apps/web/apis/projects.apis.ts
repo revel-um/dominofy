@@ -1,5 +1,6 @@
 import { NextRouter } from "next/router";
-import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
+import { handleServerError } from "../utils/error.handler";
+import { authFetch } from "../utils/authFetch";
 import { config } from "../config/config";
 
 export class ProjectsApi {
@@ -10,14 +11,9 @@ export class ProjectsApi {
             params.set('offset', String(offset));
             if (query && query.trim().length > 0) params.set('query', query.trim());
             const url = `${config.backendBaseUrl}/projects?${params.toString()}`;
-            const response = await fetch(url, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-            if (response.status === 401) {
-                handleUnauthorizedError(router);
-            }
+            const response = await authFetch(url, {
+                token,
+            }, router);
             return response;
         } catch (err) {
             handleServerError(router, err);
@@ -29,17 +25,14 @@ export class ProjectsApi {
         description?: string
     }) {
         try {
-            const response = await fetch(`${config.backendBaseUrl}/projects/create`, {
+            const response = await authFetch(`${config.backendBaseUrl}/projects/create`, {
                 method: "POST",
                 headers: {
-                    Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify(body),
-            });
-            if (response.status === 401) {
-                handleUnauthorizedError(router);
-            }
+                token,
+            }, router);
             return response;
         } catch (err) {
             handleServerError(router, err);
@@ -48,14 +41,9 @@ export class ProjectsApi {
 
     static async getProjectOverview(token: string, router: NextRouter, projectId: string) {
         try {
-            const response = await fetch(`${config.backendBaseUrl}/projects/${projectId}/overview`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-            if (response.status === 401) {
-                handleUnauthorizedError(router);
-            }
+            const response = await authFetch(`${config.backendBaseUrl}/projects/${projectId}/overview`, {
+                token,
+            }, router);
             return response;
         } catch (err) {
             handleServerError(router, err);
@@ -64,14 +52,9 @@ export class ProjectsApi {
 
     static async getGlobalOverview(token: string, router: NextRouter) {
         try {
-            const response = await fetch(`${config.backendBaseUrl}/projects/overview`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-            if (response.status === 401) {
-                handleUnauthorizedError(router);
-            }
+            const response = await authFetch(`${config.backendBaseUrl}/projects/overview`, {
+                token,
+            }, router);
             return response;
         } catch (err) {
             handleServerError(router, err);
@@ -80,14 +63,9 @@ export class ProjectsApi {
 
     static async getProjectDetailsWithWorkflows(projectId: string, token: string, router: NextRouter) {
         try {
-            const response = await fetch(`${config.backendBaseUrl}/projects/${projectId}/details-with-workflows`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-            if (response.status === 401) {
-                handleUnauthorizedError(router);
-            }
+            const response = await authFetch(`${config.backendBaseUrl}/projects/${projectId}/details-with-workflows`, {
+                token,
+            }, router);
             return response;
         } catch (err) {
             handleServerError(router, err);
@@ -96,17 +74,14 @@ export class ProjectsApi {
 
     static async updateProject(projectId: string, data: { name?: string; description?: string }, token: string, router: NextRouter) {
         try {
-            const response = await fetch(`${config.backendBaseUrl}/projects/${projectId}`, {
+            const response = await authFetch(`${config.backendBaseUrl}/projects/${projectId}`, {
                 method: "PUT",
                 headers: {
-                    Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify(data),
-            });
-            if (response.status === 401) {
-                handleUnauthorizedError(router);
-            }
+                token,
+            }, router);
             return response;
         } catch (err) {
             handleServerError(router, err);

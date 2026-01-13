@@ -27,6 +27,8 @@ import ConditionDomino from "../dominos/condition";
 import SwitchDomino from "../dominos/switchCase";
 import ArithmeticDomino from "../dominos/arithmetic";
 import ReadExcelDomino from "../dominos/readExcel";
+import GoogleDriveDomino from "../dominos/googleDrive";
+import GoogleDriveDownloadDomino from "../dominos/googleDriveDownload";
 import DeconstrctDomino from "../dominos/deconstructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
@@ -36,6 +38,7 @@ import CustomCodeDomino from "../dominos/codeRunner";
 import SlackTriggerDomino from "@/dominos/slackTrigger";
 import SlackActionDomino from "@/dominos/slackAction";
 import EmailSenderDomino from "../dominos/emailSender";
+import EmailTriggerDomino from "@/dominos/emailTrigger";
 import CSVWriterDomino from "../dominos/csvWriter";
 import DelayDomino from "@/dominos/delay";
 import MapperDomino from "@/dominos/mapper";
@@ -78,6 +81,8 @@ const nodeTypes = {
   switchcase: withRenderKey(SwitchDomino),
   arithmetic: withRenderKey(ArithmeticDomino),
   readexcel: withRenderKey(ReadExcelDomino),
+  googleDrive: withRenderKey(GoogleDriveDomino),
+  googleDriveDownload: withRenderKey(GoogleDriveDownloadDomino),
   deconstructor: withRenderKey(DeconstrctDomino),
   iterator: withRenderKey(IteratorDomino),
   filter: withRenderKey(FilterDomino),
@@ -85,6 +90,7 @@ const nodeTypes = {
   sqlRunner: withRenderKey(SQLRunnerDomino),
   codeRunner: withRenderKey(CustomCodeDomino),
   emailsender: withRenderKey(EmailSenderDomino),
+  emailtrigger: withRenderKey(EmailTriggerDomino),
   delay: withRenderKey(DelayDomino),
   mapper: withRenderKey(MapperDomino),
   slacktrigger: withRenderKey(SlackTriggerDomino),

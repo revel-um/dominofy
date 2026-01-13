@@ -1038,6 +1038,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               {/* Logs panel … */}
               <LogsPanel
                 workflowId={workflowId!}
+                openWorkflowIds={tabs.map((t) => t.id)}
                 className="absolute bottom-0 left-0 right-0 z-10 border-t border-gray-200 dark:border-gray-700"
                 collapsedHeight={collapsedHeight}
                 defaultHeight={defaultLogsHeight}

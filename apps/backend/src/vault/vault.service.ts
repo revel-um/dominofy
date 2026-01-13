@@ -6,6 +6,7 @@ import { BaseService } from 'src/common/base.service';
 import { User } from 'src/user/user.entity';
 import { CreateVaultDto } from './vault.dto';
 import { Vault, VaultType } from './vault.entity';
+import { encrypt } from 'src/helper/encryption';
 
 @Injectable()
 export class VaultService extends BaseService<Vault> {
@@ -101,6 +102,42 @@ export class VaultService extends BaseService<Vault> {
             where: { id },
             relations: ['users'],
         });
+    }
+
+    async updateConnection(
+        id: string,
+        connection: Record<string, any>,
+    ): Promise<Vault> {
+        const encrypted = await encrypt(JSON.stringify(connection));
+        await this.vaultRepository.update(
+            id,
+            { connectionEnc: encrypted } as any,
+        );
+        const vault = await this.vaultRepository.findOne({ where: { id } });
+        if (!vault) {
+            throw new Error(`Vault ${id} not found`);
+        }
+        return vault;
+    }
+
+    async touchUpdatedAt(id: string, updatedAt: Date = new Date()): Promise<void> {
+        await this.vaultRepository.update(id, { updatedAt } as any);
+    }
+
+    async findOldestGmailVaults(
+        limit: number,
+        olderThan: Date,
+    ): Promise<Vault[]> {
+        return this.vaultRepository
+            .createQueryBuilder('vault')
+            .where('vault.type = :type', { type: VaultType.EMAIL })
+            .andWhere("vault.lookupIds ->> 'provider' = :provider", {
+                provider: 'gmail',
+            })
+            .andWhere('vault.updatedAt <= :olderThan', { olderThan })
+            .orderBy('vault.updatedAt', 'ASC')
+            .limit(limit)
+            .getMany();
     }
 
     /* ─────────────────────────────

@@ -21,6 +21,7 @@ import {
 import TemplatesCanvas from "../components/templateCarousel";
 import { useNodesState, useEdgesState } from "reactflow";
 import { config } from "../config/config";
+import { TokenManager } from "../utils/auth";
 
 interface Project {
     id: string;
@@ -142,9 +143,9 @@ export default function DominofyDashboard() {
                 const resp = await fetch('/api/auth/exchange', { method: 'POST' });
                 if (resp.ok) {
                     const data = await resp.json();
-                    if (data?.token) {
-                        localStorage.setItem('token', data.token);
-                        currentToken = data.token;
+                    if (data?.accessToken && data?.refreshToken) {
+                        TokenManager.setTokens(data.accessToken, data.refreshToken);
+                        currentToken = data.accessToken;
                         setIsExchanging(false);
                     } else {
                         console.warn('Exchange succeeded but no token returned');

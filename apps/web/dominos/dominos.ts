@@ -24,6 +24,7 @@ import {
   FiCheckCircle,
   FiCpu,
   FiShoppingBag,
+  FiCloud,
 } from 'react-icons/fi';
 
 export default [
@@ -46,10 +47,16 @@ export default [
     categories: ['Trigger']
   },
   {
-    id: 'emailsender',
-    label: 'Email Sender',
+    id: 'emailtrigger',
+    label: 'Email Trigger',
     icon: FiMail,
-    categories: ['Action']
+    categories: ['Trigger', 'Email']
+  },
+  {
+    id: 'emailsender',
+    label: 'Email Action',
+    icon: FiMail,
+    categories: ['Action', 'Email']
   },
   {
     id: 'csvwriter',
@@ -80,6 +87,18 @@ export default [
     label: 'Read Excel',
     icon: FiFileText,
     categories: ['Input']
+  },
+  {
+    id: 'googleDrive',
+    label: 'Google Drive',
+    icon: FiCloud,
+    categories: ['Action', 'Storage']
+  },
+  {
+    id: 'googleDriveDownload',
+    label: 'Google Drive Download',
+    icon: FiDownload,
+    categories: ['Action', 'Storage']
   },
   {
     id: 'condition',

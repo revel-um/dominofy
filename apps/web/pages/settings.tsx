@@ -19,6 +19,7 @@ import AppearanceSettings from '../components/settings/AppearanceSettings';
 import ChangePasswordModal from '../components/profile/ChangePasswordModal';
 import { useRouter } from 'next/router';
 import { WorkflowsApi } from '../apis/workflow.apis';
+import { TokenManager } from '../utils/auth';
 
 // Default settings to avoid hydration mismatch
 const defaultSettings: SettingsType = {
@@ -100,8 +101,8 @@ function SettingsComponent() {
             const resp = await fetch('/api/auth/exchange', { method: 'POST' });
             if (resp.ok) {
               const data = await resp.json();
-              if (data?.token) {
-                localStorage.setItem('token', data.token);
+              if (data?.accessToken && data?.refreshToken) {
+                TokenManager.setTokens(data.accessToken, data.refreshToken);
               }
             } else {
               // If exchange fails, we will fall back to session-only details

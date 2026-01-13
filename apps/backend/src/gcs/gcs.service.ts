@@ -148,6 +148,35 @@ export class GcsService {
     return url;
   }
 
+  async download(
+    key: string,
+  ): Promise<{ buffer: Buffer; contentType?: string; size?: number }> {
+    if (this.isEmu) {
+      const mediaUrl = `${this.emulatorBase}/storage/v1/b/${encodeURIComponent(
+        this.bucketName,
+      )}/o/${encodeURIComponent(key)}?alt=media`;
+      const res = await fetch(mediaUrl);
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`Emulator download failed: ${res.status} ${txt}`);
+      }
+      const buf = Buffer.from(await res.arrayBuffer());
+      const contentType = res.headers.get('content-type') || undefined;
+      const sizeStr = res.headers.get('content-length');
+      const size = sizeStr ? Number(sizeStr) : undefined;
+      return { buffer: buf, contentType, size };
+    }
+
+    const file = this.storage.bucket(this.bucketName).file(key);
+    const [metadata] = await file.getMetadata();
+    const [buf] = await file.download();
+    return {
+      buffer: buf,
+      contentType: metadata?.contentType,
+      size: metadata?.size ? Number(metadata.size) : undefined,
+    };
+  }
+
   // ---------- Asset Management ----------
 
   async createAsset(createAssetDto: CreateAssetDto): Promise<Asset> {

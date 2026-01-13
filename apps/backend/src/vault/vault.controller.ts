@@ -8,12 +8,16 @@ import {
   Param,
   Query,
   Req,
+  BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { BaseController } from 'src/common/base.controller';
-import { Vault } from './vault.entity';
+import { Vault, VaultType } from './vault.entity';
 import { VaultService } from './vault.service';
 import { CreateVaultDto } from './vault.dto';
+import { EmailService } from 'src/email/email.service';
 
 @Controller('vault')
 export class VaultController extends BaseController<
@@ -23,8 +27,33 @@ export class VaultController extends BaseController<
   string,
   VaultService
 > {
-  constructor(protected readonly service: VaultService) {
+  constructor(
+    protected readonly service: VaultService,
+    @Inject(forwardRef(() => EmailService))
+    private readonly emailService: EmailService,
+  ) {
     super(service, CreateVaultDto);
+  }
+
+  @Get('types')
+  async listTypes() {
+    const oauthInstallPaths: Partial<Record<VaultType, string>> = {
+      [VaultType.EMAIL]: '/email/google/install-url',
+      [VaultType.GOOGLE_DRIVE]: '/drive/google/install-url',
+      [VaultType.SLACK]: '/slack/install-url',
+    };
+
+    const formatLabel = (value: string) =>
+      value
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+    return Object.values(VaultType).map(type => ({
+      type,
+      label: formatLabel(type),
+      installUrlPath: oauthInstallPaths[type],
+    }));
   }
 
   /**
@@ -88,5 +117,22 @@ export class VaultController extends BaseController<
     @Body('userIds') userIds: string[],
   ): Promise<void> {
     await this.service.removeUsers(id, userIds);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    const vault = await this.service.findOne(id);
+    if (!vault) {
+      throw new BadRequestException('Vault not found');
+    }
+
+    if (vault.type === VaultType.EMAIL) {
+      const provider = (vault.connection as any)?.provider;
+      if (provider === 'gmail') {
+        await this.emailService.stopGmailWatch(vault.connection as any);
+      }
+    }
+
+    return this.service.remove(id);
   }
 }
