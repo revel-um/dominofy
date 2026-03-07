@@ -72,6 +72,41 @@ class TokenManager {
     localStorage.removeItem(this.REFRESH_TOKEN_KEY);
     localStorage.removeItem(this.TOKEN_EXPIRY_KEY);
     localStorage.removeItem(this.USER_KEY);
+    this.clearClientCaches();
+  }
+
+  private static clearClientCaches(): void {
+    if (typeof window === 'undefined') return;
+
+    const localStorageKeysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (
+        key === 'dominofy-tabs' ||
+        key.startsWith('dominofy-tabs:') ||
+        key === 'dominofy-last-active-tab' ||
+        key.startsWith('dominofy-last-active-tab:')
+      ) {
+        localStorageKeysToRemove.push(key);
+      }
+    }
+    localStorageKeysToRemove.forEach((key) => localStorage.removeItem(key));
+
+    const sessionStorageKeysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (!key) continue;
+      if (
+        key === 'workflow-cache' ||
+        key === 'tabViewports' ||
+        key === 'codeEditorResult' ||
+        key.startsWith('workflow-')
+      ) {
+        sessionStorageKeysToRemove.push(key);
+      }
+    }
+    sessionStorageKeysToRemove.forEach((key) => sessionStorage.removeItem(key));
   }
 
   static setUser(user: UserData): void {

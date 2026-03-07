@@ -30,9 +30,9 @@ import 'react-toastify/dist/ReactToastify.css';
 import { WorkflowTabMeta, WorkflowTabs } from "@/components/workflowTabs";
 
 
-// Key for session storage of open tabs
-const TABS_STORAGE_KEY = "dominofy-tabs";
-const LAST_ACTIVE_TAB_KEY = "dominofy-last-active-tab";
+const TABS_STORAGE_KEY_PREFIX = "dominofy-tabs";
+const LAST_ACTIVE_TAB_KEY_PREFIX = "dominofy-last-active-tab";
+const LEGACY_LAST_ACTIVE_TAB_KEY = "dominofy-last-active-tab";
 
 interface Props {
   currWorkflow?: {
@@ -54,6 +54,16 @@ interface Props {
     };
   };
 }
+
+const getSafeWorkflowGraph = (graph: any): { nodes: Node[]; edges: Edge[] } => {
+  if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+    return { nodes: [], edges: [] };
+  }
+  return {
+    nodes: graph.nodes,
+    edges: graph.edges,
+  };
+};
 
 export default function DominofyLayout({ currWorkflow }: Props) {
   const collapsedHeight = '60px';
@@ -94,6 +104,12 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   const router = useRouter();
   const requestedWorkflowId = router?.query?.workflowId as string | undefined;
+  const currentProjectId = useMemo(() => {
+    const queryProjectId = router?.query?.projectId as string | undefined;
+    return queryProjectId || project?.id || workflow?.project?.id || "global";
+  }, [router?.query?.projectId, project?.id, workflow?.project?.id]);
+  const tabsStorageKey = `${TABS_STORAGE_KEY_PREFIX}:${currentProjectId}`;
+  const lastActiveTabKey = `${LAST_ACTIVE_TAB_KEY_PREFIX}:${currentProjectId}`;
   const contextValue = {
     erroredNodes,
     setConnectionErrors,
@@ -182,7 +198,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const readTabState = useCallback(() => {
     if (typeof window === "undefined") return { tabs: [], activeTabId: null as string | null };
     try {
-      const stored = localStorage.getItem(TABS_STORAGE_KEY);
+      const stored = localStorage.getItem(tabsStorageKey);
       if (!stored) return { tabs: [], activeTabId: null };
       const parsed = JSON.parse(stored) as { tabs?: WorkflowTabMeta[]; activeTabId?: string | null };
       return {
@@ -192,7 +208,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     } catch {
       return { tabs: [], activeTabId: null };
     }
-  }, []);
+  }, [tabsStorageKey]);
 
   const initialTabState = readTabState();
   const [tabs, setTabs] = useState<WorkflowTabMeta[]>(initialTabState.tabs);
@@ -228,16 +244,17 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   useEffect(() => {
     try {
       localStorage.setItem(
-        TABS_STORAGE_KEY,
+        tabsStorageKey,
         JSON.stringify({ tabs, activeTabId })
       );
       if (activeTabId) {
-        localStorage.setItem(LAST_ACTIVE_TAB_KEY, activeTabId);
+        localStorage.setItem(lastActiveTabKey, activeTabId);
+        localStorage.setItem(LEGACY_LAST_ACTIVE_TAB_KEY, activeTabId);
       }
     } catch (e) {
       console.error("Error saving tabs to storage", e);
     }
-  }, [tabs, activeTabId]);
+  }, [tabs, activeTabId, tabsStorageKey, lastActiveTabKey]);
 
 
   // tab helpers: find workflow by id from current data
@@ -258,6 +275,15 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       const response = await WorkflowsApi.getWorkflowById(id, token, router);
       if (response?.ok) {
         const nextWorkflow = await response.json();
+        const queryProjectId = router?.query?.projectId as string | undefined;
+        const activeProjectId = queryProjectId || project?.id || workflow?.project?.id;
+        if (
+          activeProjectId &&
+          nextWorkflow?.project?.id &&
+          nextWorkflow.project.id !== activeProjectId
+        ) {
+          return null;
+        }
 
         if (nextWorkflow?.project) {
           setProject(nextWorkflow.project);
@@ -278,7 +304,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     }
 
     return null;
-  }, [router]);
+  }, [router, project?.id, workflow?.project?.id]);
 
   // ──────────────────────────────
   // Parent-managed UNDO/REDO
@@ -757,10 +783,17 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     setCanUndo(false);
     setCanRedo(false);
 
+    // Prevent transient canvas updates from being saved under the next workflow id
+    // while the new workflow graph is still hydrating.
+    hasHydratedRef.current = false;
+    isRestoring.current = true;
+    _setNodes([]);
+    _setEdges([]);
+
     setWorkflow(nextWorkflow);
     setWorkflowId(nextWorkflow.id);
     setHasUnsavedChanges(false);
-  }, [workflow?.id, findWorkflowById, autoSaveWorkflow, fetchWorkflowById, hasUnsavedChanges]);
+  }, [workflow?.id, findWorkflowById, autoSaveWorkflow, fetchWorkflowById, hasUnsavedChanges, _setNodes, _setEdges]);
 
 
   // Open a workflow and ensure its tab is selected
@@ -852,9 +885,16 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     }
 
     if (!requestedWorkflowId && activeTabId && workflow.id !== activeTabId) {
+      const activeTabInCurrentProject =
+        activeTabId === workflow.id ||
+        projectWorkflows.some((w) => w.id === activeTabId);
+      if (!activeTabInCurrentProject) {
+        setActiveTabId(workflow.id);
+        return;
+      }
       switchToWorkflow(activeTabId);
     }
-  }, [router.isReady, workflow, requestedWorkflowId, activeTabId, switchToWorkflow]);
+  }, [router.isReady, workflow, requestedWorkflowId, activeTabId, switchToWorkflow, projectWorkflows]);
 
 
   // ──────────────────────────────
@@ -863,6 +903,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   useEffect(() => {
     const hydrateContent = async () => {
       if (workflow) {
+        const serverGraph = getSafeWorkflowGraph(workflow.visualJson);
         // First check if there's a cached version of this workflow
         const cachedWorkflowData = sessionStorage.getItem(`workflow-${workflow.id}`);
         let cacheDirty = false;
@@ -877,15 +918,15 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               );
               cacheDirty = Boolean(cached?.dirty);
             } else {
-              loadWorkflowGraph(workflow.visualJson, workflow.id);
+              loadWorkflowGraph(serverGraph, workflow.id);
             }
           } catch (err) {
             console.error('Error loading cached workflow, falling back to server data:', err);
-            loadWorkflowGraph(workflow.visualJson, workflow.id);
+            loadWorkflowGraph(serverGraph, workflow.id);
           }
         } else {
           // No cache, use server workflow data
-          loadWorkflowGraph(workflow.visualJson, workflow.id);
+          loadWorkflowGraph(serverGraph, workflow.id);
         }
 
         setHasUnsavedChanges(cacheDirty);
@@ -894,11 +935,13 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         );
 
         // If workflow has project info, fetch all project workflows for sidebar
-        if (router.query.projectId) {
+        const targetProjectId =
+          (router.query.projectId as string | undefined) || workflow?.project?.id;
+        if (targetProjectId) {
           try {
             const token = localStorage.getItem('token');
             if (token) {
-              const response = await ProjectsApi.getProjectDetailsWithWorkflows(router.query.projectId as string, token, router);
+              const response = await ProjectsApi.getProjectDetailsWithWorkflows(targetProjectId, token, router);
               if (response?.ok) {
                 const data = await response.json();
                 setProject(data.project);

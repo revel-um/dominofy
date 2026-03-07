@@ -88,6 +88,7 @@ export default function WorkflowToolbar({
   const [saveStatus, setSaveStatus] = useState<SaveState>('idle');
   const [justRan, setJustRan] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
 
   /* keep original name to restore on cancel */
   const originalNameRef = useRef<string | null>(null);
@@ -185,30 +186,23 @@ export default function WorkflowToolbar({
 
   /* ────── name editing ────── */
   const openNameModal = () => {
-    originalNameRef.current = project?.name || workflow.project?.name || '';
+    const currentName = workflow.project?.name || project?.name || '';
+    originalNameRef.current = currentName;
+    setRenameValue(currentName);
     setShowNameModal(true);
   };
 
   const onModalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value;
-    setWorkflow(prev => ({ 
-      ...prev, 
-      project: prev.project ? { ...prev.project, name: newName } : { id: '', name: newName }
-    }));
+    setRenameValue(e.target.value);
   };
 
   const onCancelName = () => {
-    if (originalNameRef.current !== null) {
-      setWorkflow(prev => ({ 
-        ...prev, 
-        project: prev.project ? { ...prev.project, name: originalNameRef.current! } : undefined
-      }));
-    }
+    setRenameValue(originalNameRef.current || '');
     setShowNameModal(false);
   };
 
   const onSaveName = async () => {
-    const newName = (project?.name || workflow.project?.name || '').trim();
+    const newName = renameValue.trim();
     if (!newName || newName === originalNameRef.current) {
       setShowNameModal(false);
       return;
@@ -275,7 +269,7 @@ export default function WorkflowToolbar({
         {/* Center title */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
           <h2 className="text-lg font-medium text-white truncate max-w-[26vw]">
-            {project?.name || workflow.project?.name || 'Untitled Project'}
+            {workflow.project?.name || project?.name || 'Untitled Project'}
           </h2>
           <button
             onClick={openNameModal}
@@ -403,8 +397,9 @@ export default function WorkflowToolbar({
               Rename Project
             </h3>
             <input
-              value={project?.name || workflow.project?.name || ''}
+              value={renameValue}
               onChange={onModalChange}
+              autoFocus
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md
                          bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-4"
             />

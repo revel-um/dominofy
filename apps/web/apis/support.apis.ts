@@ -74,7 +74,7 @@ export class SupportApi {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status }),
         token,
       }, router);
 

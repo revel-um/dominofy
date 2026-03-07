@@ -214,7 +214,16 @@ export default function DominosPanel({
       const projectId = currentProject?.id || "default";
       const response = await WorkflowsApi.createWorkflow(newWorkflowName.trim(), projectId, token, router);
       if (response?.ok) {
-        const newWorkflow = await response.json();
+        const createdWorkflow = await response.json();
+        const newWorkflow = {
+          ...createdWorkflow,
+          visualJson:
+            createdWorkflow?.visualJson &&
+            Array.isArray(createdWorkflow.visualJson.nodes) &&
+            Array.isArray(createdWorkflow.visualJson.edges)
+              ? createdWorkflow.visualJson
+              : { nodes: [], edges: [] },
+        };
         setWorkflows(prev => [newWorkflow, ...prev]);
         cancelCreatingWorkflow();
         navigateToWorkflow(newWorkflow);
@@ -525,8 +534,14 @@ export default function DominosPanel({
         style={{ width: 6 }} // slightly wider hit area without visual change
       />
       {workflowToRename && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setWorkflowToRename(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Rename Workflow</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -558,8 +573,14 @@ export default function DominosPanel({
       )}
 
       {workflowToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setWorkflowToDelete(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete Workflow</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">

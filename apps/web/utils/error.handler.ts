@@ -8,9 +8,8 @@ export const handleServerError = (router: NextRouter, err: any) => {
 };
 
 export const handleUnauthorizedError = (router: NextRouter) => {
-    // remove tokens from local storage
+    // remove auth data and client-side caches
     TokenManager.clearTokens();
-    localStorage.removeItem("token");
     console.error("Unauthorized Error");
     router.push("/auth");
 }
