@@ -26,6 +26,12 @@ import { CustomCodeDomino } from "./dominos/customCode";
 import { SchedulerDomino } from "./dominos/scheduler";
 import { GoogleDriveDomino } from "./dominos/googleDrive";
 import { GoogleDriveDownloadDomino } from "./dominos/googleDriveDownload";
+import { PaymentCreateRecipientDomino } from "./dominos/paymentCreateRecipient";
+import { PaymentAddBankInstrumentDomino } from "./dominos/paymentAddBankInstrument";
+import { PaymentAddUpiInstrumentDomino } from "./dominos/paymentAddUpiInstrument";
+import { PaymentSinglePayoutDomino } from "./dominos/paymentSinglePayout";
+import { PaymentBulkPayoutDomino } from "./dominos/paymentBulkPayout";
+import { PaymentWaitForCompletionDomino } from "./dominos/paymentWaitForCompletion";
 
 type DominoCtor = new (node: PipelineStep) => DominoExecutable;
 
@@ -58,6 +64,12 @@ class DominoRegistry {
     this.register("SchedulerDomino", SchedulerDomino);
     this.register("googleDrive", GoogleDriveDomino);
     this.register("googleDriveDownload", GoogleDriveDownloadDomino);
+    this.register("paymentCreateRecipient", PaymentCreateRecipientDomino);
+    this.register("paymentAddBankInstrument", PaymentAddBankInstrumentDomino);
+    this.register("paymentAddUpiInstrument", PaymentAddUpiInstrumentDomino);
+    this.register("paymentSinglePayout", PaymentSinglePayoutDomino);
+    this.register("paymentBulkPayout", PaymentBulkPayoutDomino);
+    this.register("paymentWaitForCompletion", PaymentWaitForCompletionDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {

@@ -8,7 +8,8 @@ import {
   FiMenu,
   FiX,
   FiCode,
-  FiShield
+  FiShield,
+  FiCreditCard
 } from "react-icons/fi";
 import { useRouter } from "next/router";
 import { ReactElement, useState, useEffect } from "react";
@@ -29,6 +30,7 @@ const navItems: NavItemProps[] = [
   { label: "Support", icon: <FiHeadphones />, href: "/support" },
   { label: "Profile", icon: <FiUser />, href: "/profile" },
   { label: "Vault", icon: <FiShield />, href: "/vault" },
+  { label: "Payments", icon: <FiCreditCard />, href: "/payments" },
   { label: "Settings", icon: <FiSettings />, href: "/settings" },
 ];
 

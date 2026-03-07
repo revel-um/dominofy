@@ -47,6 +47,12 @@ import LLMDomino from "../dominos/llm";
 import SchedulerDomino from "../dominos/scheduler";
 import ConnectorDomino from "@/dominos/connector";
 import ShopifyDomino from "@/dominos/shopify";
+import PaymentCreateRecipientDomino from "@/dominos/paymentCreateRecipient";
+import PaymentAddBankInstrumentDomino from "@/dominos/paymentAddBankInstrument";
+import PaymentAddUpiInstrumentDomino from "@/dominos/paymentAddUpiInstrument";
+import PaymentSinglePayoutDomino from "@/dominos/paymentSinglePayout";
+import PaymentBulkPayoutDomino from "@/dominos/paymentBulkPayout";
+import PaymentWaitForCompletionDomino from "@/dominos/paymentWaitForCompletion";
 /* NEW: Note node */
 import NoteDomino from "../dominos/note";
 
@@ -100,6 +106,12 @@ const nodeTypes = {
   shopify: withRenderKey(ShopifyDomino),
   /* NEW */
   note: withRenderKey(NoteDomino),
+  paymentCreateRecipient: withRenderKey(PaymentCreateRecipientDomino),
+  paymentAddBankInstrument: withRenderKey(PaymentAddBankInstrumentDomino),
+  paymentAddUpiInstrument: withRenderKey(PaymentAddUpiInstrumentDomino),
+  paymentSinglePayout: withRenderKey(PaymentSinglePayoutDomino),
+  paymentBulkPayout: withRenderKey(PaymentBulkPayoutDomino),
+  paymentWaitForCompletion: withRenderKey(PaymentWaitForCompletionDomino),
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */

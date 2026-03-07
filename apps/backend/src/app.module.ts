@@ -18,6 +18,7 @@ import { AiChatModule } from './ai-chat/ai-chat.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { EmailModule } from './email/email.module';
 import { DriveModule } from './drive/drive.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { DriveModule } from './drive/drive.module';
     SlackModule,
     EmailModule,
     DriveModule,
+    PaymentsModule,
     RunnerLauncherModule,
     AuthModule,
     SupportModule,

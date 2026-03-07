@@ -25,6 +25,9 @@ import {
   FiCpu,
   FiShoppingBag,
   FiCloud,
+  FiCreditCard,
+  FiUser,
+  FiActivity,
 } from 'react-icons/fi';
 
 export default [
@@ -201,5 +204,41 @@ export default [
     label: 'Webhook',
     icon: FiGlobe,
     categories: ['Trigger']
+  },
+  {
+    id: 'paymentCreateRecipient',
+    label: 'Create Recipient',
+    icon: FiUser,
+    categories: ['Payments']
+  },
+  {
+    id: 'paymentAddBankInstrument',
+    label: 'Add Bank Instrument',
+    icon: FiCreditCard,
+    categories: ['Payments']
+  },
+  {
+    id: 'paymentAddUpiInstrument',
+    label: 'Add UPI Instrument',
+    icon: FiCreditCard,
+    categories: ['Payments']
+  },
+  {
+    id: 'paymentSinglePayout',
+    label: 'Single Payout',
+    icon: FiCreditCard,
+    categories: ['Payments']
+  },
+  {
+    id: 'paymentBulkPayout',
+    label: 'Bulk Payout',
+    icon: FiCreditCard,
+    categories: ['Payments']
+  },
+  {
+    id: 'paymentWaitForCompletion',
+    label: 'Wait For Payout',
+    icon: FiActivity,
+    categories: ['Payments']
   },
 ];
