@@ -14,10 +14,10 @@ type SortDirection = 'asc' | 'desc';
 interface Workflow {
     id: string;
     name: string;
+    projectId: string;
     projectName: string;
     visualJson: { nodes: any[]; edges: any[] };
     isPublished: boolean;
-    project: { id: string; name: string };
 }
 
 interface Project {
@@ -95,7 +95,7 @@ function ColumnHeader({
 
   return (
     <div className={baseClasses} onClick={() => onSort(field)}>
-      <span className="flex items-center justify-center gap-1">
+      <span className={`flex items-center gap-1 ${centered ? 'justify-center' : 'justify-start'}`}>
         {label}
         <SortIndicator field={field} currentField={sortField} direction={sortDirection} />
       </span>
@@ -231,6 +231,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
           const mapped: Workflow[] = (wf || []).map((w: any) => ({
             id: w.id,
             name: w.name,
+            projectId: w.project?.id || '',
             projectName: w.project?.name || '',
             visualJson: w.visualJson || { nodes: [], edges: [] },
             isPublished: !!w.isPublished,
@@ -348,130 +349,139 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
 
       {/* Unified list + pagination card */}
       <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 shadow-sm dark:shadow-gray-700 rounded-lg overflow-hidden min-h-0">
-        {/* Column headers */}
-        <div className="flex-none border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <div className="flex">
-            <ColumnHeader
-              field="name"
-              label="Name"
-              sortField={sortField}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-            />
-            {activeView === "project" ? (
-              <>
-                <ColumnHeader
-                  field="description"
-                  label="Description"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                />
-                <ColumnHeader
-                  field="workflowCount"
-                  label="Workflows"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                  centered
-                />
-                <ColumnHeader
-                  field="scheduledCount"
-                  label="Scheduled"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                  centered
-                />
-                <ColumnHeader
-                  field="deployedCount"
-                  label="Deployed"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                  centered
-                />
-              </>
-            ) : (
-              <>
-                <ColumnHeader
-                  field="projectName"
-                  label="Project"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                />
-                <ColumnHeader
-                  field="isPublished"
-                  label="Status"
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                  centered
-                />
-              </>
+        {/* Shared scroll container keeps header and rows aligned */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {/* Column headers */}
+          <div className="sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <div className="flex">
+              <ColumnHeader
+                field="name"
+                label="Name"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+              {activeView === "project" ? (
+                <>
+                  <ColumnHeader
+                    field="description"
+                    label="Description"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  <ColumnHeader
+                    field="workflowCount"
+                    label="Workflows"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    centered
+                  />
+                  <ColumnHeader
+                    field="scheduledCount"
+                    label="Scheduled"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    centered
+                  />
+                  <ColumnHeader
+                    field="deployedCount"
+                    label="Deployed"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    centered
+                  />
+                </>
+              ) : (
+                <>
+                  <ColumnHeader
+                    field="projectName"
+                    label="Project"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                  <ColumnHeader
+                    field="isPublished"
+                    label="Status"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    centered
+                  />
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Data rows */}
+          <div className="flex flex-col divide-y divide-gray-200 dark:divide-gray-700">
+            {activeView === 'workflow' && !listLoading && workflows.length > 0 && filteredWorkflows.length === 0 && (
+              <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">No workflows match your search. Try clearing the search field.</div>
+            )}
+            {pageData.map((item) =>
+              activeView === "project" ? (
+                /* ------------ project row ------------ */
+                <div
+                  key={(item as Project).id}
+                  style={{ height: ROW_H }}
+                  className="flex-shrink-0 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                  onClick={() => openProjectEntryWorkflow((item as Project).id)}
+                >
+                  <div className="flex-1 px-4 py-2 text-sm text-gray-800 dark:text-gray-100">
+                    {(item as Project).name}
+                  </div>
+                  <div className="flex-1 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                    {(item as Project).description}
+                  </div>
+                  <div className="flex-1 px-4 py-2 text-center text-sm text-gray-800 dark:text-gray-100">
+                    {(item as Project).workflowCount}
+                  </div>
+                  <div className="flex-1 px-4 py-2 text-center text-sm text-yellow-600 dark:text-yellow-400">
+                    {(item as Project).scheduledCount}
+                  </div>
+                  <div className="flex-1 px-4 py-2 text-center text-sm text-green-600 dark:text-green-400">
+                    {(item as Project).deployedCount}
+                  </div>
+                </div>
+              ) : (
+                /* ------------ workflow row ------------ */
+                <div
+                  key={(item as Workflow).id}
+                  style={{ height: ROW_H }}
+                  className="flex-shrink-0 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                  onClick={() => {
+                    const wf = item as Workflow;
+                    const query = wf.projectId
+                      ? `/dominofy?projectId=${wf.projectId}&workflowId=${wf.id}`
+                      : `/dominofy?workflowId=${wf.id}`;
+                    router.push(query);
+                  }}
+                >
+                  <div className="flex-1 px-4 py-2 text-sm text-gray-800 dark:text-gray-100">
+                    {(item as Workflow).name}
+                  </div>
+                  <div className="flex-1 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                    {(item as Workflow).projectName}
+                  </div>
+                  <div className="flex-1 px-4 py-2 flex justify-center">
+                    {(item as Workflow).isPublished ? (
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                        Published
+                      </span>
+                    ) : (
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
+                        Draft
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
             )}
           </div>
-        </div>
-
-        {/* Data rows */}
-        <div className="flex-1 flex flex-col divide-y divide-gray-200 dark:divide-gray-700 overflow-y-auto">
-          {activeView === 'workflow' && !listLoading && workflows.length > 0 && filteredWorkflows.length === 0 && (
-            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">No workflows match your search. Try clearing the search field.</div>
-          )}
-          {pageData.map((item) =>
-            activeView === "project" ? (
-              /* ------------ project row ------------ */
-              <div
-                key={(item as Project).id}
-                style={{ height: ROW_H }}
-                className="flex-shrink-0 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                onClick={() => openProjectEntryWorkflow((item as Project).id)}
-              >
-                <div className="flex-1 px-4 py-2 text-sm text-gray-800 dark:text-gray-100">
-                  {(item as Project).name}
-                </div>
-                <div className="flex-1 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                  {(item as Project).description}
-                </div>
-                <div className="flex-1 px-4 py-2 text-center text-sm text-gray-800 dark:text-gray-100">
-                  {(item as Project).workflowCount}
-                </div>
-                <div className="flex-1 px-4 py-2 text-center text-sm text-yellow-600 dark:text-yellow-400">
-                  {(item as Project).scheduledCount}
-                </div>
-                <div className="flex-1 px-4 py-2 text-center text-sm text-green-600 dark:text-green-400">
-                  {(item as Project).deployedCount}
-                </div>
-              </div>
-            ) : (
-              /* ------------ workflow row ------------ */
-              <div
-                key={(item as Workflow).id}
-                style={{ height: ROW_H }}
-                className="flex-shrink-0 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                onClick={() => router.push(`/dominofy?projectId=${(item as Workflow).project.id}&workflowId=${(item as Workflow).id}`)}
-              >
-                <div className="flex-1 px-4 py-2 text-sm text-gray-800 dark:text-gray-100">
-                  {(item as Workflow).name}
-                </div>
-                <div className="flex-1 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                  {(item as Workflow).projectName}
-                </div>
-                <div className="flex-1 px-4 py-2 flex justify-center">
-                  {(item as Workflow).isPublished ? (
-                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                      Published
-                    </span>
-                  ) : (
-                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
-                      Draft
-                    </span>
-                  )}
-                </div>
-              </div>
-            )
-          )}
         </div>
 
         {/* Pagination – now inside the same card */}
