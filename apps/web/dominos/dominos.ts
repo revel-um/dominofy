@@ -30,7 +30,7 @@ import {
 export default [
   {
     id: 'llm',
-    label: 'LLM',
+    label: 'AI',
     icon: FiCpu,
     categories: ['AI']
   },

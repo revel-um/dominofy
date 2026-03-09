@@ -44,6 +44,35 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
 
   const [prompt, setPrompt] = useState("");
 
+  const syncPromptFieldValue = useCallback((nextPrompt: string) => {
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
+    setNodes((nodes: LLMNode[]) =>
+      nodes.map((node: LLMNode) => {
+        if (node.id !== id) return node;
+        const fields = node.data.details?.fields ?? [];
+        const updatedFields = fields.map((field) =>
+          field.heading === "Prompt" ? { ...field, value: nextPrompt } : field
+        );
+        const changed = fields.some(
+          (field, index) =>
+            field.heading === "Prompt" && updatedFields[index]?.value !== field.value
+        );
+        if (!changed) return node;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            details: {
+              ...node.data.details,
+              fields: updatedFields,
+            },
+          },
+        };
+      })
+    );
+  }, [id]);
+
   const autoSizePrompt = useCallback(() => {
     const textarea = promptTextareaRef.current;
     if (!textarea) return;
@@ -68,7 +97,7 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
         placeholder: 'Enter your prompt here...',
         value: promptValue,
         required: true,
-        inPinId: 'prompt_in',
+        inPinId: 'value_in',
       },
     ];
 
@@ -102,13 +131,14 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
               if (heading === 'Prompt') {
                 const nextPrompt = typeof value === 'string' ? value : String(value ?? '');
                 setPrompt(nextPrompt);
+                syncPromptFieldValue(nextPrompt);
               }
             },
           },
         };
       })
     );
-  }, [id]);
+  }, [id, syncPromptFieldValue]);
 
   useEffect(() => {
     const fields = data.details?.fields ?? [];
@@ -120,7 +150,7 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
       fields.length === 1 &&
       promptField &&
       promptField.type === 'textInput' &&
-      promptField.inPinId === 'prompt_in';
+      promptField.inPinId === 'value_in';
     const hasOnlyPromptExport =
       Array.isArray(data.exportFields) &&
       data.exportFields.length === 1 &&
@@ -135,8 +165,9 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
     const newValue = e.target.value;
     setPrompt(newValue);
     setFieldValueRef.current?.('Prompt', newValue);
+    syncPromptFieldValue(newValue);
     clearValidationForDominoId(id);
-  }, [clearValidationForDominoId, id]);
+  }, [clearValidationForDominoId, id, syncPromptFieldValue]);
 
   const handlePromptWheelCapture = useCallback((e: React.WheelEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
@@ -166,34 +197,34 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
       </div>
 
       {/* Main content */}
-      <div className="px-3 pt-2 pb-1">
+      <div className="pt-2 pb-1">
         {/* Prompt input section */}
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-              Prompt
-            </label>
-            <DominoPin id="prompt_in" pinType={PinType.VALUE_IN} inline />
-          </div>
+          <label className="block px-3 text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Prompt
+          </label>
           
-          {!isPromptConnected ? (
-            <div className="relative">
-              <textarea
-                ref={promptTextareaRef}
-                value={prompt}
-                onChange={handlePromptChange}
-                onWheelCapture={handlePromptWheelCapture}
-                placeholder="Enter your prompt here..."
-                className="nodrag nowheel w-full px-3 py-2 text-sm border rounded-md bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text resize-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
-                style={{ minHeight: `${MIN_PROMPT_HEIGHT}px`, maxHeight: `${MAX_PROMPT_HEIGHT}px` }}
-                rows={1}
-              />
-            </div>
-          ) : (
-            <div className="px-3 py-2 text-xs italic text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-md border border-dashed border-gray-300 dark:border-gray-600">
-              Prompt connected from previous step
-            </div>
-          )}
+          <div className="relative px-3 flex items-center gap-2">
+            <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+            {!isPromptConnected ? (
+              <div className="relative flex-1">
+                <textarea
+                  ref={promptTextareaRef}
+                  value={prompt}
+                  onChange={handlePromptChange}
+                  onWheelCapture={handlePromptWheelCapture}
+                  placeholder="Enter your prompt here..."
+                  className="nodrag nowheel w-full px-3 py-2 text-sm border rounded-md bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text resize-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                  style={{ minHeight: `${MIN_PROMPT_HEIGHT}px`, maxHeight: `${MAX_PROMPT_HEIGHT}px` }}
+                  rows={1}
+                />
+              </div>
+            ) : (
+              <div className="flex-1 px-3 py-2 text-xs italic text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-md border border-dashed border-gray-300 dark:border-gray-600">
+                Prompt connected from previous step
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -201,7 +232,7 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
       <div className="relative px-3 py-2 rounded-b-md flex items-center justify-between">
         <div />
         <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">Output</span>
-        <DominoPin id="response_out" pinType={PinType.VALUE_OUT} inline />
+        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
       </div>
 
       {hasError && (

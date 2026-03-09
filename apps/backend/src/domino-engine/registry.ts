@@ -26,6 +26,7 @@ import { CustomCodeDomino } from "./dominos/customCode";
 import { SchedulerDomino } from "./dominos/scheduler";
 import { GoogleDriveDomino } from "./dominos/googleDrive";
 import { GoogleDriveDownloadDomino } from "./dominos/googleDriveDownload";
+import { LLMDomino } from "./dominos/llm";
 
 type DominoCtor = new (node: PipelineStep) => DominoExecutable;
 
@@ -55,6 +56,7 @@ class DominoRegistry {
     this.register("mapper", MapperDomino);
     this.register("delay", DelayDomino);
     this.register("codeRunner", CustomCodeDomino);
+    this.register("llm", LLMDomino);
     this.register("SchedulerDomino", SchedulerDomino);
     this.register("googleDrive", GoogleDriveDomino);
     this.register("googleDriveDownload", GoogleDriveDownloadDomino);
