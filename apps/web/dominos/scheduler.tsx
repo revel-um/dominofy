@@ -12,20 +12,28 @@ interface ScheduleConfig {
   interval: number;
   time: string;
   daysOfWeek: number[];
-  lastRun: Date | null;
-  nextRun: Date | null;
   timeZone: string;
   isActive: boolean;
 }
+
+const BROWSER_TIME_ZONE =
+  typeof Intl !== 'undefined'
+    ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    : 'UTC';
+
+const normalizeScheduleTimeZone = (value: unknown): string => {
+  if (typeof value !== 'string') return BROWSER_TIME_ZONE;
+  const tz = value.trim();
+  if (!tz || tz.toLowerCase() === 'local') return BROWSER_TIME_ZONE;
+  return tz;
+};
 
 const DEFAULT_SCHEDULE: ScheduleConfig = {
   frequency: 'day',
   interval: 1,
   time: '09:00',
   daysOfWeek: [1, 2, 3, 4, 5], // Default: Weekdays
-  lastRun: null,
-  nextRun: null,
-  timeZone: 'local',
+  timeZone: BROWSER_TIME_ZONE,
   isActive: true,
 };
 
@@ -41,7 +49,7 @@ const schedulesEqual = (a: ScheduleConfig, b: ScheduleConfig) =>
 export default function SchedulerDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const { setNodes: incomingSetNodes, setFieldValue: incomingSetFieldValue, setRawData: incomingSetRawData, details } = data;
+  const { setNodes: incomingSetNodes, setFieldValue: incomingSetFieldValue, setRawData: incomingSetRawData } = data;
 
   const setNodesRef = useRef(incomingSetNodes);
   const setFieldValueRef = useRef(incomingSetFieldValue);
@@ -259,7 +267,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
         .split(',')
         .filter(Boolean)
         .map(Number);
-      const timeZone = getFieldValue('Time Zone', DEFAULT_SCHEDULE.timeZone);
+      const timeZone = normalizeScheduleTimeZone(getFieldValue('Time Zone', DEFAULT_SCHEDULE.timeZone));
       const isActiveRaw = getFieldValue('Active', DEFAULT_SCHEDULE.isActive);
       const isActive = typeof isActiveRaw === 'string' ? isActiveRaw === 'true' || isActiveRaw === '1' : Boolean(isActiveRaw);
 
@@ -320,8 +328,6 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
       time: schedule.time,
       daysOfWeek: schedule.daysOfWeek.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]),
       timeZone: schedule.timeZone,
-      lastRun: schedule.lastRun?.toISOString() || 'Never',
-      nextRun: schedule.nextRun?.toISOString() || 'Not scheduled',
       active: schedule.isActive ? 'Active' : 'Inactive',
     });
   }, [schedule]);
@@ -345,7 +351,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
         interval: data.details['Interval'] || DEFAULT_SCHEDULE.interval,
         time: data.details['Time'] || DEFAULT_SCHEDULE.time,
         daysOfWeek: parsedDays,
-        timeZone: data.details['Time Zone'] || DEFAULT_SCHEDULE.timeZone,
+        timeZone: normalizeScheduleTimeZone(data.details['Time Zone'] || DEFAULT_SCHEDULE.timeZone),
         isActive: data.details['Active'] ?? DEFAULT_SCHEDULE.isActive,
       };
       return schedulesEqual(prev, next) ? prev : next;
@@ -429,12 +435,6 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
   // Alias for toggleDayOfWeek to maintain compatibility with existing code
   const toggleDayOfWeek = handleDayToggle;
 
-  // Format date for display
-  const formatDate = (date: Date | null | undefined) => {
-    if (!date) return 'Never';
-    return new Date(date).toLocaleString();
-  };
-
   // Convert schedule to human-readable format
   const getScheduleDescription = () => {
     if (!schedule.isActive) return 'Scheduler inactive';
@@ -481,7 +481,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
         }}
       >
         <div className="flex items-center gap-1">
-          <FiClock className="w-4 h-4" />
+          <FiClock className="w-4 h-4 !text-white" style={{ color: '#fff' }} />
           <span className="truncate">Scheduler</span>
         </div>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
@@ -554,7 +554,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
               type="time"
               value={schedule.time}
               onChange={handleTimeChange}
-              className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+              className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text dark:[color-scheme:dark]"
             />
           </div>
         )}
@@ -595,22 +595,13 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
             className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
           >
             <option value="UTC">UTC</option>
-            <option value="local">Local Time</option>
+            <option value={BROWSER_TIME_ZONE}>Local Time ({BROWSER_TIME_ZONE})</option>
             <option value="Asia/Kolkata">Asia/Kolkata</option>
             <option value="America/New_York">America/New York</option>
             <option value="Europe/London">Europe/London</option>
           </select>
         </div>
 
-        {/* Last Run / Next Run */}
-        <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            Last run: {formatDate(schedule.lastRun)}
-          </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            Next run: {formatDate(schedule.nextRun)}
-          </div>
-        </div>
       </div>
     </div>
   );

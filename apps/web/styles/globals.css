@@ -29,7 +29,15 @@
     filter: invert(0%);
   }
 
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(0%);
+  }
+
   .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(100%);
+  }
+
+  .dark input[type="time"]::-webkit-calendar-picker-indicator {
     filter: invert(100%);
   }
 
@@ -38,7 +46,15 @@
     filter: invert(0%);
   }
 
+  input[type="time"]::-moz-calendar-picker-indicator {
+    filter: invert(0%);
+  }
+
   .dark input[type="date"]::-moz-calendar-picker-indicator {
+    filter: invert(100%);
+  }
+
+  .dark input[type="time"]::-moz-calendar-picker-indicator {
     filter: invert(100%);
   }
 }

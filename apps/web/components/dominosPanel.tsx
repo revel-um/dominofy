@@ -393,7 +393,13 @@ export default function DominosPanel({
                           >
                             {/* Vertical indentation line */}
                             <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
-                            <Icon className="text-lg text-dominofy-light-text dark:text-dominofy-dark-text relative z-10" />
+                            <Icon
+                              className={`text-lg relative z-10 ${
+                                id === 'SchedulerDomino'
+                                  ? 'text-white'
+                                  : 'text-dominofy-light-text dark:text-dominofy-dark-text'
+                              }`}
+                            />
                             <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
                               {label}
                             </span>
