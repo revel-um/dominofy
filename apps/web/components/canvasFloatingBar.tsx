@@ -67,7 +67,7 @@ export default function CanvasFloatingBar({
           type="button"
           onClick={() => onModeChange('hand')}
           className={`${baseButton} ${mode === 'hand' ? activeButton : idleButton}`}
-          title="Hand tool"
+          title="Grab and move canvas"
           aria-pressed={mode === 'hand'}
         >
           <Hand className="h-4 w-4" />
@@ -76,7 +76,7 @@ export default function CanvasFloatingBar({
           type="button"
           onClick={() => onModeChange('selection')}
           className={`${baseButton} ${mode === 'selection' ? activeButton : idleButton}`}
-          title="Selection tool"
+          title="Selection tool for interacting with canvas elements"
           aria-pressed={mode === 'selection'}
         >
           <MousePointer2 className="h-4 w-4" />
