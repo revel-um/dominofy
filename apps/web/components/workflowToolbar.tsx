@@ -10,6 +10,8 @@ import {
   FiX,
   FiLoader,
   FiMessageSquare, // NEW: Note icon
+  FiMaximize2,
+  FiMinimize2,
 } from 'react-icons/fi';
 import { Node, Edge } from 'reactflow';
 import { exportWorkflow } from '../helpers/workflowManager';
@@ -57,6 +59,8 @@ interface WorkflowToolbarProps {
   onStartInsertNote?: () => void;
   onCancelInsertNote?: () => void;
   isInsertNoteActive?: boolean;
+  isCanvasExpanded?: boolean;
+  onToggleCanvasExpanded?: () => void;
   onWorkflowSaved?: (nodes: Node[], edges: Edge[]) => void;
 }
 
@@ -77,6 +81,8 @@ export default function WorkflowToolbar({
   onStartInsertNote,
   onCancelInsertNote,
   isInsertNoteActive = false,
+  isCanvasExpanded = false,
+  onToggleCanvasExpanded,
   onWorkflowSaved,
 }: WorkflowToolbarProps) {
   const router = useRouter();
@@ -357,6 +363,26 @@ export default function WorkflowToolbar({
             data-state={isInsertNoteActive ? "on" : "off"}
           >
             <FiMessageSquare className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={onToggleCanvasExpanded}
+            className={[
+              "p-2 rounded-md transition-all",
+              "outline-none focus:ring-2 focus:ring-sky-400/70",
+              isCanvasExpanded
+                ? "bg-sky-500 text-white ring-2 ring-sky-300 shadow-inner"
+                : "text-[var(--text-secondary)] hover:bg-[var(--secondary-hover)] hover:text-white"
+            ].join(" ")}
+            title={isCanvasExpanded ? "Switch to compact canvas mode" : "Switch to expanded canvas mode"}
+            aria-pressed={isCanvasExpanded}
+            data-state={isCanvasExpanded ? "on" : "off"}
+          >
+            {isCanvasExpanded ? (
+              <FiMinimize2 className="w-4 h-4" />
+            ) : (
+              <FiMaximize2 className="w-4 h-4" />
+            )}
           </button>
 
           {/* Undo */}

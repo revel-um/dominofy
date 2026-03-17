@@ -76,6 +76,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [edges, _setEdges, _onEdgesChange] = useEdgesState<Edge>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [panelWidth, setPanelWidth] = useState(0);
+  const [isCanvasExpanded, setIsCanvasExpanded] = useState(true);
 
   const [workflowId, setWorkflowId] = useState<string>();
   // @ts-ignore - TODO: Implement logging functionality
@@ -992,6 +993,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             isInsertNoteActive={noteToolActive}
             onStartInsertNote={() => setNoteToolActive(true)}
             onCancelInsertNote={() => setNoteToolActive(false)}
+            isCanvasExpanded={isCanvasExpanded}
+            onToggleCanvasExpanded={() => setIsCanvasExpanded(prev => !prev)}
             onWorkflowSaved={(latestNodes, latestEdges) => markWorkflowClean(latestNodes, latestEdges, workflow?.id)}
           />
 
@@ -1042,10 +1045,11 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                       onEdgesChange={onEdgesChange}       // wrapped handler (records history)
                       workflowId={workflowId!}
                       onUndo={undo}
-                      onRedo={redo}
-                      noteToolActive={noteToolActive}
-                      onCancelInsertNote={() => setNoteToolActive(false)}
-                    />
+                    onRedo={redo}
+                    noteToolActive={noteToolActive}
+                    onCancelInsertNote={() => setNoteToolActive(false)}
+                    isExpandedMode={isCanvasExpanded}
+                  />
                   </div>
                   
                   {/* Smooth loading overlay with slide-in animation */}

@@ -16,8 +16,12 @@ import ReactFlow, {
   type Node,
   type NodeChange,
   type OnConnectStart,
+  Handle,
+  Position,
+  type NodeProps,
 } from "reactflow";
 import "reactflow/dist/style.css";
+import { FiBox } from "react-icons/fi";
 
 /* domino components … */
 import PrintDomino from "../dominos/print";
@@ -49,6 +53,7 @@ import ConnectorDomino from "@/dominos/connector";
 import ShopifyDomino from "@/dominos/shopify";
 /* NEW: Note node */
 import NoteDomino from "../dominos/note";
+import dominoCatalog from "../dominos/dominos";
 
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
@@ -57,8 +62,78 @@ import { useDomino } from "../contexts/dominoContext";
 import { useRouter } from "next/router";
 import { useCopyPaste } from '../hooks/useCopyPaste';
 
-const withRenderKey = (Component: any) => (props: any) => {
+const dominoMetaByType = new Map(
+  dominoCatalog.map((entry) => [entry.id, entry])
+);
+
+function CompactDominoNode(
+  props: NodeProps & { compactType: string }
+) {
+  const { compactType, data, selected, id } = props;
+  const { erroredNodes } = useDomino();
+  const hasError = erroredNodes.includes(id);
+  const meta = dominoMetaByType.get(compactType);
+  const Icon = meta?.icon ?? FiBox;
+  const label =
+    (data as any)?.details?.type ||
+    (data as any)?.label ||
+    meta?.label ||
+    compactType;
+
+  return (
+    <div
+      className={`relative flex h-16 w-44 items-center gap-3 rounded-2xl border px-4 shadow-sm transition-all duration-150
+        ${hasError
+          ? 'error-border'
+          : selected
+            ? 'selected-border border-4'
+            : 'unselected-border dark:border-gray-600'}
+        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+    >
+      <Handle
+        type="target"
+        position={Position.Left}
+        isConnectable={false}
+        style={{
+          left: -4,
+          top: '50%',
+          width: 8,
+          height: 8,
+          opacity: 0,
+          pointerEvents: 'none',
+          transform: 'translateY(-50%)',
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        isConnectable={false}
+        style={{
+          right: -4,
+          top: '50%',
+          width: 8,
+          height: 8,
+          opacity: 0,
+          pointerEvents: 'none',
+          transform: 'translateY(-50%)',
+        }}
+      />
+
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
+        <Icon className="h-5 w-5" />
+      </div>
+      <span className="truncate text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+const withRenderKey = (typeId: string, Component: any) => (props: any) => {
   const renderKey = props?.data?.renderKey ?? 0;
+  if (props?.data?.compactMode) {
+    return <CompactDominoNode {...props} compactType={typeId} />;
+  }
   return <Component key={`${props.id}-${renderKey}`} {...props} />;
 };
 
@@ -71,35 +146,35 @@ import {
 } from "@/helpers/canvasUtils";
 
 const nodeTypes = {
-  csvwriter: withRenderKey(CSVWriterDomino),
-  llm: withRenderKey(LLMDomino),
-  response: withRenderKey(ResponseDomino),
-  print: withRenderKey(PrintDomino),
-  apicall: withRenderKey(ApiCallDomino),
-  apitrigger: withRenderKey(ApiTriggerDomino),
-  condition: withRenderKey(ConditionDomino),
-  switchcase: withRenderKey(SwitchDomino),
-  arithmetic: withRenderKey(ArithmeticDomino),
-  readexcel: withRenderKey(ReadExcelDomino),
-  googleDrive: withRenderKey(GoogleDriveDomino),
-  googleDriveDownload: withRenderKey(GoogleDriveDownloadDomino),
-  deconstructor: withRenderKey(DeconstrctDomino),
-  iterator: withRenderKey(IteratorDomino),
-  filter: withRenderKey(FilterDomino),
-  aggregator: withRenderKey(AggregatorDomino),
-  sqlRunner: withRenderKey(SQLRunnerDomino),
-  codeRunner: withRenderKey(CustomCodeDomino),
-  emailsender: withRenderKey(EmailSenderDomino),
-  emailtrigger: withRenderKey(EmailTriggerDomino),
-  delay: withRenderKey(DelayDomino),
-  mapper: withRenderKey(MapperDomino),
-  slacktrigger: withRenderKey(SlackTriggerDomino),
-  slackaction: withRenderKey(SlackActionDomino),
-  SchedulerDomino: withRenderKey(SchedulerDomino),
-  connector: withRenderKey(ConnectorDomino),
-  shopify: withRenderKey(ShopifyDomino),
+  csvwriter: withRenderKey('csvwriter', CSVWriterDomino),
+  llm: withRenderKey('llm', LLMDomino),
+  response: withRenderKey('response', ResponseDomino),
+  print: withRenderKey('print', PrintDomino),
+  apicall: withRenderKey('apicall', ApiCallDomino),
+  apitrigger: withRenderKey('apitrigger', ApiTriggerDomino),
+  condition: withRenderKey('condition', ConditionDomino),
+  switchcase: withRenderKey('switchcase', SwitchDomino),
+  arithmetic: withRenderKey('arithmetic', ArithmeticDomino),
+  readexcel: withRenderKey('readexcel', ReadExcelDomino),
+  googleDrive: withRenderKey('googleDrive', GoogleDriveDomino),
+  googleDriveDownload: withRenderKey('googleDriveDownload', GoogleDriveDownloadDomino),
+  deconstructor: withRenderKey('deconstructor', DeconstrctDomino),
+  iterator: withRenderKey('iterator', IteratorDomino),
+  filter: withRenderKey('filter', FilterDomino),
+  aggregator: withRenderKey('aggregator', AggregatorDomino),
+  sqlRunner: withRenderKey('sqlRunner', SQLRunnerDomino),
+  codeRunner: withRenderKey('codeRunner', CustomCodeDomino),
+  emailsender: withRenderKey('emailsender', EmailSenderDomino),
+  emailtrigger: withRenderKey('emailtrigger', EmailTriggerDomino),
+  delay: withRenderKey('delay', DelayDomino),
+  mapper: withRenderKey('mapper', MapperDomino),
+  slacktrigger: withRenderKey('slacktrigger', SlackTriggerDomino),
+  slackaction: withRenderKey('slackaction', SlackActionDomino),
+  SchedulerDomino: withRenderKey('SchedulerDomino', SchedulerDomino),
+  connector: withRenderKey('connector', ConnectorDomino),
+  shopify: withRenderKey('shopify', ShopifyDomino),
   /* NEW */
-  note: withRenderKey(NoteDomino),
+  note: withRenderKey('note', NoteDomino),
 };
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
@@ -122,6 +197,7 @@ interface CanvasProps {
   /* NEW: note tool control coming from parent/toolbar */
   noteToolActive?: boolean;
   onCancelInsertNote?: () => void;
+  isExpandedMode?: boolean;
   
   /* NEW: viewport change callback for template carousel */
   onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;
@@ -137,6 +213,7 @@ export default function Canvas(props: CanvasProps) {
     /* NEW */
     noteToolActive = false,
     onCancelInsertNote,
+    isExpandedMode = true,
     onViewportChange,
   } = props;
 
@@ -210,17 +287,56 @@ export default function Canvas(props: CanvasProps) {
       }
 
       return nodes.map((n) => {
+        const compactMode = !isExpandedMode;
         if (n.data?.suggested) {
           return {
             ...n,
             className: n.className ? `${n.className} opacity-50` : "opacity-50",
+            data: {
+              ...n.data,
+              compactMode,
+            },
           };
         }
-        return n;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            compactMode,
+          },
+        };
       });
     },
-    [nodes, isCanvasReady, renderGuarded]
+    [nodes, isCanvasReady, renderGuarded, isExpandedMode]
   );
+
+  const displayedEdges = useMemo(() => {
+    if (isExpandedMode) {
+      return edges;
+    }
+
+    const deduped = new Map<string, Edge>();
+    edges.forEach((edge) => {
+      const key = `${edge.source}::${edge.target}`;
+      if (!deduped.has(key)) {
+        deduped.set(key, {
+          ...edge,
+          id: `compact-${edge.source}-${edge.target}`,
+          sourceHandle: undefined,
+          targetHandle: undefined,
+          type: 'smoothstep',
+          animated: false,
+          selectable: false,
+          style: {
+            stroke: '#94a3b8',
+            strokeWidth: 2,
+          },
+        });
+      }
+    });
+
+    return Array.from(deduped.values());
+  }, [edges, isExpandedMode]);
 
   /* helpers */
   const getNodes = () => nodes;
@@ -938,14 +1054,14 @@ export default function Canvas(props: CanvasProps) {
           key={currentWorkflowId} // Force re-render on workflow change
           id={id}
           nodes={renderedNodes}
-          edges={edges}
+          edges={displayedEdges}
           nodeTypes={nodeTypes}
           onInit={setRfInstance}
           onDrop={onDrop}
           onDragOver={handleDragOver}
           onConnectStart={onConnectStart}
-          onConnect={onConnect}
-          onEdgesChange={handleEdgesChange}
+          onConnect={isExpandedMode ? onConnect : undefined}
+          onEdgesChange={isExpandedMode ? handleEdgesChange : undefined}
           onNodesChange={handleNodesChange}
           onNodeClick={onNodeClick as any}
           onMove={handleReactFlowMove}
@@ -953,7 +1069,7 @@ export default function Canvas(props: CanvasProps) {
           defaultViewport={getInitialViewport()}
           fitView={isNewTab} // Only fit view for new tabs
           nodesDraggable={!readonly}
-          nodesConnectable={!readonly}
+          nodesConnectable={!readonly && isExpandedMode}
           elementsSelectable={!readonly}
           panOnDrag
           zoomOnScroll
