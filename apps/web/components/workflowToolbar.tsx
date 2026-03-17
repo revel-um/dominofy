@@ -88,16 +88,25 @@ export default function WorkflowToolbar({
     nodes.forEach(n => (adj[n.id] = []));
     edges.forEach(e => {
       if (e.sourceHandle?.startsWith('exec') || e.targetHandle?.startsWith('exec')) {
+        if (!adj[e.source] || !adj[e.target]) {
+          return;
+        }
         adj[e.source].push(e.target);
         adj[e.target].push(e.source);
       }
     });
 
-    const seen = new Set<string>([nodes[0].id]);
-    const queue = [nodes[0].id];
+    const startNodeId = nodes[0]?.id;
+    if (!startNodeId || !adj[startNodeId]) {
+      alert('Workflow is missing a valid starting domino.');
+      return false;
+    }
+
+    const seen = new Set<string>([startNodeId]);
+    const queue = [startNodeId];
     while (queue.length) {
       const cur = queue.shift()!;
-      adj[cur].forEach(n => {
+      (adj[cur] ?? []).forEach(n => {
         if (!seen.has(n)) {
           seen.add(n);
           queue.push(n);
