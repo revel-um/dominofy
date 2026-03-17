@@ -1105,16 +1105,12 @@ export default function Canvas(props: CanvasProps) {
     onEdgesChange?.(c);
   };
 
-  /* node changes — use React Flow helper so all `select`/drag changes apply */
+  /* node changes — let React Flow apply selection updates for box multi-select */
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      // Filter out selection changes since we handle them manually in onNodeClick
-      const nonSelectionChanges = changes.filter(change => change.type !== 'select');
-      
-      // Only apply non-selection changes
-      if (nonSelectionChanges.length > 0) {
-        setNodes((prev) => applyNodeChanges(nonSelectionChanges, prev));
-        onNodesChange?.(nonSelectionChanges);
+      if (changes.length > 0) {
+        setNodes((prev) => applyNodeChanges(changes, prev));
+        onNodesChange?.(changes);
       }
     },
     [setNodes, onNodesChange]
