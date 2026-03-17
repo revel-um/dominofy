@@ -23,6 +23,8 @@ import { useNodesState, useEdgesState } from "reactflow";
 import { config } from "../config/config";
 import { TokenManager } from "../utils/auth";
 
+const CANVAS_MODE_STORAGE_KEY_PREFIX = "dominofy-canvas-mode";
+
 interface Project {
     id: string;
     name: string;
@@ -66,6 +68,7 @@ export default function DominofyDashboard() {
     const [isExchanging, setIsExchanging] = useState(false);
     const [booting, setBooting] = useState(true);
     const [lastActiveWorkflowId, setLastActiveWorkflowId] = useState<string | null>(null);
+    const [recentWorkflowExpanded, setRecentWorkflowExpanded] = useState(true);
 
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -127,6 +130,21 @@ export default function DominofyDashboard() {
         
         return workflow;
     };
+
+    const getStoredCanvasMode = (workflowId?: string | null) => {
+        if (typeof window === "undefined" || !workflowId) return true;
+        try {
+            const stored = localStorage.getItem(`${CANVAS_MODE_STORAGE_KEY_PREFIX}:${workflowId}`);
+            if (stored === null) return true;
+            return stored === "expanded";
+        } catch {
+            return true;
+        }
+    };
+
+    useEffect(() => {
+        setRecentWorkflowExpanded(getStoredCanvasMode(recentWorkflow?.id));
+    }, [recentWorkflow?.id]);
 
     // Data ----------------------------------------------------------------
     const fetchProjects = async () => {
@@ -653,6 +671,7 @@ export default function DominofyDashboard() {
                                 setEdges={setEdges}
                                 id='dashboard-recent'
                                 readonly={true}
+                                isExpandedMode={recentWorkflowExpanded}
                             />
                         </div>
                     </div>

@@ -33,6 +33,7 @@ import { WorkflowTabMeta, WorkflowTabs } from "@/components/workflowTabs";
 const TABS_STORAGE_KEY_PREFIX = "dominofy-tabs";
 const LAST_ACTIVE_TAB_KEY_PREFIX = "dominofy-last-active-tab";
 const LEGACY_LAST_ACTIVE_TAB_KEY = "dominofy-last-active-tab";
+const CANVAS_MODE_STORAGE_KEY_PREFIX = "dominofy-canvas-mode";
 
 interface Props {
   currWorkflow?: {
@@ -119,6 +120,30 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     clearValidationForDominoId: (dominoId: string) =>
       setValidationErrors(prev => prev.filter(errId => errId !== dominoId)),
   };
+
+  const getStoredCanvasMode = useCallback((id?: string | null) => {
+    if (typeof window === 'undefined' || !id) return true;
+    try {
+      const stored = localStorage.getItem(`${CANVAS_MODE_STORAGE_KEY_PREFIX}:${id}`);
+      if (stored === null) return true;
+      return stored === 'expanded';
+    } catch {
+      return true;
+    }
+  }, []);
+
+  const updateCanvasMode = useCallback((expanded: boolean, id?: string | null) => {
+    setIsCanvasExpanded(expanded);
+    if (typeof window === 'undefined' || !id) return;
+    try {
+      localStorage.setItem(
+        `${CANVAS_MODE_STORAGE_KEY_PREFIX}:${id}`,
+        expanded ? 'expanded' : 'compact'
+      );
+    } catch (err) {
+      console.error('Error saving canvas mode', err);
+    }
+  }, []);
 
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
@@ -793,8 +818,9 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
     setWorkflow(nextWorkflow);
     setWorkflowId(nextWorkflow.id);
+    updateCanvasMode(getStoredCanvasMode(nextWorkflow.id), nextWorkflow.id);
     setHasUnsavedChanges(false);
-  }, [workflow?.id, findWorkflowById, autoSaveWorkflow, fetchWorkflowById, hasUnsavedChanges, _setNodes, _setEdges]);
+  }, [workflow?.id, findWorkflowById, autoSaveWorkflow, fetchWorkflowById, hasUnsavedChanges, _setNodes, _setEdges, getStoredCanvasMode, updateCanvasMode]);
 
 
   // Open a workflow and ensure its tab is selected
@@ -904,6 +930,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   useEffect(() => {
     const hydrateContent = async () => {
       if (workflow) {
+        updateCanvasMode(getStoredCanvasMode(workflow.id), workflow.id);
         const serverGraph = getSafeWorkflowGraph(workflow.visualJson);
         // First check if there's a cached version of this workflow
         const cachedWorkflowData = sessionStorage.getItem(`workflow-${workflow.id}`);
@@ -985,16 +1012,6 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             getNodes={() => nodes}
             getEdges={() => edges}
             openLogsPanel={openLogsPanel}
-            // undo/redo from parent
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={canUndo}
-            canRedo={canRedo}
-            isInsertNoteActive={noteToolActive}
-            onStartInsertNote={() => setNoteToolActive(true)}
-            onCancelInsertNote={() => setNoteToolActive(false)}
-            isCanvasExpanded={isCanvasExpanded}
-            onToggleCanvasExpanded={() => setIsCanvasExpanded(prev => !prev)}
             onWorkflowSaved={(latestNodes, latestEdges) => markWorkflowClean(latestNodes, latestEdges, workflow?.id)}
           />
 
@@ -1045,11 +1062,15 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                       onEdgesChange={onEdgesChange}       // wrapped handler (records history)
                       workflowId={workflowId!}
                       onUndo={undo}
-                    onRedo={redo}
-                    noteToolActive={noteToolActive}
-                    onCancelInsertNote={() => setNoteToolActive(false)}
-                    isExpandedMode={isCanvasExpanded}
-                  />
+                      onRedo={redo}
+                      canUndo={canUndo}
+                      canRedo={canRedo}
+                      noteToolActive={noteToolActive}
+                      onStartInsertNote={() => setNoteToolActive(true)}
+                      onCancelInsertNote={() => setNoteToolActive(false)}
+                      isExpandedMode={isCanvasExpanded}
+                      onToggleExpandedMode={() => updateCanvasMode(!isCanvasExpanded, workflowId)}
+                    />
                   </div>
                   
                   {/* Smooth loading overlay with slide-in animation */}

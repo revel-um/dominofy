@@ -61,6 +61,7 @@ import { validateNodeConnections } from "../helpers/errorDetector";
 import { useDomino } from "../contexts/dominoContext";
 import { useRouter } from "next/router";
 import { useCopyPaste } from '../hooks/useCopyPaste';
+import CanvasFloatingBar, { type CanvasInteractionMode } from "./canvasFloatingBar";
 
 const dominoMetaByType = new Map(
   dominoCatalog.map((entry) => [entry.id, entry])
@@ -75,14 +76,14 @@ function CompactDominoNode(
   const meta = dominoMetaByType.get(compactType);
   const Icon = meta?.icon ?? FiBox;
   const label =
+    meta?.label ||
     (data as any)?.details?.type ||
     (data as any)?.label ||
-    meta?.label ||
     compactType;
 
   return (
     <div
-      className={`relative flex h-16 w-44 items-center gap-3 rounded-2xl border px-4 shadow-sm transition-all duration-150
+      className={`relative flex h-14 min-w-[7rem] w-max max-w-none items-center justify-center rounded-2xl border px-1.5 shadow-sm transition-all duration-150
         ${hasError
           ? 'error-border'
           : selected
@@ -119,12 +120,14 @@ function CompactDominoNode(
         }}
       />
 
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
-        <Icon className="h-5 w-5" />
+      <div className="flex items-center justify-center gap-0">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+        <span className="whitespace-nowrap text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+          {label}
+        </span>
       </div>
-      <span className="truncate text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-        {label}
-      </span>
     </div>
   );
 }
@@ -193,11 +196,15 @@ interface CanvasProps {
   /* NEW: parent-provided undo/redo handlers for keyboard shortcuts */
   onUndo?: () => void;
   onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 
   /* NEW: note tool control coming from parent/toolbar */
   noteToolActive?: boolean;
+  onStartInsertNote?: () => void;
   onCancelInsertNote?: () => void;
   isExpandedMode?: boolean;
+  onToggleExpandedMode?: () => void;
   
   /* NEW: viewport change callback for template carousel */
   onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;
@@ -210,10 +217,14 @@ export default function Canvas(props: CanvasProps) {
     workflowId, readonly = false,
     onNodesChange, onEdgesChange,
     onUndo, onRedo,
+    canUndo = false,
+    canRedo = false,
     /* NEW */
     noteToolActive = false,
+    onStartInsertNote,
     onCancelInsertNote,
     isExpandedMode = true,
+    onToggleExpandedMode,
     onViewportChange,
   } = props;
 
@@ -231,6 +242,7 @@ export default function Canvas(props: CanvasProps) {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const [isProgrammaticMove, setIsProgrammaticMove] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<CanvasInteractionMode>('selection');
   const viewportChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   const renderGuarded = useMemo(() => id.includes('dashboard') || id.includes('template'), [id]);
@@ -324,10 +336,10 @@ export default function Canvas(props: CanvasProps) {
           id: `compact-${edge.source}-${edge.target}`,
           sourceHandle: undefined,
           targetHandle: undefined,
-          type: 'smoothstep',
+          type: edge.type ?? 'default',
           animated: false,
-          selectable: false,
           style: {
+            ...edge.style,
             stroke: '#94a3b8',
             strokeWidth: 2,
           },
@@ -337,6 +349,19 @@ export default function Canvas(props: CanvasProps) {
 
     return Array.from(deduped.values());
   }, [edges, isExpandedMode]);
+
+  const isLockedMode = interactionMode === 'lock';
+  const isHandMode = interactionMode === 'hand';
+  const isSelectionMode = interactionMode === 'selection';
+
+  const toggleNoteToolFromCanvas = useCallback(() => {
+    if (noteToolActive) {
+      onCancelInsertNote?.();
+      return;
+    }
+    setInteractionMode('selection');
+    onStartInsertNote?.();
+  }, [noteToolActive, onCancelInsertNote, onStartInsertNote]);
 
   /* helpers */
   const getNodes = () => nodes;
@@ -925,9 +950,32 @@ export default function Canvas(props: CanvasProps) {
       // Default selection behavior
       if (e.metaKey || e.ctrlKey || e.shiftKey) return;
       setNodes((prev) => prev.map((n) => ({ ...n, selected: false })));
-      
+      setEdges((prev) => prev.map((edge) => ({ ...edge, selected: false })));
+      setSelectedNode(null);
     },
-    [noteToolActive, rfInstance, setNodes, edges, updatePipeline, onCancelInsertNote, workflowId]
+    [noteToolActive, rfInstance, setNodes, setEdges, edges, updatePipeline, onCancelInsertNote, workflowId]
+  );
+
+  const handleEdgeClick = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      if (!isExpandedMode) {
+        return;
+      }
+
+      if (event.metaKey || event.ctrlKey || event.shiftKey) {
+        return;
+      }
+
+      setNodes((prev) => prev.map((node) => ({ ...node, selected: false })));
+      setEdges((prev) =>
+        prev.map((currentEdge) => ({
+          ...currentEdge,
+          selected: currentEdge.id === edge.id,
+        }))
+      );
+      setSelectedNode(null);
+    },
+    [isExpandedMode, setNodes, setEdges]
   );
 
   /* ───── Keyboard: Undo/Redo (delegates to parent) ───── */
@@ -1064,28 +1112,45 @@ export default function Canvas(props: CanvasProps) {
           onEdgesChange={isExpandedMode ? handleEdgesChange : undefined}
           onNodesChange={handleNodesChange}
           onNodeClick={onNodeClick as any}
+          onEdgeClick={handleEdgeClick}
           onMove={handleReactFlowMove}
           isValidConnection={isValidConnection}
           defaultViewport={getInitialViewport()}
           fitView={isNewTab} // Only fit view for new tabs
-          nodesDraggable={!readonly}
-          nodesConnectable={!readonly && isExpandedMode}
-          elementsSelectable={!readonly}
-          panOnDrag
-          zoomOnScroll
+          nodesDraggable={!readonly && isSelectionMode}
+          nodesConnectable={!readonly && isExpandedMode && isSelectionMode}
+          elementsSelectable={!readonly && !isLockedMode && !isHandMode}
+          panOnDrag={!readonly && isHandMode}
+          panOnScroll={!readonly}
+          zoomOnScroll={false}
 
           /* ✅ MULTI-SELECT via rectangle (hold Shift) */
-          selectionOnDrag
+          selectionOnDrag={!readonly && isSelectionMode}
           selectionKeyCode={['Shift']}
           multiSelectionKeyCode={null}
           selectionMode={SelectionMode.Partial}
-          selectNodesOnDrag={false}
+          selectNodesOnDrag={isSelectionMode}
           onPaneClick={handlePaneClick}
 
           proOptions={{ hideAttribution: true }}
           className={canvasClassName}
         >
           <Background />
+          {!readonly && isDominofyCanvas && (
+            <CanvasFloatingBar
+              offsetX={detailsPanelWidth / 2}
+              mode={interactionMode}
+              onModeChange={setInteractionMode}
+              noteToolActive={noteToolActive}
+              onToggleNoteTool={toggleNoteToolFromCanvas}
+              isExpandedMode={isExpandedMode}
+              onToggleExpandedMode={() => onToggleExpandedMode?.()}
+              onUndo={onUndo}
+              onRedo={onRedo}
+              canUndo={canUndo}
+              canRedo={canRedo}
+            />
+          )}
           {!readonly && !id.includes('dashboard') && (
             <div
               className={`${

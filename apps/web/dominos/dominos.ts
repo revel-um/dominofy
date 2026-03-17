@@ -120,7 +120,7 @@ export default [
   },
   {
     id: 'deconstructor',
-    label: 'Deconstruct',
+    label: 'De-Construct',
     icon: BoomBox,
     categories: ['Data Transformation']
   },
@@ -150,7 +150,7 @@ export default [
   },
   {
     id: 'codeRunner',
-    label: 'Code Runner',
+    label: 'Custom Code',
     icon: FiCode,
     categories: ['Action']
   },
@@ -180,7 +180,7 @@ export default [
   },
   {
     id: 'connector',
-    label: 'Connector',
+    label: 'Connector/Merger',
     icon: Plug,
     categories: ['Logic']
   },

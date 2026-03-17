@@ -4,14 +4,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FiPlay,
   FiEdit2,
-  FiRotateCcw,
-  FiRotateCw,
   FiCheck,
   FiX,
   FiLoader,
-  FiMessageSquare, // NEW: Note icon
-  FiMaximize2,
-  FiMinimize2,
 } from 'react-icons/fi';
 import { Node, Edge } from 'reactflow';
 import { exportWorkflow } from '../helpers/workflowManager';
@@ -48,19 +43,6 @@ interface WorkflowToolbarProps {
   getNodes: () => Node[];
   getEdges: () => Edge[];
   openLogsPanel?: () => void;
-
-  /** Undo/redo provided by parent */
-  onUndo?: () => void;
-  onRedo?: () => void;
-  canUndo?: boolean;
-  canRedo?: boolean;
-
-  /** NEW: note insertion control is owned by the Canvas */
-  onStartInsertNote?: () => void;
-  onCancelInsertNote?: () => void;
-  isInsertNoteActive?: boolean;
-  isCanvasExpanded?: boolean;
-  onToggleCanvasExpanded?: () => void;
   onWorkflowSaved?: (nodes: Node[], edges: Edge[]) => void;
 }
 
@@ -74,15 +56,6 @@ export default function WorkflowToolbar({
   getNodes,
   getEdges,
   openLogsPanel,
-  onUndo,
-  onRedo,
-  canUndo = false,
-  canRedo = false,
-  onStartInsertNote,
-  onCancelInsertNote,
-  isInsertNoteActive = false,
-  isCanvasExpanded = false,
-  onToggleCanvasExpanded,
   onWorkflowSaved,
 }: WorkflowToolbarProps) {
   const router = useRouter();
@@ -244,15 +217,6 @@ export default function WorkflowToolbar({
   /* cleanup */
   useEffect(() => () => stopSSE(), [stopSSE]);
 
-  /* ────── note tool toggle ────── */
-  const toggleNoteTool = useCallback(() => {
-    if (isInsertNoteActive) {
-      onCancelInsertNote?.();
-    } else {
-      onStartInsertNote?.();
-    }
-  }, [isInsertNoteActive, onStartInsertNote, onCancelInsertNote]);
-
   return (
     <>
       {/* ───────── Toolbar ───────── */}
@@ -332,79 +296,6 @@ export default function WorkflowToolbar({
           >
             {justRan ? <FiCheck className="w-4 h-4" /> : <FiPlay className="w-4 h-4" />}
             Run
-          </button>
-
-          {isInsertNoteActive && (
-            <span
-              className="ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full
-                        text-xs font-medium
-                        bg-amber-100 text-amber-800
-                        dark:bg-amber-500/20 dark:text-amber-200 border border-amber-300/60"
-            >
-              <FiMessageSquare className="w-3 h-3" />
-              Note mode: click canvas
-            </span>
-          )}
-
-          {/* NEW: Note tool (high-contrast active styles) */}
-          <button
-            onClick={toggleNoteTool}
-            className={[
-              "p-2 rounded-md transition-all",
-              "outline-none focus:ring-2 focus:ring-amber-400/70",
-              isInsertNoteActive
-                // ACTIVE: bright background + border + inner shadow so it reads “pressed”
-                ? "bg-amber-500 text-white ring-2 ring-amber-300 shadow-inner"
-                // IDLE: subtle, but contrasts on hover
-                : "text-[var(--text-secondary)] hover:bg-[var(--secondary-hover)] hover:text-white"
-            ].join(" ")}
-            title={isInsertNoteActive ? "Click to cancel note insertion" : "Insert note (N)"}
-            aria-pressed={isInsertNoteActive}
-            data-state={isInsertNoteActive ? "on" : "off"}
-          >
-            <FiMessageSquare className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={onToggleCanvasExpanded}
-            className={[
-              "p-2 rounded-md transition-all",
-              "outline-none focus:ring-2 focus:ring-sky-400/70",
-              isCanvasExpanded
-                ? "bg-sky-500 text-white ring-2 ring-sky-300 shadow-inner"
-                : "text-[var(--text-secondary)] hover:bg-[var(--secondary-hover)] hover:text-white"
-            ].join(" ")}
-            title={isCanvasExpanded ? "Switch to compact canvas mode" : "Switch to expanded canvas mode"}
-            aria-pressed={isCanvasExpanded}
-            data-state={isCanvasExpanded ? "on" : "off"}
-          >
-            {isCanvasExpanded ? (
-              <FiMinimize2 className="w-4 h-4" />
-            ) : (
-              <FiMaximize2 className="w-4 h-4" />
-            )}
-          </button>
-
-          {/* Undo */}
-          <button
-            onClick={onUndo}
-            disabled={!canUndo}
-            className={`p-2 rounded-md transition-colors text-[var(--text-secondary)]
-                       ${canUndo ? 'hover:bg-[var(--secondary-hover)] hover:text-white' : 'opacity-50 cursor-not-allowed'}`}
-            title={canUndo ? 'Undo (Ctrl/Cmd+Z)' : 'Nothing to undo'}
-          >
-            <FiRotateCcw className="w-4 h-4" />
-          </button>
-
-          {/* Redo */}
-          <button
-            onClick={onRedo}
-            disabled={!canRedo}
-            className={`p-2 rounded-md transition-colors text-[var(--text-secondary)]
-                       ${canRedo ? 'hover:bg-[var(--secondary-hover)] hover:text-white' : 'opacity-50 cursor-not-allowed'}`}
-            title={canRedo ? 'Redo (Ctrl/Cmd+Y or Shift+Ctrl/Cmd+Z)' : 'Nothing to redo'}
-          >
-            <FiRotateCw className="w-4 h-4" />
           </button>
         </div>
       </header>
