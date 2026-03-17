@@ -19,6 +19,7 @@ import ReactFlow, {
   Handle,
   Position,
   type NodeProps,
+  useUpdateNodeInternals,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { FiBox } from "react-icons/fi";
@@ -67,6 +68,47 @@ const dominoMetaByType = new Map(
   dominoCatalog.map((entry) => [entry.id, entry])
 );
 
+function AnimatedNodeWrapper({
+  animationKey,
+  nodeId,
+  onModeAnimationStart,
+  onModeAnimationEnd,
+  children,
+}: {
+  animationKey: string;
+  nodeId: string;
+  onModeAnimationStart?: (nodeId: string) => void;
+  onModeAnimationEnd?: (nodeId: string) => void;
+  children: React.ReactNode;
+}) {
+  const updateNodeInternals = useUpdateNodeInternals();
+
+  const handleAnimationStart = useCallback(() => {
+    onModeAnimationStart?.(nodeId);
+  }, [nodeId, onModeAnimationStart]);
+
+  const handleAnimationEnd = useCallback(() => {
+    // Wait for the browser to flush final layout before recalculating handles.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        updateNodeInternals(nodeId);
+        onModeAnimationEnd?.(nodeId);
+      });
+    });
+  }, [nodeId, onModeAnimationEnd, updateNodeInternals]);
+
+  return (
+    <div
+      key={animationKey}
+      className="animate-node-mode-swap"
+      onAnimationStart={handleAnimationStart}
+      onAnimationEnd={handleAnimationEnd}
+    >
+      {children}
+    </div>
+  );
+}
+
 function CompactDominoNode(
   props: NodeProps & { compactType: string }
 ) {
@@ -83,13 +125,7 @@ function CompactDominoNode(
 
   return (
     <div
-      className={`relative flex h-14 min-w-[7rem] w-max max-w-none items-center justify-center rounded-2xl border px-1.5 shadow-sm transition-all duration-150
-        ${hasError
-          ? 'error-border'
-          : selected
-            ? 'selected-border border-4'
-            : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      className="relative h-14 min-w-[7rem] w-max max-w-none"
     >
       <Handle
         type="target"
@@ -120,13 +156,23 @@ function CompactDominoNode(
         }}
       />
 
-      <div className="flex items-center justify-center gap-0">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
-          <Icon className="h-3.5 w-3.5" />
+      <div
+        className={`flex h-full w-full items-center justify-center rounded-2xl border px-1.5 shadow-sm transition-all duration-150
+          ${hasError
+            ? 'error-border'
+            : selected
+              ? 'selected-border border-4'
+              : 'unselected-border dark:border-gray-600'}
+          bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      >
+        <div className="flex items-center justify-center gap-0">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
+            <Icon className="h-3.5 w-3.5" />
+          </div>
+          <span className="whitespace-nowrap text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+            {label}
+          </span>
         </div>
-        <span className="whitespace-nowrap text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-          {label}
-        </span>
       </div>
     </div>
   );
@@ -134,10 +180,30 @@ function CompactDominoNode(
 
 const withRenderKey = (typeId: string, Component: any) => (props: any) => {
   const renderKey = props?.data?.renderKey ?? 0;
+  const modeKey = props?.data?.compactMode ? 'compact' : 'expanded';
+  const animationKey = `${props?.id ?? 'node'}-${modeKey}-${renderKey}`;
   if (props?.data?.compactMode) {
-    return <CompactDominoNode {...props} compactType={typeId} />;
+    return (
+      <AnimatedNodeWrapper
+        animationKey={animationKey}
+        nodeId={props.id}
+        onModeAnimationStart={props?.data?.onModeAnimationStart}
+        onModeAnimationEnd={props?.data?.onModeAnimationEnd}
+      >
+        <CompactDominoNode {...props} compactType={typeId} />
+      </AnimatedNodeWrapper>
+    );
   }
-  return <Component key={`${props.id}-${renderKey}`} {...props} />;
+  return (
+    <AnimatedNodeWrapper
+      animationKey={animationKey}
+      nodeId={props.id}
+      onModeAnimationStart={props?.data?.onModeAnimationStart}
+      onModeAnimationEnd={props?.data?.onModeAnimationEnd}
+    >
+      <Component key={`${props.id}-${renderKey}`} {...props} />
+    </AnimatedNodeWrapper>
+  );
 };
 
 import {
@@ -243,8 +309,10 @@ export default function Canvas(props: CanvasProps) {
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const [isProgrammaticMove, setIsProgrammaticMove] = useState(false);
   const [interactionMode, setInteractionMode] = useState<CanvasInteractionMode>('selection');
+  const [animatingNodeIds, setAnimatingNodeIds] = useState<Set<string>>(new Set());
   const viewportChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
+  const previousCompactModeRef = useRef<Record<string, boolean>>({});
   const renderGuarded = useMemo(() => id.includes('dashboard') || id.includes('template'), [id]);
 
   // Reset canvas ready state when nodes change
@@ -290,7 +358,45 @@ export default function Canvas(props: CanvasProps) {
     };
   }, []);
 
+  const handleModeAnimationStart = useCallback((nodeId: string) => {
+    setAnimatingNodeIds((prev) => {
+      const next = new Set(prev);
+      next.add(nodeId);
+      return next;
+    });
+  }, []);
+
+  const handleModeAnimationEnd = useCallback((nodeId: string) => {
+    setAnimatingNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(nodeId);
+      return next;
+    });
+  }, []);
+
   /* fade suggestion nodes for UI */
+  const expandedNodeIds = useMemo(() => {
+    const expandedIds = new Set<string>();
+
+    if (isExpandedMode) {
+      return expandedIds;
+    }
+
+    const selectedNodeIds = nodes.filter((node) => node.selected).map((node) => node.id);
+    const selectedEdges = edges.filter((edge) => edge.selected);
+
+    selectedNodeIds.forEach((nodeId) => {
+      expandedIds.add(nodeId);
+    });
+
+    selectedEdges.forEach((edge) => {
+      expandedIds.add(edge.source);
+      expandedIds.add(edge.target);
+    });
+
+    return expandedIds;
+  }, [nodes, edges, isExpandedMode]);
+
   const renderedNodes = useMemo(
     () => {
       // Only gate rendering for dashboard/template canvases
@@ -299,7 +405,7 @@ export default function Canvas(props: CanvasProps) {
       }
 
       return nodes.map((n) => {
-        const compactMode = !isExpandedMode;
+        const compactMode = !isExpandedMode && !expandedNodeIds.has(n.id);
         if (n.data?.suggested) {
           return {
             ...n,
@@ -307,6 +413,8 @@ export default function Canvas(props: CanvasProps) {
             data: {
               ...n.data,
               compactMode,
+              onModeAnimationStart: handleModeAnimationStart,
+              onModeAnimationEnd: handleModeAnimationEnd,
             },
           };
         }
@@ -315,11 +423,13 @@ export default function Canvas(props: CanvasProps) {
           data: {
             ...n.data,
             compactMode,
+            onModeAnimationStart: handleModeAnimationStart,
+            onModeAnimationEnd: handleModeAnimationEnd,
           },
         };
       });
     },
-    [nodes, isCanvasReady, renderGuarded, isExpandedMode]
+    [nodes, expandedNodeIds, handleModeAnimationEnd, handleModeAnimationStart, isCanvasReady, renderGuarded, isExpandedMode]
   );
 
   const displayedEdges = useMemo(() => {
@@ -327,8 +437,87 @@ export default function Canvas(props: CanvasProps) {
       return edges;
     }
 
+    const placeholderEdges = new Map<string, Edge>();
+    const stableEdges = edges.filter((edge) => {
+      const touchesAnimatingNode =
+        animatingNodeIds.has(edge.source) || animatingNodeIds.has(edge.target);
+
+      if (!touchesAnimatingNode) {
+        return true;
+      }
+
+      const key = `${edge.source}::${edge.target}`;
+      if (!placeholderEdges.has(key)) {
+        placeholderEdges.set(key, {
+          ...edge,
+          id: `animating-${edge.source}-${edge.target}`,
+          sourceHandle: undefined,
+          targetHandle: undefined,
+          type: 'straight',
+          animated: false,
+          style: {
+            ...edge.style,
+            stroke: '#94a3b8',
+            strokeWidth: 2,
+          },
+        });
+      }
+
+      return false;
+    });
+
+    if (expandedNodeIds.size > 0) {
+      const emphasizedEdges: Edge[] = [];
+      const compactOnlyDeduped = new Map<string, Edge>();
+
+      stableEdges.forEach((edge) => {
+        const sourceExpanded = expandedNodeIds.has(edge.source);
+        const targetExpanded = expandedNodeIds.has(edge.target);
+
+        if (sourceExpanded || targetExpanded) {
+          emphasizedEdges.push({
+            ...edge,
+            id: `compact-expanded-${edge.id}`,
+            sourceHandle: sourceExpanded ? edge.sourceHandle : undefined,
+            targetHandle: targetExpanded ? edge.targetHandle : undefined,
+            type: edge.type ?? 'default',
+            animated: false,
+            style: {
+              ...edge.style,
+              stroke: '#94a3b8',
+              strokeWidth: 2,
+            },
+          });
+          return;
+        }
+
+        const key = `${edge.source}::${edge.target}`;
+        if (!compactOnlyDeduped.has(key)) {
+          compactOnlyDeduped.set(key, {
+            ...edge,
+            id: `compact-${edge.source}-${edge.target}`,
+            sourceHandle: undefined,
+            targetHandle: undefined,
+            type: edge.type ?? 'default',
+            animated: false,
+            style: {
+              ...edge.style,
+              stroke: '#94a3b8',
+              strokeWidth: 2,
+            },
+          });
+        }
+      });
+
+      return [
+        ...Array.from(compactOnlyDeduped.values()),
+        ...emphasizedEdges,
+        ...Array.from(placeholderEdges.values()),
+      ];
+    }
+
     const deduped = new Map<string, Edge>();
-    edges.forEach((edge) => {
+      stableEdges.forEach((edge) => {
       const key = `${edge.source}::${edge.target}`;
       if (!deduped.has(key)) {
         deduped.set(key, {
@@ -347,8 +536,52 @@ export default function Canvas(props: CanvasProps) {
       }
     });
 
-    return Array.from(deduped.values());
-  }, [edges, isExpandedMode]);
+    return [...Array.from(deduped.values()), ...Array.from(placeholderEdges.values())];
+  }, [edges, isExpandedMode, expandedNodeIds, animatingNodeIds]);
+
+  useEffect(() => {
+    if (!rfInstance || isExpandedMode) {
+      previousCompactModeRef.current = Object.fromEntries(
+        renderedNodes.map((node) => [node.id, Boolean((node.data as any)?.compactMode)])
+      );
+      return;
+    }
+
+    const nextCompactMode = Object.fromEntries(
+      renderedNodes.map((node) => [node.id, Boolean((node.data as any)?.compactMode)])
+    );
+    const changedNodeIds = Object.keys(nextCompactMode).filter(
+      (nodeId) => previousCompactModeRef.current[nodeId] !== nextCompactMode[nodeId]
+    );
+
+    previousCompactModeRef.current = nextCompactMode;
+
+    if (!changedNodeIds.length) {
+      return;
+    }
+
+    const startedAt = performance.now();
+    let frameId = 0;
+
+    const refreshHandles = () => {
+      const updater = (rfInstance as any)?.updateNodeInternals;
+      if (typeof updater === 'function') {
+        changedNodeIds.forEach((nodeId) => updater(nodeId));
+      }
+
+      if (performance.now() - startedAt < 360) {
+        frameId = requestAnimationFrame(refreshHandles);
+      }
+    };
+
+    frameId = requestAnimationFrame(refreshHandles);
+
+    return () => {
+      if (frameId) {
+        cancelAnimationFrame(frameId);
+      }
+    };
+  }, [rfInstance, renderedNodes, isExpandedMode]);
 
   const isLockedMode = interactionMode === 'lock';
   const isHandMode = interactionMode === 'hand';
