@@ -23,7 +23,7 @@ export interface WorkflowLogDto {
   runId: string;                      // execution instance
   dominoId: string;                   // node that produced this log (NOT NULL!)
   status: WorkflowLogStatus;          // 'success' | 'failure'
-  output?: { seq: number; output?: any }; // only for print logs
+  output?: any;
   error?: { message: string; stack?: string };
   ts?: Date;                          // defaulted by logLine()
   seq?: number;                       // convenience for non‑print logs
@@ -108,6 +108,11 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
       this.streamEmitter.on(this.streamEvent, handler);
       return () => this.streamEmitter.off(this.streamEvent, handler);
     });
+  }
+
+  /** Force-persist any buffered logs immediately. */
+  async flushNow() {
+    await this.flush();
   }
 
   /* ------------------------------ Query helper ----------------------------- */
@@ -221,21 +226,31 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
       if (d.error) g.error = d.error;
       g.ts = d.ts ?? g.ts;
 
-      if (d.type === 'print') {
-        /** Runner V1  →  dto.seq + dto.output
-         *  Runner V2  →  dto.output = { seq, output }
-         *  Handle either form safely.
-         */
-        const seq =
-          (d.output as any)?.seq ??                 // new format
-          (typeof d.seq === 'number' ? d.seq : undefined); // old format
+      /** Runner V1  → dto.seq + dto.output
+       *  Runner V2  → dto.output = { seq, output } or [{ seq, output }]
+       *  Normalize all successful domino outputs into sequenced entries.
+       */
+      const normalizedOutputs = (() => {
+        if (Array.isArray(d.output)) {
+          return d.output
+            .filter((entry: any) => typeof entry?.seq === 'number')
+            .map((entry: any) => ({ seq: entry.seq, output: entry.output }));
+        }
 
-        const value =
-          (d.output as any)?.output ??              // new format
-          (seq !== undefined ? (d as any).output : undefined); // old format
+        if (d.output && typeof d.output === 'object' && typeof (d.output as any).seq === 'number') {
+          return [{ seq: (d.output as any).seq, output: (d.output as any).output }];
+        }
 
-        if (seq !== undefined && !g.outputs.some((o) => o.seq === seq)) {
-          g.outputs.push({ seq, output: value });
+        if (typeof d.seq === 'number') {
+          return [{ seq: d.seq, output: d.output }];
+        }
+
+        return [];
+      })();
+
+      for (const entry of normalizedOutputs) {
+        if (!g.outputs.some((o) => o.seq === entry.seq)) {
+          g.outputs.push(entry);
         }
       }
     }

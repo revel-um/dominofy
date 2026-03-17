@@ -42,6 +42,7 @@ export class AppService {
         subscriber.next(JSON.stringify({ ...payload, runId }));
 
       if (isBlocking) {
+        let seq = 0;
         if (execPool.queueSize >= MAX_QUEUE_LEN) {
           subscriber.error(
             new HttpException('Server busy – retry soon', HttpStatus.TOO_MANY_REQUESTS)
@@ -63,7 +64,8 @@ export class AppService {
                 runId,
                 dominoId: domino.id,
                 status: WorkflowLogStatus.SUCCESS,
-                output: type === 'print' ? domino.output : undefined,
+                output: domino.output,
+                seq: seq++,
               });
               // include runId on SSE
               send(domino);
@@ -79,12 +81,15 @@ export class AppService {
                 dominoId: nodeId,
                 status: WorkflowLogStatus.FAILURE,
                 error: { message },
+                seq: seq++,
               });
               send({ nodeId, error: { message } });
               break;
             }
             case 'DONE':
-              subscriber.complete();
+              this.workflowLogger.flushNow()
+                .catch(err => subscriber.error(err))
+                .finally(() => subscriber.complete());
               break;
           }
         });
@@ -112,7 +117,11 @@ export class AppService {
         send({ nodeId, error });
       });
 
-      runner.on('terminate', () => subscriber.complete());
+      runner.on('terminate', () => {
+        this.workflowLogger.flushNow()
+          .catch(err => subscriber.error(err))
+          .finally(() => subscriber.complete());
+      });
       runner.run(runId).catch(err => subscriber.error(err));
 
       send({ type: 'ACCEPTED' });

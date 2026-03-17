@@ -9,6 +9,7 @@ import { validateWorkflow } from "../../../../shared/helpers/validateWorkflow";
 export class Runner extends EventEmitter {
   private queue: PQueue;
   private scheduled = new Set<string>();
+  private active = new Set<string>();
   private localState = new Map<string, Record<string, any>>(); // per-domino state
   private multiOut = new Set<string>();                        // multi-pin dominos
   private doneFlags = new Map<string, boolean>();              // cascade flags
@@ -82,6 +83,7 @@ export class Runner extends EventEmitter {
     this.queue.clear();
     this.queue.pause();
     this.scheduled.clear();
+    this.active.clear();
     this.localState.clear();
     this.multiOut.clear();
     this.doneFlags.clear();
@@ -117,6 +119,7 @@ export class Runner extends EventEmitter {
   ) {
     if (this.skipped.has(id)) return;
     this.scheduled.delete(id);
+    this.active.add(id);
     const step = this.pipeline.find(n => n.id === id);
     if (!step) throw new Error(`Node ${id} not found in pipeline`);
 
@@ -204,6 +207,8 @@ export class Runner extends EventEmitter {
     } catch (err) {
       this.emit("error", { nodeId: id, error: err });
       // unresolved left for deadlock detection
+    } finally {
+      this.active.delete(id);
     }
   }
 
@@ -217,6 +222,8 @@ export class Runner extends EventEmitter {
     while (stack.length) {
       const id = stack.pop()!;
       if (this.skipped.has(id)) continue;
+      if (this.scheduled.has(id) || this.active.has(id)) continue;
+      if (!unresolved.has(id)) continue;
       this.skipped.add(id);
       unresolved.delete(id);
       const childIds = children.get(id) || [];

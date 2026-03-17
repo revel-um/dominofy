@@ -34,7 +34,7 @@ export class RunnerLauncherService {
         runId,
         dominoId: res.id,
         status: WorkflowLogStatus.SUCCESS,
-        output: type === 'print' ? res.output : undefined,
+        output: res.output,
         seq: seq++,                                      // NEW
       });
     });

@@ -16,6 +16,15 @@ export interface WorkflowLog {
   source?: string;
 }
 
+type PrintSeqEntry = { seq: number; output?: unknown };
+
+interface RunLogAggregate {
+  seqMap: Map<number, string>;
+  fallbackMessages: string[];
+  timestamp: Date;
+  type: 'log' | 'error';
+}
+
 interface LogsPanelProps {
   workflowId: string;
   openWorkflowIds?: string[];
@@ -40,6 +49,79 @@ const timeOptions: { value: number; label: string }[] = [
   { value: 720, label: '12h' },
   { value: 1440, label: '1d'}
 ];
+
+function stringifyLogValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value === undefined) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function normalizePrintSeqEntries(output: unknown): PrintSeqEntry[] {
+  if (Array.isArray(output)) {
+    return output.filter((entry): entry is PrintSeqEntry =>
+      typeof entry?.seq === 'number'
+    );
+  }
+
+  if (output && typeof output === 'object' && typeof (output as PrintSeqEntry).seq === 'number') {
+    return [output as PrintSeqEntry];
+  }
+
+  return [];
+}
+
+function upsertRunAggregate(
+  grouped: Record<string, RunLogAggregate>,
+  runId: string,
+  log: { output?: unknown; error?: { message?: string }; status?: string; updatedAt?: string; createdAt?: string },
+  timestamp: Date,
+) {
+  const type = log.status === 'failure' ? 'error' : 'log';
+  const current = grouped[runId] ?? {
+    seqMap: new Map<number, string>(),
+    fallbackMessages: [],
+    timestamp,
+    type,
+  };
+
+  current.type = current.type === 'error' || type === 'error' ? 'error' : 'log';
+  if (timestamp > current.timestamp) current.timestamp = timestamp;
+
+  const seqEntries = normalizePrintSeqEntries(log.output);
+  if (seqEntries.length > 0) {
+    for (const entry of seqEntries) {
+      current.seqMap.set(entry.seq, stringifyLogValue(entry.output));
+    }
+  } else if (log.error?.message) {
+    current.fallbackMessages.push(log.error.message);
+  } else if (log.output !== undefined) {
+    current.fallbackMessages.push(stringifyLogValue(log.output));
+  }
+
+  grouped[runId] = current;
+}
+
+function buildWorkflowLogs(grouped: Record<string, RunLogAggregate>): WorkflowLog[] {
+  return Object.entries(grouped)
+    .map(([runId, data]) => {
+      const orderedMessages = [...data.seqMap.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([, message]) => message);
+
+      return {
+        id: runId,
+        type: data.type,
+        message: [...orderedMessages, ...data.fallbackMessages].join('\n'),
+        timestamp: data.timestamp,
+        source: runId,
+      } as WorkflowLog;
+    })
+    .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+}
 
 export const LogsPanel = React.memo(function LogsPanel({
   workflowId,
@@ -97,27 +179,21 @@ export const LogsPanel = React.memo(function LogsPanel({
   const dateSelected = rangeStart !== '' && rangeEnd !== '';
   const isFiltering = minutesFilter !== null || dateSelected;
 
-  const liveLogsRef = useRef<Record<string, WorkflowLog[]>>({});
+  const liveLogsRef = useRef<Record<string, Record<string, RunLogAggregate>>>({});
   const sseRefs = useRef<Map<string, EventSource>>(new Map());
 
   const appendLiveLog = useCallback(
-    (wfId: string, entry: WorkflowLog) => {
-      const list = liveLogsRef.current[wfId] ?? [];
-      const idx = list.findIndex((l) => l.id === entry.id);
-      if (idx === -1) {
-        list.push(entry);
-      } else {
-        const prev = list[idx];
-        list[idx] = {
-          ...prev,
-          type: entry.type,
-          timestamp: entry.timestamp,
-          message: prev.message ? `${prev.message}\n${entry.message}` : entry.message,
-        };
-      }
-      liveLogsRef.current[wfId] = list;
+    (
+      wfId: string,
+      runId: string,
+      log: { output?: unknown; error?: { message?: string }; status?: string; updatedAt?: string; createdAt?: string },
+      timestamp: Date,
+    ) => {
+      const grouped = liveLogsRef.current[wfId] ?? {};
+      upsertRunAggregate(grouped, runId, log, timestamp);
+      liveLogsRef.current[wfId] = grouped;
       if (wfId === workflowId) {
-        setLogs([...list]);
+        setLogs(buildWorkflowLogs(grouped));
       }
     },
     [workflowId]
@@ -144,37 +220,16 @@ export const LogsPanel = React.memo(function LogsPanel({
     if (!res?.ok) return;
     const { logs: raw } = await res.json();
 
-    // group raw logs by runId
-    const grouped: Record<string, { messages: string[]; timestamp: Date; type: 'log' | 'error' }> = {};
+    const grouped: Record<string, RunLogAggregate> = {};
     raw
-      .filter((l: any) => l.dominoId.split('-')[0] === 'print')
+      .filter((l: any) => (l.dominoId || '').startsWith('print'))
       .forEach((l: any) => {
         const runId = l.runId;
-        const msg = l.output
-          ? Array.isArray(l.output)
-            ? l.output.map((o: any) => o.output).join('\n')
-            : JSON.stringify(l.output)
-          : l.error?.message || '';
         const ts = new Date(l.updatedAt);
-        const type = l.status === 'failure' ? 'error' : 'log';
-
-        if (!grouped[runId]) {
-          grouped[runId] = { messages: [msg], timestamp: ts, type };
-        } else {
-          grouped[runId].messages.push(msg);
-          if (ts > grouped[runId].timestamp) grouped[runId].timestamp = ts;
-        }
+        upsertRunAggregate(grouped, runId, l, ts);
       });
 
-    setLogs(
-      Object.entries(grouped).map(([runId, data]) => ({
-        id: runId,
-        type: data.type ?? 'log',
-        message: data.messages.join('\n'),
-        timestamp: data.timestamp,
-        source: runId,
-      }))
-    );
+    setLogs(buildWorkflowLogs(grouped));
   }, [workflowId, router, offset, limit, minutesFilter, rangeStart, rangeEnd, dateSelected]);
 
   // subscribe to workflow log streams for all open tabs when live + panel open
@@ -214,26 +269,12 @@ export const LogsPanel = React.memo(function LogsPanel({
           const wfId = payload.workflowId || id;
           const log = payload.log;
           if (!log) return;
+          if (!(log.dominoId || '').startsWith('print')) return;
 
-          const dominoId = log.dominoId || '';
-          if (!dominoId.startsWith('print')) return;
-
-          const msg = log.output
-            ? Array.isArray(log.output)
-              ? log.output.map((o: any) => o?.output ?? o).join('\n')
-              : JSON.stringify(log.output)
-            : log.error?.message || '';
           const ts = new Date(log.updatedAt || log.createdAt || Date.now());
-          const type = log.status === 'failure' ? 'error' : 'log';
           const runId = log.runId || payload.runId || `${Date.now()}`;
 
-          appendLiveLog(wfId, {
-            id: runId,
-            type,
-            message: msg,
-            timestamp: ts,
-            source: runId,
-          });
+          appendLiveLog(wfId, runId, log, ts);
         } catch (err) {
           console.warn('Could not parse workflow log SSE payload:', e.data, err);
         }
@@ -255,7 +296,7 @@ export const LogsPanel = React.memo(function LogsPanel({
   // when active tab changes, show buffered live logs for that tab
   useEffect(() => {
     if (!isLive) return;
-    setLogs(liveLogsRef.current[workflowId] ?? []);
+    setLogs(buildWorkflowLogs(liveLogsRef.current[workflowId] ?? {}));
   }, [workflowId, isLive]);
 
   // auto-scroll on logs update or panel open
