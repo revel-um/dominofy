@@ -126,11 +126,10 @@ export class WorkflowController extends BaseController<
       };
     }
 
-    await this.workflowService.handleTrigger(workflowId, functionName, input);
-
-    return {
+    const response = await this.workflowService.handleTrigger(workflowId, functionName, input);
+    return response ?? {
       success: true,
-      message: 'Workflow is running in the background',
+      message: 'Workflow completed without a response domino',
     };
   }
 
@@ -150,11 +149,10 @@ export class WorkflowController extends BaseController<
     @Param('workflowId') workflowId: string,
     @Param('functionName') functionName: string,
   ) {
-    await this.workflowService.handleTrigger(workflowId, functionName);
-
-    return {
+    const response = await this.workflowService.handleTrigger(workflowId, functionName);
+    return response ?? {
       success: true,
-      message: 'Workflow is running in the background',
+      message: 'Workflow completed without a response domino',
     };
   }
 

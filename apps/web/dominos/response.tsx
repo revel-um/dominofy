@@ -9,16 +9,22 @@ import { useDomino } from '../contexts/dominoContext';
 export default function ResponseDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const isValueConnected = data?.valueConnected ?? false;
+  const [isValueConnected, setIsValueConnected] = useState(false);
   const [value, setValue] = useState("");
 
-  // Sync value from details field
+  // Sync value and pin connection from details field
   useEffect(() => {
     const field = data?.details?.fields?.find((f: DominoField) => f.heading === 'Response');
-    if (field && field.value !== value) {
-      setValue(field.value || '');
+    if (field) {
+      const nextConnected = Boolean(field.connectedValue || field.connectedPin);
+      if (nextConnected !== isValueConnected) {
+        setIsValueConnected(nextConnected);
+      }
+      if (field.value !== value) {
+        setValue(field.value || '');
+      }
     }
-  }, [data?.details?.fields]);
+  }, [data?.details?.fields, isValueConnected, value]);
 
   // Initialize node data if not already set
   useEffect(() => {
@@ -121,7 +127,7 @@ export default function ResponseDomino({ data, id, selected }: NodeProps) {
           />
         ) : (
           <span className="flex-1 text-xs italic text-gray-500 truncate">
-            dynamic value
+            Connected
           </span>
         )}
       </div>

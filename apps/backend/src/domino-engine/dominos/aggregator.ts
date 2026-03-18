@@ -53,9 +53,17 @@ export class AggregatorDomino implements DominoExecutable {
         // 3. raw payload itself (iterator sends primitive or {key,value})
         let valIn: any = ctx.input.value_in ?? ctx.input.value_in_1;
         if (valIn === undefined) valIn = ctx.input.value;
+        if (valIn === undefined) valIn = ctx.input.Input;
         if (valIn === undefined) valIn = ctx.input; // raw pass-through
 
-        valIn = valIn.Input
+        if (
+            valIn &&
+            typeof valIn === "object" &&
+            "Input" in valIn &&
+            Object.keys(valIn).length === 1
+        ) {
+            valIn = (valIn as any).Input;
+        }
         const keyIn = ctx.input.key_in ?? (valIn && valIn.key); // object key
 
         /* If iterator passes {key, value}, unwrap for object op ----------- */
@@ -156,12 +164,12 @@ export class AggregatorDomino implements DominoExecutable {
             output: isFinalCall ? acc : {}, // emit result only once
             startedAt,
             finishedAt,
-            nextChainKeys: isFinalCall ? ["exec_out"] : ['__skip__'],
+            nextChainKeys: isFinalCall ? ["exec_out"] : [],
+            done: isFinalCall,
         };
 
         /* reset accumulator after finishing */
         if (isFinalCall) ctx.setLocal("acc", undefined);
-
         return result;
     }
 }

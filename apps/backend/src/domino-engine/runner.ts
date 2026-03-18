@@ -180,7 +180,10 @@ export class Runner extends EventEmitter {
       const branchKeys = Object.keys(step.next);
       const controlChildren = new Set(Object.values(step.next).flat());
       let branchChildren = new Set<string>();
-      if (branchKeys.length === 1 && (!res.nextChainKeys?.length || res.nextChainKeys.includes(branchKeys[0]))) {
+      if (
+        branchKeys.length === 1 &&
+        (res.nextChainKeys === undefined || res.nextChainKeys.includes(branchKeys[0]))
+      ) {
         branchChildren = new Set(controlChildren);
       } else if (branchKeys.length > 1) {
         if (!res.nextChainKeys) throw new Error(`Node ${id} must return nextChainKeys`);
@@ -188,8 +191,11 @@ export class Runner extends EventEmitter {
       }
 
       // prune unused branches so they don't count as deadlock
-      const skippedChildren = [...controlChildren].filter(cid => !branchChildren.has(cid));
-      skippedChildren.forEach(cid => this.skipSubtree(cid, children, deps, unresolved));
+      const shouldPruneSkippedBranches = branchKeys.length > 1 || nodeDone;
+      if (shouldPruneSkippedBranches) {
+        const skippedChildren = [...controlChildren].filter(cid => !branchChildren.has(cid));
+        skippedChildren.forEach(cid => this.skipSubtree(cid, children, deps, unresolved));
+      }
 
       // 4️⃣ enqueue control-flow children
       for (const childId of allChildren) {

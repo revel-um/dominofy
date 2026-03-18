@@ -179,7 +179,22 @@ export class WorkflowService extends BaseService<Workflow> {
       workflow.visualJson
     );
 
-    return runner.run(runId, input); // pass input to the runner
+    const results = await runner.run(runId, input);
+    if (!results) {
+      return undefined;
+    }
+
+    const responseNodeIds = pipeline
+      .filter((step) => step.type === 'response')
+      .map((step) => step.id);
+
+    for (const responseNodeId of responseNodeIds) {
+      if (Object.prototype.hasOwnProperty.call(results, responseNodeId)) {
+        return results[responseNodeId];
+      }
+    }
+
+    return undefined;
   }
 
   async renameWorkflow(id: string, name: string, userId: string) {

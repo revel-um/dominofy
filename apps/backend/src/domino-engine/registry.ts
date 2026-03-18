@@ -14,6 +14,7 @@ import { JoinTextDomino } from "./dominos/joinText";
 // Import each domino implementation class:
 import { PrintDomino } from "./dominos/print";
 import { ReadExcelDomino } from "./dominos/readExcel";
+import { ResponseDomino } from "./dominos/response";
 import { SlackTriggerDomino } from "./dominos/slackTrigger";
 import { SwitchCaseDomino } from "./dominos/switchCase";
 import { FilterDomino } from "./dominos/filter";
@@ -40,6 +41,7 @@ class DominoRegistry {
     this.register("print", PrintDomino);
     this.register("apitrigger", ApiTriggerDomino);
     this.register("readexcel", ReadExcelDomino);
+    this.register("response", ResponseDomino);
     this.register("condition", ConditionDomino);
     this.register("arithmetic", ArithmeticDomino);
     this.register("jointext", JoinTextDomino);
