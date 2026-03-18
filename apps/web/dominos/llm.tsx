@@ -3,6 +3,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { FiAlertCircle } from 'react-icons/fi';
 
 type LLMField = {
@@ -189,7 +190,7 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
       {/* Header with exec pins */}
       <div
         className="flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{ backgroundColor: '#7c3aed', borderBottomColor: '#6d28d9', borderRadius: '0.23rem 0.23rem 0 0' }}
+        style={getExpandedDominoHeaderStyle('llm')}
       >
         <div className="flex items-center gap-1.5">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

@@ -8,6 +8,7 @@ import {
   DominoNodeData,
 } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { useRouter } from 'next/router';
 import { Trash } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -317,7 +318,7 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
       {/* Header with Exec pins */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{ backgroundColor: '#6366f1', borderBottomColor: '#4f46e5' }}
+        style={getExpandedDominoHeaderStyle('codeRunner')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

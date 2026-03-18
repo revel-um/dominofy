@@ -4,6 +4,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { useRouter, NextRouter } from 'next/router';
 import { SlackApi, SlackConnection } from '@/apis/slack.apis';
 import SearchableSelect from '@/components/searchableDropdown';
@@ -156,11 +157,7 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
     >
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#4a154b',
-          borderBottomColor: '#3a0f3b',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('slackaction')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

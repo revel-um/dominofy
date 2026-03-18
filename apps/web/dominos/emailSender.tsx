@@ -6,6 +6,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import SearchableSelect from '@/components/searchableDropdown';
 import { EmailApi, EmailConnection } from '@/apis/email.apis';
 
@@ -177,7 +178,7 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
     >
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{ backgroundColor: '#0ea5e9', borderBottomColor: '#0284c7' }}
+        style={getExpandedDominoHeaderStyle('emailsender')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

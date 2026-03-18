@@ -9,6 +9,7 @@ import {
   DominoNodeData,
 } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 
 const OPERATOR_OPTIONS: DominoFieldOption[] = [
   { label: 'Equal to', value: 'equal' },
@@ -287,7 +288,7 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
       {/* Header */}
       <div
         className="flex justify-between text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{ backgroundColor: '#6366f1', borderBottomColor: '#4f46e5', borderRadius: '0.23rem 0.23rem 0 0' }}
+        style={getExpandedDominoHeaderStyle('filter')}
       >
         <div className="flex items-center gap-1 px-3 py-2">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

@@ -8,6 +8,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/router';
 
@@ -375,10 +376,7 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
         {/* Header */}
         <div
           className="flex items-center justify-between py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-          style={{ 
-            backgroundColor: connectionStatus === 'connected' ? '#10b981' : '#6b7280',
-            borderBottomColor: connectionStatus === 'connected' ? '#059669' : '#4b5563'
-          }}
+          style={getExpandedDominoHeaderStyle('sqlRunner')}
         >
           <div className="flex items-center gap-1 px-3 py-2">
             <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

@@ -4,6 +4,7 @@ import { FiClock } from 'react-icons/fi';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 
 type Frequency = 'once' | 'minute' | 'hour' | 'day' | 'week' | 'month';
 
@@ -474,11 +475,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
       {/* Header */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#8b5cf6',
-          borderBottomColor: '#7c3aed',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('SchedulerDomino')}
       >
         <div className="flex items-center gap-1">
           <FiClock className="w-4 h-4 !text-white" style={{ color: '#fff' }} />

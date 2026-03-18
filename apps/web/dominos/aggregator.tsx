@@ -5,6 +5,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 
 export default function AggregatorDomino({ data, id, selected }: NodeProps) {
   // React Flow context
@@ -119,7 +120,7 @@ export default function AggregatorDomino({ data, id, selected }: NodeProps) {
       {/* Header */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{ backgroundColor: '#10b981', borderBottomColor: '#059669' }}
+        style={getExpandedDominoHeaderStyle('aggregator')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

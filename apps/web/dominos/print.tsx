@@ -5,6 +5,7 @@ import { PinType } from '../types/pinTypes';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 
 export default function PrintDomino({ data, id, selected }: NodeProps) {
 
@@ -108,7 +109,7 @@ export default function PrintDomino({ data, id, selected }: NodeProps) {
       {/* Header with exec pins */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{ backgroundColor: '#6366f1', borderBottomColor: '#4f46e5', borderRadius: '0.23rem 0.23rem 0 0' }}
+        style={getExpandedDominoHeaderStyle('print')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

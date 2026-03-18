@@ -4,6 +4,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { Trash, X } from 'lucide-react';
 import { DominoField } from '../types/dominoFieldTypes';
 
@@ -170,7 +171,7 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
       {/* header */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{ backgroundColor: '#6366f1', borderBottomColor: '#4f46e5', borderRadius: '0.23rem 0.23rem 0 0' }}
+        style={getExpandedDominoHeaderStyle('switchcase')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
