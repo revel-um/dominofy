@@ -98,7 +98,7 @@ export class WorkflowController extends BaseController<
 
   @Post(':workflowId/trigger/:functionName')
   @UseInterceptors(FileInterceptor('file'))
-  @HttpCode(200)
+  @HttpCode(201)
   async triggerWorkflow(
     @Param('workflowId') workflowId: string,
     @Param('functionName') functionName: string,
@@ -129,7 +129,7 @@ export class WorkflowController extends BaseController<
     const response = await this.workflowService.handleTrigger(workflowId, functionName, input);
     return response ?? {
       success: true,
-      message: 'Workflow completed without a response domino',
+      message: 'Workflow execution request accepted',
     };
   }
 
@@ -144,7 +144,7 @@ export class WorkflowController extends BaseController<
   }
 
   @Get(':workflowId/trigger/:functionName')
-  @HttpCode(200)
+  @HttpCode(201)
   async triggerWorkflowWithoutBodyOrFile(
     @Param('workflowId') workflowId: string,
     @Param('functionName') functionName: string,
@@ -152,7 +152,7 @@ export class WorkflowController extends BaseController<
     const response = await this.workflowService.handleTrigger(workflowId, functionName);
     return response ?? {
       success: true,
-      message: 'Workflow completed without a response domino',
+      message: 'Workflow execution request accepted',
     };
   }
 
