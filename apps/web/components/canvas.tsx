@@ -593,6 +593,15 @@ export default function Canvas(props: CanvasProps) {
   const isHandMode = interactionMode === 'hand';
   const isSelectionMode = interactionMode === 'selection';
 
+  const handleToggleExpandedMode = useCallback(() => {
+    if (isExpandedMode) {
+      setNodes((prev) => prev.map((node) => ({ ...node, selected: false })));
+      setEdges((prev) => prev.map((edge) => ({ ...edge, selected: false })));
+      setSelectedNode(null);
+    }
+    onToggleExpandedMode?.();
+  }, [isExpandedMode, onToggleExpandedMode, setEdges, setNodes]);
+
   const toggleNoteToolFromCanvas = useCallback(() => {
     if (noteToolActive) {
       onCancelInsertNote?.();
@@ -633,13 +642,27 @@ export default function Canvas(props: CanvasProps) {
   );
 
   /* search-box keys */
-  const AVAILABLE = Object.keys(nodeTypes).filter((t) => t !== "apitrigger");
-  const filtered = AVAILABLE.filter((d) =>
-    d.toLowerCase().includes(searchTerm.toLowerCase())
+  const availableExecPinOptions = useMemo(
+    () =>
+      dominoCatalog.filter(
+        (entry) =>
+          entry.id in nodeTypes &&
+          !entry.categories.includes('Trigger') &&
+          !entry.categories.includes('Utility')
+      ),
+    []
   );
+  const filtered = availableExecPinOptions.filter((entry) => {
+    const query = searchTerm.toLowerCase();
+    return (
+      entry.label.toLowerCase().includes(query) ||
+      entry.id.toLowerCase().includes(query) ||
+      entry.categories.some((category) => category.toLowerCase().includes(query))
+    );
+  });
   const handleSearchKeyDown = useCallback(
     createSearchKeyDownHandler(
-      filtered,
+      filtered.map((entry) => entry.id),
       highlightIdx,
       setHighlightIdx,
       (d) => onSelectDomino(d)
@@ -1379,7 +1402,7 @@ export default function Canvas(props: CanvasProps) {
               noteToolActive={noteToolActive}
               onToggleNoteTool={toggleNoteToolFromCanvas}
               isExpandedMode={isExpandedMode}
-              onToggleExpandedMode={() => onToggleExpandedMode?.()}
+              onToggleExpandedMode={handleToggleExpandedMode}
               onUndo={onUndo}
               onRedo={onRedo}
               canUndo={canUndo}
@@ -1461,17 +1484,20 @@ export default function Canvas(props: CanvasProps) {
             />
 
             <ul className="max-h-64 overflow-auto">
-              {filtered.map((d, i) => (
-                <li key={d}>
+              {filtered.map((entry, i) => (
+                <li key={entry.id}>
                   <button
                     className={`block w-full text-left px-3 py-2 rounded ${
                       i === highlightIdx
                         ? "bg-gray-200 dark:bg-gray-600"
                         : "hover:bg-gray-100 dark:hover:bg-gray-700"
                     }`}
-                    onClick={() => onSelectDomino(d)}
+                    onClick={() => onSelectDomino(entry.id)}
                   >
-                    {d}
+                    <div className="font-medium">{entry.label}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {entry.categories.join(' • ')}
+                    </div>
                   </button>
                 </li>
               ))}
