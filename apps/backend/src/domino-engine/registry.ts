@@ -9,6 +9,7 @@ import { ConditionDomino } from "./dominos/condition";
 import ConnectorDomino from "./dominos/connector";
 import { DeconstructorDomino } from "./dominos/deconstructor";
 import { IteratorDomino } from "./dominos/iterator";
+import { JoinTextDomino } from "./dominos/joinText";
 
 // Import each domino implementation class:
 import { PrintDomino } from "./dominos/print";
@@ -41,6 +42,7 @@ class DominoRegistry {
     this.register("readexcel", ReadExcelDomino);
     this.register("condition", ConditionDomino);
     this.register("arithmetic", ArithmeticDomino);
+    this.register("jointext", JoinTextDomino);
     this.register("switchcase", SwitchCaseDomino);
     this.register("iterator", IteratorDomino);
     this.register("deconstructor", DeconstructorDomino);

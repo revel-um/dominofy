@@ -156,9 +156,10 @@ export default function WorkflowToolbar({
     const token = localStorage.getItem('token') || '';
     try {
       const resp = await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
-      if (resp?.ok) {
-        onWorkflowSaved?.(nodesSnapshot, edgesSnapshot);
+      if (!resp?.ok) {
+        return false;
       }
+      onWorkflowSaved?.(nodesSnapshot, edgesSnapshot);
       startSSE(workflow.id, token);
       setJustRan(true);
       setTimeout(() => setJustRan(false), 1000);

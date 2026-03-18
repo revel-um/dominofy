@@ -31,6 +31,7 @@ import ApiTriggerDomino from "../dominos/apiTrigger";
 import ConditionDomino from "../dominos/condition";
 import SwitchDomino from "../dominos/switchCase";
 import ArithmeticDomino from "../dominos/arithmetic";
+import JoinTextDomino from "../dominos/joinText";
 import ReadExcelDomino from "../dominos/readExcel";
 import GoogleDriveDomino from "../dominos/googleDrive";
 import GoogleDriveDownloadDomino from "../dominos/googleDriveDownload";
@@ -224,6 +225,7 @@ const nodeTypes = {
   condition: withRenderKey('condition', ConditionDomino),
   switchcase: withRenderKey('switchcase', SwitchDomino),
   arithmetic: withRenderKey('arithmetic', ArithmeticDomino),
+  jointext: withRenderKey('jointext', JoinTextDomino),
   readexcel: withRenderKey('readexcel', ReadExcelDomino),
   googleDrive: withRenderKey('googleDrive', GoogleDriveDomino),
   googleDriveDownload: withRenderKey('googleDriveDownload', GoogleDriveDownloadDomino),

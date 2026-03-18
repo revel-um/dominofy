@@ -1,11 +1,15 @@
 import { TokenManager } from './auth';
 
+const getBackendApiBase = () =>
+  process.env.NEXT_PUBLIC_BACKEND_BASE_URL?.trim().replace(/\/+$/, '') ||
+  `${(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/+$/, '')}/api/v1`;
+
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
 }
 
 class ApiClient {
-  private static readonly baseURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+  private static readonly baseURL = getBackendApiBase();
 
   static async request<T = any>(
     endpoint: string, 

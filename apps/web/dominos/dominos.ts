@@ -119,6 +119,12 @@ export default [
     categories: ['Logic']
   },
   {
+    id: 'jointext',
+    label: 'Join Text',
+    icon: FiLayers,
+    categories: ['Data Transformation']
+  },
+  {
     id: 'deconstructor',
     label: 'De-Construct',
     icon: BoomBox,

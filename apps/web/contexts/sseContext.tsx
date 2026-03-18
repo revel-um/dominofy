@@ -12,6 +12,7 @@ export interface SSEContextValue {
   start: HookReturn['start'];
   stop: HookReturn['stop'];
   clearEvents: () => void;
+  activeWorkflowId: HookReturn['activeWorkflowId'];
 }
 
 // Create context
@@ -20,7 +21,7 @@ const SSEContext = createContext<SSEContextValue | null>(null);
 export const SSEProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
   // Initialize SSE via your existing hook
   const hook = useDominofySSE(config.backendBaseUrl);
-  const { events: hookEvents, start, stop } = hook;
+  const { events: hookEvents, start, stop, activeWorkflowId } = hook;
 
   // Maintain a local copy of events to allow clearing
   const [events, setEvents] = useState(hookEvents);
@@ -34,7 +35,7 @@ export const SSEProvider: React.FC<React.PropsWithChildren<{}>> = ({ children })
   const clearEvents = () => setEvents([]);
 
   return (
-    <SSEContext.Provider value={{ events, start, stop, clearEvents }}>
+    <SSEContext.Provider value={{ events, start, stop, clearEvents, activeWorkflowId }}>
       {children}
     </SSEContext.Provider>
   );
