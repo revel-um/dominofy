@@ -345,15 +345,91 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
   }, [data.setFieldValue]);
 
   // Handle opening code editor
+  const editorResultKey = `codeEditorResult:sqlrunner:${id}`;
+
   const handleOpenCodeEditor = () => {
     const queryParams = new URLSearchParams({
-      code: query,
-      language: 'sql',
-      title: 'SQL Query Editor'
+      code: query ?? "",
+      language: "sql",
+      title: "SQL Query Editor",
+      returnTo: router.asPath,            // Pages router safe
+      resultKey: editorResultKey,         // stable key
+
+      // pass connection
+      connectionStatus,
+      connectionId: connectionId ?? "",
+      connectionConfig: JSON.stringify(connectionConfig),
     });
-    
+
     router.push(`/editor?${queryParams.toString()}`);
   };
+
+  const updateQueryEverywhere = useCallback((newQuery: string) => {
+    setQuery(newQuery);
+
+    // update details panel field too (source of truth: node data)
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
+
+    setNodes((nodes: any[]) =>
+      nodes.map((n) => {
+        if (n.id !== id) return n;
+
+        const fields = n.data.details?.fields ?? [];
+        const nextFields = fields.map((f: any) =>
+          f.heading === "Query" ? { ...f, value: newQuery } : f
+        );
+
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            details: {
+              ...n.data.details,
+              fields: nextFields,
+            },
+          },
+        };
+      })
+    );
+  }, [id]);
+
+
+  // Populate query from code editor result
+  useEffect(() => {
+    const pullResult = () => {
+      const raw = sessionStorage.getItem(editorResultKey);
+      if (!raw) return;
+
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.saved && typeof parsed.code === "string") {
+          console.log("[SQLRunnerDomino] editor result:", parsed.code);
+          updateQueryEverywhere(parsed.code);
+        }
+      } catch (e) {
+        console.error("[SQLRunnerDomino] Failed to parse editor result:", e);
+      } finally {
+        sessionStorage.removeItem(editorResultKey);
+      }
+    };
+
+    // When user comes back from /editor, component remounts -> this runs
+    pullResult();
+
+    // Also handle SPA navigation where component might not remount
+    const onRouteChange = () => pullResult();
+    router.events.on("routeChangeComplete", onRouteChange);
+
+    // Also handle focus return
+    window.addEventListener("focus", pullResult);
+
+    return () => {
+      router.events.off("routeChangeComplete", onRouteChange);
+      window.removeEventListener("focus", pullResult);
+    };
+  }, [editorResultKey, router.events, updateQueryEverywhere]);
+
 
   // Clean up connection on unmount
   useEffect(() => {

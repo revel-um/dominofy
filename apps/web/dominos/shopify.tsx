@@ -201,7 +201,7 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md"
         style={{ backgroundColor: '#6366f1', borderBottomColor: '#4f46e5' }}
       >
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 relative">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
           <span>Shopify</span>
           <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
