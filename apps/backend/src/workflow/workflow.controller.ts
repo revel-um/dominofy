@@ -98,7 +98,7 @@ export class WorkflowController extends BaseController<
 
   @Post(':workflowId/trigger/:functionName')
   @UseInterceptors(FileInterceptor('file'))
-  @HttpCode(200)
+  @HttpCode(201)
   async triggerWorkflow(
     @Param('workflowId') workflowId: string,
     @Param('functionName') functionName: string,
@@ -126,11 +126,10 @@ export class WorkflowController extends BaseController<
       };
     }
 
-    await this.workflowService.handleTrigger(workflowId, functionName, input);
-
-    return {
+    const response = await this.workflowService.handleTrigger(workflowId, functionName, input);
+    return response ?? {
       success: true,
-      message: 'Workflow is running in the background',
+      message: 'Workflow execution request accepted',
     };
   }
 
@@ -145,16 +144,15 @@ export class WorkflowController extends BaseController<
   }
 
   @Get(':workflowId/trigger/:functionName')
-  @HttpCode(200)
+  @HttpCode(201)
   async triggerWorkflowWithoutBodyOrFile(
     @Param('workflowId') workflowId: string,
     @Param('functionName') functionName: string,
   ) {
-    await this.workflowService.handleTrigger(workflowId, functionName);
-
-    return {
+    const response = await this.workflowService.handleTrigger(workflowId, functionName);
+    return response ?? {
       success: true,
-      message: 'Workflow is running in the background',
+      message: 'Workflow execution request accepted',
     };
   }
 

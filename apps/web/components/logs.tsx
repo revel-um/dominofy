@@ -52,6 +52,10 @@ const timeOptions: { value: number; label: string }[] = [
   { value: 1440, label: '1d'}
 ];
 
+function isRenderableOutputDomino(dominoId: string): boolean {
+  return dominoId.startsWith('print') || dominoId.startsWith('response');
+}
+
 function stringifyLogValue(value: unknown): string {
   if (typeof value === 'string') return value;
   if (value === undefined) return '';
@@ -258,7 +262,7 @@ export const LogsPanel = React.memo(function LogsPanel({
 
     const grouped: Record<string, RunLogAggregate> = {};
     raw
-      .filter((l: any) => (l.dominoId || '').startsWith('print'))
+      .filter((l: any) => isRenderableOutputDomino(l.dominoId || ''))
       .forEach((l: any) => {
         const runId = l.runId;
         const ts = new Date(l.updatedAt);
@@ -305,7 +309,7 @@ export const LogsPanel = React.memo(function LogsPanel({
           const wfId = payload.workflowId || id;
           const log = payload.log;
           if (!log) return;
-          if (!(log.dominoId || '').startsWith('print')) return;
+          if (!isRenderableOutputDomino(log.dominoId || '')) return;
 
           const ts = new Date(log.updatedAt || log.createdAt || Date.now());
           const runId = log.runId || payload.runId || `${Date.now()}`;
@@ -341,12 +345,32 @@ export const LogsPanel = React.memo(function LogsPanel({
     if (nextEvents.length === 0) return;
 
     const pendingRuns = getPendingRuns(activeWorkflowId);
+    const grouped = liveLogsRef.current[activeWorkflowId] ?? {};
     let didChange = false;
 
     for (const event of nextEvents) {
-      if (event?.type !== 'ACCEPTED' || !event.runId || pendingRuns.has(event.runId)) continue;
-      pendingRuns.set(event.runId, new Date());
-      didChange = true;
+      if (!event?.runId) continue;
+
+      if (event.type === 'ACCEPTED') {
+        if (!pendingRuns.has(event.runId)) {
+          pendingRuns.set(event.runId, new Date());
+          didChange = true;
+        }
+        continue;
+      }
+
+      if (pendingRuns.delete(event.runId)) {
+        if (!grouped[event.runId]) {
+          grouped[event.runId] = {
+            seqMap: new Map<number, string>(),
+            fallbackMessages: ['null'],
+            timestamp: new Date(),
+            type: 'log',
+          };
+          liveLogsRef.current[activeWorkflowId] = grouped;
+        }
+        didChange = true;
+      }
     }
 
     if (didChange) {

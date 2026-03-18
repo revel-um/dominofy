@@ -72,7 +72,7 @@ export default function AggregatorDomino({ data, id, selected }: NodeProps) {
                         { label: 'Divide', value: 'divide' },
                         { label: 'Min', value: 'min' },
                         { label: 'Max', value: 'max' },
-                        { label: 'Array', value: 'array' },
+                        { label: 'List', value: 'array' },
                         { label: 'Object', value: 'object' },
                       ] } as DominoField,
                       { type: 'textInput', heading: 'Initial Value', placeholder: '0', value: '', required: false, shouldRender: false, inPinId: 'value_in_1' } as DominoField,
@@ -154,7 +154,7 @@ export default function AggregatorDomino({ data, id, selected }: NodeProps) {
           <option value="divide">Divide</option>
           <option value="min">Min</option>
           <option value="max">Max</option>
-          <option value="array">Array</option>
+          <option value="array">List</option>
           <option value="object">Object</option>
         </select>
       </div>

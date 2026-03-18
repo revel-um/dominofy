@@ -273,12 +273,12 @@ export default [
     badgeStyle: { background: 'linear-gradient(135deg, #fef08a 0%, #fbbf24 100%)' },
     iconStyle: { color: '#78350f' }
   },
-  {
-    id: 'webhook',
-    label: 'Webhook',
-    icon: Braces,
-    categories: ['Trigger'],
-    badgeStyle: { background: 'linear-gradient(135deg, #60a5fa 0%, #0e7490 100%)' },
-    iconStyle: { color: '#ffffff' }
-  },
+  // {
+  //   id: 'webhook',
+  //   label: 'Webhook',
+  //   icon: Braces,
+  //   categories: ['Trigger'],
+  //   badgeStyle: { background: 'linear-gradient(135deg, #60a5fa 0%, #0e7490 100%)' },
+  //   iconStyle: { color: '#ffffff' }
+  // },
  ] satisfies DominoCatalogEntry[];
