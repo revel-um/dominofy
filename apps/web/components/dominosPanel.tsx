@@ -12,6 +12,7 @@ import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { FiSearch, FiMoreHorizontal } from 'react-icons/fi';
 import { WorkflowsApi } from '../apis/workflow.apis';
 import { useRouter } from 'next/router';
+import DominoCatalogIcon from './shared/dominoCatalogIcon';
 
 interface DominosPanelProps {
   bottomOffset?: number;
@@ -381,27 +382,21 @@ export default function DominosPanel({
                       </div>
 
                       {(expanded[category] || searchTerm) &&
-                        items.map(({ id, label, icon: Icon }) => (
+                        items.map((item) => (
                           <div
-                            key={`${category}-${id}`}
+                            key={`${category}-${item.id}`}
                             draggable
                             onDragStart={(e) => {
-                              e.dataTransfer.setData('application/reactflow', id);
+                              e.dataTransfer.setData('application/reactflow', item.id);
                               e.dataTransfer.effectAllowed = 'move';
                             }}
-                            className="w-full box-border flex items-center gap-2 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-4 relative"
+                            className="w-full box-border flex items-center gap-3 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-4 relative"
                           >
                             {/* Vertical indentation line */}
                             <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
-                            <Icon
-                              className={`text-lg relative z-10 ${
-                                id === 'SchedulerDomino'
-                                  ? 'text-white'
-                                  : 'text-dominofy-light-text dark:text-dominofy-dark-text'
-                              }`}
-                            />
+                            <DominoCatalogIcon domino={item} badgeClassName="relative z-10 h-8 w-8 rounded-lg" />
                             <span className="text-sm font-medium text-dominofy-light-text dark:text-dominofy-dark-text">
-                              {label}
+                              {item.label}
                             </span>
                           </div>
                         ))}

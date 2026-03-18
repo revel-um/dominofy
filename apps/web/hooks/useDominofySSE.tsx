@@ -13,6 +13,7 @@ interface UseDominofySSEResult {
   start: (id: string, token: string) => void;
   /** (Optional) Close the current SSE stream */
   stop: () => void;
+  activeWorkflowId: string | null;
 }
 
 /**
@@ -25,6 +26,7 @@ export function useDominofySSE(
   const [events, setEvents] = useState<unknown[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
 
   // We'll keep the EventSource reference here so we can close it later.
   const esRef = useRef<EventSource | null>(null);
@@ -57,6 +59,7 @@ export function useDominofySSE(
       setEvents([]);
       setError(null);
       setConnected(false);
+      setActiveWorkflowId(id);
 
       // Small delay to ensure cleanup before starting new connection
       setTimeout(() => {
@@ -114,6 +117,7 @@ export function useDominofySSE(
     }
     setConnected(false);
     setError(null);
+    setActiveWorkflowId(null);
   }, []);
 
   // Clean up on unmount
@@ -126,5 +130,5 @@ export function useDominofySSE(
     };
   }, []);
 
-  return { events, connected, error, start, stop };
+  return { events, connected, error, start, stop, activeWorkflowId };
 }

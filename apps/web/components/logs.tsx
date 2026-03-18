@@ -2,11 +2,12 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { FiX, FiFile } from 'react-icons/fi';
+import { FiX, FiFile, FiLoader } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import { LogsApi } from '@/apis/logs.apis';
 import { EventSourcePolyfill } from 'event-source-polyfill';
 import { config } from '@/config/config';
+import { useSSE } from '@/contexts/sseContext';
 
 export interface WorkflowLog {
   id: string;
@@ -14,6 +15,7 @@ export interface WorkflowLog {
   message: string;
   timestamp: Date;
   source?: string;
+  isPending?: boolean;
 }
 
 type PrintSeqEntry = { seq: number; output?: unknown };
@@ -105,8 +107,11 @@ function upsertRunAggregate(
   grouped[runId] = current;
 }
 
-function buildWorkflowLogs(grouped: Record<string, RunLogAggregate>): WorkflowLog[] {
-  return Object.entries(grouped)
+function buildWorkflowLogs(
+  grouped: Record<string, RunLogAggregate>,
+  pendingRuns: Map<string, Date> = new Map()
+): WorkflowLog[] {
+  const resolvedLogs = Object.entries(grouped)
     .map(([runId, data]) => {
       const orderedMessages = [...data.seqMap.entries()]
         .sort(([a], [b]) => a - b)
@@ -121,6 +126,22 @@ function buildWorkflowLogs(grouped: Record<string, RunLogAggregate>): WorkflowLo
       } as WorkflowLog;
     })
     .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+  const pendingLogs = [...pendingRuns.entries()]
+    .filter(([runId]) => !grouped[runId])
+    .map(([runId, timestamp]) => ({
+      id: runId,
+      type: 'info' as const,
+      message: 'Waiting for response...',
+      timestamp,
+      source: runId,
+      isPending: true,
+    }))
+    .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+  return [...resolvedLogs, ...pendingLogs].sort(
+    (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+  );
 }
 
 export const LogsPanel = React.memo(function LogsPanel({
@@ -140,6 +161,7 @@ export const LogsPanel = React.memo(function LogsPanel({
   const previousHeight = useRef(defaultHeight);
   const isResizing = useRef(false);
   const router = useRouter();
+  const { events, activeWorkflowId } = useSSE();
 
   const [logs, setLogs] = useState<WorkflowLog[]>([]);
   const [height, setHeight] = useState(defaultHeight);
@@ -180,7 +202,22 @@ export const LogsPanel = React.memo(function LogsPanel({
   const isFiltering = minutesFilter !== null || dateSelected;
 
   const liveLogsRef = useRef<Record<string, Record<string, RunLogAggregate>>>({});
+  const pendingRunsRef = useRef<Record<string, Map<string, Date>>>({});
   const sseRefs = useRef<Map<string, EventSource>>(new Map());
+  const processedEventCountRef = useRef(0);
+
+  const getPendingRuns = useCallback((wfId: string) => {
+    const current = pendingRunsRef.current[wfId];
+    if (current) return current;
+    const next = new Map<string, Date>();
+    pendingRunsRef.current[wfId] = next;
+    return next;
+  }, []);
+
+  const syncLogsForWorkflow = useCallback((wfId: string) => {
+    if (wfId !== workflowId) return;
+    setLogs(buildWorkflowLogs(liveLogsRef.current[wfId] ?? {}, getPendingRuns(wfId)));
+  }, [workflowId, getPendingRuns]);
 
   const appendLiveLog = useCallback(
     (
@@ -192,11 +229,10 @@ export const LogsPanel = React.memo(function LogsPanel({
       const grouped = liveLogsRef.current[wfId] ?? {};
       upsertRunAggregate(grouped, runId, log, timestamp);
       liveLogsRef.current[wfId] = grouped;
-      if (wfId === workflowId) {
-        setLogs(buildWorkflowLogs(grouped));
-      }
+      getPendingRuns(wfId).delete(runId);
+      syncLogsForWorkflow(wfId);
     },
-    [workflowId]
+    [getPendingRuns, syncLogsForWorkflow]
   );
 
   // auto-scroll state
@@ -293,11 +329,36 @@ export const LogsPanel = React.memo(function LogsPanel({
     };
   }, [isLive, isMinimized, workflowId, openWorkflowIds, appendLiveLog]);
 
+  useEffect(() => {
+    if (!activeWorkflowId) return;
+    if (events.length < processedEventCountRef.current) {
+      processedEventCountRef.current = 0;
+    }
+
+    const nextEvents = events.slice(processedEventCountRef.current) as { type?: string; runId?: string }[];
+    processedEventCountRef.current = events.length;
+
+    if (nextEvents.length === 0) return;
+
+    const pendingRuns = getPendingRuns(activeWorkflowId);
+    let didChange = false;
+
+    for (const event of nextEvents) {
+      if (event?.type !== 'ACCEPTED' || !event.runId || pendingRuns.has(event.runId)) continue;
+      pendingRuns.set(event.runId, new Date());
+      didChange = true;
+    }
+
+    if (didChange) {
+      syncLogsForWorkflow(activeWorkflowId);
+    }
+  }, [events, activeWorkflowId, workflowId, getPendingRuns, syncLogsForWorkflow]);
+
   // when active tab changes, show buffered live logs for that tab
   useEffect(() => {
     if (!isLive) return;
-    setLogs(buildWorkflowLogs(liveLogsRef.current[workflowId] ?? {}));
-  }, [workflowId, isLive]);
+    setLogs(buildWorkflowLogs(liveLogsRef.current[workflowId] ?? {}, getPendingRuns(workflowId)));
+  }, [workflowId, isLive, getPendingRuns]);
 
   // auto-scroll on logs update or panel open
   useEffect(() => {
@@ -616,20 +677,27 @@ export const LogsPanel = React.memo(function LogsPanel({
                 >
                   <div className="flex items-start">
                     <div className="flex-1">
-                      <span
-                        className={cn(
-                          'whitespace-pre-wrap break-words',
-                          log.type === 'error'
-                            ? 'text-red-700 dark:text-red-300'
-                            : log.type === 'warn'
-                              ? 'text-yellow-700 dark:text-yellow-300'
-                              : log.type === 'info'
-                                ? 'text-blue-700 dark:text-blue-300'
-                                : 'text-gray-700 dark:text-gray-200'
-                        )}
-                      >
-                        {log.message}
-                      </span>
+                      {log.isPending ? (
+                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                          <FiLoader className="h-4 w-4 animate-spin shrink-0" />
+                          <span className="whitespace-pre-wrap break-words">{log.message}</span>
+                        </div>
+                      ) : (
+                        <span
+                          className={cn(
+                            'whitespace-pre-wrap break-words',
+                            log.type === 'error'
+                              ? 'text-red-700 dark:text-red-300'
+                              : log.type === 'warn'
+                                ? 'text-yellow-700 dark:text-yellow-300'
+                                : log.type === 'info'
+                                  ? 'text-blue-700 dark:text-blue-300'
+                                  : 'text-gray-700 dark:text-gray-200'
+                          )}
+                        >
+                          {log.message}
+                        </span>
+                      )}
                     </div>
                     <span className="mr-3 mt-0.5 min-w-[72px] text-xs font-medium text-gray-400 dark:text-gray-500">
                       {formatTime(log.timestamp)}

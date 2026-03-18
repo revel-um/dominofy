@@ -10,6 +10,16 @@ interface UserData {
   name?: string;
 }
 
+const getBackendApiBase = (): string => {
+  const apiBase = process.env.NEXT_PUBLIC_BACKEND_BASE_URL?.trim();
+  if (apiBase) return apiBase.replace(/\/+$/, '');
+
+  const originBase = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
+  if (originBase) return `${originBase.replace(/\/+$/, '')}/api/v1`;
+
+  return 'http://localhost:3001/api/v1';
+};
+
 class TokenManager {
   private static readonly ACCESS_TOKEN_KEY = 'accessToken';
   private static readonly REFRESH_TOKEN_KEY = 'refreshToken';
@@ -133,8 +143,8 @@ class TokenManager {
     if (!refreshToken) return null;
 
     try {
-      const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-      const response = await fetch(`${backendBase}/api/v1/auth/refresh`, {
+      const backendApiBase = getBackendApiBase();
+      const response = await fetch(`${backendApiBase}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -180,8 +190,8 @@ class TokenManager {
     // Notify backend about logout
     if (refreshToken) {
       try {
-        const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-        await fetch(`${backendBase}/api/v1/auth/logout`, {
+        const backendApiBase = getBackendApiBase();
+        await fetch(`${backendApiBase}/auth/logout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
