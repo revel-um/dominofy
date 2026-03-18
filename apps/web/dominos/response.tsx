@@ -109,9 +109,6 @@ export default function ResponseDomino({ data, id, selected }: NodeProps) {
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
           <span className="truncate">Response</span>
         </div>
-        <div className="text-xs bg-white/20 px-1.5 py-0.5 rounded-full">
-          Core
-        </div>
       </div>
 
       {/* Input section with value_in pin */}
