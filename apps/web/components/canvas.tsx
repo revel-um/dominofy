@@ -64,6 +64,7 @@ import { useDomino } from "../contexts/dominoContext";
 import { useRouter } from "next/router";
 import { useCopyPaste } from '../hooks/useCopyPaste';
 import CanvasFloatingBar, { type CanvasInteractionMode } from "./canvasFloatingBar";
+import DominoCatalogIcon from "./shared/dominoCatalogIcon";
 
 const dominoMetaByType = new Map(
   dominoCatalog.map((entry) => [entry.id, entry])
@@ -117,7 +118,6 @@ function CompactDominoNode(
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
   const meta = dominoMetaByType.get(compactType);
-  const Icon = meta?.icon ?? FiBox;
   const label =
     meta?.label ||
     (data as any)?.details?.type ||
@@ -165,11 +165,15 @@ function CompactDominoNode(
               ? 'selected-border border-4'
               : 'unselected-border dark:border-gray-600'}
           bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      >
-        <div className="flex items-center justify-center gap-0">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
-            <Icon className="h-3.5 w-3.5" />
-          </div>
+        >
+        <div className="flex items-center justify-center gap-2">
+          {meta ? (
+            <DominoCatalogIcon domino={meta} badgeClassName="h-7 w-7 rounded-lg shadow-none" iconClassName="h-3.5 w-3.5" />
+          ) : (
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
+              <FiBox className="h-3.5 w-3.5" />
+            </div>
+          )}
           <span className="whitespace-nowrap text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
             {label}
           </span>
