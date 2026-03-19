@@ -44,7 +44,8 @@ export class EmailApi {
         token,
       }, router);
       if (r.status === 401) return [];
-      return (await r.json()) as EmailConnection[];
+      const payload = await r.json();
+      return Array.isArray(payload) ? (payload as EmailConnection[]) : [];
     } catch (err) {
       handleServerError(router, err);
       return [];

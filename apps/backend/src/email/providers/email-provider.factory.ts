@@ -11,6 +11,7 @@ import {
 
 type GmailDeps = {
   refreshAccessToken: (
+    vaultId: string,
     conn: GmailConnection,
   ) => Promise<{ client: OAuth2Client; accessToken: string }>;
   buildRawEmail: (opts: {
@@ -26,6 +27,7 @@ type GmailDeps = {
 };
 
 type SendEmailInput = {
+  vaultId: string;
   conn: EmailConnection;
   to: string;
   subject: string;
@@ -39,9 +41,9 @@ export interface EmailProvider {
 class GmailEmailProvider implements EmailProvider {
   constructor(private readonly deps: GmailDeps) {}
 
-  async sendEmail({ conn, to, subject, body }: SendEmailInput) {
+  async sendEmail({ vaultId, conn, to, subject, body }: SendEmailInput) {
     const gmailConn = conn as GmailConnection;
-    const { client } = await this.deps.refreshAccessToken(gmailConn);
+    const { client } = await this.deps.refreshAccessToken(vaultId, gmailConn);
     const gmail = google.gmail({ version: 'v1', auth: client });
     const from = body.from || gmailConn.email;
     const raw = this.deps.buildRawEmail({

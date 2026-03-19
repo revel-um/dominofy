@@ -37,6 +37,7 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
   const [connections, setConnections] = useState<EmailConnection[]>([]);
   const [loadingConns, setLoadingConns] = useState(true);
   const bootstrappedRef = useRef(false);
+  const safeConnections = Array.isArray(connections) ? connections : [];
 
   /* Initialise node schema once */
   useEffect(() => {
@@ -114,7 +115,7 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
       setLoadingConns(true);
       try {
         const list = await EmailApi.getConnections(token, router);
-        if (mounted) setConnections(list ?? []);
+        if (mounted) setConnections(Array.isArray(list) ? list : []);
       } catch (err) {
         console.error('Error fetching email connections', err);
       } finally {
@@ -195,21 +196,21 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
             className="w-full px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
             onClick={startOAuth}
           >
-            {connections.length === 0 ? 'Connect Gmail' : 'Add Gmail connection'}
+            {safeConnections.length === 0 ? 'Connect Gmail' : 'Add Gmail connection'}
           </button>
         </div>
 
         {/* Select connection */}
         {loadingConns ? (
           <p className="text-sm px-3">Loading Gmail connections…</p>
-        ) : connections.length > 0 ? (
+        ) : safeConnections.length > 0 ? (
           <div className="flex flex-col gap-1 px-3">
             <label className="text-xs font-medium">Gmail Account</label>
             <SearchableSelect
               value={vaultId}
               onChange={val => setFieldValue('vaultId', val)}
               placeholder="Select account"
-              options={connections.map(c => ({
+              options={safeConnections.map(c => ({
                 label: c.email || c.name,
                 value: c.id,
               }))}

@@ -93,6 +93,36 @@ export class DriveService {
     return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
   }
 
+  private isInvalidGrantError(err: any): boolean {
+    const errorCode = err?.response?.data?.error;
+    const message = err?.message;
+    return errorCode === 'invalid_grant' || message === 'invalid_grant';
+  }
+
+  private async invalidateDriveVault(
+    vaultId: string,
+    conn: DriveConnection,
+    err: any,
+  ): Promise<void> {
+    const errorCode = err?.response?.data?.error || 'invalid_grant';
+    const errorMessage = err?.response?.data?.error_description || err?.message;
+
+    conn.refreshToken = '';
+    conn.accessToken = undefined;
+    conn.expiryDate = undefined;
+    (conn as any).disconnectReason = {
+      code: errorCode,
+      message: errorMessage,
+      at: new Date().toISOString(),
+    };
+
+    await this.vaultService.markVaultConnectionInvalid(vaultId, conn as any);
+
+    this.logger.warn(
+      `Drive vault invalidated for ${conn.email}; token refresh failed with ${errorCode}`,
+    );
+  }
+
   getGoogleInstallUrl(userId: string): string {
     const oauth2 = this.oauthClient();
     const scope = [
@@ -135,12 +165,29 @@ export class DriveService {
       { users: true },
     );
 
+    const nextConnection = {
+      provider: 'googleDrive',
+      email,
+      name: profile.data.name || undefined,
+      refreshToken: tokens.refresh_token,
+      accessToken: tokens.access_token ?? undefined,
+      expiryDate: tokens.expiry_date ?? undefined,
+    } satisfies DriveConnection;
+
     if (existing) {
       const ownedByCaller = existing.users.some(u => u.id === user.id);
       if (ownedByCaller) {
-        throw new ConflictException(
-          'This Google Drive account is already connected to your Dominofy account.',
+        if (this.vaultService.isVaultActive(existing)) {
+          throw new ConflictException(
+            'This Google Drive account is already connected to your Dominofy account.',
+          );
+        }
+        await this.vaultService.reactivateVaultConnection(
+          existing.id.toString(),
+          nextConnection,
+          { provider: 'googleDrive', email },
         );
+        return;
       }
       throw new ConflictException(
         'This Google Drive account is already connected by another Dominofy user.',
@@ -151,14 +198,7 @@ export class DriveService {
       name: `Google Drive - ${email}`,
       type: VaultType.GOOGLE_DRIVE,
       lookupIds: { provider: 'googleDrive', email },
-      connection: {
-        provider: 'googleDrive',
-        email,
-        name: profile.data.name || undefined,
-        refreshToken: tokens.refresh_token,
-        accessToken: tokens.access_token ?? undefined,
-        expiryDate: tokens.expiry_date ?? undefined,
-      } satisfies DriveConnection,
+      connection: nextConnection,
     };
 
     await this.vaultService.create(vaultDto, [user.id]);
@@ -180,6 +220,7 @@ export class DriveService {
   }
 
   private async refreshAccessToken(
+    vaultId: string,
     conn: DriveConnection,
   ): Promise<{ client: OAuth2Client; accessToken: string }> {
     const oauth2 = this.oauthClient();
@@ -188,7 +229,15 @@ export class DriveService {
       access_token: conn.accessToken,
       expiry_date: conn.expiryDate,
     });
-    const tokens = await oauth2.getAccessToken();
+    let tokens;
+    try {
+      tokens = await oauth2.getAccessToken();
+    } catch (err: any) {
+      if (this.isInvalidGrantError(err)) {
+        await this.invalidateDriveVault(vaultId, conn, err);
+      }
+      throw err;
+    }
     if (!tokens?.token) {
       throw new UnauthorizedException('Failed to refresh Drive access token');
     }
@@ -204,13 +253,16 @@ export class DriveService {
       VaultType.GOOGLE_DRIVE,
     );
     if (!vault) throw new BadRequestException('Unknown Google Drive vault');
+    if (!this.vaultService.isVaultActive(vault)) {
+      throw new UnauthorizedException('Google Drive connection is disconnected');
+    }
 
     const conn = vault.connection as DriveConnection;
     if (!conn?.refreshToken) {
       throw new UnauthorizedException('Drive connection is missing refresh token');
     }
 
-    const { client } = await this.refreshAccessToken(conn);
+    const { client } = await this.refreshAccessToken(vaultId, conn);
     await this.vaultService.updateConnection(vault.id.toString(), conn as any);
     return { client, conn };
   }

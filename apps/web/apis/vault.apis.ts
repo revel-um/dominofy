@@ -1,6 +1,6 @@
 // src/apis/vaults.api.ts
 import { NextRouter } from "next/router";
-import { handleServerError } from "../utils/error.handler";
+import { handleServerError, handleUnauthorizedError } from "../utils/error.handler";
 import { config } from "../config/config";
 import { authFetch } from "../utils/authFetch";
 

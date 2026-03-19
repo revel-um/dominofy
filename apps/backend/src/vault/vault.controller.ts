@@ -129,7 +129,10 @@ export class VaultController extends BaseController<
     if (vault.type === VaultType.EMAIL) {
       const provider = (vault.connection as any)?.provider;
       if (provider === 'gmail') {
-        await this.emailService.stopGmailWatch(vault.connection as any);
+        await this.emailService.stopGmailWatch(
+          vault.id.toString(),
+          vault.connection as any,
+        );
       }
     }
 
