@@ -1,15 +1,15 @@
 // src/dominos/readExcel.tsx
-import { NodeProps, useEdges } from 'reactflow';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'react-toastify';
-import DominoPin from '../components/shared/dominoPin';
-import { PinType } from '../types/pinTypes';
-import { FiLoader, FiUpload, FiX, FiAlertCircle } from 'react-icons/fi';
-import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
-import { DominoNodeData } from '../types/dominoFieldTypes';
-import { FilesApi } from '../apis/files.apis';
-import { useRouter } from 'next/router';
+import { NodeProps, useEdges } from "reactflow";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "react-toastify";
+import DominoPin from "../components/shared/dominoPin";
+import { PinType } from "../types/pinTypes";
+import { FiLoader, FiUpload, FiX, FiAlertCircle } from "react-icons/fi";
+import { useDomino } from "../contexts/dominoContext";
+import { getExpandedDominoHeaderStyle } from "./dominoHeaderStyle";
+import { DominoNodeData } from "../types/dominoFieldTypes";
+import { FilesApi } from "../apis/files.apis";
+import { useRouter } from "next/router";
 
 type FileValue = {
   key: string;
@@ -18,6 +18,24 @@ type FileValue = {
   name: string;
   mime?: string;
 };
+
+const ACCEPTED_FILE_TYPES = [
+  ".csv",
+  ".docx",
+  ".htm",
+  ".html",
+  ".json",
+  ".md",
+  ".pdf",
+  ".tsv",
+  ".txt",
+  ".xls",
+  ".xlsx",
+  ".xml",
+].join(",");
+
+const ACCEPTED_FILE_REGEX =
+  /\.(csv|docx|htm|html|json|md|pdf|tsv|txt|xls|xlsx|xml)$/i;
 
 export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
   const router = useRouter();
@@ -29,9 +47,9 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
 
   // Prefer a per-handle checker if host provides one; otherwise compute from edges
   const isValueInConnected = useMemo(() => {
-    if (typeof (data as any)?.isHandleConnected === 'function') {
+    if (typeof (data as any)?.isHandleConnected === "function") {
       try {
-        return (data as any).isHandleConnected(id, 'value_in');
+        return (data as any).isHandleConnected(id, "value_in");
       } catch {
         /* fall through to edges */
       }
@@ -39,23 +57,23 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
     return edges.some(
       (e) =>
         e?.target === id &&
-        (e?.targetHandle === 'value_in' || e?.targetHandle === 'value')
+        (e?.targetHandle === "value_in" || e?.targetHandle === "value"),
     );
   }, [edges, data, id]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getFileField = () =>
-    data.details?.fields?.find((f: any) => f.heading === 'File') as
+    data.details?.fields?.find((f: any) => f.heading === "File") as
       | { value?: string | FileValue; file?: { key?: string } }
       | undefined;
 
   const getInitialFileName = () => {
     const field = getFileField();
     const v = field?.value as any;
-    if (v && typeof v === 'object') return v.name || '';
-    if (typeof v === 'string') return v;
-    return '';
+    if (v && typeof v === "object") return v.name || "";
+    if (typeof v === "string") return v;
+    return "";
   };
 
   const [fileName, setFileName] = useState(getInitialFileName());
@@ -66,7 +84,11 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
     const field = getFileField();
     const v = field?.value as any;
     const newName =
-      v && typeof v === 'object' ? v.name ?? '' : typeof v === 'string' ? v : '';
+      v && typeof v === "object"
+        ? (v.name ?? "")
+        : typeof v === "string"
+          ? v
+          : "";
     if (newName !== fileName) setFileName(newName);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.details?.fields]);
@@ -75,8 +97,10 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) {
-      toast.error('Please upload a valid Excel or CSV file (.xlsx / .xls / .csv)');
+    if (!ACCEPTED_FILE_REGEX.test(file.name)) {
+      toast.error(
+        "Please upload a supported file: Excel, CSV, DOCX, PDF, JSON, TXT, HTML, or XML.",
+      );
       return;
     }
 
@@ -86,10 +110,15 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
     try {
       setFileName(file.name);
 
-      const token = localStorage.getItem('token') || '';
-      const res = await FilesApi.uploadFile(file, token, router, data.workflowId);
+      const token = localStorage.getItem("token") || "";
+      const res = await FilesApi.uploadFile(
+        file,
+        token,
+        router,
+        data.workflowId,
+      );
       if (!res) {
-        toast.error('File upload failed');
+        toast.error("File upload failed");
         return;
       }
 
@@ -111,13 +140,14 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
                 data: {
                   ...n.data,
                   details: {
-                    type: 'Read Excel',
-                    description: 'Reads data from an Excel file',
+                    type: "Read File",
+                    description:
+                      "Reads spreadsheets, documents, PDFs, and text files",
                     fields: [
                       {
-                        inPinId: 'value_in',
-                        type: 'file',
-                        heading: 'File',
+                        inPinId: "value_in",
+                        type: "file",
+                        heading: "File",
                         value: valueObj, // <-- file object in value
                         required: true,
                         shouldRender: false,
@@ -125,19 +155,19 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
                       },
                     ],
                   } as DominoNodeData,
-                  exportFields: ['File'],
+                  exportFields: ["File"],
                 },
               }
-            : n
-        )
+            : n,
+        ),
       );
     } catch (err) {
       console.error(err);
-      toast.error('An error occurred during upload');
+      toast.error("An error occurred during upload");
     } finally {
       setIsUploading(false);
       // clear input so the same file can be selected again if needed
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -147,18 +177,19 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
     const field = getFileField();
     const v = field?.value as any;
     const legacyKey = (field as any)?.file?.key;
-    const key: string | undefined = v && typeof v === 'object' ? v.key : legacyKey;
+    const key: string | undefined =
+      v && typeof v === "object" ? v.key : legacyKey;
 
     try {
       if (key) {
-        const token = localStorage.getItem('token') || '';
+        const token = localStorage.getItem("token") || "";
         await FilesApi.deleteFile(key, token, router);
       }
     } catch {
-      toast.error('Failed to delete file');
+      toast.error("Failed to delete file");
     }
 
-    setFileName('');
+    setFileName("");
     data.setNodes?.((nodes: any[]) =>
       nodes.map((n: any) =>
         n.id === id
@@ -167,14 +198,15 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
               data: {
                 ...n.data,
                 details: {
-                  type: 'Read Excel',
-                  description: 'Reads data from an Excel file',
+                  type: "Read File",
+                  description:
+                    "Reads spreadsheets, documents, PDFs, and text files",
                   fields: [
                     {
-                      inPinId: 'value_in',
-                      type: 'file',
-                      heading: 'File',
-                      value: '', // clear value
+                      inPinId: "value_in",
+                      type: "file",
+                      heading: "File",
+                      value: "", // clear value
                       required: true,
                       shouldRender: false,
                       needsUpload: true,
@@ -183,8 +215,8 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
                 } as DominoNodeData,
               },
             }
-          : n
-      )
+          : n,
+      ),
     );
   };
 
@@ -200,24 +232,25 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
                 data: {
                   ...n.data,
                   details: {
-                    type: 'Read Excel',
-                    description: 'Reads data from an Excel file',
+                    type: "Read File",
+                    description:
+                      "Reads spreadsheets, documents, PDFs, and text files",
                     fields: [
                       {
-                        inPinId: 'value_in',
-                        type: 'file',
-                        heading: 'File',
-                        value: '',
+                        inPinId: "value_in",
+                        type: "file",
+                        heading: "File",
+                        value: "",
                         required: true,
                         shouldRender: false,
                         needsUpload: true,
                       },
                     ],
                   } as DominoNodeData,
-                  exportFields: ['File'],
+                  exportFields: ["File"],
                 },
-              }
-        )
+              },
+        ),
       );
     }
   }, [data.details, data.setNodes, id]);
@@ -226,18 +259,20 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
   return (
     <div
       className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
-        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
+        ${hasError ? "error-border" : selected ? "selected-border" : "unselected-border dark:border-gray-600"}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
     >
       {/* Header with exec pins */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('readexcel')}
+        style={getExpandedDominoHeaderStyle("readexcel")}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <span>Read Excel</span>
-          {isUploading && <FiLoader className="ml-2 h-5 w-5 text-white animate-spin" />}
+          <span>Read File</span>
+          {isUploading && (
+            <FiLoader className="ml-2 h-5 w-5 text-white animate-spin" />
+          )}
         </div>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
@@ -270,7 +305,7 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
                              bg-dominofy-light-accent text-white hover:opacity-90 transition
                              disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isUploading}
-                  title="Choose Excel file"
+                  title="Choose file"
                 >
                   {isUploading ? (
                     <>
@@ -280,14 +315,14 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
                   ) : (
                     <>
                       <FiUpload className="w-4 h-4" />
-                      <span>Choose Excel File</span>
+                      <span>Choose File</span>
                     </>
                   )}
                 </button>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".xlsx,.xls,.csv"
+                  accept={ACCEPTED_FILE_TYPES}
                   className="hidden"
                   onChange={handleFileUpload}
                 />

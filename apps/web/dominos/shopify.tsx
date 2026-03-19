@@ -1,11 +1,15 @@
 // src/dominos/ShopifyDomino.tsx
-import { NodeProps, useEdges } from 'reactflow';
-import React, { useState, useEffect, useRef } from 'react';
-import DominoPin from '../components/shared/dominoPin';
-import { PinType } from '../types/pinTypes';
-import { DominoField, DominoFieldOption, DominoNodeData } from '../types/dominoFieldTypes';
-import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
+import { NodeProps, useEdges } from "reactflow";
+import React, { useState, useEffect, useRef } from "react";
+import DominoPin from "../components/shared/dominoPin";
+import { PinType } from "../types/pinTypes";
+import {
+  DominoField,
+  DominoFieldOption,
+  DominoNodeData,
+} from "../types/dominoFieldTypes";
+import { useDomino } from "../contexts/dominoContext";
+import { getExpandedDominoHeaderStyle } from "./dominoHeaderStyle";
 
 // Extend DominoNodeData for Shopify
 export interface ShopifyDominoData extends DominoNodeData {
@@ -27,20 +31,24 @@ type ShopifyField = {
 };
 
 const resourceOptions: DominoFieldOption[] = [
-  { label: 'Product', value: 'products' },
-  { label: 'Order', value: 'orders' },
-  { label: 'Customer', value: 'customers' },
+  { label: "Product", value: "products" },
+  { label: "Order", value: "orders" },
+  { label: "Customer", value: "customers" },
 ];
 
 const operationOptions: DominoFieldOption[] = [
-  { label: 'Get', value: 'get' },
-  { label: 'List', value: 'list' },
-  { label: 'Create', value: 'create' },
-  { label: 'Update', value: 'update' },
-  { label: 'Delete', value: 'delete' },
+  { label: "Get", value: "get" },
+  { label: "List", value: "list" },
+  { label: "Create", value: "create" },
+  { label: "Update", value: "update" },
+  { label: "Delete", value: "delete" },
 ];
 
-export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyDominoData>) {
+export default function ShopifyDomino({
+  data,
+  id,
+  selected,
+}: NodeProps<ShopifyDominoData>) {
   const edges = useEdges();
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
@@ -53,25 +61,64 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
   const [fields, setFields] = useState<ShopifyField[]>(() => {
     const saved = data.details?.fields ?? [];
     const find = (heading: string) =>
-      String(saved.find((f: { heading: string; }) => f.heading === heading)?.value ?? (data as any)[heading] ?? '');
+      String(
+        saved.find((f: { heading: string }) => f.heading === heading)?.value ??
+          (data as any)[heading] ??
+          "",
+      );
 
     return [
-      { key: 'shopDomain', label: 'Shop Domain', value: find('shopDomain'), pinId: 'value_shopDomain', required: true },
-      { key: 'accessTokenVaultId', label: 'Access Token (Vault Id)', value: find('accessTokenVaultId'), pinId: 'value_accessTokenVaultId', required: true },
-      { key: 'resource', label: 'Resource', value: find('resource'), pinId: 'value_resource', required: true, options: resourceOptions },
-      { key: 'operation', label: 'Operation', value: find('operation'), pinId: 'value_operation', required: true, options: operationOptions },
-      { key: 'parameters', label: 'Parameters (JSON)', value: find('parameters'), pinId: 'value_parameters', required: false, isTextArea: true },
+      {
+        key: "shopDomain",
+        label: "Shop Domain",
+        value: find("shopDomain"),
+        pinId: "value_shopDomain",
+        required: true,
+      },
+      {
+        key: "accessTokenVaultId",
+        label: "Access Token (Vault Id)",
+        value: find("accessTokenVaultId"),
+        pinId: "value_accessTokenVaultId",
+        required: true,
+      },
+      {
+        key: "resource",
+        label: "Resource",
+        value: find("resource"),
+        pinId: "value_resource",
+        required: true,
+        options: resourceOptions,
+      },
+      {
+        key: "operation",
+        label: "Operation",
+        value: find("operation"),
+        pinId: "value_operation",
+        required: true,
+        options: operationOptions,
+      },
+      {
+        key: "parameters",
+        label: "Parameters (JSON)",
+        value: find("parameters"),
+        pinId: "value_parameters",
+        required: false,
+        isTextArea: true,
+      },
     ];
   });
 
   // Clear values when pin connects
   useEffect(() => {
     let clearedAny = false;
-    const newFields = fields.map(f => {
-      const connected = edges.some(edge => edge.target === id && edge.targetHandle === f.pinId);
-      if (connected && f.value !== '') {
+    const newFields = fields.map((f) => {
+      const connected = edges.some(
+        (edge) => edge.target === id && edge.targetHandle === f.pinId,
+      );
+      if (connected && f.value !== "") {
         clearedAny = true;
-        return { ...f, value: '' };
+        return { ...f, value: "" };
       }
       return f;
     });
@@ -80,7 +127,7 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
 
   const handleChange = (key: keyof ShopifyDominoData, value: string) => {
     clearValidationForDominoId(id);
-    setFields(prev => prev.map(f => f.key === key ? { ...f, value } : f));
+    setFields((prev) => prev.map((f) => (f.key === key ? { ...f, value } : f)));
   };
 
   // Sync to node data and details
@@ -88,63 +135,124 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
     const setNodes = setNodesRef.current;
     if (!setNodes) return;
 
-    setNodes((nds: any[]) =>
-      nds.map((node: any) => {
+    const nextRawData: Record<string, any> = {};
+    fields.forEach((f) => {
+      const connected = edges.some(
+        (edge) => edge.target === id && edge.targetHandle === f.pinId,
+      );
+      if (!connected) {
+        if (f.key === "parameters") {
+          try {
+            nextRawData.parameters = JSON.parse(f.value);
+          } catch {
+            nextRawData.parameters = {};
+          }
+        } else {
+          nextRawData[f.key] = f.value;
+        }
+      }
+    });
+
+    const nextFields: DominoField[] = fields.map((f) => {
+      const connected = edges.some(
+        (edge) => edge.target === id && edge.targetHandle === f.pinId,
+      );
+      const df: DominoField = {
+        heading: f.label,
+        value: connected ? "" : f.value,
+        inPinId: f.pinId,
+        type: f.isTextArea ? "textArea" : f.options ? "dropdown" : "textInput",
+        required: f.required,
+        shouldRender: true,
+        connectedValue: connected ? "connected" : "",
+      };
+      if (f.options) (df as any).options = f.options;
+      return df;
+    });
+
+    const nextExport = nextFields.map((f) => f.heading);
+    const currentFields: DominoField[] = data.details?.fields ?? [];
+    const sameFields =
+      currentFields.length === nextFields.length &&
+      currentFields.every(
+        (f: any, idx: number) =>
+          JSON.stringify(f) === JSON.stringify(nextFields[idx]),
+      );
+    const sameExport =
+      Array.isArray(data.exportFields) &&
+      data.exportFields.length === nextExport.length &&
+      data.exportFields.every((h: string, i: number) => h === nextExport[i]);
+    const sameRawData = fields.every((f) => {
+      const connected = edges.some(
+        (edge) => edge.target === id && edge.targetHandle === f.pinId,
+      );
+      if (connected) return true;
+      const nextValue =
+        f.key === "parameters"
+          ? (nextRawData.parameters ?? {})
+          : (nextRawData[f.key] ?? "");
+      const currentValue = data[f.key];
+      return JSON.stringify(currentValue) === JSON.stringify(nextValue);
+    });
+
+    if (sameFields && sameExport && sameRawData) {
+      return;
+    }
+
+    setNodes((nds: any[]) => {
+      let changed = false;
+
+      const nextNodes = nds.map((node: any) => {
         if (node.id !== id) return node;
 
-        // Update raw data on node
-        fields.forEach(f => {
-          const connected = edges.some(edge => edge.target === id && edge.targetHandle === f.pinId);
-          if (!connected) {
-            if (f.key === 'parameters') {
-              try { node.data.parameters = JSON.parse(f.value); } catch { node.data.parameters = {}; }
-            } else {
-              node.data[f.key] = f.value;
-            }
-          }
-        });
-
         const existing: DominoField[] = node.data.details?.fields ?? [];
-        const newFields: DominoField[] = fields.map(f => {
-          const connected = edges.some(edge => edge.target === id && edge.targetHandle === f.pinId);
-          const df: DominoField = {
-            heading: f.label,
-            value: connected ? '' : f.value,
-            inPinId: f.pinId,
-            type: f.isTextArea ? 'textArea' : f.options ? 'dropdown' : 'textInput',
-            required: f.required,
-            shouldRender: true,
-            connectedValue: connected ? 'connected' : '',
-          };
-          if (f.options) (df as any).options = f.options;
-          return df;
-        });
-
-        // Avoid infinite loops by skipping identical
-        const nextExport = newFields.map(f => f.heading);
         const sameFields =
-          existing.length === newFields.length &&
-          existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(newFields[idx]));
+          existing.length === nextFields.length &&
+          existing.every(
+            (f: any, idx: number) =>
+              JSON.stringify(f) === JSON.stringify(nextFields[idx]),
+          );
         const sameExport =
           Array.isArray(node.data.exportFields) &&
           node.data.exportFields.length === nextExport.length &&
-          node.data.exportFields.every((h: string, i: number) => h === nextExport[i]);
-        if (sameFields && sameExport) return node;
+          node.data.exportFields.every(
+            (h: string, i: number) => h === nextExport[i],
+          );
+        const sameRawData = fields.every((f) => {
+          const connected = edges.some(
+            (edge) => edge.target === id && edge.targetHandle === f.pinId,
+          );
+          if (connected) return true;
+          const nextValue =
+            f.key === "parameters"
+              ? (nextRawData.parameters ?? {})
+              : (nextRawData[f.key] ?? "");
+          const currentValue = node.data[f.key];
+          return JSON.stringify(currentValue) === JSON.stringify(nextValue);
+        });
+        if (sameFields && sameExport && sameRawData) return node;
+
+        changed = true;
 
         return {
           ...node,
           data: {
             ...node.data,
-            details: { ...node.data.details, fields: newFields },
+            ...nextRawData,
+            details: { ...node.data.details, fields: nextFields },
             exportFields: nextExport,
           },
         };
-      })
-    );
-  }, [fields, edges, id]);
+      });
+
+      return changed ? nextNodes : nds;
+    });
+  }, [data, fields, edges, id]);
 
   const renderField = (f: ShopifyField) => {
-    const connected = edges.some(edge => edge.target === id && edge.targetHandle === f.pinId);
+    const connected = edges.some(
+      (edge) => edge.target === id && edge.targetHandle === f.pinId,
+    );
     const base = "mt-1 w-full px-2 py-1 text-sm border rounded";
 
     return (
@@ -152,13 +260,14 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
         <DominoPin id={f.pinId} pinType={PinType.VALUE_IN} inline />
         <div className="flex-1">
           <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-            {f.label}{f.required && <span className="text-red-500 ml-1">*</span>}
+            {f.label}
+            {f.required && <span className="text-red-500 ml-1">*</span>}
           </label>
           {f.isTextArea ? (
             <textarea
               value={f.value}
-              onChange={e => handleChange(f.key, e.target.value)}
-              placeholder={connected ? 'Connected' : f.label}
+              onChange={(e) => handleChange(f.key, e.target.value)}
+              placeholder={connected ? "Connected" : f.label}
               readOnly={connected}
               disabled={connected}
               rows={3}
@@ -167,19 +276,23 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
           ) : f.options ? (
             <select
               value={f.value}
-              onChange={e => handleChange(f.key, e.target.value)}
+              onChange={(e) => handleChange(f.key, e.target.value)}
               disabled={connected}
               className={`${base} bg-white dark:bg-gray-700`}
             >
               <option value="">Select</option>
-              {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {f.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           ) : (
             <input
               type="text"
               value={f.value}
-              onChange={e => handleChange(f.key, e.target.value)}
-              placeholder={connected ? 'Connected' : f.label}
+              onChange={(e) => handleChange(f.key, e.target.value)}
+              placeholder={connected ? "Connected" : f.label}
               readOnly={connected}
               disabled={connected}
               className={`${base} bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text`}
@@ -193,14 +306,14 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
   return (
     <div
       className={`relative transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
-        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
+        ${hasError ? "error-border" : selected ? "selected-border" : "unselected-border dark:border-gray-600"}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{ minWidth: '13rem' }}
+      style={{ minWidth: "13rem" }}
     >
       {/* Header */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md"
-        style={getExpandedDominoHeaderStyle('shopify')}
+        style={getExpandedDominoHeaderStyle("shopify")}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
@@ -215,7 +328,8 @@ export default function ShopifyDomino({ data, id, selected }: NodeProps<ShopifyD
 
       {hasError && (
         <p className="px-3 pb-2 text-xs text-red-500">
-          ⚠️ One or more required fields are missing or an input pin is connected without a value.
+          ⚠️ One or more required fields are missing or an input pin is
+          connected without a value.
         </p>
       )}
     </div>

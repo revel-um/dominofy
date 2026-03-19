@@ -13,7 +13,7 @@ import { JoinTextDomino } from "./dominos/joinText";
 
 // Import each domino implementation class:
 import { PrintDomino } from "./dominos/print";
-import { ReadExcelDomino } from "./dominos/readExcel";
+import { ReadExcelDomino } from "./dominos/readFile";
 import { ResponseDomino } from "./dominos/response";
 import { SlackTriggerDomino } from "./dominos/slackTrigger";
 import { SwitchCaseDomino } from "./dominos/switchCase";
