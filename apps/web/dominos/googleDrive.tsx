@@ -78,6 +78,7 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
   const router = useRouter();
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const isPreviewMode = Boolean((data as any).previewMode);
   const edges = useEdges();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const setNodesRef = useRef(data.setNodes);
@@ -207,6 +208,11 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
   }, [data?.details?.fields]);
 
   useEffect(() => {
+    if (isPreviewMode) {
+      setLoadingConns(false);
+      setConnections([]);
+      return;
+    }
     let mounted = true;
     (async () => {
       setLoadingConns(true);
@@ -220,7 +226,7 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
       }
     })();
     return () => void (mounted = false);
-  }, [token, router]);
+  }, [isPreviewMode, token, router]);
 
 
   useEffect(() => {

@@ -252,6 +252,9 @@ const nodeTypes = {
   note: withRenderKey('note', NoteDomino),
 };
 
+const DASHBOARD_PREVIEW_ZOOM = 1 / 3;
+const MIN_CANVAS_ZOOM = 1 / 3;
+
 /* ─────────────────────────  PROPS  ───────────────────────── */
 interface CanvasProps {
   id: string;
@@ -439,6 +442,7 @@ export default function Canvas(props: CanvasProps) {
             className: n.className ? `${n.className} opacity-50` : "opacity-50",
             data: {
               ...n.data,
+              previewMode: renderGuarded,
               compactMode,
               onModeAnimationStart: handleModeAnimationStart,
               onModeAnimationEnd: handleModeAnimationEnd,
@@ -449,6 +453,7 @@ export default function Canvas(props: CanvasProps) {
           ...n,
           data: {
             ...n.data,
+            previewMode: renderGuarded,
             compactMode,
             onModeAnimationStart: handleModeAnimationStart,
             onModeAnimationEnd: handleModeAnimationEnd,
@@ -870,7 +875,7 @@ export default function Canvas(props: CanvasProps) {
       } else if (id === 'dashboard-template') {
         console.log('Setting fixed zoom for template canvas');
         // For template canvas, use fixed zoom for consistent display
-        zoom = 0.5; // Fixed zoom level for templates
+        zoom = DASHBOARD_PREVIEW_ZOOM; // Fixed zoom level for templates
       }
 
       // Set view to center the populated area
@@ -898,9 +903,9 @@ export default function Canvas(props: CanvasProps) {
     // Default viewport for new workflows with canvas-specific zoom
     let defaultZoom = 1;
     if (id === 'dashboard-template') {
-      defaultZoom = 0.5; // Template canvas uses 0.5 zoom
+      defaultZoom = DASHBOARD_PREVIEW_ZOOM;
     } else if (id.includes('dashboard')) {
-      defaultZoom = 0.5; // Dashboard canvas uses maximum zoom out
+      defaultZoom = DASHBOARD_PREVIEW_ZOOM;
     }
     
     return { x: 0, y: 0, zoom: defaultZoom };
@@ -963,7 +968,7 @@ export default function Canvas(props: CanvasProps) {
         let zoom = 1; // Default zoom
         
         if (id.includes('dashboard')) {
-          zoom = 0.5; // Dashboard canvases use 0.5 zoom
+          zoom = DASHBOARD_PREVIEW_ZOOM;
         } else if (id === 'dominofy') {
           // For dominofy canvas, use recenter function which has smart zoom calculation
           recenterToPopulatedArea();
@@ -1367,6 +1372,7 @@ export default function Canvas(props: CanvasProps) {
 
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   const isDominofyCanvas = id === 'dominofy';
+  const allowReadonlyPanning = readonly && id.includes('dashboard');
   const canvasClassName = `absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none ${!isDominofyCanvas ? 'locked-canvas' : ''}`;
 
   return (
@@ -1400,8 +1406,8 @@ export default function Canvas(props: CanvasProps) {
           nodesDraggable={!readonly && isSelectionMode}
           nodesConnectable={!readonly && isExpandedMode && isSelectionMode}
           elementsSelectable={!readonly && !isLockedMode && !isHandMode}
-          panOnDrag={!readonly && isHandMode}
-          panOnScroll={!readonly}
+          panOnDrag={allowReadonlyPanning || (!readonly && isHandMode)}
+          panOnScroll={allowReadonlyPanning || !readonly}
           zoomOnScroll={false}
 
           /* ✅ MULTI-SELECT via rectangle (hold Shift) */
@@ -1413,6 +1419,7 @@ export default function Canvas(props: CanvasProps) {
           onPaneClick={handlePaneClick}
 
           proOptions={{ hideAttribution: true }}
+          minZoom={MIN_CANVAS_ZOOM}
           className={canvasClassName}
         >
           <Background />

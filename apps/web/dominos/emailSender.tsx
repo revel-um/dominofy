@@ -13,6 +13,7 @@ import { EmailApi, EmailConnection } from '@/apis/email.apis';
 export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const isPreviewMode = Boolean((data as any).previewMode);
 
   const router: NextRouter = useRouter();
   const token =
@@ -110,6 +111,11 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
 
   /* Load Gmail connections */
   useEffect(() => {
+    if (isPreviewMode) {
+      setLoadingConns(false);
+      setConnections([]);
+      return;
+    }
     let mounted = true;
     (async () => {
       setLoadingConns(true);
@@ -123,7 +129,7 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
       }
     })();
     return () => void (mounted = false);
-  }, [token, router]);
+  }, [isPreviewMode, token, router]);
 
   const startOAuth = async () => {
     const url = await EmailApi.getInstallUrl(token, router);
