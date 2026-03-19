@@ -22,6 +22,7 @@ import TemplatesCanvas from "../components/templateCarousel";
 import { useNodesState, useEdgesState } from "reactflow";
 import { config } from "../config/config";
 import { TokenManager } from "../utils/auth";
+import { resumeScoringTemplate } from "../templates/resumeScoringTemplate";
 
 const CANVAS_MODE_STORAGE_KEY_PREFIX = "dominofy-canvas-mode";
 
@@ -441,7 +442,8 @@ export default function DominofyDashboard() {
                             "targetHandle": "value_in"
                         }
                     ]
-                }
+                },
+                resumeScoringTemplate
             ])
             const response = await ProjectsApi.getProjects(
                 currentToken ?? "",

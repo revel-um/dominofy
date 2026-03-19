@@ -7,6 +7,7 @@ import { AiGenerateDto, AiGenerateResponseDto } from './workflow-revision.dto';
 import * as jsondiffpatch from 'jsondiffpatch';
 import * as deepDiff from 'deep-diff';
 import axios from 'axios';
+import { WorkflowService } from '../workflow/workflow.service';
 
 @Injectable()
 export class WorkflowRevisionService {
@@ -15,6 +16,7 @@ export class WorkflowRevisionService {
     private readonly revisionRepository: Repository<WorkflowRevision>,
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
+    private readonly workflowService: WorkflowService,
   ) {}
 
   async createRevision(
@@ -56,18 +58,10 @@ export class WorkflowRevisionService {
     userId: string,
     aiGenerateDto: AiGenerateDto,
   ): Promise<AiGenerateResponseDto> {
-    // Fetch workflow and last 3 revisions
-    const workflow = await this.workflowRepository.findOne({
-      where: { id: workflowId },
-      relations: ['user'],
-    });
+    const workflow = await this.workflowService.findOneAndVerify(workflowId, userId);
 
     if (!workflow) {
       throw new NotFoundException(`Workflow with id ${workflowId} not found`);
-    }
-
-    if (workflow.user.id !== userId) {
-      throw new BadRequestException('Access denied to this workflow');
     }
 
     const recentRevisions = await this.getLastNRevisions(workflowId, 3);

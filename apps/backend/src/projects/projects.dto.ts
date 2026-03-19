@@ -1,5 +1,5 @@
 // src/project/dto/create-project.dto.ts
-import { IsEmpty, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateProjectDto {
   @IsNotEmpty()
@@ -9,4 +9,8 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
 }

@@ -8,6 +8,8 @@ import { Asset } from './gcs/gcs.entity';
 import { Vault } from './vault/vault.entity';
 import { WorkflowRevision } from './workflow-revision/workflow-revision.entity';
 import { Schedule } from './scheduler/scheduler.entity';
+import { Workspace } from './workspace/workspace.entity';
+import { WorkspaceMembership } from './workspace/workspace-membership.entity';
 
 // Load environment variables
 dotenv.config();
@@ -20,7 +22,17 @@ export default new DataSource({
   password: process.env.DATABASE_PASSWORD,
   database: process.env.DATABASE_NAME,
   schema: process.env.DATABASE_SCHEMA,
-  entities: [User, Project, Workflow, Asset, Vault, WorkflowRevision, Schedule],
+  entities: [
+    User,
+    Project,
+    Workflow,
+    Asset,
+    Vault,
+    WorkflowRevision,
+    Schedule,
+    Workspace,
+    WorkspaceMembership,
+  ],
   migrations: ['src/migrations/*.ts'], // or compiled JS if you're using dist
   // synchronize: false,
   migrationsRun: true,

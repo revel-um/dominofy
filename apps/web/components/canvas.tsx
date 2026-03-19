@@ -364,6 +364,27 @@ export default function Canvas(props: CanvasProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverscrollX = html.style.overscrollBehaviorX;
+    const previousHtmlOverscroll = html.style.overscrollBehavior;
+    const previousBodyOverscrollX = body.style.overscrollBehaviorX;
+    const previousBodyOverscroll = body.style.overscrollBehavior;
+
+    html.style.overscrollBehaviorX = 'none';
+    html.style.overscrollBehavior = 'none';
+    body.style.overscrollBehaviorX = 'none';
+    body.style.overscrollBehavior = 'none';
+
+    return () => {
+      html.style.overscrollBehaviorX = previousHtmlOverscrollX;
+      html.style.overscrollBehavior = previousHtmlOverscroll;
+      body.style.overscrollBehaviorX = previousBodyOverscrollX;
+      body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, []);
+
   const handleModeAnimationStart = useCallback((nodeId: string) => {
     setAnimatingNodeIds((prev) => {
       const next = new Set(prev);
@@ -1351,6 +1372,7 @@ export default function Canvas(props: CanvasProps) {
   return (
     <div 
       className="relative w-full h-full" 
+      style={{ overscrollBehavior: 'none', overscrollBehaviorX: 'none' }}
       onContextMenu={onPaneContextMenu}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

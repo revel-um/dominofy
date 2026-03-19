@@ -6,10 +6,12 @@ import { Project } from './projects.entity';
 import { User } from 'src/user/user.entity';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
 import { Workflow } from 'src/workflow/workflow.entity';
+import { WorkspaceModule } from 'src/workspace/workspace.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Project, User, Workflow])
+    TypeOrmModule.forFeature([Project, User, Workflow]),
+    WorkspaceModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService],

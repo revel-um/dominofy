@@ -14,6 +14,8 @@ export class Runner extends EventEmitter {
   private multiOut = new Set<string>();                        // multi-pin dominos
   private doneFlags = new Map<string, boolean>();              // cascade flags
   private skipped = new Set<string>();                         // pruned branch nodes
+  private executionErrorNodeId: string | null = null;
+  private executionErrorMessage: string | null = null;
 
   constructor(private pipeline: PipelineStep[], private maxConcurrency = 20, private visualJson: any) {
     super();
@@ -49,6 +51,8 @@ export class Runner extends EventEmitter {
     this.multiOut.clear();
     this.doneFlags.clear();
     this.skipped.clear();
+    this.executionErrorNodeId = null;
+    this.executionErrorMessage = null;
 
     /* schedule roots (no control dependencies) */
     depsClone.forEach((depSet, nodeId) => {
@@ -58,6 +62,13 @@ export class Runner extends EventEmitter {
     });
     
     await this.queue.onIdle();
+
+    if (this.executionErrorNodeId && this.executionErrorMessage) {
+      const nodeId = this.executionErrorNodeId;
+      const message = this.executionErrorMessage;
+      this.cleanup();
+      throw new Error(`Domino ${nodeId} failed: ${message}`);
+    }
 
     if (unresolved.size) {
       const pending = [...unresolved].map(id => ({
@@ -88,6 +99,8 @@ export class Runner extends EventEmitter {
     this.multiOut.clear();
     this.doneFlags.clear();
     this.skipped.clear();
+    this.executionErrorNodeId = null;
+    this.executionErrorMessage = null;
     this.removeAllListeners();
   }
 
@@ -211,7 +224,14 @@ export class Runner extends EventEmitter {
         this.scheduleNode(id, runId, globalInput, children, deps, results, unresolved);
       }
     } catch (err) {
-      this.emit("error", { nodeId: id, error: err });
+      if (!this.executionErrorNodeId) {
+        this.executionErrorNodeId = id;
+        this.executionErrorMessage =
+          err instanceof Error ? err.message : String(err);
+      }
+      if (this.listenerCount("error") > 0) {
+        this.emit("error", { nodeId: id, error: err });
+      }
       // unresolved left for deadlock detection
     } finally {
       this.active.delete(id);

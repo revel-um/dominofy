@@ -20,11 +20,9 @@ export class AuthController {
 
     let user = await this.users.findOneByEmail(email);
     if (!user) {
-      // Create a minimal user; name/provider optional
-      user = await this.users.create({
+      user = await this.users.createOAuthUser({
         name: body.name || email.split('@')[0],
         email,
-        // no password for oauth users; ensure entity allows null
       } as any);
     }
 
