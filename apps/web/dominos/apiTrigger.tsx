@@ -11,6 +11,7 @@ import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { FiAlertCircle } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { config } from '../config/config';
 
 export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
@@ -195,11 +196,7 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
       {/* Header + exec-out pin */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#8b5cf6',
-          borderBottomColor: '#7c3aed',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('apitrigger')}
       >
         <span className="truncate">API Trigger</span>
         {/* only exec_out for triggers */}

@@ -7,6 +7,7 @@
  import { PinType } from '../types/pinTypes';
  import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
  import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
  import { useRouter } from 'next/router';
  import { FiAlertCircle } from 'react-icons/fi';
  import SearchableSelect from '@/components/searchableDropdown';
@@ -248,11 +249,7 @@
      >
        <div
          className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-         style={{
-           backgroundColor: '#3b82f6',
-           borderBottomColor: '#2563eb',
-           borderRadius: '0.23rem 0.23rem 0 0',
-         }}
+         style={getExpandedDominoHeaderStyle('googleDriveDownload')}
        >
          <div className="flex items-center gap-1">
            <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

@@ -6,6 +6,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { FiLoader, FiUpload, FiX, FiAlertCircle } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { DominoNodeData } from '../types/dominoFieldTypes';
 import { FilesApi } from '../apis/files.apis';
 import { useRouter } from 'next/router';
@@ -231,11 +232,7 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
       {/* Header with exec pins */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#0ea5e9',
-          borderBottomColor: '#0284c7',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('readexcel')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

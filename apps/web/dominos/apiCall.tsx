@@ -6,6 +6,7 @@ import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { FiAlertCircle } from 'react-icons/fi';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import JsonEditor from '@/components/code-editor/JsonEditor';
 
 export default function ApiCallDomino({ data, id, selected }: NodeProps) {
@@ -122,11 +123,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
       {/* Header + exec pins */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#10b981',
-          borderBottomColor: '#059669',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('apicall')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

@@ -1,9 +1,10 @@
-import { NodeProps } from 'reactflow';
+import { NodeProps, useEdges } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDomino } from '../contexts/dominoContext';
-import { FiCpu, FiAlertCircle } from 'react-icons/fi';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
+import { FiAlertCircle } from 'react-icons/fi';
 
 type LLMField = {
   type: string;
@@ -31,7 +32,10 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
   const MAX_PROMPT_HEIGHT = 160;
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const isPromptConnected = data?.promptConnected ?? false;
+  const edges = useEdges();
+  const isPromptConnected = edges.some(
+    (edge) => edge?.target === id && edge?.targetHandle === 'value_in'
+  );
   const setNodesRef = useRef(data.setNodes);
   const setFieldValueRef = useRef(data.setFieldValue);
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -186,11 +190,10 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
       {/* Header with exec pins */}
       <div
         className="flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{ backgroundColor: '#7c3aed', borderBottomColor: '#6d28d9', borderRadius: '0.23rem 0.23rem 0 0' }}
+        style={getExpandedDominoHeaderStyle('llm')}
       >
         <div className="flex items-center gap-1.5">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <FiCpu className="mr-0.5" />
           <span className="truncate">AI</span>
         </div>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
@@ -204,26 +207,26 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
             Prompt
           </label>
           
-          <div className="relative px-3 flex items-center gap-2">
+          <div className="relative px-3 flex items-start gap-2">
             <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
-            {!isPromptConnected ? (
-              <div className="relative flex-1">
-                <textarea
-                  ref={promptTextareaRef}
-                  value={prompt}
-                  onChange={handlePromptChange}
-                  onWheelCapture={handlePromptWheelCapture}
-                  placeholder="Enter your prompt here..."
-                  className="nodrag nowheel w-full px-3 py-2 text-sm border rounded-md bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text resize-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
-                  style={{ minHeight: `${MIN_PROMPT_HEIGHT}px`, maxHeight: `${MAX_PROMPT_HEIGHT}px` }}
-                  rows={1}
-                />
-              </div>
-            ) : (
-              <div className="flex-1 px-3 py-2 text-xs italic text-gray-500 bg-gray-100 dark:bg-gray-800 rounded-md border border-dashed border-gray-300 dark:border-gray-600">
-                Prompt connected from previous step
-              </div>
-            )}
+            <div className="relative flex-1">
+              <textarea
+                ref={promptTextareaRef}
+                value={prompt}
+                onChange={handlePromptChange}
+                onWheelCapture={handlePromptWheelCapture}
+                placeholder={isPromptConnected ? 'Connected' : 'Enter your prompt here...'}
+                readOnly={isPromptConnected}
+                disabled={isPromptConnected}
+                className={`nodrag nowheel w-full px-3 py-2 text-sm border rounded-md resize-none ${
+                  isPromptConnected
+                    ? 'cursor-not-allowed border-dashed border-purple-300 bg-purple-50 text-gray-500 dark:border-purple-700 dark:bg-purple-950/30 dark:text-gray-400'
+                    : 'bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text focus:ring-1 focus:ring-purple-500 focus:border-purple-500'
+                }`}
+                style={{ minHeight: `${MIN_PROMPT_HEIGHT}px`, maxHeight: `${MAX_PROMPT_HEIGHT}px` }}
+                rows={1}
+              />
+            </div>
           </div>
         </div>
       </div>

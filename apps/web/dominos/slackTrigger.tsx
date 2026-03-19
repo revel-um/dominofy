@@ -6,6 +6,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { useRouter, NextRouter } from 'next/router';
 import { SlackApi, SlackConnection } from '@/apis/slack.apis';
 import SearchableSelect from '@/components/searchableDropdown';
@@ -203,11 +204,7 @@ export default function SlackTriggerDomino({
       {/* header */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#6366f1',
-          borderBottomColor: '#4f46e5',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('slacktrigger')}
       >
         <span>Slack Trigger</span>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />

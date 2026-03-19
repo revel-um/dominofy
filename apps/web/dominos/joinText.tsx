@@ -4,6 +4,7 @@ import { PinType } from '../types/pinTypes';
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { Trash } from 'lucide-react';
 
 export default function JoinTextDomino({ data, id, selected }: NodeProps) {
@@ -145,11 +146,7 @@ export default function JoinTextDomino({ data, id, selected }: NodeProps) {
     >
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#6366f1',
-          borderBottomColor: '#4f46e5',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('jointext')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

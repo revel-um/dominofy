@@ -4,6 +4,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useEffect, useRef, useState } from 'react';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { Trash } from 'lucide-react';
 import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
 import { pruneInvalidEdges } from '@/helpers/pruneEdges';
@@ -165,11 +166,7 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
       {/* Header w/ exec handles */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#6366f1',
-          borderBottomColor: '#4f46e5',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('deconstructor')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in"  pinType={PinType.EXEC_IN}  inline />

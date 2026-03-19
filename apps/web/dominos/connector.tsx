@@ -4,6 +4,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { useState, useEffect, useRef } from 'react';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { Trash } from 'lucide-react';
 
 /* ───────────────────────── Types */
@@ -127,11 +128,7 @@ export default function ConnectorDomino({ data, id, selected }: NodeProps) {
       {/* header */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#6366f1',
-          borderBottomColor: '#4f46e5',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('connector')}
       >
         <div className="flex items-center gap-1">
           <span>Connector/Merger</span>

@@ -4,6 +4,7 @@ import { PinType } from '../types/pinTypes';
 import { ChangeEvent, useEffect, useRef, useState, ClipboardEvent, KeyboardEvent, FormEvent } from 'react';
 import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { FiClock } from 'react-icons/fi';
 
 export default function DelayDomino({ data, id, selected }: NodeProps) {
@@ -149,11 +150,7 @@ export default function DelayDomino({ data, id, selected }: NodeProps) {
       {/* Header with exec pins */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#f59e0b',
-          borderBottomColor: '#d97706',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('delay')}
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />

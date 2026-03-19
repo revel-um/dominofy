@@ -6,6 +6,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import SearchableSelect from '@/components/searchableDropdown';
 import { EmailApi, EmailConnection } from '@/apis/email.apis';
 
@@ -147,11 +148,7 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
       {/* header */}
       <div
         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={{
-          backgroundColor: '#ea4335',
-          borderBottomColor: '#c53426',
-          borderRadius: '0.23rem 0.23rem 0 0',
-        }}
+        style={getExpandedDominoHeaderStyle('emailtrigger')}
       >
         <span>Email Trigger</span>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />

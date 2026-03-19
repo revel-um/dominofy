@@ -6,6 +6,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 
 export default function IteratorDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
@@ -182,11 +183,7 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
       {/* header */}
       <div
         className="flex items-start justify-between text-sm font-semibold text-white border-b rounded-t-md relative py-2"
-        style={{
-          backgroundColor: '#6366f1',
-          borderBottomColor: '#4f46e5',
-          borderRadius: '0.23rem 0.23rem 0 0'
-        }}
+        style={getExpandedDominoHeaderStyle('iterator')}
       >
         <div className="flex items-center gap-1 px-3 py-2">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
