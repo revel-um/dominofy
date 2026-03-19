@@ -23,6 +23,7 @@ import { useNodesState, useEdgesState } from "reactflow";
 import { config } from "../config/config";
 import { TokenManager } from "../utils/auth";
 import { resumeScoringTemplate } from "../templates/resumeScoringTemplate";
+import { WorkspaceApi, WorkspaceSummary } from "../apis/workspace.apis";
 
 const CANVAS_MODE_STORAGE_KEY_PREFIX = "dominofy-canvas-mode";
 
@@ -66,6 +67,7 @@ export default function DominofyDashboard() {
     const [workflowCount, setWorkflowCount] = useState(0);
     const [user, setUser] = useState<User>({ name: "", email: "" });
     const [templates, setTemplates] = useState<any[]>([]);
+    const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary | null>(null);
     const [isExchanging, setIsExchanging] = useState(false);
     const [booting, setBooting] = useState(true);
     const [lastActiveWorkflowId, setLastActiveWorkflowId] = useState<string | null>(null);
@@ -200,12 +202,21 @@ export default function DominofyDashboard() {
         const offset = (page - 1) * limit;
         const cacheKey = `${page}-${limit}-${query}`;
 
-        if (pageCache[cacheKey]) {
-            setProjects(pageCache[cacheKey]);
-            return;
-        }
-
         try {
+            const workspaceResponse = await WorkspaceApi.getCurrentWorkspaceSummary(
+                currentToken ?? "",
+                router,
+            );
+            if (workspaceResponse?.ok) {
+                const workspace = await workspaceResponse.json() as WorkspaceSummary;
+                setWorkspaceSummary(workspace);
+            }
+
+            if (pageCache[cacheKey]) {
+                setProjects(pageCache[cacheKey]);
+                return;
+            }
+
             setTemplates([
                 {
                     "nodes": [
@@ -681,17 +692,44 @@ export default function DominofyDashboard() {
 
                     {/* Additional Tasks Card --------------------------------*/}
                     <div className="rounded-2xl bg-gradient-to-br from-cyan-200 via-blue-200 to-blue-100 dark:from-cyan-800 dark:via-blue-800 dark:to-blue-700 p-6 shadow-md flex flex-col justify-between">
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                Additional tasks
-                            </p>
-                            <div className="bg-white/30 dark:bg-white/20 p-2 rounded-full">
-                                <FiCheck className="w-5 h-5 text-gray-800 dark:text-gray-100" />
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                                    Current workspace
+                                </p>
+                                <h3 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white break-words">
+                                    {workspaceSummary?.name || "Workspace"}
+                                </h3>
+                            </div>
+                            <div className="bg-white/30 dark:bg-white/20 p-2 rounded-full shrink-0">
+                                <FiUsers className="w-5 h-5 text-gray-800 dark:text-gray-100" />
                             </div>
                         </div>
-                        <div className="mt-6">
-                            <p className="text-4xl font-bold text-gray-900 dark:text-white">56%</p>
-                            <p className="text-xs text-gray-600 dark:text-gray-300">Avg. completed</p>
+                        <div className="mt-6 grid grid-cols-2 gap-4">
+                            <div className="rounded-2xl bg-white/35 dark:bg-black/20 px-4 py-3">
+                                <p className="text-xs uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
+                                    Projects
+                                </p>
+                                <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+                                    {workspaceSummary?.projectCount ?? 0}
+                                </p>
+                            </div>
+                            <div className="rounded-2xl bg-white/35 dark:bg-black/20 px-4 py-3">
+                                <p className="text-xs uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
+                                    Users
+                                </p>
+                                <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+                                    {workspaceSummary?.memberCount ?? 0}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="mt-4 rounded-2xl bg-white/35 dark:bg-black/20 px-4 py-3">
+                            <p className="text-xs uppercase tracking-[0.2em] text-gray-600 dark:text-gray-300">
+                                Your role
+                            </p>
+                            <p className="mt-2 text-lg font-semibold capitalize text-gray-900 dark:text-white">
+                                {workspaceSummary?.role ?? "member"}
+                            </p>
                         </div>
                     </div>
 

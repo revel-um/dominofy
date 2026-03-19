@@ -10,9 +10,10 @@ import { WorkspaceMembership } from './workspace-membership.entity';
 import { WorkspaceService } from './workspace.service';
 import { WorkspaceController } from './workspace.controller';
 import { WorkspaceBootstrapService } from './workspace-bootstrap.service';
+import { Project } from 'src/projects/projects.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Workspace, WorkspaceMembership])],
+  imports: [TypeOrmModule.forFeature([Workspace, WorkspaceMembership, Project])],
   providers: [WorkspaceService, WorkspaceBootstrapService],
   controllers: [WorkspaceController],
   exports: [WorkspaceService],

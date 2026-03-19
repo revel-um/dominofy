@@ -12,6 +12,7 @@ import {
 } from './workspace-membership.entity';
 import { CreateWorkspaceDto } from './workspace.dto';
 import { User } from 'src/user/user.entity';
+import { Project } from 'src/projects/projects.entity';
 
 const DEFAULT_WRITE_ROLES = [
   WorkspaceRole.OWNER,
@@ -26,6 +27,8 @@ export class WorkspaceService {
     private readonly workspaceRepository: Repository<Workspace>,
     @InjectRepository(WorkspaceMembership)
     private readonly membershipRepository: Repository<WorkspaceMembership>,
+    @InjectRepository(Project)
+    private readonly projectRepository: Repository<Project>,
   ) {}
 
   async listForUser(userId: string) {
@@ -154,5 +157,39 @@ export class WorkspaceService {
     }
 
     return membership;
+  }
+
+  async getCurrentWorkspaceSummary(userId: string, workspaceId?: string) {
+    const membership = workspaceId
+      ? await this.assertWorkspaceAccess(userId, workspaceId)
+      : await this.membershipRepository.findOne({
+          where: { user: { id: userId } } as any,
+          relations: ['workspace'],
+          order: { createdAt: 'ASC' },
+        });
+
+    if (!membership) {
+      throw new NotFoundException('No workspace found for this user');
+    }
+
+    const resolvedWorkspaceId = membership.workspace.id;
+
+    const [projectCount, memberCount] = await Promise.all([
+      this.projectRepository.count({
+        where: { workspace: { id: resolvedWorkspaceId } } as any,
+      }),
+      this.membershipRepository.count({
+        where: { workspace: { id: resolvedWorkspaceId } } as any,
+      }),
+    ]);
+
+    return {
+      id: membership.workspace.id,
+      name: membership.workspace.name,
+      slug: membership.workspace.slug ?? null,
+      role: membership.role,
+      projectCount,
+      memberCount,
+    };
   }
 }
