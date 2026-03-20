@@ -14,6 +14,7 @@ import { VaultModule } from 'src/vault/vault.module';
 import { UserModule } from 'src/user/user.module';
 import { WorkflowModule } from 'src/workflow/workflow.module';
 import { RunnerLauncherModule } from 'src/runner-launcher/runner-launcher.module';
+import { WorkflowLoggerModule } from 'src/workflow-logger/workflow-logger.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { RunnerLauncherModule } from 'src/runner-launcher/runner-launcher.module
     UserModule,
     forwardRef(() => WorkflowModule),
     forwardRef(() => RunnerLauncherModule),
+    WorkflowLoggerModule,
   ],
   controllers: [EmailController],
   providers: [EmailService],

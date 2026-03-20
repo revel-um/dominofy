@@ -10,6 +10,8 @@ import { WorkflowRevision } from './workflow-revision/workflow-revision.entity';
 import { Schedule } from './scheduler/scheduler.entity';
 import { Workspace } from './workspace/workspace.entity';
 import { WorkspaceMembership } from './workspace/workspace-membership.entity';
+import { Collection } from './storage/collection.entity';
+import { Document } from './storage/document.entity';
 
 // Load environment variables
 dotenv.config();
@@ -32,6 +34,8 @@ export default new DataSource({
     Schedule,
     Workspace,
     WorkspaceMembership,
+    Collection,
+    Document,
   ],
   migrations: ['src/migrations/*.ts'], // or compiled JS if you're using dist
   // synchronize: false,

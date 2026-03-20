@@ -239,4 +239,57 @@ describe("Runner branch pruning", () => {
 
     expect(outputs).toEqual(["hello", "hello", "hello"]);
   });
+
+  it("prunes a single wired condition branch when the condition resolves false", async () => {
+    const pipeline: PipelineStep[] = [
+      {
+        id: "condition-1",
+        type: "condition",
+        data: {
+          Text1: { value: "false" },
+          Text2: { value: "true" },
+          Option: { value: "equal" },
+        },
+        next: { exec_out_1: ["print-1"] },
+      },
+      {
+        id: "print-1",
+        type: "print",
+        data: {
+          Text: { value: "should-not-run" },
+        },
+        next: { exec_out: ["print-2"] },
+      },
+      {
+        id: "print-2",
+        type: "print",
+        data: {
+          Text: { value: "should-not-run-either" },
+        },
+        next: {},
+      },
+    ];
+
+    const visualJson = {
+      nodes: pipeline.map(({ id }) => ({ id })),
+      edges: [
+        { id: "e1", source: "condition-1", target: "print-1", sourceHandle: "exec_out_1", targetHandle: "exec_in" },
+        { id: "e2", source: "print-1", target: "print-2", sourceHandle: "exec_out", targetHandle: "exec_in" },
+      ],
+    };
+
+    const runner = new Runner(pipeline, 20, visualJson);
+    const doneIds: string[] = [];
+
+    runner.on("done", (result) => {
+      doneIds.push(result.id);
+    });
+
+    const results = await runner.run("condition-single-branch-prune");
+
+    expect(doneIds).toEqual(["condition-1"]);
+    expect(results).toEqual({
+      "condition-1": false,
+    });
+  });
 });
