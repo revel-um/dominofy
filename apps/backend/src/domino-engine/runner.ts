@@ -204,7 +204,8 @@ export class Runner extends EventEmitter {
       }
 
       // prune unused branches so they don't count as deadlock
-      const shouldPruneSkippedBranches = branchKeys.length > 1 || nodeDone;
+      const shouldPruneSkippedBranches =
+        res.nextChainKeys !== undefined || nodeDone;
       if (shouldPruneSkippedBranches) {
         const skippedChildren = [...controlChildren].filter(cid => !branchChildren.has(cid));
         skippedChildren.forEach(cid => this.skipSubtree(cid, children, deps, unresolved));

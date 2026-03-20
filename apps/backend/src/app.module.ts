@@ -19,6 +19,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { EmailModule } from './email/email.module';
 import { DriveModule } from './drive/drive.module';
 import { WorkspaceModule } from './workspace/workspace.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { WorkspaceModule } from './workspace/workspace.module';
     EmailModule,
     DriveModule,
     WorkspaceModule,
+    StorageModule,
     RunnerLauncherModule,
     AuthModule,
     SupportModule,

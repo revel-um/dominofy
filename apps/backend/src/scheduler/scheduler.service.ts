@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { Schedule } from './scheduler.entity';
 import { Workflow } from 'src/workflow/workflow.entity';
 import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
+import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../../../../shared/types/pipelineStepType';
 import { v4 as uuidv4 } from 'uuid';
@@ -33,6 +34,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     private readonly workflowRepository: Repository<Workflow>,
     private readonly config: ConfigService,
     private readonly runnerLauncher: RunnerLauncherService,
+    private readonly workflowLogger: WorkflowLoggerService,
   ) {}
 
   /* ───────────────────────── lifecycle ───────────────────────── */
@@ -161,6 +163,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     );
 
     await runner.run(runId, {});
+    await this.workflowLogger.flushNow();
   }
 
   /* ───────────────────────── helpers ───────────────────────── */
