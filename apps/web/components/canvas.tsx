@@ -120,6 +120,7 @@ function CompactDominoNode(
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
   const meta = dominoMetaByType.get(compactType);
+  const category = meta?.categories?.[0] ?? "Domino";
   const label =
     meta?.label ||
     (data as any)?.details?.type ||
@@ -128,7 +129,7 @@ function CompactDominoNode(
 
   return (
     <div
-      className="relative h-14 min-w-[7rem] w-max max-w-none"
+      className="relative h-16 min-w-[8.5rem] w-max max-w-none"
     >
       <Handle
         type="target"
@@ -160,25 +161,30 @@ function CompactDominoNode(
       />
 
       <div
-        className={`flex h-full w-full items-center justify-center rounded-2xl border px-1.5 shadow-sm transition-all duration-150
+        className={`dominofy-compact-node flex h-full w-full items-center justify-start rounded-[1.25rem] border px-3 transition-all duration-150
           ${hasError
             ? 'error-border'
             : selected
               ? 'selected-border border-4'
               : 'unselected-border dark:border-gray-600'}
-          bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-        >
-        <div className="flex items-center justify-center gap-2">
+          bg-dominofy-light-panel/95 dark:bg-dominofy-dark-panel/95`}
+      >
+        <div className="flex min-w-0 w-full items-center gap-3">
           {meta ? (
-            <DominoCatalogIcon domino={meta} badgeClassName="h-7 w-7 rounded-lg shadow-none" iconClassName="h-3.5 w-3.5" />
+            <DominoCatalogIcon domino={meta} badgeClassName="h-8 w-8 rounded-xl shadow-none" iconClassName="h-4 w-4" />
           ) : (
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
-              <FiBox className="h-3.5 w-3.5" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
+              <FiBox className="h-4 w-4" />
             </div>
           )}
-          <span className="whitespace-nowrap text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-            {label}
-          </span>
+          <div className="flex min-w-0 flex-1 flex-col items-start justify-center text-left leading-none">
+            <span className="w-full truncate text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
+              {label}
+            </span>
+            <span className="mt-1 w-full truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+              {category}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -493,8 +499,10 @@ export default function Canvas(props: CanvasProps) {
           animated: false,
           style: {
             ...edge.style,
-            stroke: '#94a3b8',
-            strokeWidth: 2,
+            stroke: '#64748b',
+            strokeWidth: 2.5,
+            strokeDasharray: '6 6',
+            opacity: 0.6,
           },
         });
       }
@@ -520,8 +528,10 @@ export default function Canvas(props: CanvasProps) {
             animated: false,
             style: {
               ...edge.style,
-              stroke: '#94a3b8',
-              strokeWidth: 2,
+              stroke: sourceExpanded || targetExpanded ? '#475569' : '#64748b',
+              strokeWidth: sourceExpanded || targetExpanded ? 2.75 : 2.25,
+              strokeDasharray: sourceExpanded || targetExpanded ? undefined : '6 6',
+              opacity: sourceExpanded || targetExpanded ? 0.9 : 0.65,
             },
           });
           return;
@@ -538,8 +548,10 @@ export default function Canvas(props: CanvasProps) {
             animated: false,
             style: {
               ...edge.style,
-              stroke: '#94a3b8',
-              strokeWidth: 2,
+              stroke: '#64748b',
+              strokeWidth: 2.25,
+              strokeDasharray: '6 6',
+              opacity: 0.65,
             },
           });
         }
@@ -565,8 +577,10 @@ export default function Canvas(props: CanvasProps) {
           animated: false,
           style: {
             ...edge.style,
-            stroke: '#94a3b8',
-            strokeWidth: 2,
+            stroke: '#64748b',
+            strokeWidth: 2.25,
+            strokeDasharray: '6 6',
+            opacity: 0.65,
           },
         });
       }
