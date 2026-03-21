@@ -25,6 +25,7 @@ class TokenManager {
   private static readonly REFRESH_TOKEN_KEY = 'refreshToken';
   private static readonly USER_KEY = 'user';
   private static readonly TOKEN_EXPIRY_KEY = 'tokenExpiresAt';
+  private static refreshPromise: Promise<string | null> | null = null;
 
   private static decodeExp(token: string): number | null {
     try {
@@ -139,6 +140,20 @@ class TokenManager {
   }
 
   static async refreshAccessToken(): Promise<string | null> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = this.performRefreshAccessToken();
+
+    try {
+      return await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
+    }
+  }
+
+  private static async performRefreshAccessToken(): Promise<string | null> {
     const refreshToken = this.getRefreshToken();
     if (!refreshToken) return null;
 
@@ -153,20 +168,20 @@ class TokenManager {
       });
 
       if (!response.ok) {
-        // Refresh token is invalid, clear all tokens
-        this.clearTokens();
         return null;
       }
 
       const data = await response.json();
-      
-      // Store new tokens
+
+      if (!data?.accessToken || !data?.refreshToken) {
+        return null;
+      }
+
       this.setTokens(data.accessToken, data.refreshToken);
-      
+
       return data.accessToken;
     } catch (error) {
       console.error('Error refreshing token:', error);
-      this.clearTokens();
       return null;
     }
   }

@@ -16,7 +16,6 @@ export class SlackApi {
       const r = await authFetch(`${config.backendBaseUrl}/slack/install-url`, {
         token,
       }, router);
-      if (r.status === 401) return '';
       const { url } = await r.json();
       return url as string;
     } catch (err) {
@@ -31,7 +30,6 @@ export class SlackApi {
       const r = await authFetch(`${config.backendBaseUrl}/slack/connections`, {
         token,
       }, router);
-      if (r.status === 401) return [];
       const json = await r.json();
       // JSON coming from your backend must include slackTeamId
       return (json as any[]).map(item => {
@@ -63,7 +61,6 @@ export class SlackApi {
         router,
       );
 
-      if (r.status === 401) return false;
       if (!r.ok) {
         const { error } = (await r.json()) ?? {};
         throw new Error(error || `HTTP ${r.status}`);
@@ -83,7 +80,6 @@ export class SlackApi {
         { token },
         router,
       );
-      if (r.status === 401) return [];
       return (await r.json()) as { id: string; name: string; isMember: boolean, isPrivate: boolean }[];
     } catch (err) {
       handleServerError(router, err);
