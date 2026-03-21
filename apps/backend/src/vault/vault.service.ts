@@ -7,6 +7,7 @@ import { User } from 'src/user/user.entity';
 import { CreateVaultDto } from './vault.dto';
 import { Vault, VaultType } from './vault.entity';
 import { encrypt } from 'src/helper/encryption';
+import { WorkspaceService } from 'src/workspace/workspace.service';
 
 @Injectable()
 export class VaultService extends BaseService<Vault> {
@@ -14,6 +15,7 @@ export class VaultService extends BaseService<Vault> {
         @InjectRepository(Vault)
         private readonly vaultRepository: Repository<Vault>,
         private readonly dataSource: DataSource,
+        private readonly workspaceService: WorkspaceService,
     ) {
         super(vaultRepository);
     }
@@ -37,14 +39,32 @@ export class VaultService extends BaseService<Vault> {
     /* ─────────────────────────────
      * Create a new vault record
      * ────────────────────────────*/
-    async create(dto: CreateVaultDto, userIds: string[] = []) {
+    async create(
+        dto: CreateVaultDto,
+        userIds: string[] = [],
+        workspaceId?: string,
+        ownerUserId?: string,
+    ) {
         return this.dataSource.transaction(async (manager) => {
+            const resolvedOwnerUserId = ownerUserId ?? userIds[0];
+            if (!resolvedOwnerUserId) {
+                throw new Error('Vault creation requires an owning user to resolve workspace');
+            }
+
+            const resolvedWorkspaceId = await this.workspaceService.resolveWorkspaceIdForUser(
+                resolvedOwnerUserId,
+                workspaceId,
+                undefined,
+                manager,
+            );
+
             /* ---------- build entity ---------- */
             const vault = manager.create(Vault, {
                 name: dto.name,
                 type: dto.type,
                 lookupIds: this.sanitizeLookupIds(dto.lookupIds),
                 connection: dto.connection, // hooks encrypt on save
+                workspace: { id: resolvedWorkspaceId } as any,
             });
             vault.connection = dto.connection; // set decrypted connection
 

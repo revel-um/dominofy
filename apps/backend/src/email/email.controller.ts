@@ -19,10 +19,10 @@ export class EmailController {
   constructor(private readonly email: EmailService) {}
 
   @Get('google/install-url')
-  async installUrl(@Req() req: Request) {
+  async installUrl(@Req() req: Request, @Query('workspaceId') workspaceId?: string) {
     const userId = (req as any).user?.id;
     if (!userId) throw new UnauthorizedException('Must be logged in');
-    return { url: this.email.getGoogleInstallUrl(userId) };
+    return { url: this.email.getGoogleInstallUrl(userId, workspaceId) };
   }
 
   @Get('google/callback')
@@ -46,11 +46,12 @@ export class EmailController {
   @Post('connections')
   async createConnection(
     @Req() req: Request,
+    @Query('workspaceId') workspaceId: string | undefined,
     @Body() dto: CreateEmailConnectionDto,
   ) {
     const userId = (req as any).user?.id;
     if (!userId) throw new UnauthorizedException('Must be logged in');
-    return this.email.createConnection(userId, dto);
+    return this.email.createConnection(userId, dto, workspaceId);
   }
 
   @Post('send')

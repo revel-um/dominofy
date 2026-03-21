@@ -3,6 +3,7 @@ import { BaseEntity } from 'src/common/base.entity';
 import { User } from 'src/user/user.entity';
 import { WorkspaceMembership } from './workspace-membership.entity';
 import { Project } from 'src/projects/projects.entity';
+import { Vault } from 'src/vault/vault.entity';
 
 @Entity('workspaces')
 export class Workspace extends BaseEntity {
@@ -24,4 +25,7 @@ export class Workspace extends BaseEntity {
 
   @OneToMany(() => Project, (project) => project.workspace)
   projects: Project[];
+
+  @OneToMany(() => Vault, (vault) => vault.workspace)
+  vaults: Vault[];
 }

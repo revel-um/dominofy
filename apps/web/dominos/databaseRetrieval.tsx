@@ -17,10 +17,10 @@ const DEFAULT_FIELDS: DominoField[] = [
   {
     type: 'dropdown',
     heading: 'Operation',
-    value: 'create',
+    value: 'document',
     options: [
-      { label: 'Create', value: 'create' },
-      { label: 'Upsert by key', value: 'upsert' },
+      { label: 'Get document', value: 'document' },
+      { label: 'List recent documents', value: 'list' },
     ],
     required: true,
   },
@@ -32,16 +32,18 @@ const DEFAULT_FIELDS: DominoField[] = [
     placeholder: 'customer-123',
   },
   {
-    type: 'textArea',
-    heading: 'Data',
-    value: '{\n  "name": "Utsav"\n}',
-    inPinId: 'value_in_data',
-    required: true,
-    placeholder: '{ "name": "Utsav" }',
-  } as DominoField,
+    type: 'textInput',
+    heading: 'Limit',
+    value: '25',
+    placeholder: '25',
+  },
 ];
 
-export default function StorageDomino({ data, id, selected }: NodeProps) {
+export default function DatabaseRetrievalDomino({
+  data,
+  id,
+  selected,
+}: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const { getEdges } = useReactFlow();
@@ -49,10 +51,10 @@ export default function StorageDomino({ data, id, selected }: NodeProps) {
   const bootstrappedRef = useRef(false);
 
   const [collection, setCollection] = useState('');
-  const [operation, setOperation] = useState('create');
+  const [operation, setOperation] = useState('document');
   const [documentKey, setDocumentKey] = useState('');
-  const [jsonText, setJsonText] = useState('{\n  "name": "Utsav"\n}');
-  const exportFields = ['Collection', 'Operation', 'Document Key', 'Data'];
+  const [limit, setLimit] = useState('25');
+  const exportFields = ['Collection', 'Operation', 'Document Key', 'Limit'];
 
   useEffect(() => {
     setNodesRef.current = data.setNodes;
@@ -68,9 +70,9 @@ export default function StorageDomino({ data, id, selected }: NodeProps) {
 
   useEffect(() => {
     setCollection(String(getField('Collection')?.value ?? ''));
-    setOperation(String(getField('Operation')?.value ?? 'create'));
+    setOperation(String(getField('Operation')?.value ?? 'document'));
     setDocumentKey(String(getField('Document Key')?.value ?? ''));
-    setJsonText(String(getField('Data')?.value ?? '{\n  "name": "Utsav"\n}'));
+    setLimit(String(getField('Limit')?.value ?? '25'));
   }, [getField]);
 
   const updateField = useCallback(
@@ -138,9 +140,9 @@ export default function StorageDomino({ data, id, selected }: NodeProps) {
                 data: {
                   ...node.data,
                   details: {
-                    type: 'Storage',
+                    type: 'Database Retrieval',
                     description:
-                      'Stores JSON data in a workspace collection using Dominofy storage.',
+                      'Reads one document by key or lists recent documents from a workspace collection in Dominofy’s shared database.',
                     ...(node.data.details ?? {}),
                     fields: normalizedFields,
                   } as DominoNodeData,
@@ -157,6 +159,17 @@ export default function StorageDomino({ data, id, selected }: NodeProps) {
   const isConnected = (pinId: string) =>
     getEdges().some((edge) => edge.target === id && edge.targetHandle === pinId);
 
+  const isDocumentMode = operation === 'document';
+  const normalizeLimit = (rawValue: string) => {
+    if (!rawValue) return '';
+    if (rawValue.includes('-')) return '1';
+
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) return limit;
+
+    return String(Math.min(1000, Math.max(1, Math.floor(parsed))));
+  };
+
   return (
     <div
       className={`transition-all duration-150 rounded-md w-64 overflow-visible shadow-sm
@@ -170,7 +183,7 @@ export default function StorageDomino({ data, id, selected }: NodeProps) {
       >
         <div className="flex items-center gap-1">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <span className="truncate">Storage</span>
+          <span className="truncate">Database Retrieval</span>
         </div>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
@@ -200,48 +213,52 @@ export default function StorageDomino({ data, id, selected }: NodeProps) {
             }}
             className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
           >
-            <option value="create">Create</option>
-            <option value="upsert">Upsert by key</option>
+            <option value="document">Get document</option>
+            <option value="list">List recent documents</option>
           </select>
         </div>
 
-        <div className="flex items-center gap-2 relative px-3">
-          <DominoPin id="value_in_document_key" pinType={PinType.VALUE_IN} inline />
-          {isConnected('value_in_document_key') ? (
-            <span className="text-xs italic text-gray-500">Document key connected</span>
-          ) : (
+        {isDocumentMode ? (
+          <div className="flex items-center gap-2 relative px-3">
+            <DominoPin id="value_in_document_key" pinType={PinType.VALUE_IN} inline />
+            {isConnected('value_in_document_key') ? (
+              <span className="text-xs italic text-gray-500">Document key connected</span>
+            ) : (
+              <input
+                type="text"
+                value={documentKey}
+                onChange={(event) => {
+                  setDocumentKey(event.target.value);
+                  updateField('Document Key', event.target.value);
+                }}
+                placeholder="Document key"
+                className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
+              />
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1 px-3">
+            <label className="text-xs font-medium">Limit</label>
             <input
               type="text"
-              value={documentKey}
-              onChange={(event) => {
-                setDocumentKey(event.target.value);
-                updateField('Document Key', event.target.value);
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={limit}
+              onKeyDown={(event) => {
+                if (event.key === '-' || event.key === '+' || event.key === 'e' || event.key === 'E' || event.key === '.') {
+                  event.preventDefault();
+                }
               }}
-              placeholder="Document key"
-              className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
-            />
-          )}
-        </div>
-
-        <div className="flex items-start gap-2 relative px-3">
-          <DominoPin id="value_in_data" pinType={PinType.VALUE_IN} inline />
-          {isConnected('value_in_data') ? (
-            <div className="flex-1 rounded border px-2 py-2 text-xs italic text-gray-500 bg-dominofy-light-surface dark:bg-dominofy-dark-surface">
-              Data connected from upstream
-            </div>
-          ) : (
-            <textarea
-              value={jsonText}
               onChange={(event) => {
-                setJsonText(event.target.value);
-                updateField('Data', event.target.value);
+                const nextValue = normalizeLimit(event.target.value);
+                setLimit(nextValue);
+                updateField('Limit', nextValue);
               }}
-              rows={6}
-              placeholder='{ "name": "Utsav" }'
-              className="flex-1 px-2 py-2 text-xs border rounded font-mono bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
+              placeholder="25"
+              className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface"
             />
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="px-3 py-2 flex items-center justify-between relative">
           <div></div>

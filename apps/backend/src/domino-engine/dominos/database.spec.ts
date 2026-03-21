@@ -1,6 +1,6 @@
-import { StorageDomino } from './storage';
+import { DatabaseDomino } from './database';
 
-describe('StorageDomino', () => {
+describe('DatabaseDomino', () => {
   it('passes workflow-scoped storage input to the runtime service singleton', async () => {
     const storeForWorkflow = jest.fn(async () => ({
       action: 'created',
@@ -21,7 +21,7 @@ describe('StorageDomino', () => {
       storeForWorkflow,
     };
 
-    const domino = new StorageDomino({
+    const domino = new DatabaseDomino({
       id: 'storage-1',
       type: 'storage',
       data: {

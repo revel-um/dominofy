@@ -29,7 +29,7 @@ import { SchedulerDomino } from "./dominos/scheduler";
 import { GoogleDriveDomino } from "./dominos/googleDrive";
 import { GoogleDriveDownloadDomino } from "./dominos/googleDriveDownload";
 import { LLMDomino } from "./dominos/llm";
-import { StorageDomino } from "./dominos/storage";
+import { DatabaseDomino, DatabaseRetrievalDomino } from "./dominos/database";
 
 type DominoCtor = new (node: PipelineStep) => DominoExecutable;
 
@@ -65,7 +65,8 @@ class DominoRegistry {
     this.register("SchedulerDomino", SchedulerDomino);
     this.register("googleDrive", GoogleDriveDomino);
     this.register("googleDriveDownload", GoogleDriveDownloadDomino);
-    this.register("storage", StorageDomino);
+    this.register("storage", DatabaseDomino);
+    this.register("storageRetrieve", DatabaseRetrievalDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {

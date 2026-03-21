@@ -22,11 +22,16 @@ import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.servi
 import { ConflictException } from '@nestjs/common';
 import { Raw } from 'typeorm';
 
+type SlackOAuthState = {
+  userId: string;
+  workspaceId?: string;
+};
+
 @Injectable()
 export class SlackService {
   private static _instance: SlackService | null = null;
   private readonly logger = new Logger(SlackService.name);
-  private stateStore = new Map<string, string>();
+  private stateStore = new Map<string, SlackOAuthState>();
 
   constructor(
     private readonly config: ConfigService,
@@ -51,33 +56,33 @@ export class SlackService {
 
   /* ───────────────────── helpers ───────────────────── */
 
-  private generateState(uid: string): string {
+  private generateState(uid: string, workspaceId?: string): string {
     const s = crypto.randomBytes(16).toString('hex');
-    this.stateStore.set(s, uid);
+    this.stateStore.set(s, { userId: uid, workspaceId });
     return s;
   }
 
-  private validateState(s: string): string {
-    const uid = this.stateStore.get(s);
-    if (!uid) throw new UnauthorizedException('Invalid / expired state');
+  private validateState(s: string): SlackOAuthState {
+    const state = this.stateStore.get(s);
+    if (!state) throw new UnauthorizedException('Invalid / expired state');
     this.stateStore.delete(s);
-    return uid;
+    return state;
   }
 
   /* ───────────────────── public API ───────────────────── */
 
-  getInstallUrl(userId: string): string {
+  getInstallUrl(userId: string, workspaceId?: string): string {
     const params = new URLSearchParams({
       client_id: this.config.get<string>('SLACK_CLIENT_ID')!,
       scope: this.config.get<string>('SLACK_SCOPES')!,
       redirect_uri: this.config.get<string>('SLACK_REDIRECT_URI')!,
-      state: this.generateState(userId),
+      state: this.generateState(userId, workspaceId),
     });
     return `https://slack.com/oauth/v2/authorize?${params}`;
   }
 
   async handleOauthCallback(code: string, state: string): Promise<void> {
-    const dominofyUserId = this.validateState(state);
+    const { userId: dominofyUserId, workspaceId } = this.validateState(state);
 
     /* ------- exchange code for tokens ------- */
     const { data } = await axios.post('https://slack.com/api/oauth.v2.access', null, {
@@ -155,7 +160,7 @@ export class SlackService {
       connection: conn,
     };
 
-    await this.vaultService.create(dto, [user.id]);
+    await this.vaultService.create(dto, [user.id], workspaceId, user.id);
   }
 
 

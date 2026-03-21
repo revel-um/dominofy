@@ -62,10 +62,11 @@ export class VaultController extends BaseController<
   @Post()
   async createVault(
     @Req() req: Request,
+    @Query('workspaceId') workspaceId: string | undefined,
     @Body() dto: CreateVaultDto,
   ): Promise<Vault> {
     const userId = (req as any).user.id;
-    return this.service.create(dto, [userId]);
+    return this.service.create(dto, [userId], workspaceId, userId);
   }
 
   /**
