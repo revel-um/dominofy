@@ -126,7 +126,7 @@ export class AppService {
           .catch(err => subscriber.error(err))
           .finally(() => subscriber.complete());
       });
-      runner.run(runId).catch(err => subscriber.error(err));
+      runner.run(runId, {}, { workflowId }).catch(err => subscriber.error(err));
 
       send({ type: 'ACCEPTED' });
       return () => runner.removeAllListeners();

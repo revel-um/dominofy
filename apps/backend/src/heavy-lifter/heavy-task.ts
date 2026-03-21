@@ -23,7 +23,7 @@ function toPlainDomino(res: any) {
 export default async function heavyTask(
   data: HeavyTaskInput,
 ): Promise<HeavyTaskDone> {
-  const { runId, visualJson } = data;
+  const { workflowId, runId, visualJson } = data;
   const start = performance.now();
 
   /* build pipeline & runner */
@@ -54,7 +54,7 @@ export default async function heavyTask(
   );
 
   /* execute workflow */
-  await runner.run(runId, {});         // {} = globalInput placeholder
+  await runner.run(runId, {}, { workflowId });         // {} = globalInput placeholder
   emit({ runId, type: 'PROGRESS', pct: 100 });
 
   /* resolve promise so execPool.run() finishes */

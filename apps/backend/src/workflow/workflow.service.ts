@@ -249,7 +249,7 @@ export class WorkflowService extends BaseService<Workflow> {
       workflow.visualJson
     );
 
-    const results = await runner.run(runId, input);
+    const results = await runner.run(runId, input, { workflowId });
     if (!results) {
       return undefined;
     }

@@ -279,7 +279,7 @@ export class SlackService {
         20,
         workflow.visualJson
       );
-      return runner.run(runId, body.event);
+      return runner.run(runId, body.event, { workflowId: workflow.id });
     });
   }
 

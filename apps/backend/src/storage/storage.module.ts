@@ -8,12 +8,14 @@ import { CollectionsService } from './collections.service';
 import { DocumentsService } from './documents.service';
 import { CollectionsController } from './collections.controller';
 import { DocumentsController } from './documents.controller';
+import { StorageRuntimeService } from './storage-runtime.service';
+import { Workflow } from 'src/workflow/workflow.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Collection, Document]), WorkspaceModule],
-  providers: [CollectionsService, DocumentsService],
+  imports: [TypeOrmModule.forFeature([Collection, Document, Workflow]), WorkspaceModule],
+  providers: [CollectionsService, DocumentsService, StorageRuntimeService],
   controllers: [CollectionsController, DocumentsController],
-  exports: [CollectionsService, DocumentsService],
+  exports: [CollectionsService, DocumentsService, StorageRuntimeService],
 })
 export class StorageModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

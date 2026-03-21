@@ -24,7 +24,11 @@ export class Runner extends EventEmitter {
 
   /* ───────────────────────── run ───────────────────────── */
 
-  async run(runId: string, globalInput: Record<string, any> = {}) {
+  async run(
+    runId: string,
+    globalInput: Record<string, any> = {},
+    runtimeMeta: { workflowId?: string } = {},
+  ) {
     
     //Validate if workflow is invalid
     const isWorkflowValid = validateWorkflow(this.visualJson);
@@ -57,7 +61,7 @@ export class Runner extends EventEmitter {
     /* schedule roots (no control dependencies) */
     depsClone.forEach((depSet, nodeId) => {
       if (depSet.size === 0) {
-        this.scheduleNode(nodeId, runId, globalInput, children, depsClone, results, unresolved);
+        this.scheduleNode(nodeId, runId, globalInput, runtimeMeta, children, depsClone, results, unresolved);
       }
     });
     
@@ -108,6 +112,7 @@ export class Runner extends EventEmitter {
     id: string,
     runId: string,
     globalInput: Record<string, any>,
+    runtimeMeta: { workflowId?: string },
     children: Map<string, string[]>,
     deps: Map<string, Set<string>>,
     results: Record<string, any>,
@@ -116,7 +121,9 @@ export class Runner extends EventEmitter {
     if (this.skipped.has(id)) return;
     if (this.scheduled.has(id)) return;
     this.scheduled.add(id);
-    this.queue.add(() => this.executeNode(id, runId, globalInput, children, deps, results, unresolved));
+    this.queue.add(() =>
+      this.executeNode(id, runId, globalInput, runtimeMeta, children, deps, results, unresolved),
+    );
   }
 
   /* ───────────────────── execute one node ───────────────────── */
@@ -125,6 +132,7 @@ export class Runner extends EventEmitter {
     id: string,
     runId: string,
     globalInput: Record<string, any>,
+    runtimeMeta: { workflowId?: string },
     children: Map<string, string[]>,
     deps: Map<string, Set<string>>,
     results: Record<string, any>,
@@ -174,7 +182,15 @@ export class Runner extends EventEmitter {
         if (v === undefined) delete local[k]; else local[k] = v;
         this.localState.set(id, local);
       };
-      const ctx: ExecuteContext = { runId, input: combinedInput, globals: globalInput, local, setLocal, done: upstreamDone };
+      const ctx: ExecuteContext = {
+        runId,
+        workflowId: runtimeMeta.workflowId,
+        input: combinedInput,
+        globals: globalInput,
+        local,
+        setLocal,
+        done: upstreamDone,
+      };
 
       // 3️⃣ execute
       const res: DominoResult = await domino.execute(ctx);
@@ -216,13 +232,13 @@ export class Runner extends EventEmitter {
         const childDeps = deps.get(childId)!;
         if (childDeps.size > 0) continue;
         if (controlChildren.has(childId) && !branchChildren.has(childId)) continue;
-        this.scheduleNode(childId, runId, globalInput, children, deps, results, unresolved);
+        this.scheduleNode(childId, runId, globalInput, runtimeMeta, children, deps, results, unresolved);
       }
 
       // 5️⃣ then re-queue iterator if needed
       const hasCursor = Object.keys(local).some(k => k.startsWith(`iterator_cursor_${id}`));
       if (hasCursor) {
-        this.scheduleNode(id, runId, globalInput, children, deps, results, unresolved);
+        this.scheduleNode(id, runId, globalInput, runtimeMeta, children, deps, results, unresolved);
       }
     } catch (err) {
       if (!this.executionErrorNodeId) {

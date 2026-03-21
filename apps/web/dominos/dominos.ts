@@ -13,6 +13,7 @@ import {
   FileSpreadsheet,
   Filter as FilterIcon,
   FolderSync,
+  Database,
   GitBranch,
   Mail,
   Printer,
@@ -32,7 +33,7 @@ import { SiGoogledrive, SiShopify, SiSlack } from "react-icons/si";
 export type DominoCatalogEntry = {
   id: string;
   label: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string; style?: CSSProperties }>;
   categories: string[];
   badgeStyle: CSSProperties;
   iconStyle: CSSProperties;
@@ -155,6 +156,16 @@ export default [
     categories: ["Action", "Storage"],
     badgeStyle: {
       background: "linear-gradient(135deg, #22d3ee 0%, #1d4ed8 100%)",
+    },
+    iconStyle: { color: "#ffffff" },
+  },
+  {
+    id: "storage",
+    label: "Storage",
+    icon: Database,
+    categories: ["Action", "Storage"],
+    badgeStyle: {
+      background: "linear-gradient(135deg, #0f766e 0%, #155e75 100%)",
     },
     iconStyle: { color: "#ffffff" },
   },
