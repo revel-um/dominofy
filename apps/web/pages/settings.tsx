@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import dynamic from 'next/dynamic';
-import { ResponsiveContainer } from '../components/common/ResponsiveComponents';
-import { 
-  FiUser, 
-  FiBell, 
-  FiShield, 
-  FiMonitor, 
-  FiSettings, 
-  FiInfo
+import {
+  FiBell,
+  FiInfo,
+  FiMonitor,
+  FiSettings,
+  FiShield,
+  FiUser,
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import type { Settings as SettingsType } from '../types/settings';
@@ -21,7 +20,6 @@ import { useRouter } from 'next/router';
 import { WorkflowsApi } from '../apis/workflow.apis';
 import { TokenManager } from '../utils/auth';
 
-// Default settings to avoid hydration mismatch
 const defaultSettings: SettingsType = {
   notifications: {
     email: true,
@@ -34,7 +32,8 @@ const defaultSettings: SettingsType = {
     syncWithSystem: true,
   },
   language: 'en',
-  timezone: 'UTC',};
+  timezone: 'UTC',
+};
 
 interface UserProfile {
   name: string;
@@ -45,27 +44,56 @@ interface UserProfile {
   lastLogin: string;
 }
 
-const SectionHeader = ({ 
-  icon, 
-  title, 
-  description 
-}: { 
-  icon: React.ReactNode; 
-  title: string; 
-  description?: string; 
-}) => (
-  <div className="mb-6">
-    <div className="flex items-center space-x-3">
-      <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-        {icon}
+function SettingsCard({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[28px] border border-white/70 bg-white/80 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70">
+      <div className="border-b border-slate-200/70 px-5 py-4 dark:border-white/10">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-100">
+            {icon}
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">{title}</h2>
+            {description ? (
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
+            ) : null}
+          </div>
+        </div>
       </div>
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
-        {description && <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>}
-      </div>
+      <div className="p-4 sm:p-5">{children}</div>
+    </section>
+  );
+}
+
+function SettingsMetric({
+  label,
+  value,
+  meta,
+}: {
+  label: string;
+  value: string;
+  meta: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-950/35">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+        {label}
+      </p>
+      <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">{value}</p>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{meta}</p>
     </div>
-  </div>
-);
+  );
+}
 
 function SettingsComponent() {
   const { data: session, status } = useSession();
@@ -77,53 +105,45 @@ function SettingsComponent() {
     role: '',
     avatar: '',
     createdAt: new Date().toISOString(),
-    lastLogin: new Date().toISOString()
+    lastLogin: new Date().toISOString(),
   });
   const [isEditing, setIsEditing] = useState(false);
   const [settings, setSettings] = useState<SettingsType>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [isExchanging, setIsExchanging] = useState(false);
 
-  // Populate profile from NextAuth session; later we can enrich with backend details
   useEffect(() => {
     setMounted(true);
-    if (status === 'loading') return; // wait for session
+    if (status === 'loading') return;
 
     const syncProfile = async () => {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
-        // If authenticated with NextAuth but no backend token, try to exchange it
         if (!token && status === 'authenticated') {
-          setIsExchanging(true);
           try {
             const resp = await fetch('/api/auth/exchange', { method: 'POST' });
             if (resp.ok) {
-              const data = await resp.json();
+              const data = await resp.json() as { accessToken?: string; refreshToken?: string };
               if (data?.accessToken && data?.refreshToken) {
                 TokenManager.setTokens(data.accessToken, data.refreshToken);
               }
             } else {
-              // If exchange fails, we will fall back to session-only details
               const text = await resp.text();
               console.warn('Token exchange failed on settings page:', text);
             }
           } catch (e) {
             console.error('Token exchange error on settings page:', e);
-          } finally {
-            setIsExchanging(false);
           }
         }
 
         const backendToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
         if (backendToken) {
-          // Fetch user via same backend call the dashboard uses, to keep data in sync
           const wfResp = await WorkflowsApi.getRecentWorkflowsAndCount(backendToken, router);
           if (wfResp?.ok) {
-            const { user } = await wfResp.json();
+            const { user } = await wfResp.json() as { user?: { name?: string; email?: string } };
             if (user) {
-              setProfile(prev => ({
+              setProfile((prev) => ({
                 ...prev,
                 name: user.name || prev.name,
                 email: user.email || prev.email,
@@ -135,14 +155,12 @@ function SettingsComponent() {
           }
         }
 
-        // Fallback: use NextAuth session if available
         if (status === 'authenticated' && session?.user) {
-          const user = session.user as any;
-          setProfile(prev => ({
+          setProfile((prev) => ({
             ...prev,
-            name: user?.name || prev.name,
-            email: user?.email || prev.email,
-            avatar: user?.image || prev.avatar,
+            name: session.user.name || prev.name,
+            email: session.user.email || prev.email,
+            avatar: session.user.image || prev.avatar,
           }));
           setSettings(defaultSettings);
         }
@@ -159,14 +177,11 @@ function SettingsComponent() {
 
   const updateProfile = async (updatedData: Partial<UserProfile>) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      setProfile(prev => ({
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setProfile((prev) => ({
         ...prev,
-        ...updatedData
+        ...updatedData,
       }));
-      
       setIsEditing(false);
       toast.success('Profile updated successfully');
     } catch (error) {
@@ -175,221 +190,253 @@ function SettingsComponent() {
     }
   };
 
-  const handlePasswordChange = async (oldPassword: string, newPassword: string): Promise<void> => {
+  const handlePasswordChange = async (_oldPassword: string, _newPassword: string): Promise<void> => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      void _oldPassword;
+      void _newPassword;
+      await new Promise((resolve) => setTimeout(resolve, 500));
       setShowPasswordModal(false);
       toast.success('Password changed successfully');
     } catch (error) {
       console.error('Error changing password:', error);
       toast.error('Failed to change password');
-      throw error; // Re-throw to allow the modal to handle the error state
+      throw error;
     }
   };
 
   if (!mounted) {
-    return null; // Prevent SSR mismatch
+    return null;
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-dominofy-light-background dark:bg-dominofy-dark-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_48%,_#ffffff_100%)] dark:bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)]">
+        <div className="h-9 w-9 animate-spin rounded-full border-b-2 border-sky-500" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-dominofy-light-background dark:bg-dominofy-dark-background">
-      <div className="w-full p-0 m-0">
-        <div className="w-full space-y-2 px-4 sm:px-6">
-          <div className="flex items-center justify-between mb-2 pt-4">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.14),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_48%,_#ffffff_100%)] px-4 py-5 dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.12),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)] sm:px-6 sm:py-6">
+      <section className="relative overflow-hidden rounded-[32px] border border-white/70 bg-white/70 p-5 shadow-[0_28px_90px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-white/10 dark:bg-slate-900/65 sm:p-7">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,_rgba(56,189,248,0.18),_transparent_26%),radial-gradient(circle_at_88%_12%,_rgba(16,185,129,0.16),_transparent_24%)]" />
+        <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1.5fr),minmax(320px,0.9fr)]">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200/80 bg-sky-50/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-sky-700 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-200">
+              <FiSettings className="h-3.5 w-3.5" />
+              Workspace settings
+            </div>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-4xl">
+              Personalize your workspace control center
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300 sm:text-base">
+              Manage identity, notifications, security, and visual preferences from one structured settings surface.
+            </p>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <SettingsMetric
+                label="Theme"
+                value={settings.theme.mode}
+                meta={settings.theme.syncWithSystem ? 'Syncs with system' : 'Manual preference'}
+              />
+              <SettingsMetric
+                label="Language"
+                value={settings.language.toUpperCase()}
+                meta="Current interface locale"
+              />
+              <SettingsMetric
+                label="Alerts"
+                value={settings.notifications.email ? 'Email on' : 'Email off'}
+                meta="Primary notification channel"
+              />
+            </div>
           </div>
-          
-          <div className="space-y-3">
-            {/* Profile Section */}
-            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <SectionHeader 
-                  icon={<FiUser className="w-5 h-5" />} 
-                  title="Profile Information"
-                />
+
+          <div className="rounded-[30px] border border-slate-200/70 bg-[linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(15,23,42,0.9))] p-5 text-white shadow-[0_24px_80px_rgba(15,23,42,0.18)] dark:border-white/10">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-100/80">
+              Profile summary
+            </p>
+            <div className="mt-4 flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-sky-500 text-xl font-semibold text-white">
+                {profile.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profile.avatar}
+                    alt={profile.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span>{profile.name?.charAt(0)?.toUpperCase() || 'U'}</span>
+                )}
               </div>
-              <div className="p-3">
-                <div className="px-2 sm:px-3 pb-2 space-y-2">
-                  <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
-                    <div className="relative">
-                      <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-2xl text-white">
-                        {profile.avatar ? (
-                          <img 
-                            src={profile.avatar} 
-                            alt={profile.name}
-                            className="w-full h-full rounded-full object-cover"
-                          />
-                        ) : (
-                          <span>{profile.name?.charAt(0)?.toUpperCase() || 'U'}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex-1 text-center sm:text-left">
-                      {isEditing ? (
-                        <div className="space-y-3">
-                          <input
-                            type="text"
-                            value={profile.name}
-                            onChange={(e) => setProfile({...profile, name: e.target.value})}
-                            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                            placeholder="Full Name"
-                          />
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => updateProfile(profile)}
-                              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setIsEditing(false)}
-                              className="px-4 py-2 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <h2 className="text-xl font-semibold">{profile.name || 'User'}</h2>
-                          <p className="text-gray-600 dark:text-gray-300">{profile.email || 'user@example.com'}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{profile.role || 'User'}</p>
-                          <button
-                            onClick={() => setIsEditing(true)}
-                            className="mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            Edit Profile
-                          </button>
-                        </div>
-                      )}
+              <div>
+                <h2 className="text-xl font-semibold">{profile.name || 'User'}</h2>
+                <p className="mt-1 text-sm text-slate-300">{profile.email || 'user@example.com'}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-400">{profile.role || 'User'}</p>
+              </div>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Member Since</p>
+                <p className="mt-2 text-sm font-medium text-white">
+                  {new Date(profile.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Password</p>
+                <p className="mt-2 text-sm font-medium text-white">Managed securely</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.25fr),minmax(0,1fr)]">
+        <div className="space-y-5">
+          <SettingsCard
+            icon={<FiUser className="h-5 w-5" />}
+            title="Profile Information"
+            description="Update your visible identity and account basics."
+          >
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sky-600 text-2xl text-white">
+                {profile.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={profile.avatar} alt={profile.name} className="h-full w-full object-cover" />
+                ) : (
+                  <span>{profile.name?.charAt(0)?.toUpperCase() || 'U'}</span>
+                )}
+              </div>
+              <div className="flex-1">
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={profile.name}
+                      onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                      className="min-h-[44px] w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950/45 dark:text-slate-100 dark:focus:border-sky-400/60 dark:focus:ring-sky-400/10"
+                      placeholder="Full Name"
+                    />
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={() => updateProfile(profile)}
+                        className="min-h-[44px] rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                      >
+                        Save Profile
+                      </button>
+                      <button
+                        onClick={() => setIsEditing(false)}
+                        className="min-h-[44px] rounded-2xl border border-slate-200 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* General Settings */}
-            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <SectionHeader 
-                  icon={<FiSettings className="w-5 h-5" />} 
-                  title="General Settings"
-                />
-              </div>
-              <div className="p-3">
-                <GeneralSettings settings={settings} setSettings={setSettings} />
-              </div>
-            </div>
-
-            {/* Notifications */}
-            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <SectionHeader 
-                  icon={<FiBell className="w-5 h-5" />} 
-                  title="Notifications"
-                />
-              </div>
-              <div className="p-3">
-                <NotificationSettings settings={settings} setSettings={setSettings} />
-              </div>
-            </div>
-
-            {/* Security */}
-            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <SectionHeader 
-                  icon={<FiShield className="w-5 h-5" />} 
-                  title="Security"
-                />
-              </div>
-              <div className="p-3">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">Password</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Last changed 3 months ago</p>
-                    </div>
+                ) : (
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-950 dark:text-white">{profile.name || 'User'}</h3>
+                    <p className="mt-1 text-slate-600 dark:text-slate-300">{profile.email || 'user@example.com'}</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{profile.role || 'User'}</p>
                     <button
-                      onClick={() => setShowPasswordModal(true)}
-                      className="px-3 py-1 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                      onClick={() => setIsEditing(true)}
+                      className="mt-4 text-sm font-medium text-sky-600 transition hover:text-sky-700 dark:text-sky-300 dark:hover:text-sky-200"
                     >
-                      Change
+                      Edit Profile
                     </button>
                   </div>
-                  <SecuritySettings />
+                )}
+              </div>
+            </div>
+          </SettingsCard>
+
+          <SettingsCard
+            icon={<FiSettings className="h-5 w-5" />}
+            title="General Settings"
+            description="Language, system preferences, and workspace defaults."
+          >
+            <GeneralSettings settings={settings} setSettings={setSettings} />
+          </SettingsCard>
+
+          <SettingsCard
+            icon={<FiBell className="h-5 w-5" />}
+            title="Notifications"
+            description="Control when and how the workspace reaches you."
+          >
+            <NotificationSettings settings={settings} setSettings={setSettings} />
+          </SettingsCard>
+        </div>
+
+        <div className="space-y-5">
+          <SettingsCard
+            icon={<FiShield className="h-5 w-5" />}
+            title="Security"
+            description="Password controls and access protection."
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div>
+                  <h3 className="font-medium text-slate-900 dark:text-white">Password</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Last changed 3 months ago</p>
+                </div>
+                <button
+                  onClick={() => setShowPasswordModal(true)}
+                  className="min-h-[40px] rounded-2xl bg-sky-50 px-4 text-sm font-medium text-sky-700 transition hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:hover:bg-sky-500/20"
+                >
+                  Change
+                </button>
+              </div>
+              <SecuritySettings />
+            </div>
+          </SettingsCard>
+
+          <SettingsCard
+            icon={<FiMonitor className="h-5 w-5" />}
+            title="Appearance"
+            description="Tune the look and feel of your workspace."
+          >
+            <AppearanceSettings settings={settings} setSettings={setSettings} />
+          </SettingsCard>
+
+          <SettingsCard
+            icon={<FiInfo className="h-5 w-5" />}
+            title="Account Information"
+            description="Reference account metadata and membership details."
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Email</p>
+                  <p className="mt-1 text-slate-950 dark:text-white">{profile.email || 'user@example.com'}</p>
+                </div>
+                <button className="text-sm font-medium text-sky-600 transition hover:text-sky-700 dark:text-sky-300 dark:hover:text-sky-200">
+                  Change
+                </button>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Member Since</p>
+                  <p className="mt-1 text-slate-950 dark:text-white">
+                    {new Date(profile.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white dark:bg-white dark:text-slate-950">
+                  {profile.role || 'User'}
                 </div>
               </div>
             </div>
-
-            {/* Appearance */}
-            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <SectionHeader 
-                  icon={<FiMonitor className="w-5 h-5" />} 
-                  title="Appearance"
-                />
-              </div>
-              <div className="p-3">
-                <AppearanceSettings settings={settings} setSettings={setSettings} />
-              </div>
-            </div>
-
-            {/* Account Info */}
-            <div className="bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-              <div className="p-4">
-                <SectionHeader 
-                  icon={<FiInfo className="w-5 h-5" />} 
-                  title="Account Information"
-                />
-                <div className="mt-2 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
-                      <p className="text-gray-900 dark:text-white">{profile.email || 'user@example.com'}</p>
-                    </div>
-                    <button className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                      Change
-                    </button>
-                  </div>
-                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Member Since</p>
-                      <p className="text-gray-900 dark:text-white">
-                        {new Date(profile.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-full">
-                      {profile.role || 'User'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <ChangePasswordModal
-            isOpen={showPasswordModal}
-            onClose={() => setShowPasswordModal(false)}
-            onSubmit={handlePasswordChange}
-          />
+          </SettingsCard>
         </div>
       </div>
+
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onSubmit={handlePasswordChange}
+      />
     </div>
   );
 }
 
-// Prevent hydration mismatch by disabling SSR for the settings page
 const SettingsPage = dynamic(() => Promise.resolve(SettingsComponent), {
   ssr: false,
 });
