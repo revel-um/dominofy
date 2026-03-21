@@ -13,6 +13,7 @@ import { Workflow } from 'src/workflow/workflow.entity';
 import { StorageCollectionSchema } from './storage.types';
 
 type StorageWriteOperation = 'create' | 'upsert';
+type StorageReadOperation = 'document' | 'list';
 
 interface StoreForWorkflowInput {
   workflowId: string;
@@ -20,6 +21,14 @@ interface StoreForWorkflowInput {
   operation?: string;
   documentKey?: string | null;
   data: unknown;
+}
+
+interface ReadForWorkflowInput {
+  workflowId: string;
+  collectionRef: string;
+  operation?: string;
+  documentKey?: string | null;
+  limit?: number | string | null;
 }
 
 @Injectable()
@@ -49,17 +58,7 @@ export class StorageRuntimeService implements OnModuleInit {
   }
 
   async storeForWorkflow(input: StoreForWorkflowInput) {
-    const workflowContext = await this.workflowRepository.findOne({
-      where: { id: input.workflowId } as any,
-      relations: ['project', 'project.workspace', 'user'],
-    });
-
-    const workspaceId = workflowContext?.project?.workspace?.id;
-    if (!workspaceId) {
-      throw new BadRequestException('Workflow is not attached to a workspace');
-    }
-
-    const userId = workflowContext?.user?.id ?? null;
+    const { workspaceId, userId } = await this.resolveWorkflowContext(input.workflowId);
     const collectionRef = input.collectionRef.trim();
     if (!collectionRef) {
       throw new BadRequestException('Storage collection is required');
@@ -127,6 +126,69 @@ export class StorageRuntimeService implements OnModuleInit {
     }
   }
 
+  async readForWorkflow(input: ReadForWorkflowInput) {
+    const { workspaceId } = await this.resolveWorkflowContext(input.workflowId);
+    const collectionRef = input.collectionRef.trim();
+    if (!collectionRef) {
+      throw new BadRequestException('Storage collection is required');
+    }
+
+    const collection = await this.findCollection(workspaceId, collectionRef);
+    if (!collection) {
+      throw new BadRequestException('Storage collection not found');
+    }
+
+    const operation = this.normalizeReadOperation(input.operation);
+    const documentKey = input.documentKey?.trim() || null;
+
+    if (operation === 'document') {
+      if (!documentKey) {
+        throw new BadRequestException('Storage retrieval requires a document key');
+      }
+
+      const document = await this.documentRepository.findOne({
+        where: {
+          workspaceId,
+          collectionId: collection.id,
+          documentKey,
+        },
+        order: {
+          createdAt: 'DESC',
+        },
+      });
+
+      if (!document) {
+        throw new BadRequestException('Storage document not found');
+      }
+
+      return {
+        action: 'document',
+        collectionId: collection.id,
+        documents: [document],
+        count: 1,
+      };
+    }
+
+    const limit = this.normalizeLimit(input.limit);
+    const documents = await this.documentRepository.find({
+      where: {
+        workspaceId,
+        collectionId: collection.id,
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+      take: limit,
+    });
+
+    return {
+      action: 'list',
+      collectionId: collection.id,
+      documents,
+      count: documents.length,
+    };
+  }
+
   private normalizeData(data: unknown) {
     if (typeof data === 'string') {
       const trimmed = data.trim();
@@ -157,10 +219,49 @@ export class StorageRuntimeService implements OnModuleInit {
     throw new BadRequestException('Storage operation must be create or upsert');
   }
 
+  private normalizeReadOperation(value?: string | null): StorageReadOperation {
+    const normalized = String(value ?? 'document').trim().toLowerCase();
+    if (normalized === 'document' || normalized === 'list') {
+      return normalized;
+    }
+
+    throw new BadRequestException('Storage retrieval must be document or list');
+  }
+
+  private normalizeLimit(value?: number | string | null) {
+    if (value == null || value === '') {
+      return 25;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new BadRequestException('Storage retrieval limit must be a positive number');
+    }
+
+    return Math.min(Math.floor(parsed), 1000);
+  }
+
   private isUuid(value: string) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       value,
     );
+  }
+
+  private async resolveWorkflowContext(workflowId: string) {
+    const workflowContext = await this.workflowRepository.findOne({
+      where: { id: workflowId } as any,
+      relations: ['project', 'project.workspace', 'user'],
+    });
+
+    const workspaceId = workflowContext?.project?.workspace?.id;
+    if (!workspaceId) {
+      throw new BadRequestException('Workflow is not attached to a workspace');
+    }
+
+    return {
+      workspaceId,
+      userId: workflowContext?.user?.id ?? null,
+    };
   }
 
   private async findCollection(workspaceId: string, collectionRef: string) {

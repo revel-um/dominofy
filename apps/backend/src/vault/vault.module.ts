@@ -5,10 +5,12 @@ import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Vault } from './vault.entity';
 import { EmailModule } from 'src/email/email.module';
+import { WorkspaceModule } from 'src/workspace/workspace.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Vault]),
+    WorkspaceModule,
     forwardRef(() => EmailModule),
   ],
   controllers: [VaultController],

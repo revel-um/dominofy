@@ -33,13 +33,15 @@ import {
 } from './email.types';
 import { EmailProviderFactory } from './providers/email-provider.factory';
 
+type EmailOAuthState = { userId: string; workspaceId?: string };
+
 @Injectable()
 export class EmailService implements OnModuleInit, OnModuleDestroy {
   private static _instance: EmailService | null = null;
   private readonly logger = new Logger(EmailService.name);
   private readonly providerFactory: EmailProviderFactory;
 
-  private readonly stateStore = new Map<string, string>();
+  private readonly stateStore = new Map<string, EmailOAuthState>();
 
   // Serialize Gmail processing per mailbox
   private readonly gmailHistoryQueue = new Map<string, Promise<void>>();
@@ -114,17 +116,17 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   /* ───────────────────── Helpers ───────────────────── */
-  private generateState(uid: string): string {
+  private generateState(uid: string, workspaceId?: string): string {
     const s = crypto.randomBytes(16).toString('hex');
-    this.stateStore.set(s, uid);
+    this.stateStore.set(s, { userId: uid, workspaceId });
     return s;
   }
 
-  private validateState(s: string): string {
-    const uid = this.stateStore.get(s);
-    if (!uid) throw new UnauthorizedException('Invalid / expired state');
+  private validateState(s: string): { userId: string; workspaceId?: string } {
+    const state = this.stateStore.get(s);
+    if (!state) throw new UnauthorizedException('Invalid / expired state');
     this.stateStore.delete(s);
-    return uid;
+    return state;
   }
 
   private backendBaseUrl(): string {
@@ -422,7 +424,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   /* ───────────────────── OAuth (Gmail) ───────────────────── */
-  getGoogleInstallUrl(userId: string): string {
+  getGoogleInstallUrl(userId: string, workspaceId?: string): string {
     const oauth2 = this.oauthClient();
     const scope = [
       'https://www.googleapis.com/auth/gmail.modify',
@@ -435,12 +437,12 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       access_type: 'offline',
       prompt: 'consent',
       scope,
-      state: this.generateState(userId),
+      state: this.generateState(userId, workspaceId),
     });
   }
 
   async handleGoogleCallback(code: string, state: string) {
-    const dominofyUserId = this.validateState(state);
+    const { userId: dominofyUserId, workspaceId } = this.validateState(state);
     const user = await this.userService.findOne(dominofyUserId);
     if (!user) throw new BadRequestException(`User ${dominofyUserId} not found`);
 
@@ -530,11 +532,15 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       connection: nextConnection,
     };
 
-    await this.vaultService.create(vaultDto, [user.id]);
+    await this.vaultService.create(vaultDto, [user.id], workspaceId, user.id);
   }
 
   /* ───────────────────── Connections ───────────────────── */
-  async createConnection(userId: string, dto: CreateEmailConnectionDto) {
+  async createConnection(
+    userId: string,
+    dto: CreateEmailConnectionDto,
+    workspaceId?: string,
+  ) {
     // Legacy SMTP/manual path retained for completeness; Gmail uses OAuth.
     const user = await this.userService.findOne(userId);
     if (!user) throw new BadRequestException('User not found');
@@ -581,7 +587,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       } satisfies SmtpConnection,
     };
 
-    const vault = await this.vaultService.create(vaultDto, [user.id]);
+    const vault = await this.vaultService.create(vaultDto, [user.id], workspaceId, user.id);
     return {
       id: vault.id.toString(),
       name: vault.name,
@@ -1053,6 +1059,11 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     inboxAddress: string,
     payload: any,
   ) {
+    const vault = await this.vaultService.findOne(vaultId, ['workspace']);
+    if (!vault?.workspace?.id) {
+      throw new BadRequestException('Vault workspace is required for email trigger dispatch');
+    }
+
     const senderAddress = this.extractEmailAddress(payload?.from);
     this.logger.log(
       `Email notification received for vault ${vaultId} (${inboxAddress || 'any inbox'}); dispatching workflows.`,
@@ -1060,6 +1071,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
     const candidates = await this.workflowService.findWorkflowsByEmailTrigger(
       vaultId,
+      vault.workspace.id,
     );
 
     const matches = candidates.filter(workflow => {

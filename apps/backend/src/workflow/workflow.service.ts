@@ -72,6 +72,7 @@ export class WorkflowService extends BaseService<Workflow> {
 
   async findWorkflowsByEmailTrigger(
     vaultId: string,
+    workspaceId: string,
     inboxAddress?: string,
     senderAddress?: string
   ): Promise<Workflow[]> {
@@ -94,9 +95,12 @@ export class WorkflowService extends BaseService<Workflow> {
 
     const qb = this.workflowRepository
       .createQueryBuilder('workflow')
+      .innerJoin('workflow.project', 'project')
+      .innerJoin('project.workspace', 'workspace')
       .where('workflow.visualJson @> :match', {
         match: JSON.stringify(matchFragment),
-      });
+      })
+      .andWhere('workspace.id = :workspaceId', { workspaceId });
 
     return qb.getMany();
   }

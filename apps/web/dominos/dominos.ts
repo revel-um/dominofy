@@ -161,11 +161,21 @@ export default [
   },
   {
     id: "storage",
-    label: "Storage",
+    label: "Database",
     icon: Database,
     categories: ["Action", "Storage"],
     badgeStyle: {
       background: "linear-gradient(135deg, #0f766e 0%, #155e75 100%)",
+    },
+    iconStyle: { color: "#ffffff" },
+  },
+  {
+    id: "storageRetrieve",
+    label: "Database Retrieval",
+    icon: Database,
+    categories: ["Input", "Storage"],
+    badgeStyle: {
+      background: "linear-gradient(135deg, #0f766e 0%, #0f172a 100%)",
     },
     iconStyle: { color: "#ffffff" },
   },

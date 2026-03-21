@@ -44,11 +44,16 @@ type DriveBulkAccessConfig = {
   domain?: string;
 };
 
+type DriveOAuthState = {
+  userId: string;
+  workspaceId?: string;
+};
+
 @Injectable()
 export class DriveService {
   private static _instance: DriveService | null = null;
   private readonly logger = new Logger(DriveService.name);
-  private readonly stateStore = new Map<string, string>();
+  private readonly stateStore = new Map<string, DriveOAuthState>();
 
   constructor(
     private readonly vaultService: VaultService,
@@ -70,17 +75,17 @@ export class DriveService {
     if (!DriveService._instance) DriveService._instance = this;
   }
 
-  private generateState(uid: string): string {
+  private generateState(uid: string, workspaceId?: string): string {
     const s = crypto.randomBytes(16).toString('hex');
-    this.stateStore.set(s, uid);
+    this.stateStore.set(s, { userId: uid, workspaceId });
     return s;
   }
 
-  private validateState(s: string): string {
-    const uid = this.stateStore.get(s);
-    if (!uid) throw new UnauthorizedException('Invalid / expired state');
+  private validateState(s: string): DriveOAuthState {
+    const state = this.stateStore.get(s);
+    if (!state) throw new UnauthorizedException('Invalid / expired state');
     this.stateStore.delete(s);
-    return uid;
+    return state;
   }
 
   private oauthClient(): OAuth2Client {
@@ -123,7 +128,7 @@ export class DriveService {
     );
   }
 
-  getGoogleInstallUrl(userId: string): string {
+  getGoogleInstallUrl(userId: string, workspaceId?: string): string {
     const oauth2 = this.oauthClient();
     const scope = [
       'https://www.googleapis.com/auth/drive',
@@ -134,12 +139,12 @@ export class DriveService {
       access_type: 'offline',
       prompt: 'consent',
       scope,
-      state: this.generateState(userId),
+      state: this.generateState(userId, workspaceId),
     });
   }
 
   async handleGoogleCallback(code: string, state: string) {
-    const dominofyUserId = this.validateState(state);
+    const { userId: dominofyUserId, workspaceId } = this.validateState(state);
     const user = await this.userService.findOne(dominofyUserId);
     if (!user) throw new BadRequestException(`User ${dominofyUserId} not found`);
 
@@ -201,7 +206,7 @@ export class DriveService {
       connection: nextConnection,
     };
 
-    await this.vaultService.create(vaultDto, [user.id]);
+    await this.vaultService.create(vaultDto, [user.id], workspaceId, user.id);
   }
 
   async listConnectionsForUser(uid: string) {

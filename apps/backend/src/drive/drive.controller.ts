@@ -14,10 +14,10 @@ export class DriveController {
   constructor(private readonly drive: DriveService) {}
 
   @Get('google/install-url')
-  async installUrl(@Req() req: Request) {
+  async installUrl(@Req() req: Request, @Query('workspaceId') workspaceId?: string) {
     const userId = (req as any).user?.id;
     if (!userId) throw new UnauthorizedException('Must be logged in');
-    return { url: this.drive.getGoogleInstallUrl(userId) };
+    return { url: this.drive.getGoogleInstallUrl(userId, workspaceId) };
   }
 
   @Get('google/callback')

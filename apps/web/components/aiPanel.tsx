@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FiSend } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
 import { useRouter } from 'next/router';
 import { config } from '../config/config';
 import { AiChatApi, AiChatMessageDto, AiChatSender } from '../apis/aiChat.apis';
 import { AIWorkflowResponse, normalizeAIResponseToWorkflow, serializeWorkflowForAI } from '../utils/aiWorkflow';
+import PromptInputDynamicGrow from '@/components/ui/prompt-input-dynamic-grow';
 
 interface Message {
     id: string;
@@ -263,10 +263,9 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         });
     }, [dedupeMessages, sortChronologically]);
 
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!inputValue.trim() || isLoading) return;
-        const prompt = inputValue.trim();
+    const handleSendMessage = async (submittedValue: string) => {
+        if (!submittedValue.trim() || isLoading) return;
+        const prompt = submittedValue.trim();
 
         const userMessage: Message = {
             id: `local-${Date.now()}`,
@@ -443,48 +442,19 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                 <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSendMessage} className="p-3 border-t border-gray-200 dark:border-gray-700" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
-                <div className="flex space-x-2 items-start">
-                    <textarea
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="Ask me anything..."
-                        rows={1}
-                        className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600
-                            bg-dominofy-light-background dark:bg-dominofy-dark-background
-                            text-dominofy-light-text dark:text-dominofy-dark-text
-                            focus:outline-none focus:ring-2 focus:ring-dominofy-light-accent/50 dark:focus:ring-dominofy-dark-accent/50
-                            resize-none overflow-auto leading-5"
-                        style={{ minHeight: '38px', maxHeight: '140px' }}
-                        onInput={(e) => {
-                            const el = e.currentTarget;
-                            el.style.height = 'auto';
-                            const next = Math.min(el.scrollHeight, 140);
-                            el.style.height = `${next}px`;
-                        }}
-                    />
-                    <button
-                        type="submit"
-                        disabled={!inputValue.trim() || isLoading}
-                        className={`px-3 py-2 rounded-lg bg-dominofy-light-accent text-white hover:bg-dominofy-light-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 transition-transform duration-150 ${isLoading ? 'scale-95' : 'hover:scale-105'}`}
-                        style={{
-                            minWidth: '42px',
-                            minHeight: '38px',
-                            backgroundImage: isLoading
-                                ? "url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 300 150\"><path fill=\"none\" stroke=\"%23FFFFFF\" stroke-width=\"15\" stroke-linecap=\"round\" stroke-dasharray=\"300 385\" stroke-dashoffset=\"0\" d=\"M275 75c0 31-27 50-50 50-58 0-92-100-150-100-28 0-50 22-50 50s23 50 50 50c58 0 92-100 150-100 24 0 50 19 50 50Z\"><animate attributeName=\"stroke-dashoffset\" calcMode=\"spline\" dur=\"2\" values=\"685;-685\" keySplines=\"0 0 1 1\" repeatCount=\"indefinite\"></animate></path></svg>')"
-                                : 'none',
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center',
-                            backgroundSize: isLoading ? '20px 20px' : 'auto',
-                        }}
-                    >
-                        {isLoading ? (
-                            <span className="sr-only">Sending…</span>
-                        ) : (
-                            <FiSend size={18} />
-                        )}
-                    </button>
-                </div>
+            <div className="border-t border-gray-200 p-3 dark:border-gray-700" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
+                <PromptInputDynamicGrow
+                    value={inputValue}
+                    onValueChange={setInputValue}
+                    onSubmit={(nextValue) => void handleSendMessage(nextValue)}
+                    placeholder="Ask me anything..."
+                    disabled={isLoading}
+                    isLoading={isLoading}
+                    className="w-full"
+                    expandOnFocus={false}
+                    backgroundOpacity={0.82}
+                    glowIntensity={0.32}
+                />
                 {/* ─── accept/reject ALL suggestions ─── */}
                 {suggestedNodes.length > 0 && (
                     <div className="relative top-2 z-20 flex gap-2"
@@ -506,7 +476,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                     </button>
                     </div>
                 )}
-            </form>
+            </div>
         </div>
     );
 }

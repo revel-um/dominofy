@@ -22,18 +22,22 @@ export class SlackController {
 
   /** Returns the Slack consent URL (protected – needs bearer token) */
   @Get('install-url')
-  async installUrl(@Req() req: Request) {
+  async installUrl(@Req() req: Request, @Query('workspaceId') workspaceId?: string) {
     const userId = (req.user as any)?.id;
     if (!userId) throw new UnauthorizedException('Must be logged in');
-    return { url: this.slack.getInstallUrl(userId) };
+    return { url: this.slack.getInstallUrl(userId, workspaceId) };
   }
 
   /** Still useful for testing with Postman */
   @Get('install')
-  install(@Req() req: Request, @Res() res: Response) {
+  install(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('workspaceId') workspaceId?: string,
+  ) {
     const userId = (req.user as any)?.id;
     if (!userId) throw new UnauthorizedException('Must be logged in');
-    return res.redirect(this.slack.getInstallUrl(userId));
+    return res.redirect(this.slack.getInstallUrl(userId, workspaceId));
   }
 
   /** OAuth callback from Slack (`code` & `state`) */
