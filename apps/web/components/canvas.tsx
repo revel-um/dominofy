@@ -53,6 +53,7 @@ import LLMDomino from "../dominos/llm";
 import SchedulerDomino from "../dominos/scheduler";
 import ConnectorDomino from "@/dominos/connector";
 import ShopifyDomino from "@/dominos/shopify";
+import StorageDomino from "@/dominos/storage";
 /* NEW: Note node */
 import NoteDomino from "../dominos/note";
 import dominoCatalog from "../dominos/dominos";
@@ -247,6 +248,7 @@ const nodeTypes = {
   slackaction: withRenderKey('slackaction', SlackActionDomino),
   SchedulerDomino: withRenderKey('SchedulerDomino', SchedulerDomino),
   connector: withRenderKey('connector', ConnectorDomino),
+  storage: withRenderKey('storage', StorageDomino),
   shopify: withRenderKey('shopify', ShopifyDomino),
   /* NEW */
   note: withRenderKey('note', NoteDomino),

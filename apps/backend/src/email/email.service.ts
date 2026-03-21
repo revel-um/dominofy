@@ -1092,7 +1092,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         workflow.visualJson,
       );
 
-      await runner.run(runId, payload);
+      await runner.run(runId, payload, { workflowId: workflow.id });
       await this.workflowLogger.flushNow();
     }
 

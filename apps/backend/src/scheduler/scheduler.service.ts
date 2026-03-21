@@ -162,7 +162,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       workflow.visualJson
     );
 
-    await runner.run(runId, {});
+    await runner.run(runId, {}, { workflowId: workflow.id });
     await this.workflowLogger.flushNow();
   }
 
