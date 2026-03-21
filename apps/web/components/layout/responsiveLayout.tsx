@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useResponsive } from '../../contexts/responsiveContext';
 import SideNavbar from '../navbar';
 import Head from 'next/head';
-import { FiHome, FiGrid, FiHeadphones, FiUser } from 'react-icons/fi';
+import { FiHome, FiGrid, FiHeadphones } from 'react-icons/fi';
 
 interface Props {
   children: ReactNode;
@@ -61,7 +61,7 @@ export default function ResponsiveLayout({
         {isMobile && (
           <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40">
             <div className="flex justify-around items-center h-16">
-              {['/dashboard', '/overview', '/support', '/profile'].map((path) => (
+              {['/dashboard', '/overview', '/support'].map((path) => (
                 <a
                   key={path}
                   href={path}
@@ -71,7 +71,6 @@ export default function ResponsiveLayout({
                     {path === '/dashboard' && <FiHome />}
                     {path === '/overview' && <FiGrid />}
                     {path === '/support' && <FiHeadphones />}
-                    {path === '/profile' && <FiUser />}
                   </span>
                   <span className="text-xs mt-1">
                     {path.replace('/', '').charAt(1).toUpperCase() + path.slice(2)}

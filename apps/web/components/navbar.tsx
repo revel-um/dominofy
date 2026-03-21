@@ -1,7 +1,6 @@
 import {
   FiHome,
   FiGrid,
-  FiUser,
   FiSettings,
   FiLogOut,
   FiHeadphones,
@@ -27,7 +26,6 @@ const navItems: NavItemProps[] = [
   { label: "Overview", icon: <FiGrid />, href: "/overview" },
   { label: "Code Editor", icon: <FiCode />, href: "/editor" },
   { label: "Support", icon: <FiHeadphones />, href: "/support" },
-  { label: "Profile", icon: <FiUser />, href: "/profile" },
   { label: "Vault", icon: <FiShield />, href: "/vault" },
   { label: "Settings", icon: <FiSettings />, href: "/settings" },
 ];
