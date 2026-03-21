@@ -13,37 +13,58 @@ export async function authFetch(
   router?: NextRouter
 ): Promise<Response> {
   const { token, skipAuth = false, ...fetchOptions } = options;
-  const headers: Record<string, string> = {
+  const baseHeaders: Record<string, string> = {
     ...((fetchOptions.headers as Record<string, string>) || {}),
   };
+
+  const executeRequest = async (authToken?: string | null) => {
+    const headers = { ...baseHeaders };
+    if (!skipAuth) {
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`;
+      } else {
+        delete headers.Authorization;
+      }
+    }
+
+    return fetch(url, {
+      ...fetchOptions,
+      headers,
+    });
+  };
+
+  let authToken: string | null | undefined = token;
 
   if (!skipAuth) {
     const storedToken = await TokenManager.getValidAccessToken();
     const legacyToken =
       typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    const authToken = storedToken || token || legacyToken;
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
-    }
+    authToken = storedToken || token || legacyToken;
   }
 
-  const response = await fetch(url, {
-    ...fetchOptions,
-    headers,
-  });
+  let response = await executeRequest(authToken);
 
-  if (response.status === 401 && !skipAuth) {
-    const newToken = await TokenManager.refreshAccessToken();
-    if (newToken) {
-      headers.Authorization = `Bearer ${newToken}`;
-      return fetch(url, {
-        ...fetchOptions,
-        headers,
-      });
-    }
+  if (response.status !== 401 || skipAuth) {
+    return response;
+  }
 
+  const refreshedToken = await TokenManager.refreshAccessToken();
+  if (!refreshedToken) {
     if (router) {
       handleUnauthorizedError(router);
+    } else {
+      TokenManager.clearTokens();
+    }
+    return response;
+  }
+
+  response = await executeRequest(refreshedToken);
+
+  if (response.status === 401) {
+    if (router) {
+      handleUnauthorizedError(router);
+    } else {
+      TokenManager.clearTokens();
     }
   }
 

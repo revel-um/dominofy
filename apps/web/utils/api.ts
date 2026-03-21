@@ -34,37 +34,36 @@ class ApiClient {
     }
 
     // Make the request
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       ...fetchOptions,
       headers,
     });
 
-    // Handle 401 Unauthorized - token might be expired
     if (response.status === 401 && !skipAuth) {
-      // Try to refresh the token
       const newToken = await TokenManager.refreshAccessToken();
-      
+
       if (newToken) {
-        // Retry the request with the new token
         headers.Authorization = `Bearer ${newToken}`;
-        
-        const retryResponse = await fetch(url, {
+
+        response = await fetch(url, {
           ...fetchOptions,
           headers,
         });
-
-        if (!retryResponse.ok) {
-          throw new Error(`HTTP ${retryResponse.status}: ${retryResponse.statusText}`);
-        }
-
-        return retryResponse.json();
       } else {
-        // Refresh failed, redirect to login
         if (typeof window !== 'undefined') {
+          TokenManager.clearTokens();
           window.location.href = '/auth/signin';
         }
         throw new Error('Authentication failed');
       }
+    }
+
+    if (response.status === 401 && !skipAuth) {
+      if (typeof window !== 'undefined') {
+        TokenManager.clearTokens();
+        window.location.href = '/auth/signin';
+      }
+      throw new Error('Authentication failed');
     }
 
     if (!response.ok) {

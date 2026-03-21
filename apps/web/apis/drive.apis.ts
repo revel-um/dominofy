@@ -1,9 +1,7 @@
 import { NextRouter } from 'next/router';
-import {
-  handleServerError,
-  handleUnauthorizedError,
-} from '@/utils/error.handler';
+import { handleServerError } from '@/utils/error.handler';
 import { config } from '@/config/config';
+import { authFetch } from '@/utils/authFetch';
 
 export interface DriveConnection {
   id: string;
@@ -14,10 +12,9 @@ export interface DriveConnection {
 export class DriveApi {
   static async getInstallUrl(token: string, router: NextRouter) {
     try {
-      const r = await fetch(`${config.backendBaseUrl}/drive/google/install-url`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (r.status === 401) return handleUnauthorizedError(router);
+      const r = await authFetch(`${config.backendBaseUrl}/drive/google/install-url`, {
+        token,
+      }, router);
       const { url } = await r.json();
       return url as string;
     } catch (err) {
@@ -31,13 +28,9 @@ export class DriveApi {
     router: NextRouter,
   ): Promise<DriveConnection[]> {
     try {
-      const r = await fetch(`${config.backendBaseUrl}/drive/connections`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (r.status === 401) {
-        handleUnauthorizedError(router);
-        return [];
-      }
+      const r = await authFetch(`${config.backendBaseUrl}/drive/connections`, {
+        token,
+      }, router);
       return (await r.json()) as DriveConnection[];
     } catch (err) {
       handleServerError(router, err);

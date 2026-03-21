@@ -915,7 +915,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       );
 
       this.logger.log(
-        `Gmail message processed: messageId=${msgId}, historyId=${msgHistoryId}, title=${subject}, body=${body}`,
+        `Gmail message processed: messageId=${msgId}, historyId=${msgHistoryId}`,
       );
 
       const payload = {

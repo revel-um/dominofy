@@ -46,8 +46,6 @@ export class FilesApi {
         router,
       );
 
-      if (response.status === 401) return;
-
       if (!response.ok) {
         throw new Error(`Upload failed with status ${response.status}`);
       }
@@ -81,8 +79,6 @@ export class FilesApi {
         },
         router,
       );
-
-      if (response.status === 401) return;
 
       if (!response.ok) {
         throw new Error(`Delete failed with status ${response.status}`);
