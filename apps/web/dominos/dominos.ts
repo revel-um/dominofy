@@ -33,6 +33,7 @@ import { SiGoogledrive, SiShopify, SiSlack } from "react-icons/si";
 export type DominoCatalogEntry = {
   id: string;
   label: string;
+  description: string;
   icon: ComponentType<{ className?: string; style?: CSSProperties }>;
   categories: string[];
   badgeStyle: CSSProperties;
@@ -43,6 +44,7 @@ export default [
   {
     id: "llm",
     label: "AI",
+    description: "Run a prompt through an AI language model",
     icon: BrainCircuit,
     categories: ["AI"],
     badgeStyle: {
@@ -54,6 +56,7 @@ export default [
   {
     id: "response",
     label: "Response",
+    description: "Return the final output of the pipeline",
     icon: CheckCheck,
     categories: ["Output"],
     badgeStyle: {
@@ -64,6 +67,7 @@ export default [
   {
     id: "SchedulerDomino",
     label: "Scheduler",
+    description: "Trigger the pipeline on a recurring schedule",
     icon: CalendarClock,
     categories: ["Trigger"],
     badgeStyle: {
@@ -74,6 +78,7 @@ export default [
   {
     id: "emailtrigger",
     label: "Email Trigger",
+    description: "Start the pipeline when an email is received",
     icon: Mail,
     categories: ["Trigger", "Email"],
     badgeStyle: {
@@ -84,6 +89,7 @@ export default [
   {
     id: "emailsender",
     label: "Email Action",
+    description: "Send an email to one or more recipients",
     icon: Mail,
     categories: ["Action", "Email"],
     badgeStyle: {
@@ -94,6 +100,7 @@ export default [
   {
     id: "csvwriter",
     label: "CSV Writer",
+    description: "Export data as a CSV file",
     icon: FileSpreadsheet,
     categories: ["Output"],
     badgeStyle: {
@@ -104,6 +111,7 @@ export default [
   {
     id: "print",
     label: "Print",
+    description: "Log a value to the console or output",
     icon: Printer,
     categories: ["Output"],
     badgeStyle: {
@@ -114,6 +122,7 @@ export default [
   {
     id: "apicall",
     label: "API Call",
+    description: "Make an HTTP request to an external API",
     icon: Webhook,
     categories: ["Action"],
     badgeStyle: {
@@ -124,6 +133,7 @@ export default [
   {
     id: "apitrigger",
     label: "API Trigger",
+    description: "Start the pipeline via an incoming webhook",
     icon: WandSparkles,
     categories: ["Trigger"],
     badgeStyle: {
@@ -134,6 +144,7 @@ export default [
   {
     id: "readexcel",
     label: "Read File",
+    description: "Read and parse an Excel or CSV file",
     icon: FiFileText,
     categories: ["Input"],
     badgeStyle: {
@@ -144,6 +155,7 @@ export default [
   {
     id: "googleDrive",
     label: "Google Drive",
+    description: "Upload or manage files in Google Drive",
     icon: SiGoogledrive,
     categories: ["Action", "Storage"],
     badgeStyle: { background: "#ffffff", border: "1px solid #e2e8f0" },
@@ -152,6 +164,7 @@ export default [
   {
     id: "googleDriveDownload",
     label: "Google Drive Download",
+    description: "Download a file from Google Drive",
     icon: CloudDownload,
     categories: ["Action", "Storage"],
     badgeStyle: {
@@ -162,6 +175,7 @@ export default [
   {
     id: "storage",
     label: "Database",
+    description: "Insert or update records in a database",
     icon: Database,
     categories: ["Action", "Storage"],
     badgeStyle: {
@@ -172,6 +186,7 @@ export default [
   {
     id: "storageRetrieve",
     label: "Database Retrieval",
+    description: "Query and retrieve records from a database",
     icon: Database,
     categories: ["Input", "Storage"],
     badgeStyle: {
@@ -182,6 +197,7 @@ export default [
   {
     id: "condition",
     label: "Condition",
+    description: "Branch the flow based on a true/false check",
     icon: FileQuestion,
     categories: ["Logic"],
     badgeStyle: {
@@ -192,6 +208,7 @@ export default [
   {
     id: "switchcase",
     label: "Switch",
+    description: "Route flow to one of many branches by value",
     icon: ToggleLeftIcon,
     categories: ["Logic"],
     badgeStyle: {
@@ -202,6 +219,7 @@ export default [
   {
     id: "arithmetic",
     label: "Arithmetic",
+    description: "Perform math operations on numeric values",
     icon: Calculator,
     categories: ["Logic"],
     badgeStyle: {
@@ -212,6 +230,7 @@ export default [
   {
     id: "jointext",
     label: "Join Text",
+    description: "Concatenate multiple strings into one",
     icon: Combine,
     categories: ["Data Transformation"],
     badgeStyle: {
@@ -222,6 +241,7 @@ export default [
   {
     id: "deconstructor",
     label: "De-Construct",
+    description: "Break an object into individual fields",
     icon: BoomBox,
     categories: ["Data Transformation"],
     badgeStyle: {
@@ -232,6 +252,7 @@ export default [
   {
     id: "iterator",
     label: "Iterator",
+    description: "Loop over each item in a list",
     icon: Workflow,
     categories: ["Data Transformation"],
     badgeStyle: {
@@ -242,6 +263,7 @@ export default [
   {
     id: "aggregator",
     label: "Aggregator",
+    description: "Collect and combine items from an iterator",
     icon: FolderSync,
     categories: ["Data Transformation"],
     badgeStyle: {
@@ -252,6 +274,7 @@ export default [
   {
     id: "filter",
     label: "Filter",
+    description: "Keep only items that match a condition",
     icon: FilterIcon,
     categories: ["Data Transformation"],
     badgeStyle: {
@@ -262,6 +285,7 @@ export default [
   {
     id: "sqlRunner",
     label: "SQL Runner",
+    description: "Execute a raw SQL query on a database",
     icon: ScanSearch,
     categories: ["Action"],
     badgeStyle: {
@@ -272,6 +296,7 @@ export default [
   {
     id: "codeRunner",
     label: "Custom Code",
+    description: "Run arbitrary JavaScript in the pipeline",
     icon: Code2,
     categories: ["Action"],
     badgeStyle: {
@@ -282,6 +307,7 @@ export default [
   {
     id: "delay",
     label: "Delay",
+    description: "Pause execution for a set amount of time",
     icon: TimerReset,
     categories: ["Logic"],
     badgeStyle: {
@@ -292,6 +318,7 @@ export default [
   {
     id: "mapper",
     label: "Mapper",
+    description: "Transform data fields from one shape to another",
     icon: GitBranch,
     categories: ["Data Transformation"],
     badgeStyle: {
@@ -302,6 +329,7 @@ export default [
   {
     id: "slacktrigger",
     label: "Slack Trigger",
+    description: "Start the pipeline from a Slack event",
     icon: SiSlack,
     categories: ["Trigger", "Slack"],
     badgeStyle: { background: "#4A154B" },
@@ -310,6 +338,7 @@ export default [
   {
     id: "slackaction",
     label: "Slack Action",
+    description: "Send a message or action to a Slack channel",
     icon: SiSlack,
     categories: ["Action", "Slack"],
     badgeStyle: { background: "#611f69" },
@@ -318,6 +347,7 @@ export default [
   {
     id: "connector",
     label: "Connector/Merger",
+    description: "Merge multiple branches into a single flow",
     icon: Plug,
     categories: ["Logic"],
     badgeStyle: {
@@ -328,6 +358,7 @@ export default [
   {
     id: "shopify",
     label: "Shopify",
+    description: "Interact with Shopify orders and products",
     icon: SiShopify,
     categories: ["Shopify"],
     badgeStyle: { background: "#95BF47" },
@@ -336,6 +367,7 @@ export default [
   {
     id: "note",
     label: "Note",
+    description: "Add a comment or annotation to the canvas",
     icon: FiFileText,
     categories: ["Utility"],
     badgeStyle: {

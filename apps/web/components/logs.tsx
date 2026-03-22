@@ -99,12 +99,30 @@ function upsertRunAggregate(
 
   const seqEntries = normalizePrintSeqEntries(log.output);
   if (seqEntries.length > 0) {
+    if (
+      current.fallbackMessages.length === 1 &&
+      current.fallbackMessages[0] === 'null'
+    ) {
+      current.fallbackMessages = [];
+    }
     for (const entry of seqEntries) {
       current.seqMap.set(entry.seq, stringifyLogValue(entry.output));
     }
   } else if (log.error?.message) {
+    if (
+      current.fallbackMessages.length === 1 &&
+      current.fallbackMessages[0] === 'null'
+    ) {
+      current.fallbackMessages = [];
+    }
     current.fallbackMessages.push(log.error.message);
   } else if (log.output !== undefined) {
+    if (
+      current.fallbackMessages.length === 1 &&
+      current.fallbackMessages[0] === 'null'
+    ) {
+      current.fallbackMessages = [];
+    }
     current.fallbackMessages.push(stringifyLogValue(log.output));
   }
 

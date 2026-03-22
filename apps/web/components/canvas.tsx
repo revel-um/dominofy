@@ -20,9 +20,11 @@ import ReactFlow, {
   Position,
   type NodeProps,
   useUpdateNodeInternals,
+  useEdges,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { FiBox } from "react-icons/fi";
+import { ArrowRight } from "lucide-react";
 
 /* domino components … */
 import PrintDomino from "../dominos/print";
@@ -121,16 +123,22 @@ function CompactDominoNode(
   const hasError = erroredNodes.includes(id);
   const meta = dominoMetaByType.get(compactType);
   const category = meta?.categories?.[0] ?? "Domino";
+  const description = meta?.description ?? "";
   const label =
     meta?.label ||
     (data as any)?.details?.type ||
     (data as any)?.label ||
     compactType;
 
+  const edges = useEdges();
+  const isConnected = edges.some((e) => e.source === id || e.target === id);
+  const Icon = meta?.icon ?? FiBox;
+  const accentColor = meta?.badgeStyle?.background
+    ? (meta.badgeStyle.background as string).match(/#[0-9a-fA-F]{6}/)?.[0]
+    : undefined;
+
   return (
-    <div
-      className="relative h-16 min-w-[8.5rem] w-max max-w-none"
-    >
+    <div className="relative w-full min-w-[10rem] max-w-[14rem]">
       <Handle
         type="target"
         position={Position.Left}
@@ -161,29 +169,44 @@ function CompactDominoNode(
       />
 
       <div
-        className={`dominofy-compact-node flex h-full w-full items-center justify-start rounded-[1.25rem] border px-3 transition-all duration-150
+        className={`group/node relative w-full overflow-hidden rounded-xl border bg-dominofy-light-panel/95 dark:bg-dominofy-dark-panel/95 p-3 backdrop-blur transition-all hover:shadow-lg
           ${hasError
             ? 'error-border'
             : selected
-              ? 'selected-border border-4'
-              : 'unselected-border dark:border-gray-600'}
-          bg-dominofy-light-panel/95 dark:bg-dominofy-dark-panel/95`}
+              ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+              : 'unselected-border dark:border-gray-600'}`}
+        style={!hasError && !selected && accentColor ? { borderColor: accentColor } : undefined}
+        role="article"
+        aria-label={`${category} node: ${label}`}
       >
-        <div className="flex min-w-0 w-full items-center gap-3">
-          {meta ? (
-            <DominoCatalogIcon domino={meta} badgeClassName="h-8 w-8 rounded-xl shadow-none" iconClassName="h-4 w-4" />
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
-              <FiBox className="h-4 w-4" />
+        <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+        <div className="relative space-y-2">
+          <div className="flex items-center gap-2">
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border backdrop-blur"
+              style={accentColor ? { borderColor: accentColor, backgroundColor: `${accentColor}22` } : undefined}
+              aria-hidden="true"
+            >
+              <Icon className="h-4 w-4" style={accentColor ? { color: accentColor } : meta?.iconStyle} />
             </div>
+            <div className="min-w-0 flex-1 leading-none">
+              <h3 className="truncate text-xs font-semibold tracking-tight text-foreground">
+                {label}
+              </h3>
+              <p className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                {category}
+              </p>
+            </div>
+          </div>
+
+          {description && (
+            <p className="truncate text-[10px] leading-relaxed text-foreground/60">{description}</p>
           )}
-          <div className="flex min-w-0 flex-1 flex-col items-start justify-center text-left leading-none">
-            <span className="w-full truncate text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-              {label}
-            </span>
-            <span className="mt-1 w-full truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-              {category}
-            </span>
+
+          <div className="flex items-center gap-1.5 text-[10px] text-foreground/50">
+            <ArrowRight className="h-2.5 w-2.5" aria-hidden="true" />
+            <span className="uppercase tracking-[0.1em]">{isConnected ? "Connected" : "No connections"}</span>
           </div>
         </div>
       </div>
@@ -505,7 +528,6 @@ export default function Canvas(props: CanvasProps) {
             ...edge.style,
             stroke: '#64748b',
             strokeWidth: 2.5,
-            strokeDasharray: '6 6',
             opacity: 0.6,
           },
         });
@@ -534,7 +556,6 @@ export default function Canvas(props: CanvasProps) {
               ...edge.style,
               stroke: sourceExpanded || targetExpanded ? '#475569' : '#64748b',
               strokeWidth: sourceExpanded || targetExpanded ? 2.75 : 2.25,
-              strokeDasharray: sourceExpanded || targetExpanded ? undefined : '6 6',
               opacity: sourceExpanded || targetExpanded ? 0.9 : 0.65,
             },
           });
@@ -554,7 +575,6 @@ export default function Canvas(props: CanvasProps) {
               ...edge.style,
               stroke: '#64748b',
               strokeWidth: 2.25,
-              strokeDasharray: '6 6',
               opacity: 0.65,
             },
           });
@@ -583,7 +603,6 @@ export default function Canvas(props: CanvasProps) {
             ...edge.style,
             stroke: '#64748b',
             strokeWidth: 2.25,
-            strokeDasharray: '6 6',
             opacity: 0.65,
           },
         });
