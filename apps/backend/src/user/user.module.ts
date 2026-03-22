@@ -6,10 +6,11 @@ import { User } from './user.entity';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
 import { ProjectsModule } from 'src/projects/projects.module';
 import { WorkspaceModule } from 'src/workspace/workspace.module';
+import { RefreshToken } from 'src/auth/refresh-token.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, RefreshToken]),
     ProjectsModule,
     WorkspaceModule,
   ],

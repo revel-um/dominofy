@@ -96,14 +96,29 @@ export default function DominofyDashboard() {
 
     useEffect(() => {
         if (status === "loading") return;
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        const storedActive = typeof window !== "undefined" ? localStorage.getItem("dominofy-last-active-tab") : null;
-        setLastActiveWorkflowId(storedActive || null);
-        if (!token && status === "unauthenticated") {
-            router.replace("/auth");
-            return;
-        }
-        setBooting(false);
+
+        let active = true;
+
+        const bootstrapAuth = async () => {
+            const token = await TokenManager.getValidAccessToken();
+            if (!active) return;
+
+            const storedActive = typeof window !== "undefined" ? localStorage.getItem("dominofy-last-active-tab") : null;
+            setLastActiveWorkflowId(storedActive || null);
+
+            if (!token && status === "unauthenticated") {
+                router.replace("/auth");
+                return;
+            }
+
+            setBooting(false);
+        };
+
+        bootstrapAuth();
+
+        return () => {
+            active = false;
+        };
     }, [status, router]);
 
 
@@ -168,12 +183,11 @@ export default function DominofyDashboard() {
     const fetchProjects = async () => {
         // Wait until NextAuth resolves the session (undefined means pending in v5)
         if (booting || session === undefined) return;
-        const token = localStorage.getItem("token");
-        let currentToken = token;
+        let currentToken = await TokenManager.getValidAccessToken();
         // If user is unauthenticated via NextAuth and also no backend token, redirect to /auth
-        if (!token && status === "unauthenticated") return router.replace("/auth");
+        if (!currentToken && status === "unauthenticated") return router.replace("/auth");
         // If authenticated via NextAuth but backend token is missing, try exchanging for a backend token
-        if (!token && status === "authenticated") {
+        if (!currentToken && status === "authenticated") {
             setIsExchanging(true);
             try {
                 const resp = await fetch('/api/auth/exchange', { method: 'POST' });
@@ -207,7 +221,7 @@ export default function DominofyDashboard() {
             }
         }
         // If authenticated via NextAuth but no backend token, use NextAuth session for user card
-        if (!token && status === "authenticated") {
+        if (!currentToken && status === "authenticated") {
             if (session?.user) {
                 setUser({ name: session.user.name || "", email: session.user.email || "" });
             }
@@ -523,7 +537,7 @@ export default function DominofyDashboard() {
     }, [page, limit, query, status, session, booting, lastActiveWorkflowId]);
 
     const createProject = async (name: string, description?: string) => {
-        const token = localStorage.getItem("token");
+        const token = await TokenManager.getValidAccessToken();
         if (!token && status === "unauthenticated") return router.push("/auth");
         if (!token && status === "authenticated") {
             toast.error("You're signed in, but no backend token was found. Please link your account or log in via email/password.");

@@ -1,17 +1,13 @@
 import { useState, useEffect } from 'react';
-import Head from 'next/head';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { signIn, useSession, signOut } from 'next-auth/react';
 import axios from 'axios';
 import { OAuthButtons } from '../components/auth/OAuthButtons';
-import { FcGoogle } from 'react-icons/fc';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { TokenManager } from '../utils/auth';
 
 export default function AuthPage() {
   const router = useRouter();
-  const { status } = useSession();
   const [isSignup, setIsSignup] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -21,23 +17,35 @@ export default function AuthPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    // Only auto-redirect when a backend token exists; do not auto-redirect just because NextAuth has a session
-    if (token) {
-      router.push('/dashboard');
-    } else {
-      setCheckingAuth(false);
-    }
+    let active = true;
 
-    // Check for OAuth errors in URL
-    const { error } = router.query;
-    if (error) {
-      let errorMessage = 'Authentication failed';
-      if (typeof error === 'string') {
-        errorMessage = decodeURIComponent(error);
+    const bootstrapAuth = async () => {
+      const token = await TokenManager.getValidAccessToken();
+      if (!active) return;
+
+      // Only auto-redirect when a backend token exists; do not auto-redirect just because NextAuth has a session
+      if (token) {
+        router.push('/dashboard');
+      } else {
+        setCheckingAuth(false);
       }
-      toast.error(errorMessage);
-    }
+
+      // Check for OAuth errors in URL
+      const { error } = router.query;
+      if (error) {
+        let errorMessage = 'Authentication failed';
+        if (typeof error === 'string') {
+          errorMessage = decodeURIComponent(error);
+        }
+        toast.error(errorMessage);
+      }
+    };
+
+    bootstrapAuth();
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   if (checkingAuth) {
@@ -46,7 +54,7 @@ export default function AuthPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (localStorage.getItem('token')) {
+    if (await TokenManager.getValidAccessToken()) {
       router.push('/dashboard');
       return;
     }
@@ -73,7 +81,10 @@ export default function AuthPage() {
       }
 
       const data = resp.data;
-      if (data.token) {
+      if (data?.accessToken && data?.refreshToken) {
+        TokenManager.setTokens(data.accessToken, data.refreshToken);
+        router.push('/dashboard');
+      } else if (data?.token) {
         localStorage.setItem('token', data.token);
         router.push('/dashboard');
       } else {

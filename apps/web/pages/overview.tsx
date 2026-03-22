@@ -203,7 +203,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
   useEffect(() => {
     const fetchGlobalOverview = async () => {
       try {
-        let token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+        let token = await TokenManager.getValidAccessToken();
         if (!token && status === "unauthenticated") return router.push("/auth");
         if (!token && status === "authenticated") {
           try {
@@ -253,7 +253,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
     const fetchList = async () => {
       try {
         setListLoading(true);
-        let token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+        let token = await TokenManager.getValidAccessToken();
         if (!token && status === "unauthenticated") return;
         if (!token && status === "authenticated") {
           try {

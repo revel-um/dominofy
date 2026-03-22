@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import DominofyLayout from "./dominofy/[id]";
 import { ProjectsApi } from "../apis/projects.apis";
 import { WorkflowsApi } from "../apis/workflow.apis";
+import { TokenManager } from "../utils/auth";
 
 export default function Dominofy() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function Dominofy() {
         setLoading(true);
         setError(null);
         
-        const token = localStorage.getItem('token');
+        const token = await TokenManager.getValidAccessToken();
         if (!token) {
           router.push('/auth');
           return;
@@ -59,7 +60,7 @@ export default function Dominofy() {
         }
 
         setCurrWorkflow(workflowData);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error loading workflow:', err);
         setError(err.message);
         // Optionally redirect to error page or dashboard

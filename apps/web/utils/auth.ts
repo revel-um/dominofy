@@ -58,7 +58,7 @@ class TokenManager {
 
   static getAccessToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(this.ACCESS_TOKEN_KEY);
+    return localStorage.getItem(this.ACCESS_TOKEN_KEY) || localStorage.getItem("token");
   }
 
   static getRefreshToken(): string | null {
@@ -188,11 +188,13 @@ class TokenManager {
 
   static async getValidAccessToken(): Promise<string | null> {
     let token = this.getAccessToken();
-    
-    if (!token) return null;
+
+    if (!token) {
+      token = await this.refreshAccessToken();
+    }
 
     // If token is expired, try to refresh
-    if (this.isTokenExpired()) {
+    if (token && this.isTokenExpired()) {
       token = await this.refreshAccessToken();
     }
 

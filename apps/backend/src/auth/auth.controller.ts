@@ -70,7 +70,7 @@ export class AuthController {
     );
 
     // Generate new refresh token (token rotation)
-    const newRefreshToken = await this.refreshTokenService.generateRefreshToken(Number(refreshToken.user.id));
+    const newRefreshToken = await this.refreshTokenService.generateRefreshToken(refreshToken.user.id);
 
     // Revoke the old refresh token
     await this.refreshTokenService.revokeToken(tokenString, newRefreshToken.token);

@@ -293,6 +293,8 @@ interface CanvasProps {
   
   /* NEW: viewport change callback for template carousel */
   onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;
+  allowReadonlyPanning?: boolean;
+  allowReadonlyPanOnScroll?: boolean;
 }
 
 /* ─────────────────────────  COMPONENT  ───────────────────────── */
@@ -311,6 +313,8 @@ export default function Canvas(props: CanvasProps) {
     isExpandedMode = true,
     onToggleExpandedMode,
     onViewportChange,
+    allowReadonlyPanning,
+    allowReadonlyPanOnScroll,
   } = props;
 
   const router = useRouter();
@@ -1390,7 +1394,8 @@ export default function Canvas(props: CanvasProps) {
 
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   const isDominofyCanvas = id === 'dominofy';
-  const allowReadonlyPanning = readonly && id.includes('dashboard');
+  const canPanReadonly = allowReadonlyPanning ?? (readonly && id.includes('dashboard'));
+  const canPanReadonlyOnScroll = allowReadonlyPanOnScroll ?? false;
   const canvasClassName = `absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none ${!isDominofyCanvas ? 'locked-canvas' : ''}`;
 
   return (
@@ -1424,8 +1429,9 @@ export default function Canvas(props: CanvasProps) {
           nodesDraggable={!readonly && isSelectionMode}
           nodesConnectable={!readonly && isExpandedMode && isSelectionMode}
           elementsSelectable={!readonly && !isLockedMode && !isHandMode}
-          panOnDrag={allowReadonlyPanning || (!readonly && isHandMode)}
-          panOnScroll={allowReadonlyPanning || !readonly}
+          panOnDrag={canPanReadonly || (!readonly && isHandMode)}
+          panOnScroll={canPanReadonlyOnScroll || !readonly}
+          preventScrolling={!readonly}
           zoomOnScroll={false}
 
           /* ✅ MULTI-SELECT via rectangle (hold Shift) */
