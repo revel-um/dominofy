@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Canvas from "../../components/canvas";
 import DominosPanel from "../../components/dominosPanel";
 import DetailsPanel from "../../components/detailsPanel";
@@ -23,6 +24,7 @@ import { importWorkflow } from "../../helpers/workflowManager";
 import { SSEProvider } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
 import WorkflowToolbar from "@/components/workflowToolbar";
+import { FiGitBranch, FiPlus } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -34,6 +36,8 @@ const TABS_STORAGE_KEY_PREFIX = "dominofy-tabs";
 const LAST_ACTIVE_TAB_KEY_PREFIX = "dominofy-last-active-tab";
 const LEGACY_LAST_ACTIVE_TAB_KEY = "dominofy-last-active-tab";
 const CANVAS_MODE_STORAGE_KEY_PREFIX = "dominofy-canvas-mode";
+const TOOLBAR_HEIGHT = 56;
+const EMPTY_WORKFLOW_NAME = "Untitled workflow";
 
 interface Props {
   currWorkflow?: {
@@ -87,6 +91,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [canvasLoading, setCanvasLoading] = useState(false);
   const [logsMinimized, setLogsMinimized] = useState(true);
   const openLogsPanel = () => setLogsMinimized(false);
+  const [isSubmittingWorkflowCreate, setIsSubmittingWorkflowCreate] = useState(false);
 
   // @ts-ignore - TODO: Implement logging functionality
   const addLog = useCallback((message: string, type: 'log' | 'info' | 'warn' | 'error' | 'success' = 'log', source?: string) => {
@@ -216,6 +221,13 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [_setNodes, _setEdges, updatePipeline]);
 
   const selectedNode = nodes.find(n => n.selected);
+  const isProjectContext = Boolean(
+    (router.query.projectId as string | undefined) ||
+    project?.id ||
+    workflow?.project?.id
+  );
+  const hasNoProjectWorkflows = isProjectContext && !loading && projectWorkflows.length === 0;
+  const showCreateWorkflowEmptyState = hasNoProjectWorkflows;
 
   // ──────────────────────────────
   // ⭐ TABS: simple tab meta state
@@ -866,23 +878,95 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   const handleWorkflowDeleted = useCallback(
     (id: string) => {
-      setTabs(prev => {
-        const filtered = prev.filter(t => t.id !== id);
-        if (!filtered.length) {
-          setActiveTabId(null);
-        } else if (activeTabId === id) {
-          const fallback = filtered[filtered.length - 1];
-          setActiveTabId(fallback.id);
-          if (fallback.id !== id) {
-            switchToWorkflow(fallback.id);
-          }
-        }
-        return filtered;
-      });
-      setProjectWorkflows(prev => prev.filter(w => w.id !== id));
+      const remainingTabs = tabs.filter(t => t.id !== id);
+      const remainingWorkflows = projectWorkflows.filter(w => w.id !== id);
+
+      setTabs(remainingTabs);
+      setProjectWorkflows(remainingWorkflows);
+
+      if (!remainingTabs.length || !remainingWorkflows.length) {
+        setActiveTabId(null);
+        setWorkflow(undefined);
+        setWorkflowId(undefined);
+        _setNodes([]);
+        _setEdges([]);
+        undoStack.current = [];
+        redoStack.current = [];
+        setCanUndo(false);
+        setCanRedo(false);
+        setHasUnsavedChanges(false);
+        hasHydratedRef.current = false;
+        isRestoring.current = false;
+        setCanvasLoading(false);
+        return;
+      }
+
+      if (activeTabId === id) {
+        const fallback = remainingTabs[remainingTabs.length - 1];
+        setActiveTabId(fallback.id);
+        switchToWorkflow(fallback.id);
+      }
     },
-    [activeTabId, switchToWorkflow]
+    [activeTabId, projectWorkflows, switchToWorkflow, tabs, _setEdges, _setNodes]
   );
+
+  const createWorkflowInline = useCallback(async (workflowName = EMPTY_WORKFLOW_NAME) => {
+    const trimmed = workflowName.trim();
+    if (!trimmed || isSubmittingWorkflowCreate) return;
+
+    const projectId =
+      (router.query.projectId as string | undefined) ||
+      project?.id ||
+      workflow?.project?.id;
+    if (!projectId) {
+      toast.error('Unable to create workflow without a project.');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/auth');
+      return;
+    }
+
+    setIsSubmittingWorkflowCreate(true);
+    try {
+      const response = await WorkflowsApi.createWorkflow(trimmed, projectId, token, router);
+      if (!response?.ok) {
+        throw new Error('Failed to create workflow');
+      }
+
+      const createdWorkflow = await response.json();
+      const normalizedWorkflow = {
+        ...createdWorkflow,
+        visualJson:
+          createdWorkflow?.visualJson &&
+          Array.isArray(createdWorkflow.visualJson.nodes) &&
+          Array.isArray(createdWorkflow.visualJson.edges)
+            ? createdWorkflow.visualJson
+            : { nodes: [], edges: [] },
+      };
+
+      setProjectWorkflows(prev => [normalizedWorkflow, ...prev]);
+      setTabs([{ id: normalizedWorkflow.id, name: normalizedWorkflow.name }]);
+      setActiveTabId(normalizedWorkflow.id);
+      setWorkflow(normalizedWorkflow);
+      setWorkflowId(normalizedWorkflow.id);
+      updateCanvasMode(getStoredCanvasMode(normalizedWorkflow.id), normalizedWorkflow.id);
+    } catch (err) {
+      console.error('Failed to create workflow:', err);
+      toast.error('Failed to create workflow.');
+    } finally {
+      setIsSubmittingWorkflowCreate(false);
+    }
+  }, [
+    isSubmittingWorkflowCreate,
+    router,
+    project?.id,
+    workflow?.project?.id,
+    updateCanvasMode,
+    getStoredCanvasMode,
+  ]);
 
 
   const handleSelectTab = useCallback((id: string) => {
@@ -989,7 +1073,23 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         return;
       }
       
-      // If no workflow provided, we can't proceed
+      const targetProjectId = router.query.projectId as string | undefined;
+      if (targetProjectId) {
+        try {
+          const token = localStorage.getItem('token');
+          if (token) {
+            const response = await ProjectsApi.getProjectDetailsWithWorkflows(targetProjectId, token, router);
+            if (response?.ok) {
+              const data = await response.json();
+              setProject(data.project);
+              setProjectWorkflows(data.workflows || []);
+            }
+          }
+        } catch (err) {
+          console.error('Error loading empty project details:', err);
+        }
+      }
+
       setLoading(false);
       setCanvasLoading(false);
     };
@@ -1008,15 +1108,32 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         <div className="w-screen h-screen flex flex-col pt-14 bg-dominofy-light-background dark:bg-dominofy-dark-background text-dominofy-light-text dark:text-dominofy-dark-text">
 
           {/* Global toolbar */}
-          <WorkflowToolbar
-            setWorkflow={setWorkflow}
-            workflow={workflow!}
-            project={project}
-            getNodes={() => nodes}
-            getEdges={() => edges}
-            openLogsPanel={openLogsPanel}
-            onWorkflowSaved={(latestNodes, latestEdges) => markWorkflowClean(latestNodes, latestEdges, workflow?.id)}
-          />
+          {showCreateWorkflowEmptyState ? (
+            <header
+              className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between whitespace-nowrap px-6 py-3 bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-b border-[#b0b3b8] dark:border-[#44474a]"
+              style={{ height: TOOLBAR_HEIGHT }}
+            >
+              <div className="flex items-center gap-3">
+                <Image src="/dominofy.png" alt="Dominofy" width={24} height={24} className="h-6 w-6" />
+                <h1 className="text-xl font-bold">Dominofy</h1>
+              </div>
+              <div className="absolute left-1/2 -translate-x-1/2">
+                <h2 className="text-lg font-medium text-white truncate max-w-[26vw]">
+                  {project?.name || workflow?.project?.name || 'Untitled Project'}
+                </h2>
+              </div>
+            </header>
+          ) : (
+            <WorkflowToolbar
+              setWorkflow={setWorkflow}
+              workflow={workflow!}
+              project={project}
+              getNodes={() => nodes}
+              getEdges={() => edges}
+              openLogsPanel={openLogsPanel}
+              onWorkflowSaved={(latestNodes, latestEdges) => markWorkflowClean(latestNodes, latestEdges, workflow?.id)}
+            />
+          )}
 
           <div className="flex-1 flex overflow-hidden">
             {/* Sidebar */}
@@ -1051,30 +1168,57 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               />
               <ReactFlowProvider>
                 <div className="flex-1 relative">
-                  {/* Canvas with smooth fade transition */}
-                  <div className={`absolute inset-0 transition-all duration-300 ease-in-out ${
-                    canvasLoading ? 'opacity-60 scale-[0.98]' : 'opacity-100 scale-100'
-                  }`}>
-                    <Canvas
-                      id="dominofy"
-                      nodes={nodes}
-                      setNodes={setNodes}                 // wrapped setter (records history)
-                      onNodesChange={onNodesChange}       // wrapped handler (records history)
-                      edges={edges}
-                      setEdges={setEdges}                 // wrapped setter (records history)
-                      onEdgesChange={onEdgesChange}       // wrapped handler (records history)
-                      workflowId={workflowId!}
-                      onUndo={undo}
-                      onRedo={redo}
-                      canUndo={canUndo}
-                      canRedo={canRedo}
-                      noteToolActive={noteToolActive}
-                      onStartInsertNote={() => setNoteToolActive(true)}
-                      onCancelInsertNote={() => setNoteToolActive(false)}
-                      isExpandedMode={isCanvasExpanded}
-                      onToggleExpandedMode={() => updateCanvasMode(!isCanvasExpanded, workflowId)}
-                    />
-                  </div>
+                  {showCreateWorkflowEmptyState ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-dominofy-light-background dark:bg-dominofy-dark-background px-6">
+                      <div className="mx-auto flex min-h-[280px] w-full max-w-xl flex-col items-center justify-center px-6 py-12 text-center">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-600 shadow-sm dark:bg-white/10 dark:text-slate-200">
+                          <FiGitBranch className="h-6 w-6" />
+                        </div>
+                        <h3 className="mt-5 text-lg font-semibold text-slate-950 dark:text-white">
+                          Create your first workflow
+                        </h3>
+                        <p className="mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
+                          This project has no workflows left. Create a new one to start building on the canvas again.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void createWorkflowInline()}
+                          disabled={isSubmittingWorkflowCreate}
+                          className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                        >
+                          <FiPlus className="h-4 w-4" />
+                          {isSubmittingWorkflowCreate ? 'Creating...' : 'Create workflow'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Canvas with smooth fade transition */}
+                      <div className={`absolute inset-0 transition-all duration-300 ease-in-out ${
+                        canvasLoading ? 'opacity-60 scale-[0.98]' : 'opacity-100 scale-100'
+                      }`}>
+                        <Canvas
+                          id="dominofy"
+                          nodes={nodes}
+                          setNodes={setNodes}                 // wrapped setter (records history)
+                          onNodesChange={onNodesChange}       // wrapped handler (records history)
+                          edges={edges}
+                          setEdges={setEdges}                 // wrapped setter (records history)
+                          onEdgesChange={onEdgesChange}       // wrapped handler (records history)
+                          workflowId={workflowId!}
+                          onUndo={undo}
+                          onRedo={redo}
+                          canUndo={canUndo}
+                          canRedo={canRedo}
+                          noteToolActive={noteToolActive}
+                          onStartInsertNote={() => setNoteToolActive(true)}
+                          onCancelInsertNote={() => setNoteToolActive(false)}
+                          isExpandedMode={isCanvasExpanded}
+                          onToggleExpandedMode={() => updateCanvasMode(!isCanvasExpanded, workflowId)}
+                        />
+                      </div>
+                    </>
+                  )}
                   
                   {/* Smooth loading overlay with slide-in animation */}
                   <div className={`absolute inset-0 flex items-center justify-center z-50 transition-all duration-300 ease-in-out ${
@@ -1094,28 +1238,32 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                 </div>
 
                 {/* details drawer now starts below toolbar */}
-                <DetailsPanel
-                  selectedNode={selectedNode}
-                  getNodes={() => nodes}
-                  getEdges={() => edges}
-                  setNodes={setNodes}                 // wrapped setter so edits are recorded
-                  setEdges={setEdges}                 // wrapped setter so edits are recorded
-                  workflowId={workflowId}
-                  updatePipeline={updatePipeline}
-                  onWidthChange={setPanelWidth}
-                />
+                {!showCreateWorkflowEmptyState && (
+                  <DetailsPanel
+                    selectedNode={selectedNode}
+                    getNodes={() => nodes}
+                    getEdges={() => edges}
+                    setNodes={setNodes}                 // wrapped setter so edits are recorded
+                    setEdges={setEdges}                 // wrapped setter so edits are recorded
+                    workflowId={workflowId}
+                    updatePipeline={updatePipeline}
+                    onWidthChange={setPanelWidth}
+                  />
+                )}
               </ReactFlowProvider>
 
               {/* Logs panel … */}
-              <LogsPanel
-                workflowId={workflowId!}
-                openWorkflowIds={tabs.map((t) => t.id)}
-                className="absolute bottom-0 left-0 right-0 z-10 border-t border-gray-200 dark:border-gray-700"
-                collapsedHeight={collapsedHeight}
-                defaultHeight={defaultLogsHeight}
-                isMinimized={logsMinimized}
-                setIsMinimized={setLogsMinimized}
-              />
+              {!showCreateWorkflowEmptyState && workflowId && (
+                <LogsPanel
+                  workflowId={workflowId!}
+                  openWorkflowIds={tabs.map((t) => t.id)}
+                  className="absolute bottom-0 left-0 right-0 z-10 border-t border-gray-200 dark:border-gray-700"
+                  collapsedHeight={collapsedHeight}
+                  defaultHeight={defaultLogsHeight}
+                  isMinimized={logsMinimized}
+                  setIsMinimized={setLogsMinimized}
+                />
+              )}
             </div>
           </div>
         </div>

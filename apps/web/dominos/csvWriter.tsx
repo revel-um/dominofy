@@ -72,17 +72,17 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
     return map;
   }, [data?.details?.fields]);
 
-  // Check if the File Name value_in pin is connected (pin id MUST be 'value_in')
+  // Check if the File Name value_in_1 pin is connected
   const isFileNameConnected = useMemo(() => {
     if (typeof (data as any)?.isHandleConnected === 'function') {
       try {
-        return (data as any).isHandleConnected(id, 'value_in');
+        return (data as any).isHandleConnected(id, 'value_in_1');
       } catch {
         /* fall through to edges */
       }
     }
     return edges.some(
-      (e) => e?.target === id && e?.targetHandle === 'value_in'
+      (e) => e?.target === id && e?.targetHandle === 'value_in_1'
     );
   }, [edges, data, id]);
 
@@ -103,7 +103,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
   const sanitizeDelimiter = (v: string) => (v === '\\t' ? '\t' : v);
 
   /* Build details.fields to sync (no UI coupling here).
-     IMPORTANT: “File Name” must use inPinId = 'value_in' to match actual connections. */
+     Pin numbering is contiguous because this domino exposes multiple value_in handles. */
   const computedFields = useMemo(() => {
     const isText = config.inputType === 'text';
     const isJSON = config.inputType === 'json';
@@ -126,7 +126,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
           { label: 'JSON (array of objects)', value: 'json' },
           { label: 'Text (rows/columns)', value: 'text' },
         ],
-        inPinId: 'value_in_1',
+        inPinId: 'value_in',
         required: true,
         shouldRender: true,
       },
@@ -134,7 +134,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         type: 'text',
         heading: 'File Name',
         value: config.fileName,
-        inPinId: 'value_in', // ← FIXED: this must be 'value_in' to preserve connections
+        inPinId: 'value_in_1',
         required: true,
         shouldRender: true,
       },
@@ -142,7 +142,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         type: 'checkbox',
         heading: 'Include Header',
         value: config.includeHeader,
-        inPinId: 'value_in_3',
+        inPinId: 'value_in_2',
         required: false,
         shouldRender: isJSON,
       },
@@ -150,7 +150,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         type: 'checkbox',
         heading: 'Consider First Line As Header',
         value: config.considerFirstLineAsHeader,
-        inPinId: 'value_in_6',
+        inPinId: 'value_in_3',
         required: false,
         shouldRender: isText,
       },
@@ -303,7 +303,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
 
       {/* File Name row with VALUE_IN pin (row carries its own padding) */}
       <div className="flex items-center gap-2 relative px-3 py-2">
-        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
         {!isFileNameConnected ? (
           <input
             type="text"

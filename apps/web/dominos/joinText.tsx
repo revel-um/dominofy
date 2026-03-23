@@ -38,14 +38,14 @@ export default function JoinTextDomino({ data, id, selected }: NodeProps) {
   useEffect(() => {
     const current = getEdges();
     if (
-      current.some(e => e.target === id && e.targetHandle === 'value_in_1') &&
+      current.some(e => e.target === id && e.targetHandle === 'value_in') &&
       value !== ''
     ) {
       setValue('');
     }
 
     const nextInputs = inputs.map((inputValue, index) => {
-      const pinId = `value_in_${index + 2}`;
+      const pinId = `value_in_${index + 1}`;
       return current.some(e => e.target === id && e.targetHandle === pinId) ? '' : inputValue;
     });
 
@@ -70,16 +70,16 @@ export default function JoinTextDomino({ data, id, selected }: NodeProps) {
         type: 'textInput',
         heading: 'Input_1',
         value,
-        placeholder: current.some(e => e.target === id && e.targetHandle === 'value_in_1')
+        placeholder: current.some(e => e.target === id && e.targetHandle === 'value_in')
           ? 'Connected'
           : 'Text 1',
         required: true,
         shouldRender: false,
-        inPinId: 'value_in_1',
+        inPinId: 'value_in',
       }),
       ...inputs.map((inputValue, index) => {
         const heading = `Input_${index + 2}`;
-        const pinId = `value_in_${index + 2}`;
+        const pinId = `value_in_${index + 1}`;
         const isConnected = current.some(e => e.target === id && e.targetHandle === pinId);
 
         return makeField({
@@ -156,25 +156,25 @@ export default function JoinTextDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <div className="px-3 py-2 flex items-center gap-2 relative">
-        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
+        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
         <input
           type="text"
           value={value}
           onChange={handleMainChange}
           placeholder={
-            edges.some(e => e.target === id && e.targetHandle === 'value_in_1')
+            edges.some(e => e.target === id && e.targetHandle === 'value_in')
               ? 'Connected'
               : 'Text 1'
           }
-          readOnly={edges.some(e => e.target === id && e.targetHandle === 'value_in_1')}
-          disabled={edges.some(e => e.target === id && e.targetHandle === 'value_in_1')}
+          readOnly={edges.some(e => e.target === id && e.targetHandle === 'value_in')}
+          disabled={edges.some(e => e.target === id && e.targetHandle === 'value_in')}
           className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
         />
       </div>
 
       <div className="flex flex-col gap-2">
         {inputs.map((inputValue, index) => {
-          const pinId = `value_in_${index + 2}`;
+          const pinId = `value_in_${index + 1}`;
           const connected = edges.some(e => e.target === id && e.targetHandle === pinId);
 
           return (

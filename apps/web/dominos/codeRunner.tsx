@@ -329,8 +329,8 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
           <span className="truncate">Custom Code</span>
         </div>
         <div className="flex items-center gap-1">
-          <DominoPin id="exec_out_success" pinType={PinType.EXEC_OUT} inline />
-          <DominoPin id="exec_out_error" pinType={PinType.EXEC_OUT} inline />
+          <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+          <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} inline />
         </div>
       </div>
 
@@ -433,7 +433,7 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
         <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
           Output
         </span>
-        <DominoPin id="value_out_Output" pinType={PinType.VALUE_OUT} inline />
+        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
       </div>
 
       {hasError && (

@@ -9,7 +9,7 @@
     "features": [
       "Collect values produced by Iterator or streaming dominos and emit the final result only once.",
       "Supports sum, subtract, multiply, divide, min, max, array append and object map operations.",
-      "Initial seed can be defined statically or driven dynamically through the value_in_1 pin.",
+      "Initial seed can be defined statically or driven dynamically through the value_in_1 pin, while the main stream input uses value_in.",
       "Stores progress in local state so concurrent iterators do not collide."
     ],
     "fields": [
@@ -301,7 +301,7 @@
     "features": [
       "Supports equality, inequality, greater/less, contains/not_contains comparisons.",
       "Value pins keep Text1/Text2 inputs synced when wires are attached.",
-      "True path leaves through exec_out_1, false path through exec_out_2.",
+      "True path leaves through exec_out, false path through exec_out_1.",
       "Result boolean is emitted on value_out for additional logic."
     ],
     "fields": [
@@ -309,14 +309,14 @@
         "heading": "Text1",
         "type": "textInput",
         "required": true,
-        "inPinId": "value_in_1",
+        "inPinId": "value_in",
         "description": "Left-hand operand."
       },
       {
         "heading": "Text2",
         "type": "textInput",
         "required": true,
-        "inPinId": "value_in_2",
+        "inPinId": "value_in_1",
         "description": "Right-hand operand."
       },
       {
@@ -357,16 +357,16 @@
     ],
     "pins": {
       "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
       "exec_out_1": "EXEC_OUT",
-      "exec_out_2": "EXEC_OUT",
+      "value_in": "VALUE_IN",
       "value_in_1": "VALUE_IN",
-      "value_in_2": "VALUE_IN",
       "value_out": "VALUE_OUT"
     },
     "pinStructure": {
       "exec_in": "Evaluates the condition when triggered.",
-      "exec_out_1": "True branch.",
-      "exec_out_2": "False branch.",
+      "exec_out": "True branch.",
+      "exec_out_1": "False branch.",
       "value_out": "Boolean result for downstream logic."
     },
     "keywords": ["if", "condition", "compare", "branch", "boolean"]
@@ -399,7 +399,7 @@
       "exec_out": "EXEC_OUT"
     },
     "pinStructure": {
-      "exec_in": "Add as many exec_in_n handles as needed; connector waits for all of them.",
+      "exec_in": "Add as many exec_in_1, exec_in_2, ... handles as needed; connector waits for all of them.",
       "exec_out": "Fires exactly once after every branch has arrived with its payload merged."
     },
     "keywords": ["join", "barrier", "merge", "synchronize", "fan-in"]
@@ -438,25 +438,25 @@
             "value": "text"
           }
         ],
-        "inPinId": "value_in_1"
+        "inPinId": "value_in"
       },
       {
         "heading": "File Name",
         "type": "text",
         "required": true,
-        "inPinId": "value_in"
+        "inPinId": "value_in_1"
       },
       {
         "heading": "Include Header",
         "type": "checkbox",
         "required": false,
-        "inPinId": "value_in_3"
+        "inPinId": "value_in_2"
       },
       {
         "heading": "Consider First Line As Header",
         "type": "checkbox",
         "required": false,
-        "inPinId": "value_in_6"
+        "inPinId": "value_in_3"
       },
       {
         "heading": "Delimiter",
@@ -495,74 +495,16 @@
       "exec_out": "EXEC_OUT",
       "value_in": "VALUE_IN",
       "value_in_1": "VALUE_IN",
+      "value_in_2": "VALUE_IN",
       "value_in_3": "VALUE_IN",
       "value_in_4": "VALUE_IN",
-      "value_in_5": "VALUE_IN",
-      "value_in_6": "VALUE_IN"
+      "value_in_5": "VALUE_IN"
     },
     "pinStructure": {
       "exec_in": "Starts CSV generation.",
       "exec_out": "Continues after the file is written/uploaded while passing file metadata in the exec context."
     },
     "keywords": ["csv", "export", "file", "gcs", "writer", "download"]
-  },
-  {
-    "id": "deconstructor",
-    "label": "Deconstructor",
-    "category": "Data Transformation",
-    "description": "Pluck selected indexes or keys from arrays/objects and expose each on its own value_out pin.",
-    "icon": "Split",
-    "color": "violet",
-    "features": [
-      "Supports array indexes or object keys via Key_n selectors.",
-      "Each selector exposes both an input pin (value_in_n) to override the key/index and an output pin (value_out_n) carrying the extracted value.",
-      "Type dropdown enforces array vs object expectations and validates data accordingly.",
-      "Ideal for breaking iterator payloads into independent lanes without custom code."
-    ],
-    "fields": [
-      {
-        "heading": "Input",
-        "type": "text",
-        "inPinId": "value_in",
-        "required": true
-      },
-      {
-        "heading": "Type",
-        "type": "select",
-        "required": true,
-        "options": [
-          {
-            "label": "Array",
-            "value": "array"
-          },
-          {
-            "label": "Object",
-            "value": "object"
-          }
-        ]
-      },
-      {
-        "heading": "Key_n",
-        "type": "text",
-        "required": true,
-        "inPinId": "value_in_n",
-        "outPinId": "value_out_n",
-        "description": "One entry per field/index you want to expose."
-      }
-    ],
-    "pins": {
-      "exec_in": "EXEC_IN",
-      "exec_out": "EXEC_OUT",
-      "value_in": "VALUE_IN",
-      "value_in_1": "VALUE_IN",
-      "value_out_1": "VALUE_OUT"
-    },
-    "pinStructure": {
-      "exec_in": "Runs when upstream execution arrives.",
-      "exec_out": "Finishes immediately after projecting values.",
-      "value_out": "Multiple dynamic value_out_n pins carry slices of the input."
-    },
-    "keywords": ["pluck", "select", "object", "array", "split"]
   },
   {
     "id": "delay",
@@ -678,7 +620,7 @@
       {
         "heading": "Filter Value",
         "type": "textInput",
-        "inPinId": "value_in_2",
+        "inPinId": "value_in_1",
         "required": false
       }
     ],
@@ -785,7 +727,7 @@
         "heading": "Input_n",
         "type": "textInput",
         "required": true,
-        "inPinId": "value_in_n",
+        "inPinId": "value_in",
         "description": "Each entry stores a [from, to] tuple for renaming."
       },
       {
@@ -809,14 +751,15 @@
     "id": "print",
     "label": "Print",
     "category": "Utility",
-    "description": "Render text templates during workflow execution for debugging or user-visible responses.",
+    "description": "Log or display a value for debugging. NOT for building strings to pass to other nodes.",
     "icon": "Printer",
     "color": "gray",
     "features": [
+      "IMPORTANT: Print is a debugging/logging tool only. Do NOT use it to build prompt strings or format data for downstream nodes.",
+      "To concatenate or format text for passing to another node (e.g. the AI domino), use the Join Text domino instead.",
       "Supports {{placeholder}} token replacement with keys from ctx.input.",
       "If no template is defined, prints the entire inbound object as JSON.",
-      "Resulting string is emitted on value_out for chaining or Response dominos.",
-      "Handy for quick instrumentation without leaving the workflow."
+      "Resulting string is emitted on value_out but should only be used for terminal output or Response nodes, not for chaining into processing nodes like AI."
     ],
     "fields": [
       {
@@ -824,29 +767,32 @@
         "type": "textInput",
         "inPinId": "value_in",
         "required": true,
-        "description": "Template string that may contain {{variable}} tokens."
+        "description": "Template string that may contain {{variable}} tokens. For debugging/display only."
       }
     ],
     "pins": {
       "exec_in": "EXEC_IN",
       "exec_out": "EXEC_OUT",
       "value_in": "VALUE_IN",
+      "value_in_1": "VALUE_IN",
       "value_out": "VALUE_OUT"
     },
-    "keywords": ["log", "print", "template", "string"]
+    "keywords": ["log", "print", "debug", "display", "output"]
   },
   {
     "id": "readexcel",
     "label": "Read File",
     "category": "Input",
-    "description": "Load spreadsheets, PDFs, DOCX, JSON, and common text files from uploads, URLs, or GCS.",
+    "description": "Load spreadsheets, PDFs, DOCX, JSON, and common text files from uploads, URLs, GCS, or raw base64 buffers (e.g. email attachments).",
     "icon": "FileSpreadsheet",
     "color": "blue",
     "features": [
-      "Uploads files through Dominofy storage or accepts dynamic file descriptors on value_in.",
-      "Understands emulator/local buckets as well as production GCS.",
-      "Parses spreadsheets into row arrays and extracts text from PDF, DOCX, HTML, XML, and plain text.",
-      "Auto-detects the file type at runtime using filename, MIME, and file signatures."
+      "Accepts the ENTIRE email payload on value_in — it recursively scans the object and automatically finds and decodes the first attachment ({ name, mime, buffer }) without needing a Map or Code Runner node.",
+      "To process an email attachment: connect Email Trigger value_out directly to Read File value_in. No intermediate extraction step required.",
+      "Supports { key, url, bucket } for GCS files, a direct URL string, or an inline attachment { name, mime, buffer (base64) } anywhere nested in the input.",
+      "Parses: PDF → plain text, DOCX → plain text, XLSX/CSV → row arrays, JSON → parsed object, HTML/XML/TXT → text.",
+      "Auto-detects file type at runtime using filename, MIME type, and file signatures.",
+      "value_out emits the parsed content (string for text/PDF/DOCX, array for spreadsheets, object for JSON)."
     ],
     "fields": [
       {
@@ -854,7 +800,7 @@
         "type": "file",
         "inPinId": "value_in",
         "required": true,
-        "description": "File object { key, url, bucket } or uploaded asset reference."
+        "description": "Accepts the whole email payload object from Email Trigger value_out — automatically finds the first attachment. Also accepts { key, url, bucket }, a URL string, or a bare attachment object { name, mime, buffer (base64) }."
       }
     ],
     "pins": {
@@ -863,7 +809,7 @@
       "value_in": "VALUE_IN",
       "value_out": "VALUE_OUT"
     },
-    "keywords": ["excel", "csv", "pdf", "docx", "read", "file", "ingest"]
+    "keywords": ["excel", "csv", "pdf", "docx", "read", "file", "ingest", "attachment", "buffer", "base64", "resume", "parse", "extract", "text"]
   },
   {
     "id": "googleDrive",
@@ -1140,8 +1086,10 @@
     "color": "emerald",
     "features": [
       "Matches Gmail notifications against the selected connection and optional inbox address filter.",
-      "Normalizes email payloads (from, to, cc, subject, snippet, ids) onto value_out.",
-      "Requires a Gmail OAuth connection; Pub/Sub watch or polling drives triggers."
+      "Emits the full normalized email payload on value_out — see outputSchema for all available fields.",
+      "Requires a Gmail OAuth connection; Pub/Sub watch or polling drives triggers.",
+      "Use hasAttachments (boolean) from value_out to branch on whether the email has files.",
+      "Each attachment object contains name, mime, size, and base64-encoded buffer."
     ],
     "fields": [
       {
@@ -1161,7 +1109,52 @@
       "exec_out": "EXEC_OUT",
       "value_out": "VALUE_OUT"
     },
-    "keywords": ["email", "gmail", "inbox", "trigger", "mail"]
+    "outputSchema": {
+      "description": "The object emitted on value_out when an email arrives.",
+      "fields": {
+        "provider": "Always 'gmail'.",
+        "emailAddress": "The inbox address that received the email.",
+        "messageId": "Gmail message ID.",
+        "threadId": "Gmail thread ID.",
+        "subject": "Email subject line.",
+        "from": "Sender address string.",
+        "to": "Recipient address string.",
+        "cc": "CC address string (may be empty).",
+        "bcc": "BCC address string (may be empty).",
+        "body": "Plain-text body of the email.",
+        "snippet": "Short preview snippet from Gmail.",
+        "internalDate": "Unix timestamp (ms) of when Gmail received the message.",
+        "hasAttachments": "Boolean — true if the email has one or more attachments.",
+        "attachments": "Array of attachment objects. Each contains: name (filename), mime (MIME type), size (bytes), buffer (base64-encoded file content), attachmentId, partId, contentId, contentDisposition."
+      },
+      "example": {
+        "provider": "gmail",
+        "emailAddress": "inbox@example.com",
+        "messageId": "18f3a2b1c4d5",
+        "threadId": "18f3a2b1c4d5",
+        "subject": "Application: Senior Engineer",
+        "from": "candidate@example.com",
+        "to": "inbox@example.com",
+        "cc": "",
+        "body": "Please find my resume attached.",
+        "snippet": "Please find my resume attached.",
+        "internalDate": "1700000000000",
+        "hasAttachments": true,
+        "attachments": [
+          {
+            "name": "resume.pdf",
+            "mime": "application/pdf",
+            "size": 102400,
+            "buffer": "<base64-encoded file content>",
+            "attachmentId": "ANGjdJ...",
+            "partId": "2",
+            "contentId": "",
+            "contentDisposition": "attachment"
+          }
+        ]
+      }
+    },
+    "keywords": ["email", "gmail", "inbox", "trigger", "mail", "attachment"]
   },
   {
     "id": "emailsender",
@@ -1184,31 +1177,31 @@
       {
         "heading": "to",
         "type": "textInput",
-        "inPinId": "value_in_1",
+        "inPinId": "value_in",
         "required": true
       },
       {
         "heading": "subject",
         "type": "textInput",
-        "inPinId": "value_in_2",
+        "inPinId": "value_in_1",
         "required": true
       },
       {
         "heading": "body",
         "type": "textArea",
-        "inPinId": "value_in_3",
+        "inPinId": "value_in_2",
         "required": true
       },
       {
         "heading": "html",
         "type": "textArea",
-        "inPinId": "value_in_4",
+        "inPinId": "value_in_3",
         "required": false
       },
       {
         "heading": "from",
         "type": "textInput",
-        "inPinId": "value_in_5",
+        "inPinId": "value_in_4",
         "required": false,
         "description": "Optional from override; defaults to connection fromEmail."
       }
@@ -1216,11 +1209,11 @@
     "pins": {
       "exec_in": "EXEC_IN",
       "exec_out": "EXEC_OUT",
+      "value_in": "VALUE_IN",
       "value_in_1": "VALUE_IN",
       "value_in_2": "VALUE_IN",
       "value_in_3": "VALUE_IN",
       "value_in_4": "VALUE_IN",
-      "value_in_5": "VALUE_IN",
       "value_out": "VALUE_OUT"
     },
     "keywords": ["email", "smtp", "send", "mail", "outbound"]
@@ -1234,9 +1227,9 @@
     "color": "indigo",
     "features": [
       "Input value can be static or provided via value_in.",
-      "Add unlimited cases; each Case_n gets its own exec_out_n handle.",
-      "Unmatched inputs fall through to exec_out_default.",
-      "Case values can also be overridden through dedicated value_in_n pins."
+      "Add unlimited cases; the default branch uses exec_out and later cases continue as exec_out_1, exec_out_2, ... .",
+      "Unmatched inputs fall through to exec_out.",
+      "Case values can also be overridden through dedicated value_in, value_in_1, value_in_2, ... pins."
     ],
     "fields": [
       {
@@ -1248,9 +1241,9 @@
       {
         "heading": "Case_n",
         "type": "textInput",
-        "inPinId": "value_in_n",
+        "inPinId": "value_in_1",
         "required": true,
-        "description": "Each case row defines the string to match for exec_out_n."
+        "description": "Each case row defines the string to match for exec_out_1, exec_out_2, and so on, while the default branch uses exec_out."
       },
       {
         "heading": "Case_Default",
@@ -1261,15 +1254,15 @@
     ],
     "pins": {
       "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
       "exec_out_1": "EXEC_OUT",
       "exec_out_2": "EXEC_OUT",
-      "exec_out_default": "EXEC_OUT",
       "value_in": "VALUE_IN",
       "value_in_1": "VALUE_IN"
     },
     "pinStructure": {
-      "exec_out_n": "Emitted for each matching case (supports multiple matches).",
-      "exec_out_default": "Used when no cases match."
+      "exec_out": "Used when no cases match.",
+      "exec_out_1": "Emitted for matching case 1; additional cases continue as exec_out_2, exec_out_3, and so on."
     },
     "keywords": ["switch", "case", "branch", "route", "multi"]
   },
@@ -1314,14 +1307,14 @@
     "id": "response",
     "label": "Response",
     "category": "Output",
-    "description": "Terminate the workflow and return a final value as the pipeline output.",
+    "description": "ONLY use this domino when the workflow starts with an API Trigger (webhook). It sends the HTTP response back to the caller. Do NOT use it for email, scheduler, Slack, or any other trigger type — those workflows have no HTTP caller to respond to.",
     "icon": "CheckCheck",
     "color": "emerald",
     "features": [
+      "Exclusively for API Trigger workflows — it closes the HTTP request/response cycle.",
       "Acts as a terminal node — no exec_out; workflow execution stops here.",
-      "Accepts a static literal value or a dynamic value via value_in pin.",
-      "The emitted value becomes the result returned to the workflow caller (e.g. API trigger response).",
-      "Useful as the final step in any pipeline to surface results."
+      "Connect value_in to return dynamic data (e.g. AI output, database result) as the HTTP response body.",
+      "NEVER add this node to workflows triggered by Email, Scheduler, Slack, or other event-based triggers."
     ],
     "fields": [
       {
@@ -1330,7 +1323,7 @@
         "placeholder": "Response value…",
         "inPinId": "value_in",
         "required": true,
-        "description": "The value to return. Connect value_in to pass a dynamic value from upstream nodes."
+        "description": "The value to return as the HTTP response body. Connect value_in to pass a dynamic value from upstream nodes."
       }
     ],
     "pins": {
@@ -1338,10 +1331,10 @@
       "value_in": "VALUE_IN"
     },
     "pinStructure": {
-      "exec_in": "Triggers the response and ends execution.",
-      "value_in": "Accepts the final value to be returned as the workflow output."
+      "exec_in": "Triggers the HTTP response and ends execution.",
+      "value_in": "Accepts the final value to be sent back as the HTTP response body."
     },
-    "keywords": ["response", "output", "return", "terminal", "end", "result"]
+    "keywords": ["response", "http response", "api response", "webhook response", "return", "terminal"]
   },
   {
     "id": "SchedulerDomino",
@@ -1361,7 +1354,7 @@
       {
         "heading": "Active",
         "type": "checkbox",
-        "inPinId": "value_in_active",
+        "inPinId": "value_in",
         "required": false,
         "description": "Enable or disable the schedule."
       },
@@ -1421,7 +1414,7 @@
     ],
     "pins": {
       "exec_out": "EXEC_OUT",
-      "value_in_active": "VALUE_IN",
+      "value_in": "VALUE_IN",
       "value_in_1": "VALUE_IN",
       "value_in_2": "VALUE_IN",
       "value_in_3": "VALUE_IN",
@@ -1435,23 +1428,22 @@
   },
   {
     "id": "storage",
-    "label": "Database",
+    "label": "Database Write (save/insert — use this to store data)",
     "category": "Storage",
-    "description": "Insert, update, upsert, or delete records in the workflow's built-in document store.",
+    "description": "WRITE-ONLY: save, insert, update, upsert, or delete records. This is the ONLY domino that can persist data. Whenever the goal is to store or save something, use this — never storageRetrieve.",
     "icon": "Database",
     "color": "teal",
     "features": [
-      "Operates on named collections scoped to the current workflow.",
+      "Use this when you need to SAVE or PERSIST data — e.g. store a score, log a result, record an event.",
       "Supports create, update, upsert, and delete operations.",
       "Document Key field uniquely identifies a document within a collection.",
-      "Data field accepts a JSON object that is stored as the document body.",
+      "Data field (value_in_1) accepts a JSON object or string to store as the document body.",
       "Returns the saved document and action metadata on value_out."
     ],
     "fields": [
       {
         "heading": "Collection",
         "type": "textInput",
-        "inPinId": "value_in",
         "required": true,
         "description": "Name of the collection to write to."
       },
@@ -1471,14 +1463,14 @@
       {
         "heading": "Document Key",
         "type": "textInput",
-        "inPinId": "value_in_2",
+        "inPinId": "value_in",
         "required": false,
         "description": "Unique key for the document. Required for update/upsert/delete."
       },
       {
         "heading": "Data",
         "type": "json",
-        "inPinId": "value_in_3",
+        "inPinId": "value_in_1",
         "required": false,
         "description": "JSON object to store as the document body."
       }
@@ -1487,8 +1479,7 @@
       "exec_in": "EXEC_IN",
       "exec_out": "EXEC_OUT",
       "value_in": "VALUE_IN",
-      "value_in_2": "VALUE_IN",
-      "value_in_3": "VALUE_IN",
+      "value_in_1": "VALUE_IN",
       "value_out": "VALUE_OUT"
     },
     "pinStructure": {
@@ -1497,13 +1488,13 @@
       "value_in": "Accepts a payload with Collection, Operation, Document Key, or Data overrides.",
       "value_out": "Returns { ok, action, collectionId, document } metadata."
     },
-    "keywords": ["database", "storage", "document", "store", "insert", "write", "collection", "nosql"]
+    "keywords": ["save", "insert", "write", "create", "persist", "store", "upsert", "delete", "record", "log", "database write"]
   },
   {
     "id": "storageRetrieve",
-    "label": "Database Retrieval",
+    "label": "Database Read (fetch only — cannot save)",
     "category": "Storage",
-    "description": "Query and retrieve documents or entire collections from the workflow's built-in document store.",
+    "description": "READ-ONLY: fetch/query existing records. This domino CANNOT save, insert, or write data. For saving data use the storage (Database Write) domino instead.",
     "icon": "Database",
     "color": "teal",
     "features": [
@@ -1516,7 +1507,6 @@
       {
         "heading": "Collection",
         "type": "textInput",
-        "inPinId": "value_in",
         "required": true,
         "description": "Name of the collection to read from."
       },
@@ -1534,14 +1524,13 @@
       {
         "heading": "Document Key",
         "type": "textInput",
-        "inPinId": "value_in_2",
+        "inPinId": "value_in",
         "required": false,
         "description": "Key of the document to retrieve (used for document operation)."
       },
       {
         "heading": "Limit",
         "type": "number",
-        "inPinId": "value_in_3",
         "required": false,
         "default": 25,
         "description": "Maximum number of documents to return for collection queries."
@@ -1551,8 +1540,6 @@
       "exec_in": "EXEC_IN",
       "exec_out": "EXEC_OUT",
       "value_in": "VALUE_IN",
-      "value_in_2": "VALUE_IN",
-      "value_in_3": "VALUE_IN",
       "value_out": "VALUE_OUT"
     },
     "pinStructure": {
@@ -1560,33 +1547,156 @@
       "exec_out": "Continues after documents are fetched.",
       "value_out": "Returns { ok, action, collectionId, count, document, documents }."
     },
-    "keywords": ["database", "storage", "query", "retrieve", "read", "collection", "fetch", "find"]
+    "keywords": ["fetch", "query", "retrieve", "read", "get", "lookup", "find", "list", "collection", "database read"]
+  },
+  {
+    "id": "constructor",
+    "label": "Constructor",
+    "category": "Data Transformation",
+    "description": "Build an object from multiple key/value pairs. Each row defines the output key and accepts a typed or connected value.",
+    "icon": "Braces",
+    "color": "blue",
+    "features": [
+      "Create an object by adding as many Key_n / Value_n rows as needed.",
+      "Each Value_n can be entered directly or provided dynamically through its matching value_in_n pin.",
+      "Empty keys are ignored, and later duplicate keys overwrite earlier ones.",
+      "Outputs a single object on value_out for downstream nodes."
+    ],
+    "fields": [
+      {
+        "heading": "Key_1",
+        "type": "textInput",
+        "required": true,
+        "description": "Key name for the first object property."
+      },
+      {
+        "heading": "Value_1",
+        "type": "textInput",
+        "inPinId": "value_in_1",
+        "required": false,
+        "description": "Value for the first property. Can be typed directly or connected from an upstream value pin."
+      },
+      {
+        "heading": "Key_n",
+        "type": "textInput",
+        "required": false,
+        "description": "Additional property names."
+      },
+      {
+        "heading": "Value_n",
+        "type": "textInput",
+        "inPinId": "value_in_n",
+        "required": false,
+        "description": "Additional property values; each can be typed or connected."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
+      "value_in_1": "VALUE_IN",
+      "value_in_n": "VALUE_IN",
+      "value_out": "VALUE_OUT"
+    },
+    "pinStructure": {
+      "exec_in": "Triggers object construction.",
+      "exec_out": "Continues after the object is built.",
+      "value_in_1": "First dynamic property value. Each Value_n gets its own value_in_n pin.",
+      "value_out": "The constructed object."
+    },
+    "keywords": ["construct", "object", "build", "key", "value", "payload"]
+  },
+  {
+    "id": "deconstructor",
+    "label": "De-Construct",
+    "category": "Data Transformation",
+    "description": "Extract one or more properties from an object or elements from an array. Use this — not Custom Code — whenever you need to pull fields out of a payload (e.g. extract 'hasAttachments' from an email, or 'messageId' from an email payload).",
+    "icon": "Ungroup",
+    "color": "orange",
+    "features": [
+      "Set Type to 'object' to extract named keys from an object. Each Key_n holds the property name and outputs the value on value_out_n.",
+      "Set Type to 'array' to extract elements by index. Each Key_n holds the integer index and outputs the element on value_out_n.",
+      "Connect the source object/array to value_in (Input).",
+      "Each Key_n field has its own output pin value_out_n — connect downstream nodes to the specific output pin you need.",
+      "Always prefer De-Construct over Custom Code for simple property extraction."
+    ],
+    "fields": [
+      {
+        "heading": "Input",
+        "type": "text",
+        "inPinId": "value_in",
+        "required": true,
+        "description": "The object or array to deconstruct. Connect the upstream value_out here."
+      },
+      {
+        "heading": "Type",
+        "type": "dropdown",
+        "required": true,
+        "options": [
+          { "label": "Object", "value": "object" },
+          { "label": "Array", "value": "array" }
+        ],
+        "default": "object",
+        "description": "Whether the input is an object (extract by key name) or an array (extract by index)."
+      },
+      {
+        "heading": "Key_1",
+        "type": "text",
+        "inPinId": "value_in_1",
+        "outPinId": "value_out_1",
+        "required": true,
+        "description": "Property name (object mode) or index (array mode) for the first output. The extracted value is emitted on value_out_1."
+      },
+      {
+        "heading": "Key_n",
+        "type": "text",
+        "inPinId": "value_in_n",
+        "outPinId": "value_out_n",
+        "required": false,
+        "description": "Additional keys/indices. Each Key_n emits its value on value_out_n. Add as many as needed."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
+      "value_in": "VALUE_IN",
+      "value_in_1": "VALUE_IN",
+      "value_out_1": "VALUE_OUT",
+      "value_out_n": "VALUE_OUT"
+    },
+    "pinStructure": {
+      "exec_in": "Triggers the extraction.",
+      "exec_out": "Continues after extraction.",
+      "value_in": "The input object or array.",
+      "value_out_1": "The value extracted by Key_1. Each Key_n has a corresponding value_out_n."
+    },
+    "keywords": ["extract", "deconstruct", "property", "field", "key", "pick", "get", "destructure", "object", "array", "parse"]
   },
   {
     "id": "jointext",
     "label": "Join Text",
     "category": "Data Transformation",
-    "description": "Concatenate multiple text inputs into a single string without a separator.",
+    "description": "Concatenate multiple text inputs into a single string. Use this — not Print — whenever you need to build a string to pass to another node (e.g. combining a static AI instruction with dynamic data).",
     "icon": "Combine",
     "color": "pink",
     "features": [
-      "Add as many Input_n fields as needed; they are joined in order.",
-      "Each input can be a static string or supplied dynamically via value_in_n pins.",
-      "Result is emitted on value_out for downstream nodes.",
-      "Useful for building dynamic messages, file names, or template strings."
+      "The correct way to combine a static instruction with dynamic runtime data before sending to the AI domino.",
+      "Add as many Input_n fields as needed; they are joined in order with no separator.",
+      "Input_1 can be a static string (e.g. 'Score this resume from 1-100:'), Input_2 connected to a dynamic value_in_1 pin, and later inputs continue as value_in_2, value_in_3, and so on.",
+      "Result is emitted on value_out for passing to downstream nodes such as the AI domino's value_in.",
+      "Always prefer Join Text over Print when the goal is to build a string for further processing."
     ],
     "fields": [
       {
         "heading": "Input_1",
         "type": "textInput",
-        "inPinId": "value_in_1",
+        "inPinId": "value_in",
         "required": true,
         "description": "First text segment. Add Input_2, Input_3, … for additional segments."
       },
       {
         "heading": "Input_n",
         "type": "textInput",
-        "inPinId": "value_in_n",
+        "inPinId": "value_in_1",
         "required": false,
         "description": "Additional text segments joined in order after Input_1."
       }
@@ -1594,13 +1704,14 @@
     "pins": {
       "exec_in": "EXEC_IN",
       "exec_out": "EXEC_OUT",
+      "value_in": "VALUE_IN",
       "value_in_1": "VALUE_IN",
       "value_out": "VALUE_OUT"
     },
     "pinStructure": {
       "exec_in": "Triggers the concatenation.",
       "exec_out": "Continues after the string is joined.",
-      "value_in_n": "Dynamic pin for each Input_n segment.",
+      "value_in_1": "Dynamic pin for Input_2; additional segments continue as value_in_2, value_in_3, and so on.",
       "value_out": "The concatenated string result."
     },
     "keywords": ["join", "concat", "string", "text", "combine", "merge"]
@@ -1615,8 +1726,8 @@
     "features": [
       "Connect to any PostgreSQL database using host, port, database, user, and password.",
       "Write SQL queries directly in the node or open the full-screen SQL editor.",
-      "Returns query results (rows) or row count metadata on value_out_Result.",
-      "exec_out_success fires on a successful query; exec_out_error fires on failure.",
+      "Returns query results (rows) or row count metadata on value_out.",
+      "exec_out fires on a successful query; exec_out_1 fires on failure.",
       "Connection credentials are managed locally and never stored in workflow JSON."
     ],
     "fields": [
@@ -1636,15 +1747,15 @@
     ],
     "pins": {
       "exec_in": "EXEC_IN",
-      "exec_out_success": "EXEC_OUT",
-      "exec_out_error": "EXEC_OUT",
-      "value_out_Result": "VALUE_OUT"
+      "exec_out": "EXEC_OUT",
+      "exec_out_1": "EXEC_OUT",
+      "value_out": "VALUE_OUT"
     },
     "pinStructure": {
       "exec_in": "Runs the SQL query when triggered.",
-      "exec_out_success": "Fires when the query completes successfully.",
-      "exec_out_error": "Fires when the query throws an error.",
-      "value_out_Result": "Contains the query result rows or rowCount."
+      "exec_out": "Fires when the query completes successfully.",
+      "exec_out_1": "Fires when the query throws an error.",
+      "value_out": "Contains the query result rows or rowCount."
     },
     "keywords": ["sql", "database", "postgres", "query", "select", "insert", "update", "delete"]
   },
@@ -1660,7 +1771,7 @@
       "Define a named function entry point via the FunctionName field.",
       "Add Variable_n rows to inject named variables into the sandbox scope.",
       "Variable values can be driven dynamically from upstream pins.",
-      "exec_out_error fires on runtime exceptions; value_out returns the function result."
+      "exec_out_1 fires on runtime exceptions; value_out returns the function result."
     ],
     "fields": [
       {
@@ -1684,7 +1795,7 @@
       {
         "heading": "Variable_n_value",
         "type": "textInput",
-        "inPinId": "value_in_n",
+        "inPinId": "value_in_1",
         "required": false,
         "description": "Default value for the variable; override via a connected value pin."
       }
@@ -1692,13 +1803,15 @@
     "pins": {
       "exec_in": "EXEC_IN",
       "exec_out": "EXEC_OUT",
-      "exec_out_error": "EXEC_OUT",
+      "exec_out_1": "EXEC_OUT",
+      "value_in_1": "VALUE_IN",
       "value_out": "VALUE_OUT"
     },
     "pinStructure": {
       "exec_in": "Runs the code when triggered.",
       "exec_out": "Fires on successful execution.",
-      "exec_out_error": "Fires when the code throws a runtime error.",
+      "exec_out_1": "Fires when the code throws a runtime error.",
+      "value_in_1": "First dynamic variable value pin; later variable rows continue as value_in_2, value_in_3, and so on.",
       "value_out": "Return value of the entry-point function."
     },
     "keywords": ["code", "javascript", "custom", "script", "sandbox", "function", "eval"]

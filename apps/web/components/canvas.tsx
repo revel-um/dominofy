@@ -38,6 +38,7 @@ import ReadExcelDomino from "../dominos/readExcel";
 import GoogleDriveDomino from "../dominos/googleDrive";
 import GoogleDriveDownloadDomino from "../dominos/googleDriveDownload";
 import DeconstrctDomino from "../dominos/deconstructor";
+import ConstructorDomino from "../dominos/constructor";
 import IteratorDomino from "../dominos/iterator";
 import AggregatorDomino from "../dominos/aggregator";
 import FilterDomino from "../dominos/filter";
@@ -263,6 +264,7 @@ const nodeTypes = {
   googleDrive: withRenderKey('googleDrive', GoogleDriveDomino),
   googleDriveDownload: withRenderKey('googleDriveDownload', GoogleDriveDownloadDomino),
   deconstructor: withRenderKey('deconstructor', DeconstrctDomino),
+  constructor: withRenderKey('constructor', ConstructorDomino),
   iterator: withRenderKey('iterator', IteratorDomino),
   filter: withRenderKey('filter', FilterDomino),
   aggregator: withRenderKey('aggregator', AggregatorDomino),

@@ -239,6 +239,17 @@ export default [
     iconStyle: { color: "#ffffff" },
   },
   {
+    id: "constructor",
+    label: "Constructor",
+    description: "Build an object from multiple keyed values",
+    icon: Braces,
+    categories: ["Data Transformation"],
+    badgeStyle: {
+      background: "linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%)",
+    },
+    iconStyle: { color: "#ffffff" },
+  },
+  {
     id: "deconstructor",
     label: "De-Construct",
     description: "Break an object into individual fields",

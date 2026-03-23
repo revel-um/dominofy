@@ -57,11 +57,11 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
             isTrigger: false,
             fields: [
               { type: 'dropdown', heading: 'vaultId', value: '', options: [], required: true, shouldRender: false },
-              { type: 'textInput', heading: 'to', value: '', inPinId: 'value_in_1', required: true, shouldRender: false },
-              { type: 'textInput', heading: 'subject', value: '', inPinId: 'value_in_2', required: true, shouldRender: false },
-              { type: 'textArea', heading: 'body', value: '', inPinId: 'value_in_3', required: true, shouldRender: false },
-              { type: 'textArea', heading: 'html', value: '', inPinId: 'value_in_4', required: false, shouldRender: false },
-              { type: 'textInput', heading: 'from', value: '', inPinId: 'value_in_5', required: false, shouldRender: false },
+              { type: 'textInput', heading: 'to', value: '', inPinId: 'value_in', required: true, shouldRender: false },
+              { type: 'textInput', heading: 'subject', value: '', inPinId: 'value_in_1', required: true, shouldRender: false },
+              { type: 'textArea', heading: 'body', value: '', inPinId: 'value_in_2', required: true, shouldRender: false },
+              { type: 'textArea', heading: 'html', value: '', inPinId: 'value_in_3', required: false, shouldRender: false },
+              { type: 'textInput', heading: 'from', value: '', inPinId: 'value_in_4', required: false, shouldRender: false },
             ],
           } as DominoNodeData;
           newData.exportFields = exportFields;
@@ -228,11 +228,11 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
           </p>
         )}
 
-        {renderTextField('To', toValue, 'value_in_1', val => setFieldValue('to', val), 'user@example.com')}
-        {renderTextField('Subject', subjectValue, 'value_in_2', val => setFieldValue('subject', val), 'Hello from Dominofy')}
-        {renderTextField('Body', bodyValue, 'value_in_3', val => setFieldValue('body', val), 'Plain text body', true)}
-        {renderTextField('HTML (optional)', htmlValue, 'value_in_4', val => setFieldValue('html', val), '<p>Rich email body</p>', true)}
-        {renderTextField('From override (optional)', fromValue, 'value_in_5', val => setFieldValue('from', val), 'you@gmail.com')}
+        {renderTextField('To', toValue, 'value_in', val => setFieldValue('to', val), 'user@example.com')}
+        {renderTextField('Subject', subjectValue, 'value_in_1', val => setFieldValue('subject', val), 'Hello from Dominofy')}
+        {renderTextField('Body', bodyValue, 'value_in_2', val => setFieldValue('body', val), 'Plain text body', true)}
+        {renderTextField('HTML (optional)', htmlValue, 'value_in_3', val => setFieldValue('html', val), '<p>Rich email body</p>', true)}
+        {renderTextField('From override (optional)', fromValue, 'value_in_4', val => setFieldValue('from', val), 'you@gmail.com')}
 
         <div className="px-3 flex items-center justify-between relative">
           <div></div>

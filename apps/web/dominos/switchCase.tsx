@@ -224,7 +224,11 @@ export default function SwitchDomino({ data, id, selected }: NodeProps) {
                 className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
               />
 
-              <DominoPin id={`exec_out_${row.id}`} pinType={PinType.EXEC_OUT} inline />
+              <DominoPin
+                id={row.id === 'default' ? 'exec_out' : `exec_out_${row.id}`}
+                pinType={PinType.EXEC_OUT}
+                inline
+              />
 
               {row.id !== 'default' && (
                 <button

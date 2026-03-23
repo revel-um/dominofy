@@ -157,28 +157,26 @@ export default function DetailsPanel({
         />
       )}
 
-      {isAIOpen && (
-        <AIPanelDocked
-          isOpen={isAIOpen}
-          width={width}
-          transition={isResizing ? 'none' : widthTransition}
-          workflowId={workflowId}
-          updatePipeline={updatePipeline}
-          onHoverStart={handleHoverStart}
-          onHoverEnd={handleHoverEnd}
-          isResizing={isResizing}
-          onClose={() => {
-            setIsAIOpen(false);
-            setUserClosedAI(true);
-            setIsDetailsOpen(false);
-            setUserClosedDetails(true); // ✅ also mark details as manually closed
-          }}
-          setEdges={setEdges} 
-          setNodes={setNodes}
-          getNodes={getNodes}
-          getEdges={getEdges}
-        />
-      )}
+      <AIPanelDocked
+        isOpen={isAIOpen}
+        width={width}
+        transition={isResizing ? 'none' : widthTransition}
+        workflowId={workflowId}
+        updatePipeline={updatePipeline}
+        onHoverStart={handleHoverStart}
+        onHoverEnd={handleHoverEnd}
+        isResizing={isResizing}
+        onClose={() => {
+          setIsAIOpen(false);
+          setUserClosedAI(true);
+          setIsDetailsOpen(false);
+          setUserClosedDetails(true); // ✅ also mark details as manually closed
+        }}
+        setEdges={setEdges} 
+        setNodes={setNodes}
+        getNodes={getNodes}
+        getEdges={getEdges}
+      />
 
       <DetailsRightStrip
         showDetails={!!selectedNode}

@@ -238,24 +238,7 @@ export default function VaultManager() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={refreshVaults}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/85 px-4 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-200 dark:hover:bg-slate-950/60"
-            >
-              <FiRefreshCw className="h-4 w-4" />
-              Refresh
-            </button>
-
             <div className="relative">
-              <button
-                ref={newBtnRef}
-                onClick={() => setShowTypeMenu((prev) => !prev)}
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
-              >
-                <FiPlus className="h-4 w-4" />
-                New Connection
-              </button>
-
               {showTypeMenu && (
                 <div
                   ref={typeMenuRef}

@@ -7,6 +7,7 @@ import { ApiTriggerDomino } from "./dominos/apiTrigger";
 import { ArithmeticDomino } from "./dominos/arithmetic";
 import { ConditionDomino } from "./dominos/condition";
 import ConnectorDomino from "./dominos/connector";
+import { ConstructorDomino } from "./dominos/constructor";
 import { DeconstructorDomino } from "./dominos/deconstructor";
 import { IteratorDomino } from "./dominos/iterator";
 import { JoinTextDomino } from "./dominos/joinText";
@@ -48,6 +49,7 @@ class DominoRegistry {
     this.register("jointext", JoinTextDomino);
     this.register("switchcase", SwitchCaseDomino);
     this.register("iterator", IteratorDomino);
+    this.register("constructor", ConstructorDomino);
     this.register("deconstructor", DeconstructorDomino);
     this.register("aggregator", AggregatorDomino);
     this.register("slacktrigger", SlackTriggerDomino);
