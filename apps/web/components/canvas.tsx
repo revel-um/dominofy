@@ -142,28 +142,26 @@ function CompactDominoNode(
       <Handle
         type="target"
         position={Position.Left}
-        isConnectable={false}
+        isConnectable={true}
         style={{
-          left: -4,
+          left: -8,
           top: '50%',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           opacity: 0,
-          pointerEvents: 'none',
           transform: 'translateY(-50%)',
         }}
       />
       <Handle
         type="source"
         position={Position.Right}
-        isConnectable={false}
+        isConnectable={true}
         style={{
-          right: -4,
+          right: -8,
           top: '50%',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           opacity: 0,
-          pointerEvents: 'none',
           transform: 'translateY(-50%)',
         }}
       />
@@ -767,19 +765,14 @@ export default function Canvas(props: CanvasProps) {
 
       // Handle selection behavior
       if (event.metaKey || event.ctrlKey || event.shiftKey) {
-        // Cmd/Ctrl/Shift + click → toggle selection of this node only
-        setNodes(prev => prev.map(n => 
-          n.id === node.id 
-            ? { ...n, selected: !n.selected }
-            : n
-        ));
+        // Let React Flow handle additive/toggle selection for modifier clicks.
+        setSelectedNode(null);
       } else {
-        // Simple click → deselect all others and select only this node
-        setNodes(prev => prev.map(n => ({ ...n, selected: n.id === node.id })));
+        // Let React Flow handle single-node selection and only sync the details panel.
         setSelectedNode(node);
       }
     },
-    [connectStart, setEdges, updatePipeline, setSelectedNode, setNodes, getNodes, id]
+    [connectStart, setEdges, updatePipeline, setSelectedNode, getNodes, id]
   );
 
   /* connect start */
@@ -1185,9 +1178,10 @@ export default function Canvas(props: CanvasProps) {
         clearValidationForDominoId,
         updatePipeline,
         router,
-        () => setConnectStart(null)
+        () => setConnectStart(null),
+        setSelectedNode
       )(connection),
-    [getNodes, setNodes, setEdges, clearValidationForDominoId, updatePipeline, router]
+    [getNodes, setNodes, setEdges, clearValidationForDominoId, updatePipeline, router, setSelectedNode]
   );
 
   /* edge changes */
@@ -1205,7 +1199,12 @@ export default function Canvas(props: CanvasProps) {
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       if (changes.length > 0) {
-        setNodes((prev) => applyNodeChanges(changes, prev));
+        setNodes((prev) => {
+          const next = applyNodeChanges(changes, prev);
+          const selectedNodes = next.filter((node) => node.selected);
+          setSelectedNode(selectedNodes.length === 1 ? selectedNodes[0] : null);
+          return next;
+        });
         onNodesChange?.(changes);
       }
     },
@@ -1436,8 +1435,8 @@ export default function Canvas(props: CanvasProps) {
           onDrop={onDrop}
           onDragOver={handleDragOver}
           onConnectStart={onConnectStart}
-          onConnect={isExpandedMode ? onConnect : undefined}
-          onEdgesChange={isExpandedMode ? handleEdgesChange : undefined}
+          onConnect={!readonly && isSelectionMode ? onConnect : undefined}
+          onEdgesChange={!readonly && isSelectionMode ? handleEdgesChange : undefined}
           onNodesChange={handleNodesChange}
           onNodeClick={onNodeClick as any}
           onEdgeClick={handleEdgeClick}
@@ -1446,7 +1445,7 @@ export default function Canvas(props: CanvasProps) {
           defaultViewport={getInitialViewport()}
           fitView={isNewTab} // Only fit view for new tabs
           nodesDraggable={!readonly && isSelectionMode}
-          nodesConnectable={!readonly && isExpandedMode && isSelectionMode}
+          nodesConnectable={!readonly && isSelectionMode}
           elementsSelectable={!readonly && !isLockedMode && !isHandMode}
           panOnDrag={canPanReadonly || (!readonly && isHandMode)}
           panOnScroll={canPanReadonlyOnScroll || !readonly}
@@ -1455,8 +1454,8 @@ export default function Canvas(props: CanvasProps) {
 
           /* ✅ MULTI-SELECT via rectangle (hold Shift) */
           selectionOnDrag={!readonly && isSelectionMode}
-          selectionKeyCode={['Shift']}
-          multiSelectionKeyCode={null}
+          selectionKeyCode={['Meta', 'Control', 'Shift']}
+          multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
           selectionMode={SelectionMode.Partial}
           selectNodesOnDrag={isSelectionMode}
           onPaneClick={handlePaneClick}
