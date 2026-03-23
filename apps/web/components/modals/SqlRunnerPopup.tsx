@@ -1,26 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { FiX, FiPlay, FiDatabase, FiPower, FiSave, FiTerminal, FiCode } from 'react-icons/fi';
+import React, { useState, useEffect } from 'react';
+import { FiX, FiPlay, FiDatabase, FiPower, FiSave } from 'react-icons/fi';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { githubDark } from '@uiw/codemirror-theme-github';
-
-// Example tables for the sidebar
-const EXAMPLE_TABLES = [
-  'users',
-  'orders',
-  'products',
-  'categories',
-  'order_items',
-  'payments',
-  'inventory',
-  'customers'
-];
+import type { ConnectionConfig } from './ConnectionModal';
 
 interface SqlRunnerPopupProps {
   open: boolean;
   query: string;
   output: string;
   connectionStatus: 'disconnected' | 'connecting' | 'connected';
+  connectionId?: string;
+  connectionConfig?: ConnectionConfig;
+  onSave: () => Promise<void> | void;
   onQueryChange: (query: string) => void;
   onRun: () => void;
   onConnect: () => void;
@@ -34,6 +26,9 @@ export default function SqlRunnerPopup({
   query,
   output,
   connectionStatus,
+  connectionId,
+  connectionConfig,
+  onSave,
   onQueryChange,
   onRun,
   onConnect,
@@ -43,7 +38,9 @@ export default function SqlRunnerPopup({
 }: SqlRunnerPopupProps) {
   const [activeTab, setActiveTab] = useState<'code' | 'output'>('code');
   const [tables, setTables] = useState<string[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingTables, setIsLoadingTables] = useState(false);
+  const [tableLoadError, setTableLoadError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -63,23 +60,79 @@ export default function SqlRunnerPopup({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, activeTab, connectionStatus, onRun]);
 
-  // Load tables when connected
   useEffect(() => {
-    if (connectionStatus === 'connected' && tables.length === 0) {
-      // In a real app, fetch tables from the database here
-      setTimeout(() => setTables(EXAMPLE_TABLES), 500);
+    if (!open) return;
+
+    if (connectionStatus !== 'connected' || !connectionId || !connectionConfig) {
+      setTables([]);
+      setTableLoadError(null);
+      setIsLoadingTables(false);
+      return;
     }
-  }, [connectionStatus, tables.length]);
+
+    let isCancelled = false;
+
+    const loadTables = async () => {
+      setIsLoadingTables(true);
+      setTableLoadError(null);
+
+      try {
+        const response = await fetch('/api/sql/execute?action=list-tables', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            connectionId,
+            connectionConfig,
+          }),
+        });
+        const responseData = await response.json();
+
+        if (!response.ok) {
+          throw new Error(responseData.error || 'Failed to load tables');
+        }
+
+        const nextTables = Array.isArray(responseData.data?.tables)
+          ? responseData.data.tables.map((table: any) => table.fullName || table.name).filter(Boolean)
+          : [];
+
+        if (!isCancelled) {
+          setTables(nextTables);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setTables([]);
+          setTableLoadError(error instanceof Error ? error.message : 'Failed to load tables');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingTables(false);
+        }
+      }
+    };
+
+    void loadTables();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [open, connectionStatus, connectionId, connectionConfig]);
 
   const handleTableClick = (tableName: string) => {
     onQueryChange(`SELECT * FROM ${tableName} LIMIT 100;`);
     setActiveTab('code');
   };
 
-  const handleSave = () => {
-    setIsSaving(true);
-    // Simulate save action
-    setTimeout(() => setIsSaving(false), 1000);
+  const handleSave = async () => {
+    setSaveState('saving');
+
+    try {
+      await onSave();
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 1200);
+    } catch (error) {
+      console.error('Save failed:', error);
+      setSaveState('idle');
+    }
   };
 
   if (!open) return null;
@@ -125,10 +178,10 @@ export default function SqlRunnerPopup({
             <button
               onClick={handleSave}
               className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              disabled={isSaving}
+              disabled={saveState === 'saving'}
             >
-              <FiSave className={`mr-1.5 h-3.5 w-3.5 ${isSaving ? 'animate-spin' : ''}`} />
-              {isSaving ? 'Saving...' : 'Save'}
+              <FiSave className={`mr-1.5 h-3.5 w-3.5 ${saveState === 'saving' ? 'animate-spin' : ''}`} />
+              {saveState === 'saving' ? 'Saving...' : saveState === 'saved' ? 'Saved' : 'Save'}
             </button>
             <button
               onClick={onClose}
@@ -176,6 +229,14 @@ export default function SqlRunnerPopup({
               {connectionStatus !== 'connected' ? (
                 <div className="p-2 text-xs text-gray-500 dark:text-gray-400">
                   Connect to a database to view tables
+                </div>
+              ) : isLoadingTables ? (
+                <div className="p-2 text-xs text-gray-500 dark:text-gray-400">
+                  Loading tables...
+                </div>
+              ) : tableLoadError ? (
+                <div className="p-2 text-xs text-red-500 dark:text-red-400">
+                  {tableLoadError}
                 </div>
               ) : tables.length === 0 ? (
                 <div className="p-2 text-xs text-gray-500 dark:text-gray-400">

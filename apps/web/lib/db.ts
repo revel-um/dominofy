@@ -9,6 +9,13 @@ type ConnectionConfig = {
   ssl?: boolean | { rejectUnauthorized: boolean };
 };
 
+type DatabaseTable = {
+  schema: string;
+  name: string;
+  type: string;
+  fullName: string;
+};
+
 // Default connection pool (for application database)
 let defaultPool: Pool | null = null;
 // Map to store connection pools for different users/sessions
@@ -103,6 +110,40 @@ async function executeQuery(
   }
 }
 
+async function listTables(
+  connectionId?: string,
+  config?: ConnectionConfig
+): Promise<DatabaseTable[]> {
+  const pool = connectionId ? getPool(connectionId, config) : initDefaultPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query<{
+      schema: string;
+      name: string;
+      type: string;
+    }>(`
+      SELECT
+        table_schema AS schema,
+        table_name AS name,
+        table_type AS type
+      FROM information_schema.tables
+      WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+      ORDER BY
+        CASE WHEN table_schema = 'public' THEN 0 ELSE 1 END,
+        table_schema,
+        table_name
+    `);
+
+    return result.rows.map((row) => ({
+      ...row,
+      fullName: row.schema === 'public' ? row.name : `${row.schema}.${row.name}`,
+    }));
+  } finally {
+    client.release();
+  }
+}
+
 // Close all connections for a specific connection ID
 async function closeConnection(connectionId: string): Promise<void> {
   const pool = connectionPools.get(connectionId);
@@ -113,11 +154,12 @@ async function closeConnection(connectionId: string): Promise<void> {
 }
 
 // Export types using export type
-export type { ConnectionConfig };
+export type { ConnectionConfig, DatabaseTable };
 
 // Export functions
 export { 
   testConnection, 
   executeQuery, 
+  listTables,
   closeConnection 
 };
