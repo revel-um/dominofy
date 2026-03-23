@@ -39,6 +39,16 @@ interface Props {
     getEdges: () => Edge[];
 }
 
+function isAbortError(error: unknown): boolean {
+    if (error instanceof DOMException) {
+        return error.name === 'AbortError';
+    }
+    if (error instanceof Error) {
+        return error.name === 'AbortError' || /aborted|abort/i.test(error.message);
+    }
+    return false;
+}
+
 function ThoughtSummaries({ steps }: { steps: string[] }) {
     const [open, setOpen] = useState(false);
     return (
@@ -88,6 +98,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const suppressAutoScrollRef = useRef(false);
     const stickToBottomRef = useRef(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const defaultAiGreeting = useMemo<Message>(() => ({
         id: 'init',
@@ -341,26 +352,37 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         const decoder = new TextDecoder();
         let buffer = '';
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
 
-            let newlineIndex = buffer.indexOf('\n');
-            while (newlineIndex >= 0) {
-                const line = buffer.slice(0, newlineIndex).trim();
-                buffer = buffer.slice(newlineIndex + 1);
-                if (line) {
-                    onEvent(JSON.parse(line));
+                let newlineIndex = buffer.indexOf('\n');
+                while (newlineIndex >= 0) {
+                    const line = buffer.slice(0, newlineIndex).trim();
+                    buffer = buffer.slice(newlineIndex + 1);
+                    if (line) {
+                        onEvent(JSON.parse(line));
+                    }
+                    newlineIndex = buffer.indexOf('\n');
                 }
-                newlineIndex = buffer.indexOf('\n');
             }
+        } catch (error) {
+            if (isAbortError(error)) {
+                return;
+            }
+            throw error;
         }
 
         const finalLine = buffer.trim();
         if (finalLine) {
             onEvent(JSON.parse(finalLine));
         }
+    }, []);
+
+    const stopGeneration = useCallback(() => {
+        abortControllerRef.current?.abort();
     }, []);
 
     const handleSendMessage = async (submittedValue: string) => {
@@ -399,6 +421,8 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         revisionLogRef.current = revisionEntries;
 
         try {
+            const abortController = new AbortController();
+            abortControllerRef.current = abortController;
             let response: Response;
 
             if (workflowId) {
@@ -406,6 +430,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                 response = await authFetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    signal: abortController.signal,
                     body: JSON.stringify({
                         prompt: `${prompt}\n\nUser priority: this instruction overrides any past revision logs. If this prompt conflicts with previous requests, follow this prompt.`,
                         current_json: workflowSnapshot,
@@ -416,6 +441,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                 response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    signal: abortController.signal,
                     body: JSON.stringify({
                         text: `${prompt}\n\nUser priority: this instruction overrides any past revision logs. If this prompt conflicts with previous requests, follow this prompt.`,
                         current_json: workflowSnapshot,
@@ -460,6 +486,9 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             });
 
             if (!finalResult) {
+                if (abortController.signal.aborted) {
+                    throw new DOMException('Generation stopped.', 'AbortError');
+                }
                 throw new Error('AI preview ended before returning a result.');
             }
 
@@ -519,19 +548,24 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             revisionLogRef.current = buildRevisionLog([...messagesRef.current, finalAiMessage]);
             persistMessage(streamingMessageId, { content: aiText, sender: 'ai' });
         } catch (err) {
-            console.error('[AI] request failed:', err);
-            const message =
-                err instanceof Error
+            const isAborted = isAbortError(err);
+            if (!isAborted) {
+                console.error('[AI] request failed:', err);
+            }
+            const message = isAborted
+                ? 'Generation stopped.'
+                : err instanceof Error
                     ? err.message
                     : 'Unexpected error while contacting the AI service.';
             updateMessage(streamingMessageId, current => ({
                 ...current,
-                content: `Error: ${message}`,
+                content: isAborted ? message : `Error: ${message}`,
                 streamStatus: undefined,
                 isStreaming: false,
             }));
-            persistMessage(streamingMessageId, { content: `Error: ${message}`, sender: 'ai' });
+            persistMessage(streamingMessageId, { content: isAborted ? message : `Error: ${message}`, sender: 'ai' });
         } finally {
+            abortControllerRef.current = null;
             stickToBottomRef.current = false;
             setIsLoading(false);
         }
@@ -580,21 +614,19 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                             <div className={`mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] ${m.sender === 'ai' ? 'text-slate-500 dark:text-slate-400' : 'justify-end text-slate-400 dark:text-slate-500'}`}>
                                 {m.sender === 'ai' ? (
                                     <>
-                                        <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-sky-500/20 bg-white shadow-sm dark:bg-slate-900">
+                                        <span className="flex h-7 w-7 items-center justify-center overflow-hidden">
                                             <Image
                                                 src="/dominofy.png"
                                                 alt="Dominofy"
                                                 width={20}
                                                 height={20}
-                                                className="h-5 w-5 object-contain"
+                                                className="h-6 w-6 object-contain"
                                             />
                                         </span>
-                                        <span>Jelly</span>
                                         {m.isStreaming && <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-sky-600 dark:text-sky-300">Live</span>}
                                     </>
                                 ) : (
                                     <>
-                                        <span>You</span>
                                         <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300/80 bg-white text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                                             <User2 className="h-4 w-4" />
                                         </span>
@@ -648,6 +680,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                     value={inputValue}
                     onValueChange={setInputValue}
                     onSubmit={(nextValue) => void handleSendMessage(nextValue)}
+                    onStop={stopGeneration}
                     placeholder="Ask me anything..."
                     disabled={isLoading}
                     isLoading={isLoading}

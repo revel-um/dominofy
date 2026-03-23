@@ -9,7 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type MenuOption = 'Auto' | 'Max' | 'Search' | 'Plan';
@@ -51,27 +51,35 @@ export interface PromptInputDynamicGrowProps {
   showEffects?: boolean;
   menuOptions?: MenuOption[];
   className?: string;
+  onStop?: () => void;
 }
 
 interface SendButtonProps {
   isDisabled: boolean;
   isLoading: boolean;
+  onStop?: () => void;
 }
 
-const SendButton = memo(({ isDisabled, isLoading }: SendButtonProps) => (
+const SendButton = memo(({ isDisabled, isLoading, onStop }: SendButtonProps) => (
   <button
-    type="submit"
-    aria-label="Send message"
-    disabled={isDisabled}
+    type={isLoading ? 'button' : 'submit'}
+    aria-label={isLoading ? 'Stop generation' : 'Send message'}
+    disabled={isLoading ? false : isDisabled}
+    onClick={isLoading ? onStop : undefined}
     className={cn(
       'ml-auto self-center flex h-8 w-8 items-center justify-center rounded-full border-0 p-0 transition-all z-20',
-      isDisabled
-        ? 'cursor-not-allowed bg-gray-300 text-white/60 opacity-40 dark:bg-gray-600'
-        : 'cursor-pointer bg-gray-900 text-white opacity-90 hover:opacity-100 hover:shadow-lg dark:bg-gray-100 dark:text-gray-900',
+      isLoading
+          ? 'cursor-pointer bg-rose-600 text-white opacity-95 hover:bg-rose-700 hover:shadow-lg'
+        : isDisabled
+          ? 'cursor-not-allowed bg-gray-300 text-white/60 opacity-40 dark:bg-gray-600'
+          : 'cursor-pointer bg-gray-900 text-white opacity-90 hover:opacity-100 hover:shadow-lg dark:bg-gray-100 dark:text-gray-900',
     )}
   >
     {isLoading ? (
-      <span className="sr-only">Sending…</span>
+      <>
+        <Square className="h-3.5 w-3.5 fill-current" />
+        <span className="sr-only">Stop generation</span>
+      </>
     ) : (
       <svg
         width="32"
@@ -113,6 +121,7 @@ export function PromptInputDynamicGrow({
   showEffects = true,
   menuOptions,
   className,
+  onStop,
 }: PromptInputDynamicGrowProps) {
   const [internalValue, setInternalValue] = useState(value ?? '');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -279,7 +288,7 @@ export function PromptInputDynamicGrow({
     setIsMenuOpen(false);
   }, []);
 
-  const isSubmitDisabled = disabled || isLoading || !currentValue.trim();
+  const isSubmitDisabled = disabled || !currentValue.trim();
   const hasModeSelected = selectedOptions.length > 0;
   const shouldExpand = expandOnFocus && !hasModeSelected;
   return (
@@ -380,7 +389,7 @@ export function PromptInputDynamicGrow({
                 lineHeight: '22px',
               }}
             />
-            <SendButton isDisabled={isSubmitDisabled} isLoading={isLoading} />
+            <SendButton isDisabled={isSubmitDisabled} isLoading={isLoading} onStop={onStop} />
           </div>
         </div>
 
