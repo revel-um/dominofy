@@ -79,6 +79,26 @@ export const authOptions: any = {
     },
   },
   debug: process.env.NODE_ENV === 'development',
+  useSecureCookies: false,
+  cookies: {
+    state: {
+      name: 'next-auth.state',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+      },
+    },
+    callbackUrl: {
+      name: 'next-auth.callback-url',
+      options: {
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+      },
+    },
+  },
   pages: {
     signIn: '/auth',
     signOut: '/auth',

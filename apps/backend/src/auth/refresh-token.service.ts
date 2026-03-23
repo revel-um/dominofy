@@ -13,7 +13,7 @@ export class RefreshTokenService {
     private readonly config: ConfigService,
   ) {}
 
-  async generateRefreshToken(userId: number): Promise<RefreshToken> {
+  async generateRefreshToken(userId: string): Promise<RefreshToken> {
     // Generate a secure random token
     const token = crypto.randomBytes(40).toString('hex');
     const ttlDays = Number(this.config.get('REFRESH_TOKEN_TTL_DAYS') || 30);
@@ -48,7 +48,7 @@ export class RefreshTokenService {
     );
   }
 
-  async revokeAllUserTokens(userId: number): Promise<void> {
+  async revokeAllUserTokens(userId: string): Promise<void> {
     await this.refreshTokenRepository.update(
       { userId, isRevoked: false },
       {

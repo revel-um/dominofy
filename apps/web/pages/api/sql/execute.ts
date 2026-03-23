@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { executeQuery, testConnection, ConnectionConfig } from '@/lib/db';
+import { executeQuery, testConnection, closeConnection, ConnectionConfig } from '@/lib/db';
 
 type ResponseData = {
   data?: any;
@@ -11,6 +11,18 @@ type ExecuteRequest = {
   connectionId?: string;
   connectionConfig?: ConnectionConfig;
 };
+
+function getConnectionId(req: NextApiRequest): string | undefined {
+  const queryConnectionId = Array.isArray(req.query.connectionId)
+    ? req.query.connectionId[0]
+    : req.query.connectionId;
+  const bodyConnectionId =
+    typeof req.body === 'object' && req.body && 'connectionId' in req.body
+      ? (req.body.connectionId as string | undefined)
+      : undefined;
+
+  return queryConnectionId || bodyConnectionId;
+}
 
 // Add CORS headers
 const allowCors = (fn: Function) => async (req: NextApiRequest, res: NextApiResponse) => {
@@ -117,6 +129,36 @@ export async function executeSqlQuery(
   }
 }
 
+export async function disconnectSqlConnection(
+  req: NextApiRequest,
+  res: NextApiResponse<ResponseData>
+) {
+  if (req.method !== 'DELETE') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const connectionId = getConnectionId(req);
+  if (!connectionId) {
+    return res.status(400).json({ error: 'Connection ID is required' });
+  }
+
+  try {
+    await closeConnection(connectionId);
+    return res.status(200).json({
+      data: {
+        disconnected: true,
+        connectionId,
+      },
+    });
+  } catch (error) {
+    console.error('Error disconnecting SQL connection:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return res.status(500).json({
+      error: `Disconnect failed: ${errorMessage}`,
+    });
+  }
+}
+
 // Main API handler
 export default allowCors(async function handler(
   req: NextApiRequest,
@@ -125,6 +167,10 @@ export default allowCors(async function handler(
   const { action } = req.query;
 
   try {
+    if (req.method === 'DELETE' || action === 'disconnect') {
+      return await disconnectSqlConnection(req, res);
+    }
+
     switch (action) {
       case 'test-connection':
         return await testDbConnection(req, res);
