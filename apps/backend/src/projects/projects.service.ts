@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { BaseService } from 'src/common/base.service';
 import { Project } from './projects.entity';
 import { CreateProjectDto } from './projects.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository, DataSource } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Workflow } from 'src/workflow/workflow.entity';
 import { User } from 'src/user/user.entity';
+import { WorkspaceService } from 'src/workspace/workspace.service';
+import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 
 @Injectable()
 export class ProjectsService extends BaseService<Project> {
@@ -15,27 +17,39 @@ export class ProjectsService extends BaseService<Project> {
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
     private readonly dataSource: DataSource,
+    private readonly workspaceService: WorkspaceService,
   ) {
     super(projectRepository);
   }
 
-  async findAll(userId: string, limit = 10, offset = 0, query?: string) {
-    // total count of projects for the user (without grouping)
-    const totalCount = await this.projectRepository.count({ where: { user: { id: userId } as any } });
+  async findAll(
+    userId: string,
+    limit = 10,
+    offset = 0,
+    query?: string,
+    workspaceId?: string,
+  ) {
+    const workspaceIds = await this.getReadableWorkspaceIds(userId, workspaceId);
+    if (workspaceIds.length === 0) {
+      return [[], 0] as [any[], number];
+    }
 
     const qb = this.projectRepository
       .createQueryBuilder('project')
-      .leftJoin('project.user', 'user')
+      .leftJoin('project.workspace', 'workspace')
       .leftJoin('project.workflows', 'w')
-      .where('user.id = :userId', { userId })
+      .where('workspace.id IN (:...workspaceIds)', { workspaceIds })
       .select([
         'project.id',
         'project.name',
         'project.description',
         'project.updatedAt',
+        'workspace.id',
+        'workspace.name',
       ])
       .addSelect('COUNT(w.id)', 'workflowCount')
       .groupBy('project.id')
+      .addGroupBy('workspace.id')
       .orderBy('project.updatedAt', 'DESC')
       .skip(offset)
       .take(limit);
@@ -44,9 +58,12 @@ export class ProjectsService extends BaseService<Project> {
       qb.andWhere('project.name ILIKE :q', { q: `%${query}%` });
     }
 
+    const totalCount = await this.projectRepository.count({
+      where: { workspace: { id: In(workspaceIds) } } as any,
+    });
+
     const { entities, raw } = await qb.getRawAndEntities();
 
-    // Merge aggregated workflowCount into entities
     const mapped = entities.map((p, idx) => {
       const wfCount = Number(raw[idx]?.workflowCount ?? 0);
       return Object.assign({}, p, { workflowCount: wfCount });
@@ -56,21 +73,7 @@ export class ProjectsService extends BaseService<Project> {
   }
 
   async getOverview(projectId: string, userId: string) {
-    // Ensure the project belongs to the user
-    const project = await this.projectRepository.findOne({
-      where: { id: projectId, user: { id: userId } },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        updatedAt: true,
-        createdAt: true,
-        isActive: true,
-      } as any,
-    });
-    if (!project) {
-      throw new Error('Project not found');
-    }
+    const project = await this.findProjectForUser(projectId, userId);
 
     const [workflowCount, publishedCount] = await Promise.all([
       this.workflowRepository.count({ where: { project: { id: projectId } } }),
@@ -101,24 +104,45 @@ export class ProjectsService extends BaseService<Project> {
   }
 
   async getGlobalOverview(userId: string) {
+    const workspaceIds = await this.getReadableWorkspaceIds(userId);
+    if (workspaceIds.length === 0) {
+      return {
+        counts: {
+          projectCount: 0,
+          workflowCount: 0,
+          publishedCount: 0,
+        },
+        recentWorkflows: [],
+      };
+    }
+
     const [projectCount, workflowCount, publishedCount] = await Promise.all([
-      this.projectRepository.count({ where: { user: { id: userId } } }),
-      this.workflowRepository.count({ where: { user: { id: userId } } as any }),
-      this.workflowRepository.count({ where: { user: { id: userId }, isPublished: true } as any }),
+      this.projectRepository.count({
+        where: { workspace: { id: In(workspaceIds) } } as any,
+      }),
+      this.workflowRepository
+        .createQueryBuilder('workflow')
+        .leftJoin('workflow.project', 'project')
+        .leftJoin('project.workspace', 'workspace')
+        .where('workspace.id IN (:...workspaceIds)', { workspaceIds })
+        .getCount(),
+      this.workflowRepository
+        .createQueryBuilder('workflow')
+        .leftJoin('workflow.project', 'project')
+        .leftJoin('project.workspace', 'workspace')
+        .where('workspace.id IN (:...workspaceIds)', { workspaceIds })
+        .andWhere('workflow.isPublished = :isPublished', { isPublished: true })
+        .getCount(),
     ]);
 
-    const recentWorkflows = await this.workflowRepository.find({
-      where: { user: { id: userId } } as any,
-      order: { updatedAt: 'DESC' },
-      take: 5,
-      select: {
-        id: true,
-        name: true,
-        updatedAt: true,
-        isPublished: true,
-        isDefault: true,
-      } as any,
-    });
+    const recentWorkflows = await this.workflowRepository
+      .createQueryBuilder('workflow')
+      .leftJoinAndSelect('workflow.project', 'project')
+      .leftJoin('project.workspace', 'workspace')
+      .where('workspace.id IN (:...workspaceIds)', { workspaceIds })
+      .orderBy('workflow.updatedAt', 'DESC')
+      .take(5)
+      .getMany();
 
     return {
       counts: {
@@ -131,24 +155,10 @@ export class ProjectsService extends BaseService<Project> {
   }
 
   async getProjectDetailsWithWorkflows(projectId: string, userId: string) {
-    const project = await this.projectRepository.findOne({
-      where: { id: projectId, user: { id: userId } },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        updatedAt: true,
-        createdAt: true,
-        isActive: true,
-      } as any,
-    });
-
-    if (!project) {
-      throw new Error('Project not found');
-    }
+    const project = await this.findProjectForUser(projectId, userId);
 
     const workflows = await this.workflowRepository.find({
-      where: { project: { id: projectId }, user: { id: userId } } as any,
+      where: { project: { id: projectId } } as any,
       order: { updatedAt: 'DESC' },
       relations: ['project'],
     });
@@ -159,47 +169,97 @@ export class ProjectsService extends BaseService<Project> {
     };
   }
 
-  async createProjectWithDefaultWorkflow(dto: CreateProjectDto, userId: string) {
-    return await this.dataSource.transaction(async manager => {
-      // Create the project
-      const project = manager.create(Project, {
-        ...dto,
-        user: { id: userId } as User,
-      });
-      const savedProject = await manager.save(project);
+  async createProjectWithDefaultWorkflow(
+    dto: CreateProjectDto,
+    userId: string,
+    workspaceId?: string,
+  ) {
+    return await this.dataSource.transaction((manager) =>
+      this.createProjectWithDefaultWorkflowInManager(
+        manager,
+        dto,
+        userId,
+        workspaceId,
+      ),
+    );
+  }
 
-      // Create a default workflow for the project
-      const defaultWorkflow = manager.create(Workflow, {
-        name: 'default',
-        user: { id: userId } as User,
-        project: savedProject,
-        visualJson: { nodes: [], edges: [] },
-        isDefault: true,
-        isPublished: false,
-        isActive: true,
-      });
-      const savedWorkflow = await manager.save(defaultWorkflow);
+  async createProjectWithDefaultWorkflowInManager(
+    manager: EntityManager,
+    dto: CreateProjectDto,
+    userId: string,
+    workspaceId?: string,
+  ) {
+    const resolvedWorkspaceId = await this.workspaceService.resolveWorkspaceIdForUser(
+      userId,
+      workspaceId ?? dto.workspaceId,
+      [WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER],
+      manager,
+    );
 
-      // Return project with the created workflow
-      return {
-        project: savedProject,
-        defaultWorkflow: savedWorkflow
-      };
+    const project = manager.create(Project, {
+      name: dto.name,
+      description: dto.description,
+      user: { id: userId } as User,
+      workspace: { id: resolvedWorkspaceId } as any,
     });
+    const savedProject = await manager.save(project);
+
+    const defaultWorkflow = manager.create(Workflow, {
+      name: 'default',
+      user: { id: userId } as User,
+      project: savedProject,
+      visualJson: { nodes: [], edges: [] },
+      isDefault: true,
+      isPublished: false,
+      isActive: true,
+    });
+    const savedWorkflow = await manager.save(defaultWorkflow);
+
+    return {
+      project: savedProject,
+      defaultWorkflow: savedWorkflow,
+    };
   }
 
   async updateProject(projectId: string, dto: Partial<CreateProjectDto>, userId: string) {
-    // Verify the project exists and belongs to the user
-    const project = await this.projectRepository.findOne({
-      where: { id: projectId, user: { id: userId } },
-    });
+    const project = await this.findProjectForUser(projectId, userId, [
+      WorkspaceRole.OWNER,
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.MEMBER,
+    ]);
+
+    Object.assign(project, dto);
+    return await this.projectRepository.save(project);
+  }
+
+  private async getReadableWorkspaceIds(userId: string, workspaceId?: string) {
+    if (workspaceId) {
+      await this.workspaceService.assertWorkspaceAccess(userId, workspaceId);
+      return [workspaceId];
+    }
+
+    return this.workspaceService.getAccessibleWorkspaceIds(userId);
+  }
+
+  private async findProjectForUser(
+    projectId: string,
+    userId: string,
+    allowedRoles: WorkspaceRole[] = Object.values(WorkspaceRole),
+  ) {
+    const project = await this.projectRepository
+      .createQueryBuilder('project')
+      .leftJoinAndSelect('project.workspace', 'workspace')
+      .leftJoin('workspace.memberships', 'membership')
+      .where('project.id = :projectId', { projectId })
+      .andWhere('membership.userId = :userId', { userId })
+      .andWhere('membership.role IN (:...allowedRoles)', { allowedRoles })
+      .getOne();
 
     if (!project) {
       throw new NotFoundException('Project not found');
     }
 
-    // Update the project
-    Object.assign(project, dto);
-    return await this.projectRepository.save(project);
+    return project;
   }
 }

@@ -43,15 +43,11 @@ export default function TemplatesCanvas({
 
   const startAutoScroll = () => {
     const isPaused = isAutoSwitchPausedRef.current;
-    console.log("startAutoScroll called, isAutoSwitchPaused:", isPaused); // Debug log
     if (isPaused) {
-      console.log("Auto-scroll blocked due to pause"); // Debug log
-      return; // Don't start if paused
+      return;
     }
-    console.log("Starting auto-scroll"); // Debug log
     clearTimers();
     scrollIntervalRef.current = setInterval(() => {
-      console.log("Auto-scroll tick"); // Debug log
       setCurrentIndex((prev) => (prev + 1) % templates.length);
     }, 5000);
   };
@@ -64,7 +60,6 @@ export default function TemplatesCanvas({
   };
 
   const resumeAutoScroll = () => {
-    console.log("Manual template change detected, resuming auto-scroll");
     setNeedsManualResume(false);
     updateAutoSwitchPaused(false);
     startAutoScroll();
@@ -91,17 +86,10 @@ export default function TemplatesCanvas({
 
   // Handle viewport changes from canvas
   const handleViewportChange = () => {
-    console.log(
-      "Viewport change received in TemplatesCanvas, needsManualResume:",
-      needsManualResume
-    ); // Debug log
-
     if (needsManualResume) {
-      console.log("Already waiting for manual template switch, ignoring viewport event");
       return;
     }
 
-    console.log("Pausing auto-switch due to viewport change"); // Debug log
     // Pause auto-switch until the user manually switches templates
     updateAutoSwitchPaused(true);
     setNeedsManualResume(true);
@@ -124,14 +112,16 @@ export default function TemplatesCanvas({
 
   if (templates.length === 0 || !templates[currentIndex]) {
     return (
-      <div className="w-[70%] h-full rounded-2xl bg-white dark:bg-gray-800 shadow-md flex items-center justify-center text-center px-6">
+      <div className="relative flex h-full min-h-[420px] w-full items-center justify-center overflow-hidden rounded-[30px] border border-white/70 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_35%),linear-gradient(180deg,_rgba(255,255,255,0.96),_rgba(241,245,249,0.92))] px-6 shadow-[0_24px_60px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_35%),linear-gradient(180deg,_rgba(15,23,42,0.95),_rgba(2,6,23,0.9))]">
         <div className="space-y-2">
-          <FiLayers className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto" />
-          <p className="text-lg font-medium text-gray-500 dark:text-gray-400">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/80 text-sky-600 shadow-sm dark:bg-white/10 dark:text-sky-200">
+            <FiLayers className="h-7 w-7" />
+          </div>
+          <p className="text-lg font-medium text-slate-700 dark:text-slate-200">
             Awesome templates coming your way!
           </p>
-          <p className="text-sm text-gray-400 dark:text-gray-500">
-            Stay tuned — we’re cooking up something special for you.
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Stay tuned. Template journeys will appear here as soon as they are ready.
           </p>
         </div>
       </div>
@@ -141,17 +131,25 @@ export default function TemplatesCanvas({
   const { nodes, edges } = templates[currentIndex];
 
   return (
-    <div className="w-full rounded-2xl bg-white dark:bg-gray-800 shadow-md overflow-hidden relative transition-all duration-700 ease-in-out">
-      {/* Overlay label */}
-      <div className="absolute top-0 left-0 px-6 py-4 z-10">
-        <div className="rounded-full px-4 py-2 bg-gray-400/30 dark:bg-black/30 backdrop-blur-sm flex items-center gap-x-2 text-black dark:text-white">
-          <FiLayers className="w-5 h-5" />
-          <p className="text-sm font-medium">Templates</p>
+    <div className="relative h-full min-h-[420px] w-full overflow-hidden rounded-[30px] border border-white/70 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_36%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(241,245,249,0.92))] shadow-[0_24px_60px_rgba(15,23,42,0.12)] transition-all duration-700 ease-in-out dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_36%),linear-gradient(180deg,_rgba(15,23,42,0.96),_rgba(2,6,23,0.9))]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between px-6 py-5">
+        <div className="pointer-events-auto rounded-full border border-white/60 bg-white/75 px-4 py-2 text-slate-900 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/45 dark:text-white">
+          <div className="flex items-center gap-2">
+            <FiLayers className="h-5 w-5 text-sky-600 dark:text-sky-300" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
+                Templates
+              </p>
+              <p className="text-sm font-medium">Explore ready-made flow starters</p>
+            </div>
+          </div>
+        </div>
+        <div className="pointer-events-auto rounded-full border border-white/60 bg-white/75 px-3 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/45 dark:text-slate-200">
+          {currentIndex + 1} / {templates.length}
         </div>
       </div>
 
-      {/* Canvas View */}
-      <div key={currentIndex} className="w-full h-full animate-fade-in-slide">
+      <div key={currentIndex} className="h-full w-full animate-fade-in-slide">
         <Canvas
           nodes={nodes}
           edges={edges}
@@ -163,37 +161,38 @@ export default function TemplatesCanvas({
         />
       </div>
 
-      {/* Bottom controls */}
-      <div className="absolute bottom-0 left-0 w-full px-4 py-3 flex justify-between items-center bg-white/80 dark:bg-gray-900/80 backdrop-blur-md">
-        <button
-          onClick={goToPrev}
-          className="text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white transition"
-        >
-          <FiChevronLeft className="w-6 h-6" />
-        </button>
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 px-5 py-4">
+        <div className="rounded-full border border-white/70 bg-white/80 px-3 py-2 text-xs font-medium uppercase tracking-[0.24em] text-slate-500 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/50 dark:text-slate-400">
+          {isAutoSwitchPaused ? "Manual explore" : "Auto rotating"}
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-2 py-2 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/50">
+          <button
+            onClick={goToPrev}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+            aria-label="Previous template"
+          >
+            <FiChevronLeft className="h-5 w-5" />
+          </button>
 
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-          <span>
-            {currentIndex + 1} / {templates.length}
-          </span>
           {isAutoSwitchPaused && (
             <button
               type="button"
               onClick={goToNext}
-              className="p-1 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500 text-white transition hover:bg-sky-600"
               aria-label="Resume auto-scroll"
             >
-              <FiPlay className="w-4 h-4" />
+              <FiPlay className="h-4 w-4" />
             </button>
           )}
-        </p>
 
-        <button
-          onClick={goToNext}
-          className="text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white transition"
-        >
-          <FiChevronRight className="w-6 h-6" />
-        </button>
+          <button
+            onClick={goToNext}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+            aria-label="Next template"
+          >
+            <FiChevronRight className="h-5 w-5" />
+          </button>
+        </div>
       </div>
     </div>
   );

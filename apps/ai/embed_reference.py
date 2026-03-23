@@ -2,7 +2,7 @@ import json, os, chromadb, google.generativeai as genai
 from dotenv import load_dotenv
 load_dotenv()
 
-EMB_MODEL  = "models/embedding-001"
+EMB_MODEL  = "models/gemini-embedding-001"
 REF_PATH   = os.getenv("DOMINO_DOC_PATH", "domino_reference.json")
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./chroma")
 

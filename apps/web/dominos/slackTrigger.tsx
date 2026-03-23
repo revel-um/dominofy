@@ -34,6 +34,7 @@ export default function SlackTriggerDomino({
 }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const isPreviewMode = Boolean((data as any).previewMode);
 
   const router: NextRouter = useRouter();
   const token =
@@ -88,6 +89,11 @@ export default function SlackTriggerDomino({
 
   /* ——————————————————— load Slack connections ——————————————————— */
   useEffect(() => {
+    if (isPreviewMode) {
+      setLoadingConns(false);
+      setConnections([]);
+      return;
+    }
     let mounted = true;
     (async () => {
       setLoadingConns(true);
@@ -101,10 +107,16 @@ export default function SlackTriggerDomino({
       }
     })();
     return () => void (mounted = false);
-  }, [token, router]);
+  }, [isPreviewMode, token, router]);
 
   /* ——————————————————— load channels whenever vaultId changes ——————————————————— */
   useEffect(() => {
+    if (isPreviewMode) {
+      setLoadingCh(false);
+      setChannels([]);
+      setSelectedCh(null);
+      return;
+    }
     if (!vaultId) return;
     let mounted = true;
     (async () => {
@@ -126,7 +138,7 @@ export default function SlackTriggerDomino({
       }
     })();
     return () => void (mounted = false);
-  }, [vaultId, token, router]);
+  }, [isPreviewMode, vaultId, token, router]);
 
   /* ——————————————————— helpers ——————————————————— */
   const startOAuth = async () => {

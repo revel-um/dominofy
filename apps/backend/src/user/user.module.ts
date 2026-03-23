@@ -5,11 +5,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
 import { ProjectsModule } from 'src/projects/projects.module';
+import { WorkspaceModule } from 'src/workspace/workspace.module';
+import { RefreshToken } from 'src/auth/refresh-token.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
-    ProjectsModule
+    TypeOrmModule.forFeature([User, RefreshToken]),
+    ProjectsModule,
+    WorkspaceModule,
   ],
   providers: [UserService],
   controllers: [UserController],

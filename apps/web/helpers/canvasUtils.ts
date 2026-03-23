@@ -161,11 +161,26 @@ export function createOnConnectHandler(
   updatePipeline: (n: Node[], e: Edge[]) => void,
   router: any,
   clearConnectStart: () => void,
+  setSelectedNode: Dispatch<React.SetStateAction<Node | null>>,
 ) {
   return (params: Connection) => {
     clearConnectStart();
 
     const nodes = getNodes();
+    const focusId = params.target ?? params.source ?? null;
+    const focusNode =
+      nodes.find((node) => node.id === focusId) ?? null;
+
+    if (focusId) {
+      setNodes((prevNodes) =>
+        prevNodes.map((node) => ({
+          ...node,
+          selected: node.id === focusId,
+          data: { ...node.data, selected: node.id === focusId },
+        }))
+      );
+      setSelectedNode(focusNode);
+    }
 
     setEdges(prevEdges => {
       let working = prevEdges;

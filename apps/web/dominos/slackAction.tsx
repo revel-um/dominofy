@@ -19,6 +19,7 @@ interface SlackChannel {
 export default function SlackActionDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const isPreviewMode = Boolean((data as any).previewMode);
 
   const router: NextRouter = useRouter();
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
@@ -101,6 +102,11 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
   );
 
   useEffect(() => {
+    if (isPreviewMode) {
+      setLoadingConns(false);
+      setConnections([]);
+      return;
+    }
     let mounted = true;
     (async () => {
       setLoadingConns(true);
@@ -112,9 +118,14 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
       }
     })();
     return () => void (mounted = false);
-  }, [token, router]);
+  }, [isPreviewMode, token, router]);
 
   useEffect(() => {
+    if (isPreviewMode) {
+      setLoadingCh(false);
+      setChannels([]);
+      return;
+    }
     if (!vaultId) return;
     let mounted = true;
     (async () => {
@@ -129,7 +140,7 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
       }
     })();
     return () => void (mounted = false);
-  }, [vaultId, token, router]);
+  }, [isPreviewMode, vaultId, token, router]);
 
   const startOAuth = async () => {
     const url = await SlackApi.getInstallUrl(token, router);

@@ -13,7 +13,7 @@ import { JoinTextDomino } from "./dominos/joinText";
 
 // Import each domino implementation class:
 import { PrintDomino } from "./dominos/print";
-import { ReadExcelDomino } from "./dominos/readExcel";
+import { ReadExcelDomino } from "./dominos/readFile";
 import { ResponseDomino } from "./dominos/response";
 import { SlackTriggerDomino } from "./dominos/slackTrigger";
 import { SwitchCaseDomino } from "./dominos/switchCase";
@@ -29,6 +29,7 @@ import { SchedulerDomino } from "./dominos/scheduler";
 import { GoogleDriveDomino } from "./dominos/googleDrive";
 import { GoogleDriveDownloadDomino } from "./dominos/googleDriveDownload";
 import { LLMDomino } from "./dominos/llm";
+import { DatabaseDomino, DatabaseRetrievalDomino } from "./dominos/database";
 
 type DominoCtor = new (node: PipelineStep) => DominoExecutable;
 
@@ -64,6 +65,8 @@ class DominoRegistry {
     this.register("SchedulerDomino", SchedulerDomino);
     this.register("googleDrive", GoogleDriveDomino);
     this.register("googleDriveDownload", GoogleDriveDownloadDomino);
+    this.register("storage", DatabaseDomino);
+    this.register("storageRetrieve", DatabaseRetrievalDomino);
   }
 
   public register(type: string, ctor: DominoCtor) {

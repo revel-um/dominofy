@@ -42,7 +42,6 @@ export class LLMDomino implements DominoExecutable {
       ? await this.callGeminiWithApiKeyWithFallback(prompt, configuredModel, apiKey, ctx.abortSignal)
       : await this.callVertexWithAdc(prompt, configuredModel, ctx.abortSignal);
 
-      console.log("Vertex AI raw response:", res); // Debug log
     if (!res.ok) {
       const errorBody = await res.text();
       throw new Error(`AI request failed (${res.status}): ${errorBody}`);

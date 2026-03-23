@@ -19,6 +19,7 @@ interface EmailTriggerData extends DominoNodeData {
 export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const isPreviewMode = Boolean((data as any).previewMode);
 
   const router: NextRouter = useRouter();
   const token =
@@ -37,9 +38,10 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
 
   const [connections, setConnections] = useState<EmailConnection[]>([]);
   const [loadingConns, setLoadingConns] = useState(true);
+  const safeConnections = Array.isArray(connections) ? connections : [];
   const selectedConn = useMemo(
-    () => connections.find(c => c.id === vaultId),
-    [connections, vaultId],
+    () => safeConnections.find(c => c.id === vaultId),
+    [safeConnections, vaultId],
   );
 
   /* Initialise node schema on first mount */
@@ -79,12 +81,17 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
 
   /* Load Gmail connections */
   useEffect(() => {
+    if (isPreviewMode) {
+      setLoadingConns(false);
+      setConnections([]);
+      return;
+    }
     let mounted = true;
     (async () => {
       setLoadingConns(true);
       try {
         const list = await EmailApi.getConnections(token, router);
-        if (mounted) setConnections(list ?? []);
+        if (mounted) setConnections(Array.isArray(list) ? list : []);
       } catch (err) {
         console.error('Error fetching email connections', err);
       } finally {
@@ -92,7 +99,7 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
       }
     })();
     return () => void (mounted = false);
-  }, [token, router]);
+  }, [isPreviewMode, token, router]);
 
   const startOAuth = async () => {
     const url = await EmailApi.getInstallUrl(token, router);
@@ -162,21 +169,21 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
             className="w-full px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
             onClick={startOAuth}
           >
-            {connections.length === 0 ? 'Connect Gmail' : 'Add Gmail connection'}
+            {safeConnections.length === 0 ? 'Connect Gmail' : 'Add Gmail connection'}
           </button>
         </div>
 
         {/* Connection selection */}
         {loadingConns ? (
           <p className="text-sm px-3">Loading Gmail connections…</p>
-        ) : connections.length > 0 ? (
+        ) : safeConnections.length > 0 ? (
           <div className="flex flex-col gap-1 px-3">
             <label className="text-xs font-medium">Gmail Account</label>
             <SearchableSelect
               value={vaultId}
               onChange={updateVaultId}
               placeholder="Select account"
-              options={connections.map(c => ({
+              options={safeConnections.map(c => ({
                 label: c.email || c.name,
                 value: c.id,
               }))}

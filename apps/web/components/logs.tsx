@@ -99,12 +99,30 @@ function upsertRunAggregate(
 
   const seqEntries = normalizePrintSeqEntries(log.output);
   if (seqEntries.length > 0) {
+    if (
+      current.fallbackMessages.length === 1 &&
+      current.fallbackMessages[0] === 'null'
+    ) {
+      current.fallbackMessages = [];
+    }
     for (const entry of seqEntries) {
       current.seqMap.set(entry.seq, stringifyLogValue(entry.output));
     }
   } else if (log.error?.message) {
+    if (
+      current.fallbackMessages.length === 1 &&
+      current.fallbackMessages[0] === 'null'
+    ) {
+      current.fallbackMessages = [];
+    }
     current.fallbackMessages.push(log.error.message);
   } else if (log.output !== undefined) {
+    if (
+      current.fallbackMessages.length === 1 &&
+      current.fallbackMessages[0] === 'null'
+    ) {
+      current.fallbackMessages = [];
+    }
     current.fallbackMessages.push(stringifyLogValue(log.output));
   }
 
@@ -269,8 +287,14 @@ export const LogsPanel = React.memo(function LogsPanel({
         upsertRunAggregate(grouped, runId, l, ts);
       });
 
+    if (isLive) {
+      liveLogsRef.current[workflowId] = grouped;
+      setLogs(buildWorkflowLogs(grouped, getPendingRuns(workflowId)));
+      return;
+    }
+
     setLogs(buildWorkflowLogs(grouped));
-  }, [workflowId, router, offset, limit, minutesFilter, rangeStart, rangeEnd, dateSelected]);
+  }, [workflowId, router, offset, limit, minutesFilter, rangeStart, rangeEnd, dateSelected, isLive, getPendingRuns]);
 
   // subscribe to workflow log streams for all open tabs when live + panel open
   useEffect(() => {
@@ -383,6 +407,13 @@ export const LogsPanel = React.memo(function LogsPanel({
     if (!isLive) return;
     setLogs(buildWorkflowLogs(liveLogsRef.current[workflowId] ?? {}, getPendingRuns(workflowId)));
   }, [workflowId, isLive, getPendingRuns]);
+
+  // live mode still needs a backfill fetch for runs that happened while the panel
+  // was closed or before this client subscribed to the stream.
+  useEffect(() => {
+    if (!isLive || isMinimized) return;
+    fetchLogs();
+  }, [isLive, isMinimized, fetchLogs]);
 
   // auto-scroll on logs update or panel open
   useEffect(() => {

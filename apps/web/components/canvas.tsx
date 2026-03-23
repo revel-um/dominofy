@@ -20,9 +20,11 @@ import ReactFlow, {
   Position,
   type NodeProps,
   useUpdateNodeInternals,
+  useEdges,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { FiBox } from "react-icons/fi";
+import { ArrowRight } from "lucide-react";
 
 /* domino components … */
 import PrintDomino from "../dominos/print";
@@ -53,6 +55,8 @@ import LLMDomino from "../dominos/llm";
 import SchedulerDomino from "../dominos/scheduler";
 import ConnectorDomino from "@/dominos/connector";
 import ShopifyDomino from "@/dominos/shopify";
+import DatabaseDomino from "@/dominos/database";
+import DatabaseRetrievalDomino from "@/dominos/databaseRetrieval";
 /* NEW: Note node */
 import NoteDomino from "../dominos/note";
 import dominoCatalog from "../dominos/dominos";
@@ -118,65 +122,90 @@ function CompactDominoNode(
   const { erroredNodes } = useDomino();
   const hasError = erroredNodes.includes(id);
   const meta = dominoMetaByType.get(compactType);
+  const category = meta?.categories?.[0] ?? "Domino";
+  const description = meta?.description ?? "";
   const label =
     meta?.label ||
     (data as any)?.details?.type ||
     (data as any)?.label ||
     compactType;
 
+  const edges = useEdges();
+  const isConnected = edges.some((e) => e.source === id || e.target === id);
+  const Icon = meta?.icon ?? FiBox;
+  const accentColor = meta?.badgeStyle?.background
+    ? (meta.badgeStyle.background as string).match(/#[0-9a-fA-F]{6}/)?.[0]
+    : undefined;
+
   return (
-    <div
-      className="relative h-14 min-w-[7rem] w-max max-w-none"
-    >
+    <div className="relative w-full min-w-[10rem] max-w-[14rem]">
       <Handle
         type="target"
         position={Position.Left}
-        isConnectable={false}
+        isConnectable={true}
         style={{
-          left: -4,
+          left: -8,
           top: '50%',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           opacity: 0,
-          pointerEvents: 'none',
           transform: 'translateY(-50%)',
         }}
       />
       <Handle
         type="source"
         position={Position.Right}
-        isConnectable={false}
+        isConnectable={true}
         style={{
-          right: -4,
+          right: -8,
           top: '50%',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           opacity: 0,
-          pointerEvents: 'none',
           transform: 'translateY(-50%)',
         }}
       />
 
       <div
-        className={`flex h-full w-full items-center justify-center rounded-2xl border px-1.5 shadow-sm transition-all duration-150
+        className={`group/node relative w-full overflow-hidden rounded-xl border bg-dominofy-light-panel/95 dark:bg-dominofy-dark-panel/95 p-3 backdrop-blur transition-all hover:shadow-lg
           ${hasError
             ? 'error-border'
             : selected
-              ? 'selected-border border-4'
-              : 'unselected-border dark:border-gray-600'}
-          bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-        >
-        <div className="flex items-center justify-center gap-2">
-          {meta ? (
-            <DominoCatalogIcon domino={meta} badgeClassName="h-7 w-7 rounded-lg shadow-none" iconClassName="h-3.5 w-3.5" />
-          ) : (
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200">
-              <FiBox className="h-3.5 w-3.5" />
+              ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+              : 'unselected-border dark:border-gray-600'}`}
+        style={!hasError && !selected && accentColor ? { borderColor: accentColor } : undefined}
+        role="article"
+        aria-label={`${category} node: ${label}`}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+        <div className="relative space-y-2">
+          <div className="flex items-center gap-2">
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border backdrop-blur"
+              style={accentColor ? { borderColor: accentColor, backgroundColor: `${accentColor}22` } : undefined}
+              aria-hidden="true"
+            >
+              <Icon className="h-4 w-4" style={accentColor ? { color: accentColor } : meta?.iconStyle} />
             </div>
+            <div className="min-w-0 flex-1 leading-none">
+              <h3 className="truncate text-xs font-semibold tracking-tight text-foreground">
+                {label}
+              </h3>
+              <p className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                {category}
+              </p>
+            </div>
+          </div>
+
+          {description && (
+            <p className="truncate text-[10px] leading-relaxed text-foreground/60">{description}</p>
           )}
-          <span className="whitespace-nowrap text-sm font-semibold text-dominofy-light-text dark:text-dominofy-dark-text">
-            {label}
-          </span>
+
+          <div className="flex items-center gap-1.5 text-[10px] text-foreground/50">
+            <ArrowRight className="h-2.5 w-2.5" aria-hidden="true" />
+            <span className="uppercase tracking-[0.1em]">{isConnected ? "Connected" : "No connections"}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -247,10 +276,15 @@ const nodeTypes = {
   slackaction: withRenderKey('slackaction', SlackActionDomino),
   SchedulerDomino: withRenderKey('SchedulerDomino', SchedulerDomino),
   connector: withRenderKey('connector', ConnectorDomino),
+  storage: withRenderKey('storage', DatabaseDomino),
+  storageRetrieve: withRenderKey('storageRetrieve', DatabaseRetrievalDomino),
   shopify: withRenderKey('shopify', ShopifyDomino),
   /* NEW */
   note: withRenderKey('note', NoteDomino),
 };
+
+const DASHBOARD_PREVIEW_ZOOM = 1 / 3;
+const MIN_CANVAS_ZOOM = 1 / 3;
 
 /* ─────────────────────────  PROPS  ───────────────────────── */
 interface CanvasProps {
@@ -280,6 +314,8 @@ interface CanvasProps {
   
   /* NEW: viewport change callback for template carousel */
   onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;
+  allowReadonlyPanning?: boolean;
+  allowReadonlyPanOnScroll?: boolean;
 }
 
 /* ─────────────────────────  COMPONENT  ───────────────────────── */
@@ -298,6 +334,8 @@ export default function Canvas(props: CanvasProps) {
     isExpandedMode = true,
     onToggleExpandedMode,
     onViewportChange,
+    allowReadonlyPanning,
+    allowReadonlyPanOnScroll,
   } = props;
 
   const router = useRouter();
@@ -364,6 +402,27 @@ export default function Canvas(props: CanvasProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverscrollX = html.style.overscrollBehaviorX;
+    const previousHtmlOverscroll = html.style.overscrollBehavior;
+    const previousBodyOverscrollX = body.style.overscrollBehaviorX;
+    const previousBodyOverscroll = body.style.overscrollBehavior;
+
+    html.style.overscrollBehaviorX = 'none';
+    html.style.overscrollBehavior = 'none';
+    body.style.overscrollBehaviorX = 'none';
+    body.style.overscrollBehavior = 'none';
+
+    return () => {
+      html.style.overscrollBehaviorX = previousHtmlOverscrollX;
+      html.style.overscrollBehavior = previousHtmlOverscroll;
+      body.style.overscrollBehaviorX = previousBodyOverscrollX;
+      body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, []);
+
   const handleModeAnimationStart = useCallback((nodeId: string) => {
     setAnimatingNodeIds((prev) => {
       const next = new Set(prev);
@@ -418,6 +477,7 @@ export default function Canvas(props: CanvasProps) {
             className: n.className ? `${n.className} opacity-50` : "opacity-50",
             data: {
               ...n.data,
+              previewMode: renderGuarded,
               compactMode,
               onModeAnimationStart: handleModeAnimationStart,
               onModeAnimationEnd: handleModeAnimationEnd,
@@ -428,6 +488,7 @@ export default function Canvas(props: CanvasProps) {
           ...n,
           data: {
             ...n.data,
+            previewMode: renderGuarded,
             compactMode,
             onModeAnimationStart: handleModeAnimationStart,
             onModeAnimationEnd: handleModeAnimationEnd,
@@ -463,8 +524,9 @@ export default function Canvas(props: CanvasProps) {
           animated: false,
           style: {
             ...edge.style,
-            stroke: '#94a3b8',
-            strokeWidth: 2,
+            stroke: '#64748b',
+            strokeWidth: 2.5,
+            opacity: 0.6,
           },
         });
       }
@@ -490,8 +552,9 @@ export default function Canvas(props: CanvasProps) {
             animated: false,
             style: {
               ...edge.style,
-              stroke: '#94a3b8',
-              strokeWidth: 2,
+              stroke: sourceExpanded || targetExpanded ? '#475569' : '#64748b',
+              strokeWidth: sourceExpanded || targetExpanded ? 2.75 : 2.25,
+              opacity: sourceExpanded || targetExpanded ? 0.9 : 0.65,
             },
           });
           return;
@@ -508,8 +571,9 @@ export default function Canvas(props: CanvasProps) {
             animated: false,
             style: {
               ...edge.style,
-              stroke: '#94a3b8',
-              strokeWidth: 2,
+              stroke: '#64748b',
+              strokeWidth: 2.25,
+              opacity: 0.65,
             },
           });
         }
@@ -535,8 +599,9 @@ export default function Canvas(props: CanvasProps) {
           animated: false,
           style: {
             ...edge.style,
-            stroke: '#94a3b8',
-            strokeWidth: 2,
+            stroke: '#64748b',
+            strokeWidth: 2.25,
+            opacity: 0.65,
           },
         });
       }
@@ -700,19 +765,14 @@ export default function Canvas(props: CanvasProps) {
 
       // Handle selection behavior
       if (event.metaKey || event.ctrlKey || event.shiftKey) {
-        // Cmd/Ctrl/Shift + click → toggle selection of this node only
-        setNodes(prev => prev.map(n => 
-          n.id === node.id 
-            ? { ...n, selected: !n.selected }
-            : n
-        ));
+        // Let React Flow handle additive/toggle selection for modifier clicks.
+        setSelectedNode(null);
       } else {
-        // Simple click → deselect all others and select only this node
-        setNodes(prev => prev.map(n => ({ ...n, selected: n.id === node.id })));
+        // Let React Flow handle single-node selection and only sync the details panel.
         setSelectedNode(node);
       }
     },
-    [connectStart, setEdges, updatePipeline, setSelectedNode, setNodes, getNodes, id]
+    [connectStart, setEdges, updatePipeline, setSelectedNode, getNodes, id]
   );
 
   /* connect start */
@@ -849,7 +909,7 @@ export default function Canvas(props: CanvasProps) {
       } else if (id === 'dashboard-template') {
         console.log('Setting fixed zoom for template canvas');
         // For template canvas, use fixed zoom for consistent display
-        zoom = 0.5; // Fixed zoom level for templates
+        zoom = DASHBOARD_PREVIEW_ZOOM; // Fixed zoom level for templates
       }
 
       // Set view to center the populated area
@@ -877,9 +937,9 @@ export default function Canvas(props: CanvasProps) {
     // Default viewport for new workflows with canvas-specific zoom
     let defaultZoom = 1;
     if (id === 'dashboard-template') {
-      defaultZoom = 0.5; // Template canvas uses 0.5 zoom
+      defaultZoom = DASHBOARD_PREVIEW_ZOOM;
     } else if (id.includes('dashboard')) {
-      defaultZoom = 0.5; // Dashboard canvas uses maximum zoom out
+      defaultZoom = DASHBOARD_PREVIEW_ZOOM;
     }
     
     return { x: 0, y: 0, zoom: defaultZoom };
@@ -942,7 +1002,7 @@ export default function Canvas(props: CanvasProps) {
         let zoom = 1; // Default zoom
         
         if (id.includes('dashboard')) {
-          zoom = 0.5; // Dashboard canvases use 0.5 zoom
+          zoom = DASHBOARD_PREVIEW_ZOOM;
         } else if (id === 'dominofy') {
           // For dominofy canvas, use recenter function which has smart zoom calculation
           recenterToPopulatedArea();
@@ -1118,9 +1178,10 @@ export default function Canvas(props: CanvasProps) {
         clearValidationForDominoId,
         updatePipeline,
         router,
-        () => setConnectStart(null)
+        () => setConnectStart(null),
+        setSelectedNode
       )(connection),
-    [getNodes, setNodes, setEdges, clearValidationForDominoId, updatePipeline, router]
+    [getNodes, setNodes, setEdges, clearValidationForDominoId, updatePipeline, router, setSelectedNode]
   );
 
   /* edge changes */
@@ -1138,7 +1199,12 @@ export default function Canvas(props: CanvasProps) {
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       if (changes.length > 0) {
-        setNodes((prev) => applyNodeChanges(changes, prev));
+        setNodes((prev) => {
+          const next = applyNodeChanges(changes, prev);
+          const selectedNodes = next.filter((node) => node.selected);
+          setSelectedNode(selectedNodes.length === 1 ? selectedNodes[0] : null);
+          return next;
+        });
         onNodesChange?.(changes);
       }
     },
@@ -1346,11 +1412,14 @@ export default function Canvas(props: CanvasProps) {
 
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   const isDominofyCanvas = id === 'dominofy';
+  const canPanReadonly = allowReadonlyPanning ?? (readonly && id.includes('dashboard'));
+  const canPanReadonlyOnScroll = allowReadonlyPanOnScroll ?? false;
   const canvasClassName = `absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none ${!isDominofyCanvas ? 'locked-canvas' : ''}`;
 
   return (
     <div 
       className="relative w-full h-full" 
+      style={{ overscrollBehavior: 'none', overscrollBehaviorX: 'none' }}
       onContextMenu={onPaneContextMenu}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -1366,8 +1435,8 @@ export default function Canvas(props: CanvasProps) {
           onDrop={onDrop}
           onDragOver={handleDragOver}
           onConnectStart={onConnectStart}
-          onConnect={isExpandedMode ? onConnect : undefined}
-          onEdgesChange={isExpandedMode ? handleEdgesChange : undefined}
+          onConnect={!readonly && isSelectionMode ? onConnect : undefined}
+          onEdgesChange={!readonly && isSelectionMode ? handleEdgesChange : undefined}
           onNodesChange={handleNodesChange}
           onNodeClick={onNodeClick as any}
           onEdgeClick={handleEdgeClick}
@@ -1376,21 +1445,23 @@ export default function Canvas(props: CanvasProps) {
           defaultViewport={getInitialViewport()}
           fitView={isNewTab} // Only fit view for new tabs
           nodesDraggable={!readonly && isSelectionMode}
-          nodesConnectable={!readonly && isExpandedMode && isSelectionMode}
+          nodesConnectable={!readonly && isSelectionMode}
           elementsSelectable={!readonly && !isLockedMode && !isHandMode}
-          panOnDrag={!readonly && isHandMode}
-          panOnScroll={!readonly}
+          panOnDrag={canPanReadonly || (!readonly && isHandMode)}
+          panOnScroll={canPanReadonlyOnScroll || !readonly}
+          preventScrolling={!readonly}
           zoomOnScroll={false}
 
           /* ✅ MULTI-SELECT via rectangle (hold Shift) */
           selectionOnDrag={!readonly && isSelectionMode}
-          selectionKeyCode={['Shift']}
-          multiSelectionKeyCode={null}
+          selectionKeyCode={['Meta', 'Control', 'Shift']}
+          multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
           selectionMode={SelectionMode.Partial}
           selectNodesOnDrag={isSelectionMode}
           onPaneClick={handlePaneClick}
 
           proOptions={{ hideAttribution: true }}
+          minZoom={MIN_CANVAS_ZOOM}
           className={canvasClassName}
         >
           <Background />

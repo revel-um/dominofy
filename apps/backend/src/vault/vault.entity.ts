@@ -4,13 +4,17 @@ import {
   Column,
   ManyToMany,
   JoinTable,
+  JoinColumn,
+  ManyToOne,
   BeforeInsert,
   BeforeUpdate,
   AfterLoad,
+  Index,
 } from 'typeorm';
 import { BaseEntity } from 'src/common/base.entity';
 import { User } from 'src/user/user.entity';
 import { encrypt, decrypt } from 'src/helper/encryption';
+import { Workspace } from 'src/workspace/workspace.entity';
 
 
 /* ───────────────────────────────
@@ -47,6 +51,14 @@ export class Vault extends BaseEntity {
 
   @Column({ nullable: true, type: 'jsonb' })
   lookupIds?: any;
+
+  @Index('IDX_vaults_workspaceId')
+  @ManyToOne(() => Workspace, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'workspaceId' })
+  workspace: Workspace;
 
   /* ---------- access control (users) ---------- */
   @ManyToMany(() => User, (u) => u.vaults, { cascade: false, eager: true })

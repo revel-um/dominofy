@@ -7,6 +7,8 @@ export interface BaseTicket {
   message: string;
   category: TicketCategory;
   priority: TicketPriority;
+  title?: string;
+  description?: string;
 }
 
 export interface TicketFormData {

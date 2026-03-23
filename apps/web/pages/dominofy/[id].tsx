@@ -555,10 +555,11 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     (updater) => {
       const previewEdges =
         typeof updater === 'function' ? updater(edges) : updater;
+      const markDirty = hasMeaningfulEdgeDifferences(edges, previewEdges);
 
-      if (!isRestoring.current && !isDraggingRef.current && hasHydratedRef.current) {
+      if (!isRestoring.current && !isDraggingRef.current && hasHydratedRef.current && markDirty) {
         pushHistory();
-        setTimeout(() => autoSaveWorkflow(nodes, previewEdges), 100);
+        setTimeout(() => autoSaveWorkflow(nodes, previewEdges, true), 100);
         setHasUnsavedChanges(true);
       }
 
@@ -683,10 +684,12 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      if (!isRestoring.current && hasHydratedRef.current) {
+      const hasMeaningfulChanges = changes.some((change) => isMeaningfulEdgeChangeType(change.type));
+
+      if (!isRestoring.current && hasHydratedRef.current && hasMeaningfulChanges) {
         pushHistory();
         // Auto-save after edge changes from canvas interactions
-        const scheduleSave = () => autoSaveWorkflow();
+        const scheduleSave = () => autoSaveWorkflow(undefined, undefined, true);
         if (typeof queueMicrotask === 'function') {
           queueMicrotask(scheduleSave);
         } else {
@@ -1135,14 +1138,57 @@ const sanitizeNodeForDiff = (node: Node) => {
     className,
   } = node;
 
+  const sanitizedData =
+    data && typeof data === 'object'
+      ? Object.fromEntries(
+          Object.entries(data).filter(([key]) => key !== 'selected')
+        )
+      : data;
+
   return {
     id,
     type,
-    data,
+    data: sanitizedData,
     parentNode,
     dragHandle,
     sourcePosition,
     targetPosition,
+    hidden: Boolean(hidden),
+    style,
+    className,
+  };
+};
+
+const sanitizeEdgeForDiff = (edge: Edge) => {
+  const {
+    id,
+    source,
+    target,
+    sourceHandle,
+    targetHandle,
+    type,
+    data,
+    label,
+    markerEnd,
+    markerStart,
+    animated,
+    hidden,
+    style,
+    className,
+  } = edge;
+
+  return {
+    id,
+    source,
+    target,
+    sourceHandle,
+    targetHandle,
+    type,
+    data,
+    label,
+    markerEnd,
+    markerStart,
+    animated: Boolean(animated),
     hidden: Boolean(hidden),
     style,
     className,
@@ -1162,6 +1208,27 @@ const hasMeaningfulNodeDifferences = (prevNodes: Node[], newNodes: Node[]) => {
     if (
       JSON.stringify(sanitizeNodeForDiff(prevNode)) !==
       JSON.stringify(sanitizeNodeForDiff(newNode))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const hasMeaningfulEdgeDifferences = (prevEdges: Edge[], newEdges: Edge[]) => {
+  if (prevEdges.length !== newEdges.length) return true;
+
+  const prevMap = new Map(prevEdges.map((edge) => [edge.id, edge]));
+  const newMap = new Map(newEdges.map((edge) => [edge.id, edge]));
+  if (prevMap.size !== newMap.size) return true;
+
+  for (const [id, newEdge] of newMap) {
+    const prevEdge = prevMap.get(id);
+    if (!prevEdge) return true;
+    if (
+      JSON.stringify(sanitizeEdgeForDiff(prevEdge)) !==
+      JSON.stringify(sanitizeEdgeForDiff(newEdge))
     ) {
       return true;
     }
@@ -1312,3 +1379,6 @@ const hydrateNodesWithAIOverrides = (
 
 const isMeaningfulNodeChangeType = (type: NodeChange['type']) =>
   type === 'add' || type === 'remove';
+
+const isMeaningfulEdgeChangeType = (type: EdgeChange['type']) =>
+  type === 'add' || type === 'remove' || type === 'replace' || type === 'reset';

@@ -238,6 +238,26 @@
     will-change: transform, opacity;
   }
 
+  .dominofy-compact-node {
+    box-shadow:
+      0 14px 30px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(14px);
+  }
+
+  .dominofy-compact-node:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      0 18px 34px rgba(15, 23, 42, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  }
+
+  .dark .dominofy-compact-node {
+    box-shadow:
+      0 16px 32px rgba(2, 6, 23, 0.26),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
   /* Button variants */
   .btn-primary {
     background-color: hsl(var(--primary));

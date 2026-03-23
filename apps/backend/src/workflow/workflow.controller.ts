@@ -19,6 +19,7 @@ import { WorkflowService } from './workflow.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { SchedulerService } from 'src/scheduler/scheduler.service';
+import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 
 @Controller('workflow')
 export class WorkflowController extends BaseController<
@@ -37,6 +38,8 @@ export class WorkflowController extends BaseController<
 
   protected async beforeCreate(dto: CreateWorkflowDto, req: Request) {
     const userId = (req as any).user?.id;
+    await this.workflowService.assertProjectWriteAccess(dto.projectId, userId);
+
     // map ids to relations expected by Workflow entity
     const mapped: any = {
       name: dto.name,
@@ -84,8 +87,14 @@ export class WorkflowController extends BaseController<
   async saveWorkflow(
     @Param('id') id: string,
     @Body('visualJson') visualJson: string,
+    @Req() req: Request,
   ) {
-    const workflow = await this.workflowService.findOne(id);
+    const userId = (req as any).user.id;
+    const workflow = await this.workflowService.findOneAndVerify(id, userId, [
+      WorkspaceRole.OWNER,
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.MEMBER,
+    ]);
     if (!workflow) {
       throw new NotFoundException(`Workflow with id ${id} not found`);
     }

@@ -13,16 +13,10 @@ export interface CreateVaultPayload {
 export class VaultsApi {
   static async getVaultTypes(token: string, router: NextRouter) {
     try {
-      const response = await fetch(`${config.backendBaseUrl}/vault/types`, {
+      const response = await authFetch(`${config.backendBaseUrl}/vault/types`, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        handleUnauthorizedError(router);
-      }
+        token,
+      }, router);
 
       return response;
     } catch (err) {

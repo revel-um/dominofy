@@ -1,18 +1,24 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
+import { TokenManager } from '../utils/auth';
 
 export default function HomePage() {
   const router = useRouter();
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    let active = true;
+    const t = setTimeout(async () => {
+      const token = await TokenManager.getValidAccessToken();
+      if (!active) return;
       router.replace(token ? '/dashboard' : '/auth');
       setBooting(false);
     }, 1000); // brief loader preview
-    return () => clearTimeout(t);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
   }, [router]);
 
   return (

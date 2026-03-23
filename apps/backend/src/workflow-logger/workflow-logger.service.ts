@@ -77,6 +77,10 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
 
   /** Push a single log DTO into the in‑memory buffer. */
   async logLine(dto: WorkflowLogDto) {
+    if (dto.type !== 'print') {
+      return;
+    }
+
     // Safety guard: do not queue logs missing the NOT‑NULL column.
     if (!dto.dominoId) {
       this.log.warn(
@@ -231,6 +235,10 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
        *  Normalize all successful domino outputs into sequenced entries.
        */
       const normalizedOutputs = (() => {
+        if (d.type !== 'print') {
+          return [];
+        }
+
         if (Array.isArray(d.output)) {
           return d.output
             .filter((entry: any) => typeof entry?.seq === 'number')

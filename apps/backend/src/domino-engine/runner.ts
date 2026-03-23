@@ -14,6 +14,8 @@ export class Runner extends EventEmitter {
   private multiOut = new Set<string>();                        // multi-pin dominos
   private doneFlags = new Map<string, boolean>();              // cascade flags
   private skipped = new Set<string>();                         // pruned branch nodes
+  private executionErrorNodeId: string | null = null;
+  private executionErrorMessage: string | null = null;
 
   constructor(private pipeline: PipelineStep[], private maxConcurrency = 20, private visualJson: any) {
     super();
@@ -22,7 +24,11 @@ export class Runner extends EventEmitter {
 
   /* ───────────────────────── run ───────────────────────── */
 
-  async run(runId: string, globalInput: Record<string, any> = {}) {
+  async run(
+    runId: string,
+    globalInput: Record<string, any> = {},
+    runtimeMeta: { workflowId?: string } = {},
+  ) {
     
     //Validate if workflow is invalid
     const isWorkflowValid = validateWorkflow(this.visualJson);
@@ -49,15 +55,24 @@ export class Runner extends EventEmitter {
     this.multiOut.clear();
     this.doneFlags.clear();
     this.skipped.clear();
+    this.executionErrorNodeId = null;
+    this.executionErrorMessage = null;
 
     /* schedule roots (no control dependencies) */
     depsClone.forEach((depSet, nodeId) => {
       if (depSet.size === 0) {
-        this.scheduleNode(nodeId, runId, globalInput, children, depsClone, results, unresolved);
+        this.scheduleNode(nodeId, runId, globalInput, runtimeMeta, children, depsClone, results, unresolved);
       }
     });
     
     await this.queue.onIdle();
+
+    if (this.executionErrorNodeId && this.executionErrorMessage) {
+      const nodeId = this.executionErrorNodeId;
+      const message = this.executionErrorMessage;
+      this.cleanup();
+      throw new Error(`Domino ${nodeId} failed: ${message}`);
+    }
 
     if (unresolved.size) {
       const pending = [...unresolved].map(id => ({
@@ -88,6 +103,8 @@ export class Runner extends EventEmitter {
     this.multiOut.clear();
     this.doneFlags.clear();
     this.skipped.clear();
+    this.executionErrorNodeId = null;
+    this.executionErrorMessage = null;
     this.removeAllListeners();
   }
 
@@ -95,6 +112,7 @@ export class Runner extends EventEmitter {
     id: string,
     runId: string,
     globalInput: Record<string, any>,
+    runtimeMeta: { workflowId?: string },
     children: Map<string, string[]>,
     deps: Map<string, Set<string>>,
     results: Record<string, any>,
@@ -103,7 +121,9 @@ export class Runner extends EventEmitter {
     if (this.skipped.has(id)) return;
     if (this.scheduled.has(id)) return;
     this.scheduled.add(id);
-    this.queue.add(() => this.executeNode(id, runId, globalInput, children, deps, results, unresolved));
+    this.queue.add(() =>
+      this.executeNode(id, runId, globalInput, runtimeMeta, children, deps, results, unresolved),
+    );
   }
 
   /* ───────────────────── execute one node ───────────────────── */
@@ -112,6 +132,7 @@ export class Runner extends EventEmitter {
     id: string,
     runId: string,
     globalInput: Record<string, any>,
+    runtimeMeta: { workflowId?: string },
     children: Map<string, string[]>,
     deps: Map<string, Set<string>>,
     results: Record<string, any>,
@@ -161,7 +182,15 @@ export class Runner extends EventEmitter {
         if (v === undefined) delete local[k]; else local[k] = v;
         this.localState.set(id, local);
       };
-      const ctx: ExecuteContext = { runId, input: combinedInput, globals: globalInput, local, setLocal, done: upstreamDone };
+      const ctx: ExecuteContext = {
+        runId,
+        workflowId: runtimeMeta.workflowId,
+        input: combinedInput,
+        globals: globalInput,
+        local,
+        setLocal,
+        done: upstreamDone,
+      };
 
       // 3️⃣ execute
       const res: DominoResult = await domino.execute(ctx);
@@ -191,7 +220,8 @@ export class Runner extends EventEmitter {
       }
 
       // prune unused branches so they don't count as deadlock
-      const shouldPruneSkippedBranches = branchKeys.length > 1 || nodeDone;
+      const shouldPruneSkippedBranches =
+        res.nextChainKeys !== undefined || nodeDone;
       if (shouldPruneSkippedBranches) {
         const skippedChildren = [...controlChildren].filter(cid => !branchChildren.has(cid));
         skippedChildren.forEach(cid => this.skipSubtree(cid, children, deps, unresolved));
@@ -202,16 +232,23 @@ export class Runner extends EventEmitter {
         const childDeps = deps.get(childId)!;
         if (childDeps.size > 0) continue;
         if (controlChildren.has(childId) && !branchChildren.has(childId)) continue;
-        this.scheduleNode(childId, runId, globalInput, children, deps, results, unresolved);
+        this.scheduleNode(childId, runId, globalInput, runtimeMeta, children, deps, results, unresolved);
       }
 
       // 5️⃣ then re-queue iterator if needed
       const hasCursor = Object.keys(local).some(k => k.startsWith(`iterator_cursor_${id}`));
       if (hasCursor) {
-        this.scheduleNode(id, runId, globalInput, children, deps, results, unresolved);
+        this.scheduleNode(id, runId, globalInput, runtimeMeta, children, deps, results, unresolved);
       }
     } catch (err) {
-      this.emit("error", { nodeId: id, error: err });
+      if (!this.executionErrorNodeId) {
+        this.executionErrorNodeId = id;
+        this.executionErrorMessage =
+          err instanceof Error ? err.message : String(err);
+      }
+      if (this.listenerCount("error") > 0) {
+        this.emit("error", { nodeId: id, error: err });
+      }
       // unresolved left for deadlock detection
     } finally {
       this.active.delete(id);

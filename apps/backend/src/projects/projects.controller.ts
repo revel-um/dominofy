@@ -24,6 +24,7 @@ export class ProjectsController extends BaseController<
     async list(
         @Req() req: Request,
         @Query('query') query?: string,
+        @Query('workspaceId') workspaceId?: string,
         @Query('limit') limit?: number,
         @Query('offset') offset?: number,
     ) {
@@ -33,6 +34,7 @@ export class ProjectsController extends BaseController<
             limit ?? 10,
             offset ?? 0,
             query,
+            workspaceId,
         );
         return { data, count };
     }
@@ -58,7 +60,11 @@ export class ProjectsController extends BaseController<
     @Post('create')
     async createProject(@Body() dto: CreateProjectDto, @Req() req: Request) {
         const userId = (req as any).user.id as string;
-        return this.projectsService.createProjectWithDefaultWorkflow(dto, userId);
+        return this.projectsService.createProjectWithDefaultWorkflow(
+            dto,
+            userId,
+            dto.workspaceId,
+        );
     }
 
     @Put(':id')

@@ -1,18 +1,26 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FiSend } from 'react-icons/fi';
 import { Edge, Node } from 'reactflow';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
+import { Check, ChevronRight, User2, X } from 'lucide-react';
 import { config } from '../config/config';
 import { AiChatApi, AiChatMessageDto, AiChatSender } from '../apis/aiChat.apis';
 import { AIWorkflowResponse, normalizeAIResponseToWorkflow, serializeWorkflowForAI } from '../utils/aiWorkflow';
+import AIThinkingBlock from '@/components/ui/ai-thinking-block';
+import { Button } from '@/components/ui/button';
+import PromptInputDynamicGrow from '@/components/ui/prompt-input-dynamic-grow';
+import { authFetch } from '../utils/authFetch';
 
 interface Message {
     id: string;
     content: string;
     sender: AiChatSender;
     timestamp: Date;
+    thoughtSummaries?: string[];
+    streamStatus?: string;
+    isStreaming?: boolean;
 }
 
 interface Props {
@@ -31,6 +39,41 @@ interface Props {
     getEdges: () => Edge[];
 }
 
+function isAbortError(error: unknown): boolean {
+    if (error instanceof DOMException) {
+        return error.name === 'AbortError';
+    }
+    if (error instanceof Error) {
+        return error.name === 'AbortError' || /aborted|abort/i.test(error.message);
+    }
+    return false;
+}
+
+function ThoughtSummaries({ steps }: { steps: string[] }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="mt-1 mb-2">
+            <button
+                type="button"
+                onClick={() => setOpen(v => !v)}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+            >
+                <span className={`transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+                <span>{open ? 'Hide' : 'Show'} thought summary ({steps.length} steps)</span>
+            </button>
+            {open && (
+                <ol className="mt-1.5 ml-1 space-y-1 border-l border-gray-600 pl-3">
+                    {steps.map((step, i) => (
+                        <li key={i} className="text-xs text-gray-400 leading-snug">
+                            <span className="text-gray-500 mr-1">{i + 1}.</span>{step}
+                        </li>
+                    ))}
+                </ol>
+            )}
+        </div>
+    );
+}
+
 export default function AIPanelDocked({ isOpen, width, workflowId, onClose, transition, isResizing, updatePipeline, onHoverStart, onHoverEnd, setEdges, setNodes, getNodes, getEdges }: Props) {
     const router = useRouter();
 
@@ -40,6 +83,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     const [historyLoading, setHistoryLoading] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
     const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+    const [clockTick, setClockTick] = useState(() => Date.now());
 
     // find all suggested nodes
     const suggestedNodes = useMemo(() => getNodes().filter(n => n.data?.suggested), [getNodes]);
@@ -53,6 +97,8 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const suppressAutoScrollRef = useRef(false);
+    const stickToBottomRef = useRef(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const defaultAiGreeting = useMemo<Message>(() => ({
         id: 'init',
@@ -115,11 +161,24 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         messagesEndRef.current?.scrollIntoView({ behavior });
     }, []);
 
+    const scheduleScrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                scrollToBottom(behavior);
+            });
+        });
+    }, [scrollToBottom]);
+
     const isNearBottom = useCallback(() => {
         const container = messagesContainerRef.current;
         if (!container) return true;
         const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
         return distanceFromBottom < 120;
+    }, []);
+
+    useEffect(() => {
+        const interval = window.setInterval(() => setClockTick(Date.now()), 1000);
+        return () => window.clearInterval(interval);
     }, []);
 
     useEffect(() => {
@@ -227,6 +286,10 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     const handleScroll = useCallback(() => {
         const container = messagesContainerRef.current;
         if (!container || historyLoading || !hasMoreHistory) return;
+        if (!suppressAutoScrollRef.current) {
+            const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+            stickToBottomRef.current = distanceFromBottom < 120;
+        }
         if (container.scrollTop < 60) {
             loadOlderMessages();
         }
@@ -261,12 +324,70 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             messagesRef.current = merged;
             return merged;
         });
-    }, [dedupeMessages, sortChronologically]);
+        if (stickToBottomRef.current && !suppressAutoScrollRef.current) {
+            scheduleScrollToBottom('smooth');
+        }
+    }, [dedupeMessages, sortChronologically, scheduleScrollToBottom]);
 
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!inputValue.trim() || isLoading) return;
-        const prompt = inputValue.trim();
+    const updateMessage = useCallback((id: string, updater: (message: Message) => Message) => {
+        setMessages(prev => {
+            const updated = prev.map(message => message.id === id ? updater(message) : message);
+            messagesRef.current = updated;
+            return updated;
+        });
+        if (stickToBottomRef.current && !suppressAutoScrollRef.current) {
+            scheduleScrollToBottom('smooth');
+        }
+    }, [scheduleScrollToBottom]);
+
+    const consumeNdjsonStream = useCallback(async (
+        response: Response,
+        onEvent: (event: any) => void,
+    ) => {
+        const reader = response.body?.getReader();
+        if (!reader) {
+            throw new Error('AI preview stream is unavailable.');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                let newlineIndex = buffer.indexOf('\n');
+                while (newlineIndex >= 0) {
+                    const line = buffer.slice(0, newlineIndex).trim();
+                    buffer = buffer.slice(newlineIndex + 1);
+                    if (line) {
+                        onEvent(JSON.parse(line));
+                    }
+                    newlineIndex = buffer.indexOf('\n');
+                }
+            }
+        } catch (error) {
+            if (isAbortError(error)) {
+                return;
+            }
+            throw error;
+        }
+
+        const finalLine = buffer.trim();
+        if (finalLine) {
+            onEvent(JSON.parse(finalLine));
+        }
+    }, []);
+
+    const stopGeneration = useCallback(() => {
+        abortControllerRef.current?.abort();
+    }, []);
+
+    const handleSendMessage = async (submittedValue: string) => {
+        if (!submittedValue.trim() || isLoading) return;
+        const prompt = submittedValue.trim();
 
         const userMessage: Message = {
             id: `local-${Date.now()}`,
@@ -274,9 +395,23 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             sender: 'user',
             timestamp: new Date(),
         };
+        stickToBottomRef.current = true;
         mergeMessages([userMessage]);
         setInputValue('');
         persistMessage(userMessage.id, { content: prompt, sender: 'user' });
+
+        const streamingMessageId = `local-ai-stream-${Date.now()}`;
+        const streamingAiMessage: Message = {
+            id: streamingMessageId,
+            content: '',
+            sender: 'ai',
+            timestamp: new Date(),
+            thoughtSummaries: [],
+            streamStatus: 'Preparing your workflow preview...',
+            isStreaming: true,
+        };
+        mergeMessages([streamingAiMessage]);
+        scheduleScrollToBottom('auto');
 
         setIsLoading(true);
         const currentNodes = getNodes();
@@ -286,48 +421,78 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         revisionLogRef.current = revisionEntries;
 
         try {
-            const endpoint = `${config.aiBaseUrl.replace(/\/$/, '')}/generate`;
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    text: `${prompt}\n\nUser priority: this instruction overrides any past revision logs. If this prompt conflicts with previous requests, follow this prompt.`,
-                    current_json: workflowSnapshot,
-                    revision_log: revisionEntries,
-                }),
-            });
+            const abortController = new AbortController();
+            abortControllerRef.current = abortController;
+            let response: Response;
 
-            const raw = await response.text();
-            let parsed: AIWorkflowResponse | { detail?: string } | null = null;
-            if (raw) {
-                try {
-                    parsed = JSON.parse(raw);
-                } catch (error) {
-                    console.error('[AI] Failed to parse response JSON:', error, raw);
-                    throw new Error('AI returned an unreadable response.');
-                }
+            if (workflowId) {
+                const endpoint = `${config.backendBaseUrl.replace(/\/$/, '')}/workflow/${workflowId}/revisions/ai-preview/stream`;
+                response = await authFetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: abortController.signal,
+                    body: JSON.stringify({
+                        prompt: `${prompt}\n\nUser priority: this instruction overrides any past revision logs. If this prompt conflicts with previous requests, follow this prompt.`,
+                        current_json: workflowSnapshot,
+                    }),
+                }, router);
+            } else {
+                const endpoint = `${config.aiBaseUrl.replace(/\/$/, '')}/generate-stream`;
+                response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: abortController.signal,
+                    body: JSON.stringify({
+                        text: `${prompt}\n\nUser priority: this instruction overrides any past revision logs. If this prompt conflicts with previous requests, follow this prompt.`,
+                        current_json: workflowSnapshot,
+                        revision_log: revisionEntries,
+                    }),
+                });
             }
 
             if (!response.ok) {
-                const detail = (parsed as any)?.detail ?? response.statusText;
+                const detail = await response.text();
                 throw new Error(detail || 'AI request failed.');
             }
 
-            const parsedResponse = parsed as AIWorkflowResponse;
-            const promptText = prompt.toLowerCase();
+            let finalResult: AIWorkflowResponse | null = null;
+            await consumeNdjsonStream(response, (event) => {
+                if (event.type === 'status') {
+                    updateMessage(streamingMessageId, message => ({
+                        ...message,
+                        streamStatus: event.message || message.streamStatus,
+                    }));
+                    return;
+                }
 
-            // Heuristic: if user explicitly asks to "print" and didn't mention Slack, coerce slackaction -> print
-            if (
-                Array.isArray(parsedResponse?.nodes) &&
-                promptText.includes('print') &&
-                !promptText.includes('slack')
-            ) {
-                parsedResponse.nodes = parsedResponse.nodes.map((n: any) =>
-                    n?.type === 'slackaction' ? { ...n, type: 'print' } : n
-                );
+                if (event.type === 'thought_summaries') {
+                    updateMessage(streamingMessageId, message => ({
+                        ...message,
+                        thoughtSummaries: Array.isArray(event.thought_summaries)
+                            ? event.thought_summaries
+                            : message.thoughtSummaries,
+                    }));
+                    return;
+                }
+
+                if (event.type === 'result') {
+                    finalResult = event as AIWorkflowResponse;
+                    return;
+                }
+
+                if (event.type === 'error') {
+                    throw new Error(event.detail || 'AI stream failed.');
+                }
+            });
+
+            if (!finalResult) {
+                if (abortController.signal.aborted) {
+                    throw new DOMException('Generation stopped.', 'AbortError');
+                }
+                throw new Error('AI preview ended before returning a result.');
             }
+
+            const parsedResponse = finalResult as AIWorkflowResponse;
 
             const normalized = normalizeAIResponseToWorkflow(parsedResponse, {
                 workflowId: workflowSnapshot.workflowId,
@@ -360,40 +525,55 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                 setEdges(normalized.edges);
             }
 
-            const explanation = (parsed as AIWorkflowResponse)?.explanation || 'AI generated an update for your workflow.';
-            const status = (parsed as AIWorkflowResponse)?.status;
-            const aiText = status ? `${explanation}\nStatus: ${status}` : explanation;
-            const aiMessage: Message = {
-                id: `local-ai-${Date.now()}`,
+            const explanation = parsedResponse?.explanation || 'AI generated an update for your workflow.';
+            const aiText = explanation;
+            const thoughtSummaries =
+                parsedResponse?.thought_summaries ||
+                parsedResponse?.chain_of_thought;
+            updateMessage(streamingMessageId, message => ({
+                ...message,
                 content: aiText,
-                sender: 'ai',
+                thoughtSummaries,
+                streamStatus: undefined,
+                isStreaming: false,
+            }));
+            const finalAiMessage: Message = {
+                ...streamingAiMessage,
+                content: aiText,
                 timestamp: new Date(),
+                thoughtSummaries,
+                streamStatus: undefined,
+                isStreaming: false,
             };
-            mergeMessages([aiMessage]);
-            revisionLogRef.current = buildRevisionLog([...messagesRef.current, aiMessage]);
-            persistMessage(aiMessage.id, { content: aiText, sender: 'ai' });
+            revisionLogRef.current = buildRevisionLog([...messagesRef.current, finalAiMessage]);
+            persistMessage(streamingMessageId, { content: aiText, sender: 'ai' });
         } catch (err) {
-            console.error('[AI] request failed:', err);
-            const message =
-                err instanceof Error
+            const isAborted = isAbortError(err);
+            if (!isAborted) {
+                console.error('[AI] request failed:', err);
+            }
+            const message = isAborted
+                ? 'Generation stopped.'
+                : err instanceof Error
                     ? err.message
                     : 'Unexpected error while contacting the AI service.';
-            const aiMessage: Message = {
-                id: `${Date.now()}-err`,
-                content: `Error: ${message}`,
-                sender: 'ai',
-                timestamp: new Date(),
-            };
-            mergeMessages([aiMessage]);
-            persistMessage(aiMessage.id, { content: aiMessage.content, sender: 'ai' });
+            updateMessage(streamingMessageId, current => ({
+                ...current,
+                content: isAborted ? message : `Error: ${message}`,
+                streamStatus: undefined,
+                isStreaming: false,
+            }));
+            persistMessage(streamingMessageId, { content: isAborted ? message : `Error: ${message}`, sender: 'ai' });
         } finally {
+            abortControllerRef.current = null;
+            stickToBottomRef.current = false;
             setIsLoading(false);
         }
     };
 
     useEffect(() => {
         if (!isOpen || suppressAutoScrollRef.current) return;
-        if (isNearBottom()) {
+        if (stickToBottomRef.current || isNearBottom()) {
             scrollToBottom(messagesRef.current.length > 15 ? 'smooth' : 'auto');
         }
     }, [messages, isOpen, isNearBottom, scrollToBottom]);
@@ -402,111 +582,148 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
 
     return (
         <div
-            className="flex flex-col bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-l border-gray-200 dark:border-gray-700"
+            className="relative flex flex-col overflow-hidden border-l border-gray-200 bg-dominofy-light-panel dark:border-gray-700 dark:bg-dominofy-dark-panel"
             style={{ width, transition: isResizing ? 'none' : transition, userSelect: 'text', WebkitUserSelect: 'text' }}
             onMouseEnter={onHoverStart}
             onMouseLeave={onHoverEnd}
             data-allow-copy="true"
         >
             <div
-                className={`relative flex-1 overflow-y-auto p-4 space-y-4 ${isResizing ? 'transition-none' : ''}`}
+                className={`relative flex-1 overflow-y-auto px-4 py-5 ${isResizing ? 'transition-none' : ''}`}
                 onScroll={handleScroll}
                 ref={messagesContainerRef}
                 style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
             >
                 {isLoading && (
                     <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">
-                        <div className="mt-1 h-1 w-32 overflow-hidden rounded-full bg-white/10">
-                            <div className="h-full w-1/3 animate-[slide_1.8s_ease_infinite] rounded-full bg-white/70" />
+                        <div className="mt-2 h-1 w-36 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                            <div className="h-full w-1/3 animate-[slide_1.8s_ease_infinite] rounded-full bg-sky-500" />
                         </div>
                     </div>
                 )}
                 {historyLoading && hasMoreHistory && (
-                    <div className="text-center text-xs text-gray-500 py-2">
+                    <div className="py-2 text-center text-xs text-slate-500">
                         Loading earlier messages…
                     </div>
                 )}
 
+                <div className="relative z-10 space-y-5">
                 {messages.map((m) => (
                     <div key={m.id} className={`flex ${m.sender === 'ai' ? 'justify-start' : 'justify-end'}`}>
-                        <div className={`max-w-[80%] p-3 rounded-lg text-sm ${m.sender === 'ai'
-                            ? 'bg-dominofy-light-accent/10 dark:bg-dominofy-dark-accent/20'
-                            : 'bg-dominofy-light-accent/20 dark:bg-dominofy-dark-accent/30'}
-            `} style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
-                            <p className="whitespace-pre-wrap break-words" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{m.content}</p>
-                            <div className="text-xs text-gray-500 mt-1">
+                        <div className={`max-w-[86%] ${m.sender === 'ai' ? 'mr-10' : 'ml-10'}`}>
+                            <div className={`mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] ${m.sender === 'ai' ? 'text-slate-500 dark:text-slate-400' : 'justify-end text-slate-400 dark:text-slate-500'}`}>
+                                {m.sender === 'ai' ? (
+                                    <>
+                                        <span className="flex h-7 w-7 items-center justify-center overflow-hidden">
+                                            <Image
+                                                src="/dominofy.png"
+                                                alt="Dominofy"
+                                                width={20}
+                                                height={20}
+                                                className="h-6 w-6 object-contain"
+                                            />
+                                        </span>
+                                        {m.isStreaming && <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-sky-600 dark:text-sky-300">Live</span>}
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300/80 bg-white text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                                            <User2 className="h-4 w-4" />
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                            <div
+                                className={`rounded-[1.5rem] border p-4 text-sm shadow-[0_18px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur-xl ${
+                                    m.sender === 'ai'
+                                        ? 'border-slate-200/80 bg-white/80 text-slate-700 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-200'
+                                        : 'border-sky-500/15 bg-gradient-to-br from-sky-500 to-blue-600 text-white'
+                                }`}
+                                style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+                            >
+                            {m.sender === 'ai' && m.isStreaming && (
+                                <AIThinkingBlock
+                                    title="Jelly is thinking"
+                                    elapsedSeconds={Math.max(0, Math.floor((clockTick - m.timestamp.getTime()) / 1000))}
+                                    thoughtSummaries={m.thoughtSummaries}
+                                    status={m.streamStatus}
+                                    className="mb-3"
+                                />
+                            )}
+                            {m.sender === 'ai' && !m.isStreaming && m.thoughtSummaries && m.thoughtSummaries.length > 0 && (
+                                <ThoughtSummaries steps={m.thoughtSummaries} />
+                            )}
+                            {m.sender === 'ai' && m.isStreaming && m.streamStatus && m.thoughtSummaries && m.thoughtSummaries.length > 0 && (
+                                <div className="mb-3 flex items-center gap-2 rounded-2xl border border-sky-500/15 bg-sky-500/5 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                                    <ChevronRight className="h-3.5 w-3.5 text-sky-500" />
+                                    {m.streamStatus}
+                                </div>
+                            )}
+                            {m.content ? (
+                                <p className={`whitespace-pre-wrap break-words leading-7 ${m.sender === 'user' ? 'text-white/95' : ''}`} style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{m.content}</p>
+                            ) : (
+                                m.sender !== 'ai' || !m.isStreaming ? null : null
+                            )}
+                            <div className={`mt-1 text-right text-xs ${m.sender === 'user' ? 'text-white/70' : 'text-slate-400 dark:text-slate-500'}`}>
                                 {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
                             </div>
                         </div>
                     </div>
                 ))}
+                </div>
                 <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSendMessage} className="p-3 border-t border-gray-200 dark:border-gray-700" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
-                <div className="flex space-x-2 items-start">
-                    <textarea
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="Ask me anything..."
-                        rows={1}
-                        className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600
-                            bg-dominofy-light-background dark:bg-dominofy-dark-background
-                            text-dominofy-light-text dark:text-dominofy-dark-text
-                            focus:outline-none focus:ring-2 focus:ring-dominofy-light-accent/50 dark:focus:ring-dominofy-dark-accent/50
-                            resize-none overflow-auto leading-5"
-                        style={{ minHeight: '38px', maxHeight: '140px' }}
-                        onInput={(e) => {
-                            const el = e.currentTarget;
-                            el.style.height = 'auto';
-                            const next = Math.min(el.scrollHeight, 140);
-                            el.style.height = `${next}px`;
-                        }}
-                    />
-                    <button
-                        type="submit"
-                        disabled={!inputValue.trim() || isLoading}
-                        className={`px-3 py-2 rounded-lg bg-dominofy-light-accent text-white hover:bg-dominofy-light-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 transition-transform duration-150 ${isLoading ? 'scale-95' : 'hover:scale-105'}`}
-                        style={{
-                            minWidth: '42px',
-                            minHeight: '38px',
-                            backgroundImage: isLoading
-                                ? "url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 300 150\"><path fill=\"none\" stroke=\"%23FFFFFF\" stroke-width=\"15\" stroke-linecap=\"round\" stroke-dasharray=\"300 385\" stroke-dashoffset=\"0\" d=\"M275 75c0 31-27 50-50 50-58 0-92-100-150-100-28 0-50 22-50 50s23 50 50 50c58 0 92-100 150-100 24 0 50 19 50 50Z\"><animate attributeName=\"stroke-dashoffset\" calcMode=\"spline\" dur=\"2\" values=\"685;-685\" keySplines=\"0 0 1 1\" repeatCount=\"indefinite\"></animate></path></svg>')"
-                                : 'none',
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center',
-                            backgroundSize: isLoading ? '20px 20px' : 'auto',
-                        }}
-                    >
-                        {isLoading ? (
-                            <span className="sr-only">Sending…</span>
-                        ) : (
-                            <FiSend size={18} />
-                        )}
-                    </button>
-                </div>
-                {/* ─── accept/reject ALL suggestions ─── */}
+            <div className="border-t border-slate-200/70 bg-dominofy-light-panel p-4 dark:border-slate-800 dark:bg-dominofy-dark-panel" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
+                <PromptInputDynamicGrow
+                    value={inputValue}
+                    onValueChange={setInputValue}
+                    onSubmit={(nextValue) => void handleSendMessage(nextValue)}
+                    onStop={stopGeneration}
+                    placeholder="Ask me anything..."
+                    disabled={isLoading}
+                    isLoading={isLoading}
+                    className="w-full"
+                    expandOnFocus={false}
+                    backgroundOpacity={0.82}
+                    glowIntensity={0.32}
+                />
                 {suggestedNodes.length > 0 && (
-                    <div className="relative top-2 z-20 flex gap-2"
-                    style={{ pointerEvents: 'auto' }}
+                    <div
+                        className="relative top-3 z-20 flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/15 bg-gradient-to-r from-emerald-500/8 via-transparent to-rose-500/8 px-3 py-3"
+                        style={{ pointerEvents: 'auto' }}
                     >
-                    <button
-                        type="button"
-                        onClick={acceptAllSuggestions}
-                        className="px-2 py-1 bg-green-600 text-white rounded text-sm shadow"
-                    >
-                        Accept All
-                    </button>
-                    <button
-                        type="button"
-                        onClick={rejectAllSuggestions}
-                        className="px-2 py-1 bg-red-600 text-white rounded text-sm shadow"
-                    >
-                        Reject All
-                    </button>
+                        <div>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                                {suggestedNodes.length} suggested node{suggestedNodes.length > 1 ? 's' : ''} ready for review
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Accept to keep the AI proposal on the canvas, or reject to restore the previous state.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                type="button"
+                                onClick={acceptAllSuggestions}
+                                className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                            >
+                                <Check className="h-4 w-4" />
+                                Accept All
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={rejectAllSuggestions}
+                                variant="outline"
+                                className="gap-2 border-rose-200 bg-white/80 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/60 dark:bg-slate-950/70 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                            >
+                                <X className="h-4 w-4" />
+                                Reject All
+                            </Button>
+                        </div>
                     </div>
                 )}
-            </form>
+            </div>
         </div>
     );
 }

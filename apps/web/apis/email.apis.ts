@@ -26,7 +26,6 @@ export class EmailApi {
       const r = await authFetch(`${config.backendBaseUrl}/email/google/install-url`, {
         token,
       }, router);
-      if (r.status === 401) return '';
       const { url } = await r.json();
       return url as string;
     } catch (err) {
@@ -43,8 +42,8 @@ export class EmailApi {
       const r = await authFetch(`${config.backendBaseUrl}/email/connections`, {
         token,
       }, router);
-      if (r.status === 401) return [];
-      return (await r.json()) as EmailConnection[];
+      const payload = await r.json();
+      return Array.isArray(payload) ? (payload as EmailConnection[]) : [];
     } catch (err) {
       handleServerError(router, err);
       return [];
@@ -65,7 +64,6 @@ export class EmailApi {
         body: JSON.stringify(payload),
         token,
       }, router);
-      if (r.status === 401) return null;
       if (!r.ok) {
         const j = await r.json();
         throw new Error(j?.message || `HTTP ${r.status}`);

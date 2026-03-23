@@ -21,6 +21,7 @@ import { VaultType } from 'src/vault/vault.entity';
 import { UserService } from 'src/user/user.service';
 import { WorkflowService } from 'src/workflow/workflow.service';
 import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
+import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import { CreateEmailConnectionDto } from './email.dto';
 import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../types/pipelineStepType';
@@ -32,13 +33,15 @@ import {
 } from './email.types';
 import { EmailProviderFactory } from './providers/email-provider.factory';
 
+type EmailOAuthState = { userId: string; workspaceId?: string };
+
 @Injectable()
 export class EmailService implements OnModuleInit, OnModuleDestroy {
   private static _instance: EmailService | null = null;
   private readonly logger = new Logger(EmailService.name);
   private readonly providerFactory: EmailProviderFactory;
 
-  private readonly stateStore = new Map<string, string>();
+  private readonly stateStore = new Map<string, EmailOAuthState>();
 
   // Serialize Gmail processing per mailbox
   private readonly gmailHistoryQueue = new Map<string, Promise<void>>();
@@ -68,6 +71,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     private readonly workflowService: WorkflowService,
     @Inject(forwardRef(() => RunnerLauncherService))
     private readonly runnerLauncherService: RunnerLauncherService,
+    private readonly workflowLogger: WorkflowLoggerService,
   ) {
     this.providerFactory = new EmailProviderFactory({
       refreshAccessToken: this.refreshAccessToken.bind(this),
@@ -112,17 +116,17 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   /* ───────────────────── Helpers ───────────────────── */
-  private generateState(uid: string): string {
+  private generateState(uid: string, workspaceId?: string): string {
     const s = crypto.randomBytes(16).toString('hex');
-    this.stateStore.set(s, uid);
+    this.stateStore.set(s, { userId: uid, workspaceId });
     return s;
   }
 
-  private validateState(s: string): string {
-    const uid = this.stateStore.get(s);
-    if (!uid) throw new UnauthorizedException('Invalid / expired state');
+  private validateState(s: string): { userId: string; workspaceId?: string } {
+    const state = this.stateStore.get(s);
+    if (!state) throw new UnauthorizedException('Invalid / expired state');
     this.stateStore.delete(s);
-    return uid;
+    return state;
   }
 
   private backendBaseUrl(): string {
@@ -141,7 +145,53 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
   }
 
+  private isInvalidGrantError(err: any): boolean {
+    const errorCode = err?.response?.data?.error;
+    const message = err?.message;
+    return errorCode === 'invalid_grant' || message === 'invalid_grant';
+  }
+
+  private async invalidateGmailVault(
+    vaultId: string,
+    conn: GmailConnection,
+    err: any,
+  ): Promise<void> {
+    const errorCode = err?.response?.data?.error || 'invalid_grant';
+    const errorMessage = err?.response?.data?.error_description || err?.message;
+
+    conn.refreshToken = '';
+    conn.accessToken = undefined;
+    conn.expiryDate = undefined;
+    (conn as any).disconnectReason = {
+      code: errorCode,
+      message: errorMessage,
+      at: new Date().toISOString(),
+    };
+
+    await this.vaultService.markVaultConnectionInvalid(vaultId, conn as any);
+
+    this.gmailLastProcessedHistoryId.delete(conn.email);
+    this.gmailLatestHistoryId.delete(conn.email);
+    this.gmailPersistLatestHistoryId.delete(conn.email);
+    this.gmailPersistContexts.delete(conn.email);
+    const persistTimer = this.gmailPersistTimers.get(conn.email);
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+      this.gmailPersistTimers.delete(conn.email);
+    }
+    const debounceTimer = this.gmailDebounceTimers.get(conn.email);
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      this.gmailDebounceTimers.delete(conn.email);
+    }
+
+    this.logger.warn(
+      `Gmail vault invalidated for ${conn.email}; token refresh failed with ${errorCode}`,
+    );
+  }
+
   private async refreshAccessToken(
+    vaultId: string,
     conn: GmailConnection,
   ): Promise<{ client: OAuth2Client; accessToken: string }> {
     const oauth2 = this.oauthClient();
@@ -151,7 +201,15 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       expiry_date: conn.expiryDate,
     });
 
-    const tokens = await oauth2.getAccessToken();
+    let tokens;
+    try {
+      tokens = await oauth2.getAccessToken();
+    } catch (err: any) {
+      if (this.isInvalidGrantError(err)) {
+        await this.invalidateGmailVault(vaultId, conn, err);
+      }
+      throw err;
+    }
     if (!tokens?.token) {
       throw new UnauthorizedException('Failed to refresh Gmail access token');
     }
@@ -194,6 +252,16 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     return Buffer.from(padded, 'base64').toString('utf8');
   }
 
+  private decodeGmailBuffer(data?: string): Buffer | undefined {
+    if (!data) return undefined;
+    const normalized = data.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      '=',
+    );
+    return Buffer.from(padded, 'base64');
+  }
+
   private extractTextPlain(
     payload?: gmail_v1.Schema$MessagePart,
   ): string | undefined {
@@ -206,6 +274,71 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       if (found) return found;
     }
     return undefined;
+  }
+
+  private collectGmailAttachmentParts(
+    payload?: gmail_v1.Schema$MessagePart,
+  ): gmail_v1.Schema$MessagePart[] {
+    if (!payload) return [];
+    const parts: gmail_v1.Schema$MessagePart[] = [];
+    const walk = (part?: gmail_v1.Schema$MessagePart) => {
+      if (!part) return;
+      if (part.filename && (part.body?.attachmentId || part.body?.data)) {
+        parts.push(part);
+      }
+      for (const child of part.parts || []) {
+        walk(child);
+      }
+    };
+    walk(payload);
+    return parts;
+  }
+
+  private partHeader(
+    part: gmail_v1.Schema$MessagePart | undefined,
+    name: string,
+  ): string | undefined {
+    const value = part?.headers?.find(
+      header => header.name?.toLowerCase() === name.toLowerCase(),
+    )?.value;
+    return value ?? undefined;
+  }
+
+  private async extractGmailAttachments(
+    gmail: gmail_v1.Gmail,
+    messageId: string,
+    payload?: gmail_v1.Schema$MessagePart,
+  ): Promise<any[]> {
+    const parts = this.collectGmailAttachmentParts(payload);
+    const attachments: any[] = [];
+
+    for (const part of parts) {
+      const attachmentId = part.body?.attachmentId;
+      let data = part.body?.data;
+
+      if (!data && attachmentId) {
+        const attachment = await gmail.users.messages.attachments.get({
+          userId: 'me',
+          messageId,
+          id: attachmentId,
+        });
+        data = attachment.data.data || undefined;
+      }
+
+      const buffer = this.decodeGmailBuffer(data ?? undefined);
+      attachments.push({
+        name: part.filename,
+        mime: part.mimeType || 'application/octet-stream',
+        size: part.body?.size ?? buffer?.length,
+        buffer: buffer ? buffer.toString('base64') : undefined,
+        attachmentId,
+        partId: part.partId,
+        contentId: this.partHeader(part, 'Content-Id'),
+        contentDisposition: this.partHeader(part, 'Content-Disposition'),
+      });
+    }
+
+    return attachments;
   }
 
   private async flushGmailHistoryPersist(email: string): Promise<void> {
@@ -263,7 +396,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
           }
 
           await this.withGmailHistoryLock(conn.email, async () => {
-            const { client } = await this.refreshAccessToken(conn);
+            const { client } = await this.refreshAccessToken(vaultId, conn);
             const gmail = google.gmail({ version: 'v1', auth: client });
             const profile = await gmail.users.getProfile({ userId: 'me' });
             const incomingHistoryId = profile.data.historyId?.toString();
@@ -291,7 +424,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   }
 
   /* ───────────────────── OAuth (Gmail) ───────────────────── */
-  getGoogleInstallUrl(userId: string): string {
+  getGoogleInstallUrl(userId: string, workspaceId?: string): string {
     const oauth2 = this.oauthClient();
     const scope = [
       'https://www.googleapis.com/auth/gmail.modify',
@@ -304,12 +437,12 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       access_type: 'offline',
       prompt: 'consent',
       scope,
-      state: this.generateState(userId),
+      state: this.generateState(userId, workspaceId),
     });
   }
 
   async handleGoogleCallback(code: string, state: string) {
-    const dominofyUserId = this.validateState(state);
+    const { userId: dominofyUserId, workspaceId } = this.validateState(state);
     const user = await this.userService.findOne(dominofyUserId);
     if (!user) throw new BadRequestException(`User ${dominofyUserId} not found`);
 
@@ -324,26 +457,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     const profile = await gmail.users.getProfile({ userId: 'me' });
     const email = profile.data.emailAddress?.toLowerCase();
     if (!email) throw new BadRequestException('Could not retrieve Gmail address');
-
-    const existing = await this.vaultService.findWhere(
-      {
-        type: VaultType.EMAIL,
-        lookupIds: Raw(alias => `${alias} ->> 'email' = :email`, { email }),
-      },
-      { users: true },
-    );
-
-    if (existing) {
-      const ownedByCaller = existing.users.some(u => u.id === user.id);
-      if (ownedByCaller) {
-        throw new ConflictException(
-          'This Gmail account is already connected to your Dominofy account.',
-        );
-      }
-      throw new ConflictException(
-        'This Gmail account is already connected by another Dominofy user.',
-      );
-    }
 
     const topic = this.config.get<string>('GMAIL_PUBSUB_TOPIC');
     if (!topic) {
@@ -373,27 +486,61 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
+    const existing = await this.vaultService.findWhere(
+      {
+        type: VaultType.EMAIL,
+        lookupIds: Raw(alias => `${alias} ->> 'email' = :email`, { email }),
+      },
+      { users: true },
+    );
+
+    const nextConnection = {
+      provider: 'gmail',
+      email,
+      refreshToken: tokens.refresh_token,
+      accessToken: tokens.access_token ?? undefined,
+      expiryDate: tokens.expiry_date ?? undefined,
+      // IMPORTANT: store the watch historyId as baseline cursor.
+      // We will start from cursor+1, so we won't re-process older inbox.
+      historyId,
+    } satisfies GmailConnection;
+
+    if (existing) {
+      const ownedByCaller = existing.users.some(u => u.id === user.id);
+      if (ownedByCaller) {
+        if (this.vaultService.isVaultActive(existing)) {
+          throw new ConflictException(
+            'This Gmail account is already connected to your Dominofy account.',
+          );
+        }
+        await this.vaultService.reactivateVaultConnection(
+          existing.id.toString(),
+          nextConnection,
+          { provider: 'gmail', email },
+        );
+        return;
+      }
+      throw new ConflictException(
+        'This Gmail account is already connected by another Dominofy user.',
+      );
+    }
+
     const vaultDto = {
       name: `Gmail – ${email}`,
       type: VaultType.EMAIL,
       lookupIds: { provider: 'gmail', email },
-      connection: {
-        provider: 'gmail',
-        email,
-        refreshToken: tokens.refresh_token,
-        accessToken: tokens.access_token ?? undefined,
-        expiryDate: tokens.expiry_date ?? undefined,
-        // IMPORTANT: store the watch historyId as baseline cursor.
-        // We will start from cursor+1, so we won't re-process older inbox.
-        historyId,
-      } satisfies GmailConnection,
+      connection: nextConnection,
     };
 
-    await this.vaultService.create(vaultDto, [user.id]);
+    await this.vaultService.create(vaultDto, [user.id], workspaceId, user.id);
   }
 
   /* ───────────────────── Connections ───────────────────── */
-  async createConnection(userId: string, dto: CreateEmailConnectionDto) {
+  async createConnection(
+    userId: string,
+    dto: CreateEmailConnectionDto,
+    workspaceId?: string,
+  ) {
     // Legacy SMTP/manual path retained for completeness; Gmail uses OAuth.
     const user = await this.userService.findOne(userId);
     if (!user) throw new BadRequestException('User not found');
@@ -440,7 +587,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       } satisfies SmtpConnection,
     };
 
-    const vault = await this.vaultService.create(vaultDto, [user.id]);
+    const vault = await this.vaultService.create(vaultDto, [user.id], workspaceId, user.id);
     return {
       id: vault.id.toString(),
       name: vault.name,
@@ -490,6 +637,9 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       VaultType.EMAIL,
     );
     if (!vault) throw new BadRequestException('Unknown email vault');
+    if (!this.vaultService.isVaultActive(vault)) {
+      throw new UnauthorizedException('Email connection is disconnected');
+    }
     return { conn: vault.connection as EmailConnection, vaultId: vault.id.toString() };
   }
 
@@ -541,7 +691,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
   ) {
     const { conn } = await this.getEmailVault(vaultId);
     const provider = this.providerFactory.create(conn);
-    return provider.sendEmail({ conn, to, subject, body });
+    return provider.sendEmail({ vaultId, conn, to, subject, body });
   }
 
   /* ───────────────────── Inbound (SMTP webhook fallback) ───────────────────── */
@@ -638,7 +788,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const { client } = await this.refreshAccessToken(conn);
+    const { client } = await this.refreshAccessToken(vaultId, conn);
     const gmail = google.gmail({ version: 'v1', auth: client });
 
     // IMPORTANT FIX: history cursor is exclusive; use last+1
@@ -764,9 +914,14 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         headers.find(h => h.name?.toLowerCase() === n.toLowerCase())?.value;
       const subject = header('Subject') || '';
       const body = this.extractTextPlain(msg.data.payload) || msg.data.snippet || '';
+      const attachments = await this.extractGmailAttachments(
+        gmail,
+        msgId,
+        msg.data.payload,
+      );
 
       this.logger.log(
-        `Gmail message processed: messageId=${msgId}, historyId=${msgHistoryId}, title=${subject}, body=${body}`,
+        `Gmail message processed: messageId=${msgId}, historyId=${msgHistoryId}`,
       );
 
       const payload = {
@@ -781,8 +936,11 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         to: header('To'),
         cc: header('Cc'),
         bcc: header('Bcc'),
+        body,
         snippet: msg.data.snippet,
         internalDate: msg.data.internalDate,
+        hasAttachments: attachments.length > 0,
+        attachments,
       };
 
       await this.triggerWorkflows(vaultId, conn.email, payload);
@@ -867,6 +1025,12 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         this.logger.warn(`No vault found for Gmail address ${emailAddress}`);
         return;
       }
+      if (!this.vaultService.isVaultActive(vault)) {
+        this.logger.log(
+          `Skipping Gmail notification for inactive vault ${vault.id.toString()} (${emailAddress})`,
+        );
+        return;
+      }
 
       const conn = vault.connection as GmailConnection;
       this.logger.log(
@@ -876,8 +1040,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async stopGmailWatch(conn: GmailConnection): Promise<void> {
-    const { client } = await this.refreshAccessToken(conn);
+  async stopGmailWatch(vaultId: string, conn: GmailConnection): Promise<void> {
+    const { client } = await this.refreshAccessToken(vaultId, conn);
     const gmail = google.gmail({ version: 'v1', auth: client });
     try {
       await gmail.users.stop({ userId: 'me' });
@@ -895,6 +1059,11 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     inboxAddress: string,
     payload: any,
   ) {
+    const vault = await this.vaultService.findOne(vaultId, ['workspace']);
+    if (!vault?.workspace?.id) {
+      throw new BadRequestException('Vault workspace is required for email trigger dispatch');
+    }
+
     const senderAddress = this.extractEmailAddress(payload?.from);
     this.logger.log(
       `Email notification received for vault ${vaultId} (${inboxAddress || 'any inbox'}); dispatching workflows.`,
@@ -902,6 +1071,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
     const candidates = await this.workflowService.findWorkflowsByEmailTrigger(
       vaultId,
+      vault.workspace.id,
     );
 
     const matches = candidates.filter(workflow => {
@@ -934,7 +1104,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         workflow.visualJson,
       );
 
-      await runner.run(runId, payload);
+      await runner.run(runId, payload, { workflowId: workflow.id });
+      await this.workflowLogger.flushNow();
     }
 
     if (!matches.length) {

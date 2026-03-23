@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -13,20 +12,36 @@ import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../../../../shared/types/pipelineStepType';
 import { v4 as uuidv4 } from 'uuid';
 import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
+import { WorkspaceService } from 'src/workspace/workspace.service';
+import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
+import { Project } from 'src/projects/projects.entity';
 
 @Injectable()
 export class WorkflowService extends BaseService<Workflow> {
   constructor(
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
+    @InjectRepository(Project)
+    private readonly projectRepository: Repository<Project>,
     private readonly userService: UserService,
     private readonly runnerLauncherService: RunnerLauncherService,
+    private readonly workspaceService: WorkspaceService,
   ) {
     super(workflowRepository);
   }
 
   async countAllWorkflows(userId: string) {
-    return this.workflowRepository.count({ where: { user: { id: userId } } });
+    const workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    if (workspaceIds.length === 0) {
+      return 0;
+    }
+
+    return this.workflowRepository
+      .createQueryBuilder('workflow')
+      .leftJoin('workflow.project', 'project')
+      .leftJoin('project.workspace', 'workspace')
+      .where('workspace.id IN (:...workspaceIds)', { workspaceIds })
+      .getCount();
   }
 
   async findWorkflowsBySlackTrigger(
@@ -57,6 +72,7 @@ export class WorkflowService extends BaseService<Workflow> {
 
   async findWorkflowsByEmailTrigger(
     vaultId: string,
+    workspaceId: string,
     inboxAddress?: string,
     senderAddress?: string
   ): Promise<Workflow[]> {
@@ -79,9 +95,12 @@ export class WorkflowService extends BaseService<Workflow> {
 
     const qb = this.workflowRepository
       .createQueryBuilder('workflow')
+      .innerJoin('workflow.project', 'project')
+      .innerJoin('project.workspace', 'workspace')
       .where('workflow.visualJson @> :match', {
         match: JSON.stringify(matchFragment),
-      });
+      })
+      .andWhere('workspace.id = :workspaceId', { workspaceId });
 
     return qb.getMany();
   }
@@ -91,12 +110,19 @@ export class WorkflowService extends BaseService<Workflow> {
     const user = await this.userService.findOne(userId);
     if (!user) return;
 
-    const [workflows, count] = await this.workflowRepository.findAndCount({
-      where: { user: { id: userId } } as any,
-      order: { updatedAt: 'DESC' },
-      take: 25,
-      relations: ['project'],
-    });
+    const workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    if (workspaceIds.length === 0) {
+      return { workflows: [], count: 0, user };
+    }
+
+    const [workflows, count] = await this.workflowRepository
+      .createQueryBuilder('workflow')
+      .leftJoinAndSelect('workflow.project', 'project')
+      .leftJoin('project.workspace', 'workspace')
+      .where('workspace.id IN (:...workspaceIds)', { workspaceIds })
+      .orderBy('workflow.updatedAt', 'DESC')
+      .take(25)
+      .getManyAndCount();
 
     return { workflows, count, user };
   }
@@ -104,30 +130,78 @@ export class WorkflowService extends BaseService<Workflow> {
   async getAllUserWorkflows(userId: string, limit?: number, offset?: number) {
     const user = await this.userService.findOne(userId);
     if (!user) return;
-    
-    const [workflows, count] = await this.workflowRepository.findAndCount({
-      where: { user: { id: userId } },
-      order: { updatedAt: 'DESC' },
-      take: limit || 50,
-      skip: offset || 0,
-      relations: ['project'],
-    });
+
+    const workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    if (workspaceIds.length === 0) {
+      return { workflows: [], count: 0, user };
+    }
+
+    const [workflows, count] = await this.workflowRepository
+      .createQueryBuilder('workflow')
+      .leftJoinAndSelect('workflow.project', 'project')
+      .leftJoin('project.workspace', 'workspace')
+      .where('workspace.id IN (:...workspaceIds)', { workspaceIds })
+      .orderBy('workflow.updatedAt', 'DESC')
+      .take(limit || 50)
+      .skip(offset || 0)
+      .getManyAndCount();
+
     return { workflows, count, user };
   }
 
-  async findOneAndVerify(id: string, userId: string) {
-    const workflow = await this.workflowRepository.findOne({
-      where: { id },
-      relations: ['user'],
-    });
+  async findOneAndVerify(
+    id: string,
+    userId: string,
+    allowedRoles: WorkspaceRole[] = Object.values(WorkspaceRole),
+  ) {
+    const workflow = await this.workflowRepository
+      .createQueryBuilder('workflow')
+      .leftJoinAndSelect('workflow.user', 'user')
+      .leftJoinAndSelect('workflow.project', 'project')
+      .leftJoinAndSelect('project.workspace', 'workspace')
+      .leftJoin('workspace.memberships', 'membership')
+      .where('workflow.id = :id', { id })
+      .andWhere('membership.userId = :userId', { userId })
+      .andWhere('membership.role IN (:...allowedRoles)', { allowedRoles })
+      .getOne();
+
     if (!workflow) {
       throw new NotFoundException(`Workflow with id ${id} not found`);
     }
-
-    if (!workflow.user || workflow.user.id !== userId) {
-      throw new ForbiddenException(`Access denied to workflow with id ${id}`);
-    }
     return workflow;
+  }
+
+  async assertProjectWriteAccess(projectId: string, userId: string) {
+    const project = await this.projectRepository
+      .createQueryBuilder('project')
+      .leftJoin('project.workspace', 'workspace')
+      .leftJoin('workspace.memberships', 'membership')
+      .where('project.id = :projectId', { projectId })
+      .andWhere('membership.userId = :userId', { userId })
+      .andWhere('membership.role IN (:...allowedRoles)', {
+        allowedRoles: [
+          WorkspaceRole.OWNER,
+          WorkspaceRole.ADMIN,
+          WorkspaceRole.MEMBER,
+        ],
+      })
+      .getOne();
+
+    if (!project) {
+      const hasProjectAccess = await this.projectRepository
+        .createQueryBuilder('project')
+        .leftJoin('project.workspace', 'workspace')
+        .leftJoin('workspace.memberships', 'membership')
+        .where('project.id = :projectId', { projectId })
+        .andWhere('membership.userId = :userId', { userId })
+        .getOne();
+
+      if (!hasProjectAccess) {
+        throw new NotFoundException(`Project with id ${projectId} not found`);
+      }
+
+      throw new BadRequestException('Workspace role does not allow write access');
+    }
   }
 
   async handleTrigger(
@@ -179,7 +253,7 @@ export class WorkflowService extends BaseService<Workflow> {
       workflow.visualJson
     );
 
-    const results = await runner.run(runId, input);
+    const results = await runner.run(runId, input, { workflowId });
     if (!results) {
       return undefined;
     }
@@ -198,30 +272,40 @@ export class WorkflowService extends BaseService<Workflow> {
   }
 
   async renameWorkflow(id: string, name: string, userId: string) {
-    // Verify user has access to the workflow
-    const workflow = await this.findOneAndVerify(id, userId);
-    
-    // Update the workflow name
+    const workflow = await this.findOneAndVerify(id, userId, [
+      WorkspaceRole.OWNER,
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.MEMBER,
+    ]);
+
     workflow.name = name;
-    
-    // Save the updated workflow to database
     return await this.workflowRepository.save(workflow);
   }
 
   async getEntryWorkflow(projectId: string, userId: string) {
-    // Try default workflow in this project for this user
-    const defaultWf = await this.workflowRepository.findOne({
-      where: { project: { id: projectId }, user: { id: userId }, isDefault: true } as any,
-      relations: ['project', 'user'],
-    });
+    const defaultWf = await this.workflowRepository
+      .createQueryBuilder('workflow')
+      .leftJoinAndSelect('workflow.project', 'project')
+      .leftJoinAndSelect('workflow.user', 'user')
+      .leftJoin('project.workspace', 'workspace')
+      .leftJoin('workspace.memberships', 'membership')
+      .where('project.id = :projectId', { projectId })
+      .andWhere('membership.userId = :userId', { userId })
+      .andWhere('workflow.isDefault = :isDefault', { isDefault: true })
+      .orderBy('workflow.updatedAt', 'DESC')
+      .getOne();
     if (defaultWf) return defaultWf;
 
-    // Fallback to most recently updated workflow in this project for this user
-    const recent = await this.workflowRepository.findOne({
-      where: { project: { id: projectId }, user: { id: userId } } as any,
-      order: { updatedAt: 'DESC' },
-      relations: ['project', 'user'],
-    });
+    const recent = await this.workflowRepository
+      .createQueryBuilder('workflow')
+      .leftJoinAndSelect('workflow.project', 'project')
+      .leftJoinAndSelect('workflow.user', 'user')
+      .leftJoin('project.workspace', 'workspace')
+      .leftJoin('workspace.memberships', 'membership')
+      .where('project.id = :projectId', { projectId })
+      .andWhere('membership.userId = :userId', { userId })
+      .orderBy('workflow.updatedAt', 'DESC')
+      .getOne();
     return recent;
   }
 }

@@ -1,4 +1,4 @@
-import { Module, NestModule } from '@nestjs/common';
+import { Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { ProjectsModule } from './projects/projects.module';
 import { UserModule } from './user/user.module';
 import { WorkflowModule } from './workflow/workflow.module';
+import { WorkflowRevisionModule } from './workflow-revision/workflow-revision.module';
 import { VerifyTokenMiddleware } from './middlewares/auth.middleware';
 import { GcsModule } from './gcs/gcs.module';
 import { WorkflowLoggerModule } from './workflow-logger/workflow-logger.module';
@@ -18,6 +19,8 @@ import { AiChatModule } from './ai-chat/ai-chat.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { EmailModule } from './email/email.module';
 import { DriveModule } from './drive/drive.module';
+import { WorkspaceModule } from './workspace/workspace.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -40,12 +43,15 @@ import { DriveModule } from './drive/drive.module';
     ProjectsModule,
     UserModule,
     WorkflowModule,
+    WorkflowRevisionModule,
     GcsModule,
     WorkflowLoggerModule,
     VaultModule,
     SlackModule,
     EmailModule,
     DriveModule,
+    WorkspaceModule,
+    StorageModule,
     RunnerLauncherModule,
     AuthModule,
     SupportModule,
@@ -57,6 +63,6 @@ import { DriveModule } from './drive/drive.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: import('@nestjs/common').MiddlewareConsumer) {
-    consumer.apply(VerifyTokenMiddleware).forRoutes(AppController);
+    consumer.apply(VerifyTokenMiddleware).forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }

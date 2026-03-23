@@ -58,15 +58,17 @@ export class AppService {
             case 'NODE_DONE': {
               const { domino } = msg;
               const type = domino.id.split('-')[0];
-              this.workflowLogger.logLine({
-                workflowId,
-                type,
-                runId,
-                dominoId: domino.id,
-                status: WorkflowLogStatus.SUCCESS,
-                output: domino.output,
-                seq: seq++,
-              });
+              if (type === 'print') {
+                this.workflowLogger.logLine({
+                  workflowId,
+                  type,
+                  runId,
+                  dominoId: domino.id,
+                  status: WorkflowLogStatus.SUCCESS,
+                  output: domino.output,
+                  seq: seq++,
+                });
+              }
               // include runId on SSE
               send(domino);
               break;
@@ -74,15 +76,17 @@ export class AppService {
             case 'NODE_ERROR': {
               const { nodeId, message } = msg;
               const type = nodeId.split('-')[0];
-              this.workflowLogger.logLine({
-                workflowId,
-                type,
-                runId,
-                dominoId: nodeId,
-                status: WorkflowLogStatus.FAILURE,
-                error: { message },
-                seq: seq++,
-              });
+              if (type === 'print') {
+                this.workflowLogger.logLine({
+                  workflowId,
+                  type,
+                  runId,
+                  dominoId: nodeId,
+                  status: WorkflowLogStatus.FAILURE,
+                  error: { message },
+                  seq: seq++,
+                });
+              }
               send({ nodeId, error: { message } });
               break;
             }
@@ -122,7 +126,7 @@ export class AppService {
           .catch(err => subscriber.error(err))
           .finally(() => subscriber.complete());
       });
-      runner.run(runId).catch(err => subscriber.error(err));
+      runner.run(runId, {}, { workflowId }).catch(err => subscriber.error(err));
 
       send({ type: 'ACCEPTED' });
       return () => runner.removeAllListeners();

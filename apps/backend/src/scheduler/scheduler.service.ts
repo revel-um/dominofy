@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { Schedule } from './scheduler.entity';
 import { Workflow } from 'src/workflow/workflow.entity';
 import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
+import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../../../../shared/types/pipelineStepType';
 import { v4 as uuidv4 } from 'uuid';
@@ -33,6 +34,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     private readonly workflowRepository: Repository<Workflow>,
     private readonly config: ConfigService,
     private readonly runnerLauncher: RunnerLauncherService,
+    private readonly workflowLogger: WorkflowLoggerService,
   ) {}
 
   /* ───────────────────────── lifecycle ───────────────────────── */
@@ -129,8 +131,13 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private async handleJob(job: Job<{ scheduleId: string; workflowId: string }>) {
     const { scheduleId, workflowId } = job.data;
     const schedule = await this.scheduleRepository.findOne({ where: { id: scheduleId } });
-    if (!schedule || !schedule.enabled || !schedule.isActive) {
-      this.logger.warn(`Skipping run for disabled/missing schedule ${scheduleId}`);
+    if (!schedule) {
+      await this.removeMissingScheduleJob(job, scheduleId);
+      return;
+    }
+
+    if (!schedule.enabled || !schedule.isActive) {
+      this.logger.warn(`Skipping run for disabled schedule ${scheduleId}`);
       return;
     }
 
@@ -155,7 +162,8 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       workflow.visualJson
     );
 
-    await runner.run(runId, {});
+    await runner.run(runId, {}, { workflowId: workflow.id });
+    await this.workflowLogger.flushNow();
   }
 
   /* ───────────────────────── helpers ───────────────────────── */
@@ -237,6 +245,29 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       // swallow - job may not exist yet
     }
+  }
+
+  private async removeMissingScheduleJob(
+    job: Job<{ scheduleId: string; workflowId: string }>,
+    scheduleId: string,
+  ) {
+    try {
+      if (this.queue && job.repeatJobKey) {
+        await this.queue.removeRepeatableByKey(job.repeatJobKey);
+      }
+    } catch (err) {
+      this.logger.error(
+        `Failed to remove orphaned repeatable job for missing schedule ${scheduleId}: ${err?.message}`,
+      );
+    }
+
+    try {
+      await job.remove();
+    } catch (err) {
+      // swallow - completed repeat jobs may already be gone
+    }
+
+    this.logger.log(`Removed orphaned scheduler job for missing schedule ${scheduleId}`);
   }
 
   private extractSchedulesFromWorkflow(workflow: Workflow): SchedulerNodeConfig[] {

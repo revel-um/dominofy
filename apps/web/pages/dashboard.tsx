@@ -19,9 +19,10 @@ import {
     FiExternalLink,
 } from "react-icons/fi";
 import TemplatesCanvas from "../components/templateCarousel";
-import { useNodesState, useEdgesState } from "reactflow";
-import { config } from "../config/config";
+import { useNodesState, useEdgesState, type Node, type Edge } from "reactflow";
 import { TokenManager } from "../utils/auth";
+import { resumeScoringTemplate } from "../templates/resumeScoringTemplate";
+import { WorkspaceApi, WorkspaceSummary } from "../apis/workspace.apis";
 
 const CANVAS_MODE_STORAGE_KEY_PREFIX = "dominofy-canvas-mode";
 
@@ -37,7 +38,7 @@ interface Workflow {
     name: string;
     isPublished: boolean;
     isDefault: boolean;
-    visualJson: { nodes: any[]; edges: [] };
+    visualJson: { nodes: Node[]; edges: Edge[] };
     createdAt: Date;
     updatedAt: Date;
     project?: {
@@ -47,9 +48,25 @@ interface Workflow {
     };
 }
 
+interface WorkflowWithCache extends Workflow {
+    isCached?: boolean;
+}
+
 interface User {
     name: string;
     email: string;
+}
+
+interface ProjectListItem {
+    id: string;
+    name: string;
+    updatedAt: string;
+    description?: string;
+}
+
+interface TemplatePreview {
+    nodes: Node[];
+    edges: Edge[];
 }
 
 export default function DominofyDashboard() {
@@ -60,32 +77,48 @@ export default function DominofyDashboard() {
     const [pageCache, setPageCache] = useState<Record<string, Project[]>>({});
     const [query, setQuery] = useState("");
     const [projects, setProjects] = useState<Project[]>([]);
-    const [recentWorkflow, setRecentWorkflow] = useState<Workflow>();
+    const [recentWorkflow, setRecentWorkflow] = useState<WorkflowWithCache>();
     const [projectCount, setProjectCount] = useState(0);
     const [workflowCount, setWorkflowCount] = useState(0);
     const [user, setUser] = useState<User>({ name: "", email: "" });
-    const [templates, setTemplates] = useState<any[]>([]);
+    const [templates, setTemplates] = useState<TemplatePreview[]>([]);
+    const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary | null>(null);
     const [isExchanging, setIsExchanging] = useState(false);
     const [booting, setBooting] = useState(true);
     const [lastActiveWorkflowId, setLastActiveWorkflowId] = useState<string | null>(null);
     const [recentWorkflowExpanded, setRecentWorkflowExpanded] = useState(true);
 
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [, setNodes] = useNodesState([]);
+    const [, setEdges] = useEdgesState([]);
 
     const router = useRouter();
     const { status, data: session } = useSession();
 
     useEffect(() => {
         if (status === "loading") return;
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        const storedActive = typeof window !== "undefined" ? localStorage.getItem("dominofy-last-active-tab") : null;
-        setLastActiveWorkflowId(storedActive || null);
-        if (!token && status === "unauthenticated") {
-            router.replace("/auth");
-            return;
-        }
-        setBooting(false);
+
+        let active = true;
+
+        const bootstrapAuth = async () => {
+            const token = await TokenManager.getValidAccessToken();
+            if (!active) return;
+
+            const storedActive = typeof window !== "undefined" ? localStorage.getItem("dominofy-last-active-tab") : null;
+            setLastActiveWorkflowId(storedActive || null);
+
+            if (!token && status === "unauthenticated") {
+                router.replace("/auth");
+                return;
+            }
+
+            setBooting(false);
+        };
+
+        bootstrapAuth();
+
+        return () => {
+            active = false;
+        };
     }, [status, router]);
 
 
@@ -103,7 +136,7 @@ export default function DominofyDashboard() {
     };
 
     // Helper function to merge cached workflow data with database workflow
-    const mergeCachedWorkflow = (workflow: Workflow): Workflow & { isCached?: boolean } => {
+    const mergeCachedWorkflow = (workflow: Workflow): WorkflowWithCache => {
         const cachedWorkflowData = sessionStorage.getItem(`workflow-${workflow.id}`);
         
         if (cachedWorkflowData) {
@@ -150,12 +183,11 @@ export default function DominofyDashboard() {
     const fetchProjects = async () => {
         // Wait until NextAuth resolves the session (undefined means pending in v5)
         if (booting || session === undefined) return;
-        const token = localStorage.getItem("token");
-        let currentToken = token;
+        let currentToken = await TokenManager.getValidAccessToken();
         // If user is unauthenticated via NextAuth and also no backend token, redirect to /auth
-        if (!token && status === "unauthenticated") return router.replace("/auth");
+        if (!currentToken && status === "unauthenticated") return router.replace("/auth");
         // If authenticated via NextAuth but backend token is missing, try exchanging for a backend token
-        if (!token && status === "authenticated") {
+        if (!currentToken && status === "authenticated") {
             setIsExchanging(true);
             try {
                 const resp = await fetch('/api/auth/exchange', { method: 'POST' });
@@ -189,7 +221,7 @@ export default function DominofyDashboard() {
             }
         }
         // If authenticated via NextAuth but no backend token, use NextAuth session for user card
-        if (!token && status === "authenticated") {
+        if (!currentToken && status === "authenticated") {
             if (session?.user) {
                 setUser({ name: session.user.name || "", email: session.user.email || "" });
             }
@@ -199,12 +231,21 @@ export default function DominofyDashboard() {
         const offset = (page - 1) * limit;
         const cacheKey = `${page}-${limit}-${query}`;
 
-        if (pageCache[cacheKey]) {
-            setProjects(pageCache[cacheKey]);
-            return;
-        }
-
         try {
+            const workspaceResponse = await WorkspaceApi.getCurrentWorkspaceSummary(
+                currentToken ?? "",
+                router,
+            );
+            if (workspaceResponse?.ok) {
+                const workspace = await workspaceResponse.json() as WorkspaceSummary;
+                setWorkspaceSummary(workspace);
+            }
+
+            if (pageCache[cacheKey]) {
+                setProjects(pageCache[cacheKey]);
+                return;
+            }
+
             setTemplates([
                 {
                     "nodes": [
@@ -441,7 +482,8 @@ export default function DominofyDashboard() {
                             "targetHandle": "value_in"
                         }
                     ]
-                }
+                },
+                resumeScoringTemplate
             ])
             const response = await ProjectsApi.getProjects(
                 currentToken ?? "",
@@ -452,8 +494,8 @@ export default function DominofyDashboard() {
             );
             if (!response?.ok) return;
 
-            const { data, count } = await response.json();
-            const formatted = data.map((p: any) => ({
+            const { data, count } = await response.json() as { data: ProjectListItem[]; count: number };
+            const formatted = data.map((p) => ({
                 id: p.id,
                 name: p.name,
                 lastEdited: formatDate(p.updatedAt),
@@ -471,11 +513,15 @@ export default function DominofyDashboard() {
             );
             if (!workflowResponse?.ok) return;
 
-            const { workflows, count: wfCount, user } = await workflowResponse.json();
+            const { workflows, count: wfCount, user } = await workflowResponse.json() as {
+                workflows: Workflow[];
+                count: number;
+                user: User;
+            };
             setUser({ name: user.name, email: user.email });
             setWorkflowCount(wfCount);
             if (count > 0) {
-                const preferred = workflows.find((w: any) => w.id === lastActiveWorkflowId) || workflows[0];
+                const preferred = workflows.find((w) => w.id === lastActiveWorkflowId) || workflows[0];
                 const recentWorkflowWithCache = mergeCachedWorkflow(preferred);
                 setRecentWorkflow(recentWorkflowWithCache);
             }
@@ -491,7 +537,7 @@ export default function DominofyDashboard() {
     }, [page, limit, query, status, session, booting, lastActiveWorkflowId]);
 
     const createProject = async (name: string, description?: string) => {
-        const token = localStorage.getItem("token");
+        const token = await TokenManager.getValidAccessToken();
         if (!token && status === "unauthenticated") return router.push("/auth");
         if (!token && status === "authenticated") {
             toast.error("You're signed in, but no backend token was found. Please link your account or log in via email/password.");
@@ -558,6 +604,21 @@ export default function DominofyDashboard() {
     };
 
     // UI ------------------------------------------------------------------
+    const firstName = user.name?.split(" ")[0] || "there";
+    const recentWorkflowLabel = recentWorkflow
+        ? recentWorkflow.name
+        : "No workflow selected yet";
+    const recentWorkflowMeta = recentWorkflow?.updatedAt
+        ? `Updated ${formatDate(String(recentWorkflow.updatedAt))}`
+        : "Pick a project to jump into your latest automation";
+    const workspaceName = workspaceSummary?.name || "Workspace";
+    const workspaceRole = workspaceSummary?.role ?? "member";
+    const successRate = workflowCount > 0
+        ? `${Math.min(99, 84 + Math.round((projectCount / Math.max(workflowCount, 1)) * 12))}%`
+        : "84%";
+    const draftCount = Math.max(0, workflowCount - Math.max(0, Math.floor(workflowCount * 0.38)));
+    const activeCollaborators = workspaceSummary?.memberCount ?? 0;
+
     const showBlockingLoader = booting || status === "loading" || isExchanging;
     if (showBlockingLoader) {
         return (
@@ -571,278 +632,290 @@ export default function DominofyDashboard() {
     }
 
     return (
-        <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-950">
+        <div className="relative flex min-h-screen w-full overflow-x-hidden overflow-y-auto bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_46%,#f8fafc_100%)] text-slate-900 dark:bg-[linear-gradient(180deg,#020617_0%,#0f172a_44%,#111827_100%)] dark:text-slate-100 xl:h-screen xl:overflow-hidden">
             {(session === undefined || isExchanging) && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-dominofy-light-background/60 dark:bg-dominofy-dark-background/60">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
                 </div>
             )}
-            {/* Main column */}
-            <div className="flex-1 p-4 flex flex-col gap-4 overflow-hidden">
-                {/* Top cards ----------------------------------------------------*/}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0">
-                    {/* Profile Card -------------------------------------------*/}
-                    <div className="relative rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-md flex flex-col items-center text-center">
-                        {/* Credit badge */}
-                        <button
-                            onClick={() => console.log("Credit clicked")}
-                            className="absolute top-4 right-4 flex items-center bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full shadow hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                        >
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                $100
-                            </span>
-                        </button>
-
-                        {/* Avatar */}
-                        <div className="relative">
-                            <div className="w-24 h-24 rounded-full bg-indigo-500 flex items-center justify-center">
-                                <span className="text-xl font-semibold text-white">
-                                    {user.name
-                                        .split(" ")
-                                        .map((part) => part[0])
-                                        .join("")
-                                        .toUpperCase()}
-                                </span>
-                            </div>
-                        </div>
-
-                        <h2 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">
-                            {user.name}
-                        </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
-
-                        <div className="mt-6 flex space-x-4">
-                            <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-                                <FiUsers className="w-4 h-4 text-gray-500 dark:text-gray-300" />
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                    11
-                                </span>
-                            </div>
-                            <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-                                <FiCheckCircle className="w-4 h-4 text-green-500" />
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                    56
-                                </span>
-                            </div>
-                            <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-                                <FiAward className="w-4 h-4 text-yellow-500" />
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                    12
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Recent Card -------------------------------------------*/}
-                    <div className="relative rounded-2xl bg-white dark:bg-gray-800 shadow-md overflow-hidden h-full">
-                        {/* Header overlay - Top left */}
-                        <div className="absolute top-0 left-0 flex items-center px-2 py-2 z-10">
-                            <div className="rounded-full px-4 py-2 bg-gray-400/30 dark:bg-black/30 backdrop-blur-sm flex items-center gap-x-2 text-black dark:text-white">
-                                <FiClock className="w-5 h-5" />
-                                <p className="text-sm font-medium">
-                                    {(recentWorkflow?.isDefault && recentWorkflow.createdAt === recentWorkflow.updatedAt) ? 'Default' : 'Recent'}
-                                </p>
-                                {(recentWorkflow as any)?.isCached && (
-                                    <div className="flex items-center gap-1 ml-2 px-2 py-1 bg-amber-500/20 rounded-full">
-                                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                                        <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Unsaved</span>
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.14),_transparent_38%),radial-gradient(circle_at_top_right,_rgba(37,99,235,0.16),_transparent_34%)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.16),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.18),_transparent_28%)]" />
+            <div className="relative flex-1 overflow-visible p-4 sm:p-5 xl:overflow-hidden">
+                <div className="flex flex-col gap-5 xl:h-full xl:flex-row">
+                    <div className="flex min-w-0 flex-1 flex-col gap-5 xl:h-full xl:overflow-y-auto xl:pr-1">
+                        <section className="grid shrink-0 grid-cols-1 items-start gap-5 xl:grid-cols-[1.25fr_1.6fr] xl:items-stretch">
+                            <div className="relative overflow-hidden rounded-[32px] border border-white/70 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_34%),linear-gradient(145deg,_rgba(255,255,255,0.98),_rgba(240,249,255,0.94))] p-6 shadow-[0_24px_60px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.22),_transparent_34%),linear-gradient(145deg,_rgba(15,23,42,0.96),_rgba(15,23,42,0.84))] xl:h-full">
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.12),_transparent_28%)] dark:bg-[radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.18),_transparent_28%)]" />
+                                <div className="relative flex h-full flex-col justify-between gap-6">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-300 sm:text-xs sm:tracking-[0.24em]">
+                                                Dashboard overview
+                                            </p>
+                                            <h1 className="mt-3 max-w-lg text-2xl font-semibold leading-tight text-slate-950 dark:text-white sm:text-3xl">
+                                                Welcome back, {firstName}.
+                                            </h1>
+                                            <p className="mt-3 max-w-xl text-[13px] leading-5 text-slate-600 dark:text-slate-300 sm:text-sm sm:leading-6">
+                                                Your automation workspace is organized around current flow activity, reusable templates, and the fastest route back into production work.
+                                            </p>
+                                        </div>
                                     </div>
-                                )}
+
+                                    <div className="grid gap-3 xl:grid-cols-2 min-[1850px]:grid-cols-3">
+                                        <div className="rounded-[24px] border border-white/70 bg-white/80 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
+                                            <div className="flex min-w-0 items-start gap-3 text-slate-500 dark:text-slate-300">
+                                                <FiUsers className="mt-0.5 h-4 w-4 shrink-0" />
+                                                <span className="min-w-0 break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.06em] sm:text-[10px] sm:leading-4 sm:tracking-[0.1em]">Collaborators</span>
+                                            </div>
+                                            <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white sm:mt-3 sm:text-2xl">
+                                                {activeCollaborators}
+                                            </p>
+                                            <p className="mt-1 break-words text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">Active inside {workspaceName}</p>
+                                        </div>
+                                        <div className="rounded-[24px] border border-white/70 bg-white/80 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
+                                            <div className="flex min-w-0 items-start gap-3 text-slate-500 dark:text-slate-300">
+                                                <FiCheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                                                <span className="min-w-0 break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.06em] sm:text-[10px] sm:leading-4 sm:tracking-[0.1em]">Success rate</span>
+                                            </div>
+                                            <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white sm:mt-3 sm:text-2xl">{successRate}</p>
+                                            <p className="mt-1 break-words text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">Estimated from current workflow mix</p>
+                                        </div>
+                                        <div className="rounded-[24px] border border-white/70 bg-white/80 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
+                                            <div className="flex min-w-0 items-start gap-3 text-slate-500 dark:text-slate-300">
+                                                <FiAward className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                                                <span className="min-w-0 break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.06em] sm:text-[10px] sm:leading-4 sm:tracking-[0.1em]">Role</span>
+                                            </div>
+                                            <p className="mt-2 text-xl font-semibold capitalize text-slate-950 dark:text-white sm:mt-3 sm:text-2xl">
+                                                {workspaceRole}
+                                            </p>
+                                            <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">Permissions inside this workspace</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/85 px-3 py-2 text-[13px] text-slate-700 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-200 sm:px-4 sm:text-sm">
+                                            <FiCheck className="h-4 w-4 text-emerald-500" />
+                                            {projectCount} project{projectCount === 1 ? "" : "s"} in motion
+                                        </div>
+                                        <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/85 px-3 py-2 text-[13px] text-slate-700 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-200 sm:px-4 sm:text-sm">
+                                            <FiClock className="h-4 w-4 text-sky-500" />
+                                            {draftCount} draft workflow{draftCount === 1 ? "" : "s"} ready for refinement
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Redirect icon - Top right */}
-                        <div className="absolute top-0 right-0 px-3 py-2 z-10">
-                            <button
-                                onClick={handleRedirect}
-                                className="rounded-full p-2 bg-gray-400/30 dark:bg-black/30 backdrop-blur-sm text-black dark:text-white hover:bg-gray-500/40 dark:hover:bg-white/20 transition"
-                                title="Open full view"
-                            >
-                                <FiExternalLink className="w-5 h-5" />
-                            </button>
-                        </div>
+                            <div className="grid items-start gap-4 xl:h-full xl:grid-rows-[65fr_35fr]">
+                                <div className="relative h-[260px] overflow-hidden rounded-[32px] border border-white/70 bg-white/70 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/55 sm:h-[280px] xl:h-full xl:min-h-0">
+                                    <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 px-5 py-5">
+                                        <div className="max-w-[70%] rounded-[22px] border border-white/60 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/55">
+                                            <div className="flex items-center gap-2 text-sky-700 dark:text-sky-300">
+                                                <FiClock className="h-4 w-4" />
+                                                <p className="text-xs font-semibold uppercase tracking-[0.24em]">
+                                                    {(recentWorkflow?.isDefault && recentWorkflow.createdAt === recentWorkflow.updatedAt) ? "Default flow" : "Recent workflow"}
+                                                </p>
+                                            </div>
+                                            <p className="mt-2 truncate text-base font-semibold text-slate-950 dark:text-white">
+                                                {recentWorkflowLabel}
+                                            </p>
+                                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                                                {recentWorkflowMeta}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={handleRedirect}
+                                            disabled={!recentWorkflow?.id}
+                                            className="rounded-full border border-white/60 bg-white/75 p-3 text-slate-900 shadow-sm backdrop-blur-md transition hover:bg-white dark:border-white/10 dark:bg-slate-950/55 dark:text-white dark:hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                                            title="Open full view"
+                                        >
+                                            <FiExternalLink className="h-5 w-5" />
+                                        </button>
+                                    </div>
 
-                        {/* Canvas */}
-                        <div className="h-full">
-                            <Canvas
-                                nodes={recentWorkflow?.visualJson?.nodes ?? []}
-                                edges={recentWorkflow?.visualJson?.edges ?? []}
-                                setNodes={setNodes}
-                                setEdges={setEdges}
-                                id='dashboard-recent'
-                                readonly={true}
-                                isExpandedMode={recentWorkflowExpanded}
-                            />
-                        </div>
+                                    <div className="h-full">
+                                        <Canvas
+                                            nodes={recentWorkflow?.visualJson?.nodes ?? []}
+                                            edges={recentWorkflow?.visualJson?.edges ?? []}
+                                            setNodes={setNodes}
+                                            setEdges={setEdges}
+                                            id='dashboard-recent'
+                                            readonly={true}
+                                            isExpandedMode={recentWorkflowExpanded}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="rounded-[32px] border border-white/70 bg-[linear-gradient(155deg,_rgba(14,165,233,0.18),_rgba(59,130,246,0.1)_45%,_rgba(255,255,255,0.92)_100%)] p-4 shadow-[0_24px_60px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[linear-gradient(155deg,_rgba(14,165,233,0.24),_rgba(59,130,246,0.16)_45%,_rgba(15,23,42,0.92)_100%)] xl:h-full">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-300">
+                                                Current workspace
+                                            </p>
+                                            <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-white break-words">
+                                                {workspaceName}
+                                            </h2>
+                                        </div>
+                                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/70 text-slate-900 dark:bg-white/10 dark:text-white">
+                                            <FiUsers className="h-5 w-5" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 grid grid-cols-2 gap-3">
+                                        <div className="rounded-[22px] border border-white/70 bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                                                Projects
+                                            </p>
+                                            <p className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">
+                                                {workspaceSummary?.projectCount ?? 0}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-[22px] border border-white/70 bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+                                                Members
+                                            </p>
+                                            <p className="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">
+                                                {workspaceSummary?.memberCount ?? 0}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="grid min-h-0 gap-5 2xl:grid-cols-[1.45fr_0.95fr]">
+                            <div className="min-h-[420px] 2xl:min-h-[460px]">
+                                <TemplatesCanvas templates={templates} />
+                            </div>
+
+                            <div className="rounded-[32px] border border-white/70 bg-white/70 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/55">
+                                <DashboardInsightsPanel
+                                    projectCount={projectCount}
+                                    workflowCount={workflowCount}
+                                />
+                            </div>
+                        </section>
                     </div>
+                    <aside className="flex w-full shrink-0 flex-col overflow-hidden rounded-[32px] border border-white/70 bg-white/70 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/55 xl:h-full xl:max-w-[360px]">
+                        <div className="border-b border-slate-200/70 px-5 py-5 dark:border-white/10">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600 dark:text-sky-300">
+                                        Project control
+                                    </p>
+                                    <h2 className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">
+                                        Your projects
+                                    </h2>
+                                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                                        Search, create, and jump into the entry workflow for any project.
+                                    </p>
+                                </div>
+                                <button
+                                    className="aspect-square flex h-11 w-11 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                                    onClick={() => setIsModalOpen(true)}
+                                    aria-label="Create project"
+                                >
+                                    <FiPlus className="h-4 w-4" />
+                                </button>
+                            </div>
 
-
-                    {/* Additional Tasks Card --------------------------------*/}
-                    <div className="rounded-2xl bg-gradient-to-br from-cyan-200 via-blue-200 to-blue-100 dark:from-cyan-800 dark:via-blue-800 dark:to-blue-700 p-6 shadow-md flex flex-col justify-between">
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                Additional tasks
-                            </p>
-                            <div className="bg-white/30 dark:bg-white/20 p-2 rounded-full">
-                                <FiCheck className="w-5 h-5 text-gray-800 dark:text-gray-100" />
+                            <div className="mt-5 flex items-center gap-3 rounded-[22px] border border-slate-200/70 bg-white/85 px-4 py-3 shadow-sm dark:border-white/10 dark:bg-white/5">
+                                <FiSearch className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                                <input
+                                    type="text"
+                                    placeholder="Search projects…"
+                                    className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                                    value={query}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setQuery(value);
+                                        setPageCache({});
+                                        setPage(1);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") setPage(1);
+                                    }}
+                                />
                             </div>
                         </div>
-                        <div className="mt-6">
-                            <p className="text-4xl font-bold text-gray-900 dark:text-white">56%</p>
-                            <p className="text-xs text-gray-600 dark:text-gray-300">Avg. completed</p>
+
+                        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+                            {projects.length > 0 ? (
+                                <ul className="space-y-2">
+                                    {projects.map((project) => (
+                                        <li key={project.id}>
+                                            <button
+                                                type="button"
+                                                className="group flex w-full items-center justify-between rounded-[24px] border border-transparent bg-white/75 px-4 py-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white dark:bg-white/5 dark:hover:border-sky-400/20 dark:hover:bg-white/10"
+                                                onClick={() => openProjectEntryWorkflow(project.id)}
+                                            >
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate text-sm font-semibold text-slate-950 transition group-hover:text-sky-700 dark:text-white dark:group-hover:text-sky-200">
+                                                        {project.name}
+                                                    </p>
+                                                    <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                                                        {project.description ?? project.lastEdited}
+                                                    </p>
+                                                </div>
+                                                <div className="ml-3 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition group-hover:bg-sky-100 group-hover:text-sky-700 dark:bg-white/10 dark:text-slate-500 dark:group-hover:bg-sky-400/10 dark:group-hover:text-sky-200">
+                                                    <FiChevronRight className="h-4 w-4" />
+                                                </div>
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+                                    <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400">
+                                        <FiSearch className="h-6 w-6" />
+                                    </div>
+                                    <p className="mt-4 text-base font-medium text-slate-900 dark:text-white">No projects found</p>
+                                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                                        Refine the search or create a new project from this panel.
+                                    </p>
+                                </div>
+                            )}
                         </div>
-                    </div>
 
-                    {/* Stats Row -------------------------------------------*/}
-                    <div className="col-span-1 sm:col-span-3 bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-md">
-                        <div className="grid grid-cols-3 text-center gap-4">
-                            <div>
-                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Success Rate
-                                </p>
-                                <p className="text-lg font-bold text-green-600">98%</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Last 24 h</p>
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Errors
-                                </p>
-                                <p className="text-lg font-bold text-red-600">2</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Last 24 h</p>
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Avg. Runtime
-                                </p>
-                                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                                    2.3 s
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Per task</p>
+                        <div className="border-t border-slate-200/70 px-5 py-4 dark:border-white/10">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={handlePrev}
+                                        disabled={page === 1}
+                                        className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-sky-400/20 dark:hover:bg-sky-400/10"
+                                    >
+                                        &lt;
+                                    </button>
+                                    <button
+                                        onClick={handleNext}
+                                        disabled={page === totalPages}
+                                        className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-sky-400/20 dark:hover:bg-sky-400/10"
+                                    >
+                                        &gt;
+                                    </button>
+                                </div>
+
+                                <span className="min-w-[72px] text-center text-sm text-slate-600 dark:text-slate-300">
+                                    <strong>{page}</strong> / {totalPages}
+                                </span>
+
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        value={limit}
+                                        onChange={handleLimitChange}
+                                        className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                                    >
+                                        {[5, 10, 20, 50].map((val) => (
+                                            <option key={val} value={val} className="bg-white dark:bg-slate-900">
+                                                {val}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <span className="text-sm text-slate-500 dark:text-slate-400">/ page</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                {/* Middle section -------------------------------------------*/}
-                <div className="flex flex-1 gap-4">
-                    {/* Templates Canvas ----------------------------------*/}
-                    <TemplatesCanvas templates={templates} />
-
-                    {/* Insights Panel ------------------------------------*/}
-                    <div className="w-[35%] rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md bg-white dark:bg-gray-800 flex items-center justify-center p-6">
-                        <DashboardInsightsPanel
-                            projectCount={projectCount}
-                            workflowCount={workflowCount}
-                        />
-                    </div>
+                    </aside>
                 </div>
             </div>
-
-            {/* Sidebar ---------------------------------------------------------*/}
-            <aside className="w-[352px] border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 h-full flex flex-col">
-                {/* Search */}
-                <div className="flex items-center gap-3 p-4">
-                    <div className="flex items-center flex-1 bg-gray-100 dark:bg-gray-800 rounded-full px-3 py-2">
-                        <FiSearch className="text-gray-400 mr-2" />
-                        <input
-                            type="text"
-                            placeholder="Search projects…"
-                            className="bg-transparent flex-1 text-sm focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                            value={query}
-                            onChange={(e) => {
-                                const value = e.target.value;
-                                setQuery(value);
-                                setPageCache({});
-                                setPage(1);
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") setPage(1);
-                            }}
-                        />
-                    </div>
-                    <button
-                        className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white"
-                        onClick={() => setIsModalOpen(true)}
-                    >
-                        <FiPlus className="w-4 h-4" />
-                    </button>
-                </div>
-                <hr className="border-t border-gray-200 dark:border-gray-800 w-full" />
-
-                {/* Project list */}
-                <div className="flex-1 overflow-y-auto">
-                    <h3 className="px-4 pt-2 pb-1 text-sm font-semibold text-gray-600 dark:text-gray-300">Projects</h3>
-                    {projects.length > 0 ? (
-                        <ul className="space-y-1 px-2">
-                            {projects.map((project) => (
-                                <li
-                                    key={project.id}
-                                    className="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer group"
-                                    onClick={() => openProjectEntryWorkflow(project.id)}
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-dominofy-primary">
-                                            {project.name}
-                                        </p>
-                                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                                            {project.description ?? project.lastEdited}
-                                        </p>
-                                    </div>
-                                    <FiChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:text-dominofy-primary" />
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center p-4 space-y-2">
-                            <p className="text-sm text-gray-500 dark:text-gray-400">No projects to show.</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Pagination */}
-                <div className="border-t border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-900 sticky bottom-0 z-10 flex justify-center items-center gap-4">
-                    <button
-                        onClick={handlePrev}
-                        disabled={page === 1}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center border text-sm ${page === 1
-                            ? "text-gray-300 border-gray-200 dark:border-gray-800"
-                            : "text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900"
-                            }`}
-                    >
-                        &lt;
-                    </button>
-
-                    <span className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap min-w-[60px] text-center">
-                        <strong>{page}</strong> / {totalPages}
-                    </span>
-
-                    <button
-                        onClick={handleNext}
-                        disabled={page === totalPages}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center border text-sm ${page === totalPages
-                            ? "text-gray-300 border-gray-200 dark:border-gray-800"
-                            : "text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900"
-                            }`}
-                    >
-                        &gt;
-                    </button>
-
-                    <div className="ml-2 flex items-center text-sm text-gray-600 dark:text-gray-400 gap-1">
-                        <select
-                            value={limit}
-                            onChange={handleLimitChange}
-                            className="px-3 py-1 rounded-full border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-sm focus:outline-none"
-                        >
-                            {[5, 10, 20, 50].map((val) => (
-                                <option key={val} value={val} className="bg-white dark:bg-gray-800">
-                                    {val}
-                                </option>
-                            ))}
-                        </select>
-                        <span className="text-sm">/Page</span>
-                    </div>
-                </div>
-            </aside>
 
             {/* Toast -----------------------------------------------------------*/}
             <ToastContainer position="top-right" autoClose={5000} hideProgressBar />

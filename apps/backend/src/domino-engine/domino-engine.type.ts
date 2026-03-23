@@ -3,6 +3,7 @@
 export interface ExecuteContext {
   /** Same runId bubbled up to SSE */
   runId: string;
+  workflowId?: string;
   done?: any;
 
   /** Aggregated inputs coming from parent dominos */

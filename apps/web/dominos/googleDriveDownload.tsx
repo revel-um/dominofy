@@ -42,6 +42,7 @@ import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
    const router = useRouter();
    const { erroredNodes, clearValidationForDominoId } = useDomino();
    const hasError = erroredNodes.includes(id);
+   const isPreviewMode = Boolean((data as any).previewMode);
    const edges = useEdges();
    const setNodesRef = useRef(data.setNodes);
    const didInitRef = useRef(false);
@@ -95,6 +96,11 @@ import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
    }, [data?.details?.fields]);
 
    useEffect(() => {
+     if (isPreviewMode) {
+       setLoadingConns(false);
+       setConnections([]);
+       return;
+     }
      let mounted = true;
      (async () => {
        setLoadingConns(true);
@@ -108,7 +114,7 @@ import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
        }
      })();
      return () => void (mounted = false);
-   }, [token, router]);
+   }, [isPreviewMode, token, router]);
 
    useEffect(() => {
      if (!data.setNodes) return;
