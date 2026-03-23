@@ -3,9 +3,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Edge, Node } from 'reactflow';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
+import { Check, ChevronRight, User2, X } from 'lucide-react';
 import { config } from '../config/config';
 import { AiChatApi, AiChatMessageDto, AiChatSender } from '../apis/aiChat.apis';
 import { AIWorkflowResponse, normalizeAIResponseToWorkflow, serializeWorkflowForAI } from '../utils/aiWorkflow';
+import AIThinkingBlock from '@/components/ui/ai-thinking-block';
+import { Button } from '@/components/ui/button';
 import PromptInputDynamicGrow from '@/components/ui/prompt-input-dynamic-grow';
 import { authFetch } from '../utils/authFetch';
 
@@ -60,22 +64,6 @@ function ThoughtSummaries({ steps }: { steps: string[] }) {
     );
 }
 
-function StreamingPlaceholder({ status }: { status?: string }) {
-    return (
-        <div className="mb-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-            <div className="flex items-center gap-2 text-xs text-slate-300">
-                <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
-                <span>{status || 'Working on your workflow preview...'}</span>
-            </div>
-            <div className="mt-2 space-y-2">
-                <div className="h-2.5 w-4/5 animate-pulse rounded-full bg-white/10" />
-                <div className="h-2.5 w-3/5 animate-pulse rounded-full bg-white/10" />
-                <div className="h-2.5 w-2/3 animate-pulse rounded-full bg-white/10" />
-            </div>
-        </div>
-    );
-}
-
 export default function AIPanelDocked({ isOpen, width, workflowId, onClose, transition, isResizing, updatePipeline, onHoverStart, onHoverEnd, setEdges, setNodes, getNodes, getEdges }: Props) {
     const router = useRouter();
 
@@ -85,6 +73,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     const [historyLoading, setHistoryLoading] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
     const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+    const [clockTick, setClockTick] = useState(() => Date.now());
 
     // find all suggested nodes
     const suggestedNodes = useMemo(() => getNodes().filter(n => n.data?.suggested), [getNodes]);
@@ -98,6 +87,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const suppressAutoScrollRef = useRef(false);
+    const stickToBottomRef = useRef(false);
 
     const defaultAiGreeting = useMemo<Message>(() => ({
         id: 'init',
@@ -160,11 +150,24 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         messagesEndRef.current?.scrollIntoView({ behavior });
     }, []);
 
+    const scheduleScrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                scrollToBottom(behavior);
+            });
+        });
+    }, [scrollToBottom]);
+
     const isNearBottom = useCallback(() => {
         const container = messagesContainerRef.current;
         if (!container) return true;
         const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
         return distanceFromBottom < 120;
+    }, []);
+
+    useEffect(() => {
+        const interval = window.setInterval(() => setClockTick(Date.now()), 1000);
+        return () => window.clearInterval(interval);
     }, []);
 
     useEffect(() => {
@@ -272,6 +275,10 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     const handleScroll = useCallback(() => {
         const container = messagesContainerRef.current;
         if (!container || historyLoading || !hasMoreHistory) return;
+        if (!suppressAutoScrollRef.current) {
+            const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+            stickToBottomRef.current = distanceFromBottom < 120;
+        }
         if (container.scrollTop < 60) {
             loadOlderMessages();
         }
@@ -306,7 +313,10 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             messagesRef.current = merged;
             return merged;
         });
-    }, [dedupeMessages, sortChronologically]);
+        if (stickToBottomRef.current && !suppressAutoScrollRef.current) {
+            scheduleScrollToBottom('smooth');
+        }
+    }, [dedupeMessages, sortChronologically, scheduleScrollToBottom]);
 
     const updateMessage = useCallback((id: string, updater: (message: Message) => Message) => {
         setMessages(prev => {
@@ -314,7 +324,10 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             messagesRef.current = updated;
             return updated;
         });
-    }, []);
+        if (stickToBottomRef.current && !suppressAutoScrollRef.current) {
+            scheduleScrollToBottom('smooth');
+        }
+    }, [scheduleScrollToBottom]);
 
     const consumeNdjsonStream = useCallback(async (
         response: Response,
@@ -360,6 +373,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             sender: 'user',
             timestamp: new Date(),
         };
+        stickToBottomRef.current = true;
         mergeMessages([userMessage]);
         setInputValue('');
         persistMessage(userMessage.id, { content: prompt, sender: 'user' });
@@ -375,6 +389,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             isStreaming: true,
         };
         mergeMessages([streamingAiMessage]);
+        scheduleScrollToBottom('auto');
 
         setIsLoading(true);
         const currentNodes = getNodes();
@@ -482,9 +497,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             }
 
             const explanation = parsedResponse?.explanation || 'AI generated an update for your workflow.';
-            const status = parsedResponse?.status;
-            const hasWorkflowNodes = parsedResponse?.nodes && parsedResponse.nodes.length > 0;
-            const aiText = (status && hasWorkflowNodes) ? `${explanation}\nStatus: ${status}` : explanation;
+            const aiText = explanation;
             const thoughtSummaries =
                 parsedResponse?.thought_summaries ||
                 parsedResponse?.chain_of_thought;
@@ -519,13 +532,14 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             }));
             persistMessage(streamingMessageId, { content: `Error: ${message}`, sender: 'ai' });
         } finally {
+            stickToBottomRef.current = false;
             setIsLoading(false);
         }
     };
 
     useEffect(() => {
         if (!isOpen || suppressAutoScrollRef.current) return;
-        if (isNearBottom()) {
+        if (stickToBottomRef.current || isNearBottom()) {
             scrollToBottom(messagesRef.current.length > 15 ? 'smooth' : 'auto');
         }
     }, [messages, isOpen, isNearBottom, scrollToBottom]);
@@ -534,61 +548,102 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
 
     return (
         <div
-            className="flex flex-col bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-l border-gray-200 dark:border-gray-700"
+            className="relative flex flex-col overflow-hidden border-l border-gray-200 bg-dominofy-light-panel dark:border-gray-700 dark:bg-dominofy-dark-panel"
             style={{ width, transition: isResizing ? 'none' : transition, userSelect: 'text', WebkitUserSelect: 'text' }}
             onMouseEnter={onHoverStart}
             onMouseLeave={onHoverEnd}
             data-allow-copy="true"
         >
             <div
-                className={`relative flex-1 overflow-y-auto p-4 space-y-4 ${isResizing ? 'transition-none' : ''}`}
+                className={`relative flex-1 overflow-y-auto px-4 py-5 ${isResizing ? 'transition-none' : ''}`}
                 onScroll={handleScroll}
                 ref={messagesContainerRef}
                 style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
             >
                 {isLoading && (
                     <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">
-                        <div className="mt-1 h-1 w-32 overflow-hidden rounded-full bg-white/10">
-                            <div className="h-full w-1/3 animate-[slide_1.8s_ease_infinite] rounded-full bg-white/70" />
+                        <div className="mt-2 h-1 w-36 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                            <div className="h-full w-1/3 animate-[slide_1.8s_ease_infinite] rounded-full bg-sky-500" />
                         </div>
                     </div>
                 )}
                 {historyLoading && hasMoreHistory && (
-                    <div className="text-center text-xs text-gray-500 py-2">
+                    <div className="py-2 text-center text-xs text-slate-500">
                         Loading earlier messages…
                     </div>
                 )}
 
+                <div className="relative z-10 space-y-5">
                 {messages.map((m) => (
                     <div key={m.id} className={`flex ${m.sender === 'ai' ? 'justify-start' : 'justify-end'}`}>
-                        <div className={`max-w-[80%] p-3 rounded-lg text-sm ${m.sender === 'ai'
-                            ? 'bg-dominofy-light-accent/10 dark:bg-dominofy-dark-accent/20'
-                            : 'bg-dominofy-light-accent/20 dark:bg-dominofy-dark-accent/30'}
-            `} style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
-                            {m.sender === 'ai' && m.thoughtSummaries && m.thoughtSummaries.length > 0 && (
+                        <div className={`max-w-[86%] ${m.sender === 'ai' ? 'mr-10' : 'ml-10'}`}>
+                            <div className={`mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] ${m.sender === 'ai' ? 'text-slate-500 dark:text-slate-400' : 'justify-end text-slate-400 dark:text-slate-500'}`}>
+                                {m.sender === 'ai' ? (
+                                    <>
+                                        <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-sky-500/20 bg-white shadow-sm dark:bg-slate-900">
+                                            <Image
+                                                src="/dominofy.png"
+                                                alt="Dominofy"
+                                                width={20}
+                                                height={20}
+                                                className="h-5 w-5 object-contain"
+                                            />
+                                        </span>
+                                        <span>Jelly</span>
+                                        {m.isStreaming && <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-sky-600 dark:text-sky-300">Live</span>}
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>You</span>
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300/80 bg-white text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                                            <User2 className="h-4 w-4" />
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                            <div
+                                className={`rounded-[1.5rem] border p-4 text-sm shadow-[0_18px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur-xl ${
+                                    m.sender === 'ai'
+                                        ? 'border-slate-200/80 bg-white/80 text-slate-700 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-200'
+                                        : 'border-sky-500/15 bg-gradient-to-br from-sky-500 to-blue-600 text-white'
+                                }`}
+                                style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+                            >
+                            {m.sender === 'ai' && m.isStreaming && (
+                                <AIThinkingBlock
+                                    title="Jelly is thinking"
+                                    elapsedSeconds={Math.max(0, Math.floor((clockTick - m.timestamp.getTime()) / 1000))}
+                                    thoughtSummaries={m.thoughtSummaries}
+                                    status={m.streamStatus}
+                                    className="mb-3"
+                                />
+                            )}
+                            {m.sender === 'ai' && !m.isStreaming && m.thoughtSummaries && m.thoughtSummaries.length > 0 && (
                                 <ThoughtSummaries steps={m.thoughtSummaries} />
                             )}
-                            {m.sender === 'ai' && m.isStreaming && (!m.thoughtSummaries || m.thoughtSummaries.length === 0) && (
-                                <StreamingPlaceholder status={m.streamStatus} />
-                            )}
                             {m.sender === 'ai' && m.isStreaming && m.streamStatus && m.thoughtSummaries && m.thoughtSummaries.length > 0 && (
-                                <div className="mb-2 text-xs text-slate-400">{m.streamStatus}</div>
+                                <div className="mb-3 flex items-center gap-2 rounded-2xl border border-sky-500/15 bg-sky-500/5 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                                    <ChevronRight className="h-3.5 w-3.5 text-sky-500" />
+                                    {m.streamStatus}
+                                </div>
                             )}
                             {m.content ? (
-                                <p className="whitespace-pre-wrap break-words" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{m.content}</p>
+                                <p className={`whitespace-pre-wrap break-words leading-7 ${m.sender === 'user' ? 'text-white/95' : ''}`} style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{m.content}</p>
                             ) : (
                                 m.sender !== 'ai' || !m.isStreaming ? null : null
                             )}
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className={`mt-1 text-right text-xs ${m.sender === 'user' ? 'text-white/70' : 'text-slate-400 dark:text-slate-500'}`}>
                                 {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
                             </div>
                         </div>
                     </div>
                 ))}
+                </div>
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="border-t border-gray-200 p-3 dark:border-gray-700" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
+            <div className="border-t border-slate-200/70 bg-dominofy-light-panel p-4 dark:border-slate-800 dark:bg-dominofy-dark-panel" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
                 <PromptInputDynamicGrow
                     value={inputValue}
                     onValueChange={setInputValue}
@@ -601,25 +656,38 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                     backgroundOpacity={0.82}
                     glowIntensity={0.32}
                 />
-                {/* ─── accept/reject ALL suggestions ─── */}
                 {suggestedNodes.length > 0 && (
-                    <div className="relative top-2 z-20 flex gap-2"
-                    style={{ pointerEvents: 'auto' }}
+                    <div
+                        className="relative top-3 z-20 flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/15 bg-gradient-to-r from-emerald-500/8 via-transparent to-rose-500/8 px-3 py-3"
+                        style={{ pointerEvents: 'auto' }}
                     >
-                    <button
-                        type="button"
-                        onClick={acceptAllSuggestions}
-                        className="px-2 py-1 bg-green-600 text-white rounded text-sm shadow"
-                    >
-                        Accept All
-                    </button>
-                    <button
-                        type="button"
-                        onClick={rejectAllSuggestions}
-                        className="px-2 py-1 bg-red-600 text-white rounded text-sm shadow"
-                    >
-                        Reject All
-                    </button>
+                        <div>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                                {suggestedNodes.length} suggested node{suggestedNodes.length > 1 ? 's' : ''} ready for review
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Accept to keep the AI proposal on the canvas, or reject to restore the previous state.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                type="button"
+                                onClick={acceptAllSuggestions}
+                                className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                            >
+                                <Check className="h-4 w-4" />
+                                Accept All
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={rejectAllSuggestions}
+                                variant="outline"
+                                className="gap-2 border-rose-200 bg-white/80 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/60 dark:bg-slate-950/70 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                            >
+                                <X className="h-4 w-4" />
+                                Reject All
+                            </Button>
+                        </div>
                     </div>
                 )}
             </div>

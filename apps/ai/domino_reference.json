@@ -1272,5 +1272,546 @@
       "exec_out_default": "Used when no cases match."
     },
     "keywords": ["switch", "case", "branch", "route", "multi"]
+  },
+  {
+    "id": "llm",
+    "label": "AI",
+    "category": "AI",
+    "description": "Send a prompt to an AI language model (Gemini/Vertex) and receive a text response.",
+    "icon": "BrainCircuit",
+    "color": "purple",
+    "features": [
+      "Accepts a static prompt or a dynamic prompt supplied via value_in.",
+      "Supports Gemini API (via GOOGLE_API_KEY) or Vertex AI (via ADC) with automatic model fallback.",
+      "Returns generated text on value_out for chaining into print, response, or further processing nodes.",
+      "Prompt field supports plain text or templated instructions."
+    ],
+    "fields": [
+      {
+        "heading": "Prompt",
+        "type": "textInput",
+        "placeholder": "Enter your prompt here...",
+        "inPinId": "value_in",
+        "required": true,
+        "description": "The instruction or question sent to the AI model. Connect value_in to supply a dynamic prompt."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
+      "value_in": "VALUE_IN",
+      "value_out": "VALUE_OUT"
+    },
+    "pinStructure": {
+      "exec_in": "Triggers the AI call.",
+      "exec_out": "Continues after the model responds.",
+      "value_in": "Accepts a dynamic prompt string to override the static field.",
+      "value_out": "The generated text response from the model."
+    },
+    "keywords": ["ai", "llm", "gemini", "vertex", "prompt", "generate", "gpt", "model"]
+  },
+  {
+    "id": "response",
+    "label": "Response",
+    "category": "Output",
+    "description": "Terminate the workflow and return a final value as the pipeline output.",
+    "icon": "CheckCheck",
+    "color": "emerald",
+    "features": [
+      "Acts as a terminal node — no exec_out; workflow execution stops here.",
+      "Accepts a static literal value or a dynamic value via value_in pin.",
+      "The emitted value becomes the result returned to the workflow caller (e.g. API trigger response).",
+      "Useful as the final step in any pipeline to surface results."
+    ],
+    "fields": [
+      {
+        "heading": "Response",
+        "type": "textInput",
+        "placeholder": "Response value…",
+        "inPinId": "value_in",
+        "required": true,
+        "description": "The value to return. Connect value_in to pass a dynamic value from upstream nodes."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "value_in": "VALUE_IN"
+    },
+    "pinStructure": {
+      "exec_in": "Triggers the response and ends execution.",
+      "value_in": "Accepts the final value to be returned as the workflow output."
+    },
+    "keywords": ["response", "output", "return", "terminal", "end", "result"]
+  },
+  {
+    "id": "SchedulerDomino",
+    "label": "Scheduler",
+    "category": "Trigger",
+    "description": "Trigger the workflow automatically on a recurring schedule (minute, hour, day, week, month).",
+    "icon": "CalendarClock",
+    "color": "amber",
+    "features": [
+      "Supports once, minute, hour, day, week, and month frequencies.",
+      "Interval field sets how many minutes/hours between runs for sub-daily frequencies.",
+      "Weekly mode allows selecting specific days of the week.",
+      "Time zone aware — run times are evaluated in the configured zone.",
+      "Active toggle enables or disables the schedule without removing the node."
+    ],
+    "fields": [
+      {
+        "heading": "Active",
+        "type": "checkbox",
+        "inPinId": "value_in_active",
+        "required": false,
+        "description": "Enable or disable the schedule."
+      },
+      {
+        "heading": "Frequency",
+        "type": "select",
+        "inPinId": "value_in_1",
+        "required": true,
+        "options": [
+          { "label": "Once", "value": "once" },
+          { "label": "Minutes", "value": "minute" },
+          { "label": "Hours", "value": "hour" },
+          { "label": "Days", "value": "day" },
+          { "label": "Weeks", "value": "week" },
+          { "label": "Months", "value": "month" }
+        ],
+        "default": "day",
+        "description": "How often the workflow should run."
+      },
+      {
+        "heading": "Interval",
+        "type": "number",
+        "inPinId": "value_in_2",
+        "required": true,
+        "description": "Number of minutes or hours between runs (used for minute/hour frequencies)."
+      },
+      {
+        "heading": "Time",
+        "type": "time",
+        "inPinId": "value_in_3",
+        "required": false,
+        "description": "Time of day to run (used for day/week/month frequencies)."
+      },
+      {
+        "heading": "Days of Week",
+        "type": "select",
+        "inPinId": "value_in_4",
+        "required": false,
+        "options": [
+          { "label": "Sunday", "value": "0" },
+          { "label": "Monday", "value": "1" },
+          { "label": "Tuesday", "value": "2" },
+          { "label": "Wednesday", "value": "3" },
+          { "label": "Thursday", "value": "4" },
+          { "label": "Friday", "value": "5" },
+          { "label": "Saturday", "value": "6" }
+        ],
+        "description": "Days to run on (weekly frequency only)."
+      },
+      {
+        "heading": "Time Zone",
+        "type": "text",
+        "inPinId": "value_in_5",
+        "required": false,
+        "description": "IANA time zone string, e.g. America/New_York. Defaults to browser local time."
+      }
+    ],
+    "pins": {
+      "exec_out": "EXEC_OUT",
+      "value_in_active": "VALUE_IN",
+      "value_in_1": "VALUE_IN",
+      "value_in_2": "VALUE_IN",
+      "value_in_3": "VALUE_IN",
+      "value_in_4": "VALUE_IN",
+      "value_in_5": "VALUE_IN"
+    },
+    "pinStructure": {
+      "exec_out": "Fires at each scheduled interval, triggering downstream nodes."
+    },
+    "keywords": ["schedule", "cron", "timer", "trigger", "recurring", "periodic", "interval"]
+  },
+  {
+    "id": "storage",
+    "label": "Database",
+    "category": "Storage",
+    "description": "Insert, update, upsert, or delete records in the workflow's built-in document store.",
+    "icon": "Database",
+    "color": "teal",
+    "features": [
+      "Operates on named collections scoped to the current workflow.",
+      "Supports create, update, upsert, and delete operations.",
+      "Document Key field uniquely identifies a document within a collection.",
+      "Data field accepts a JSON object that is stored as the document body.",
+      "Returns the saved document and action metadata on value_out."
+    ],
+    "fields": [
+      {
+        "heading": "Collection",
+        "type": "textInput",
+        "inPinId": "value_in",
+        "required": true,
+        "description": "Name of the collection to write to."
+      },
+      {
+        "heading": "Operation",
+        "type": "select",
+        "required": true,
+        "options": [
+          { "label": "Create", "value": "create" },
+          { "label": "Update", "value": "update" },
+          { "label": "Upsert", "value": "upsert" },
+          { "label": "Delete", "value": "delete" }
+        ],
+        "default": "create",
+        "description": "The write operation to perform."
+      },
+      {
+        "heading": "Document Key",
+        "type": "textInput",
+        "inPinId": "value_in_2",
+        "required": false,
+        "description": "Unique key for the document. Required for update/upsert/delete."
+      },
+      {
+        "heading": "Data",
+        "type": "json",
+        "inPinId": "value_in_3",
+        "required": false,
+        "description": "JSON object to store as the document body."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
+      "value_in": "VALUE_IN",
+      "value_in_2": "VALUE_IN",
+      "value_in_3": "VALUE_IN",
+      "value_out": "VALUE_OUT"
+    },
+    "pinStructure": {
+      "exec_in": "Triggers the write operation.",
+      "exec_out": "Continues after the document is saved.",
+      "value_in": "Accepts a payload with Collection, Operation, Document Key, or Data overrides.",
+      "value_out": "Returns { ok, action, collectionId, document } metadata."
+    },
+    "keywords": ["database", "storage", "document", "store", "insert", "write", "collection", "nosql"]
+  },
+  {
+    "id": "storageRetrieve",
+    "label": "Database Retrieval",
+    "category": "Storage",
+    "description": "Query and retrieve documents or entire collections from the workflow's built-in document store.",
+    "icon": "Database",
+    "color": "teal",
+    "features": [
+      "Supports fetching a single document by key or all documents in a collection.",
+      "Limit field caps the number of returned documents.",
+      "Returns full document data including metadata on value_out.",
+      "Scoped to the current workflow's storage namespace."
+    ],
+    "fields": [
+      {
+        "heading": "Collection",
+        "type": "textInput",
+        "inPinId": "value_in",
+        "required": true,
+        "description": "Name of the collection to read from."
+      },
+      {
+        "heading": "Operation",
+        "type": "select",
+        "required": true,
+        "options": [
+          { "label": "Get Document", "value": "document" },
+          { "label": "Get Collection", "value": "collection" }
+        ],
+        "default": "document",
+        "description": "Fetch a single document by key or all documents in the collection."
+      },
+      {
+        "heading": "Document Key",
+        "type": "textInput",
+        "inPinId": "value_in_2",
+        "required": false,
+        "description": "Key of the document to retrieve (used for document operation)."
+      },
+      {
+        "heading": "Limit",
+        "type": "number",
+        "inPinId": "value_in_3",
+        "required": false,
+        "default": 25,
+        "description": "Maximum number of documents to return for collection queries."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
+      "value_in": "VALUE_IN",
+      "value_in_2": "VALUE_IN",
+      "value_in_3": "VALUE_IN",
+      "value_out": "VALUE_OUT"
+    },
+    "pinStructure": {
+      "exec_in": "Triggers the read query.",
+      "exec_out": "Continues after documents are fetched.",
+      "value_out": "Returns { ok, action, collectionId, count, document, documents }."
+    },
+    "keywords": ["database", "storage", "query", "retrieve", "read", "collection", "fetch", "find"]
+  },
+  {
+    "id": "jointext",
+    "label": "Join Text",
+    "category": "Data Transformation",
+    "description": "Concatenate multiple text inputs into a single string without a separator.",
+    "icon": "Combine",
+    "color": "pink",
+    "features": [
+      "Add as many Input_n fields as needed; they are joined in order.",
+      "Each input can be a static string or supplied dynamically via value_in_n pins.",
+      "Result is emitted on value_out for downstream nodes.",
+      "Useful for building dynamic messages, file names, or template strings."
+    ],
+    "fields": [
+      {
+        "heading": "Input_1",
+        "type": "textInput",
+        "inPinId": "value_in_1",
+        "required": true,
+        "description": "First text segment. Add Input_2, Input_3, … for additional segments."
+      },
+      {
+        "heading": "Input_n",
+        "type": "textInput",
+        "inPinId": "value_in_n",
+        "required": false,
+        "description": "Additional text segments joined in order after Input_1."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
+      "value_in_1": "VALUE_IN",
+      "value_out": "VALUE_OUT"
+    },
+    "pinStructure": {
+      "exec_in": "Triggers the concatenation.",
+      "exec_out": "Continues after the string is joined.",
+      "value_in_n": "Dynamic pin for each Input_n segment.",
+      "value_out": "The concatenated string result."
+    },
+    "keywords": ["join", "concat", "string", "text", "combine", "merge"]
+  },
+  {
+    "id": "sqlRunner",
+    "label": "SQL Runner",
+    "category": "Action",
+    "description": "Execute a raw SQL query against an external PostgreSQL database connection.",
+    "icon": "ScanSearch",
+    "color": "slate",
+    "features": [
+      "Connect to any PostgreSQL database using host, port, database, user, and password.",
+      "Write SQL queries directly in the node or open the full-screen SQL editor.",
+      "Returns query results (rows) or row count metadata on value_out_Result.",
+      "exec_out_success fires on a successful query; exec_out_error fires on failure.",
+      "Connection credentials are managed locally and never stored in workflow JSON."
+    ],
+    "fields": [
+      {
+        "heading": "Query",
+        "type": "textArea",
+        "placeholder": "SELECT …",
+        "required": true,
+        "description": "SQL statement to execute against the connected database."
+      },
+      {
+        "heading": "Connection",
+        "type": "button",
+        "required": true,
+        "description": "Opens the database connection configuration modal."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "exec_out_success": "EXEC_OUT",
+      "exec_out_error": "EXEC_OUT",
+      "value_out_Result": "VALUE_OUT"
+    },
+    "pinStructure": {
+      "exec_in": "Runs the SQL query when triggered.",
+      "exec_out_success": "Fires when the query completes successfully.",
+      "exec_out_error": "Fires when the query throws an error.",
+      "value_out_Result": "Contains the query result rows or rowCount."
+    },
+    "keywords": ["sql", "database", "postgres", "query", "select", "insert", "update", "delete"]
+  },
+  {
+    "id": "codeRunner",
+    "label": "Custom Code",
+    "category": "Action",
+    "description": "Execute arbitrary JavaScript in a sandboxed VM (vm2) and return the function result.",
+    "icon": "Code2",
+    "color": "indigo",
+    "features": [
+      "Runs JavaScript in an isolated vm2 sandbox with a 5-second timeout.",
+      "Define a named function entry point via the FunctionName field.",
+      "Add Variable_n rows to inject named variables into the sandbox scope.",
+      "Variable values can be driven dynamically from upstream pins.",
+      "exec_out_error fires on runtime exceptions; value_out returns the function result."
+    ],
+    "fields": [
+      {
+        "heading": "FunctionName",
+        "type": "textInput",
+        "required": true,
+        "description": "Name of the JavaScript function defined in Code that will be called as the entry point."
+      },
+      {
+        "heading": "Code",
+        "type": "textArea",
+        "required": true,
+        "description": "JavaScript code block. Must define the function named in FunctionName."
+      },
+      {
+        "heading": "Variable_n_name",
+        "type": "textInput",
+        "required": false,
+        "description": "Name of a variable injected into the sandbox scope."
+      },
+      {
+        "heading": "Variable_n_value",
+        "type": "textInput",
+        "inPinId": "value_in_n",
+        "required": false,
+        "description": "Default value for the variable; override via a connected value pin."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
+      "exec_out_error": "EXEC_OUT",
+      "value_out": "VALUE_OUT"
+    },
+    "pinStructure": {
+      "exec_in": "Runs the code when triggered.",
+      "exec_out": "Fires on successful execution.",
+      "exec_out_error": "Fires when the code throws a runtime error.",
+      "value_out": "Return value of the entry-point function."
+    },
+    "keywords": ["code", "javascript", "custom", "script", "sandbox", "function", "eval"]
+  },
+  {
+    "id": "shopify",
+    "label": "Shopify",
+    "category": "Shopify",
+    "description": "Interact with a Shopify store — get, list, create, update, or delete products, orders, and customers.",
+    "icon": "SiShopify",
+    "color": "green",
+    "features": [
+      "Authenticates via a stored Shopify Access Token vault; credentials never appear in workflow JSON.",
+      "Supports Products, Orders, and Customers resources.",
+      "Operations: get, list, create, update, delete.",
+      "Optional JSON parameters object allows passing filters, fields, or body data.",
+      "value_out returns the Shopify API response."
+    ],
+    "fields": [
+      {
+        "heading": "Shop Domain",
+        "type": "textInput",
+        "inPinId": "value_shopDomain",
+        "required": true,
+        "description": "Your Shopify store domain, e.g. my-store.myshopify.com."
+      },
+      {
+        "heading": "Access Token (Vault Id)",
+        "type": "textInput",
+        "inPinId": "value_accessTokenVaultId",
+        "required": true,
+        "description": "Vault ID referencing the stored Shopify Admin API access token."
+      },
+      {
+        "heading": "Resource",
+        "type": "select",
+        "inPinId": "value_resource",
+        "required": true,
+        "options": [
+          { "label": "Product", "value": "products" },
+          { "label": "Order", "value": "orders" },
+          { "label": "Customer", "value": "customers" }
+        ],
+        "description": "The Shopify resource to operate on."
+      },
+      {
+        "heading": "Operation",
+        "type": "select",
+        "inPinId": "value_operation",
+        "required": true,
+        "options": [
+          { "label": "Get", "value": "get" },
+          { "label": "List", "value": "list" },
+          { "label": "Create", "value": "create" },
+          { "label": "Update", "value": "update" },
+          { "label": "Delete", "value": "delete" }
+        ],
+        "description": "The CRUD operation to perform on the resource."
+      },
+      {
+        "heading": "Parameters (JSON)",
+        "type": "textArea",
+        "inPinId": "value_parameters",
+        "required": false,
+        "description": "Optional JSON object with additional parameters (e.g. filters, body data for create/update)."
+      }
+    ],
+    "pins": {
+      "exec_in": "EXEC_IN",
+      "exec_out": "EXEC_OUT",
+      "value_shopDomain": "VALUE_IN",
+      "value_accessTokenVaultId": "VALUE_IN",
+      "value_resource": "VALUE_IN",
+      "value_operation": "VALUE_IN",
+      "value_parameters": "VALUE_IN",
+      "value_out": "VALUE_OUT"
+    },
+    "pinStructure": {
+      "exec_in": "Triggers the Shopify API call.",
+      "exec_out": "Continues after the API call completes.",
+      "value_out": "Returns the Shopify API response body."
+    },
+    "keywords": ["shopify", "ecommerce", "product", "order", "customer", "store"]
+  },
+  {
+    "id": "note",
+    "label": "Note",
+    "category": "Utility",
+    "description": "Add a free-text annotation or comment to the canvas — does not affect workflow execution.",
+    "icon": "FiFileText",
+    "color": "yellow",
+    "features": [
+      "Double-click to enter edit mode and type any annotation text.",
+      "Background colour is customisable via the colour picker in the header.",
+      "Has no execution pins and is never run — purely a canvas documentation tool.",
+      "Useful for labelling sections, explaining logic, or leaving instructions for collaborators."
+    ],
+    "fields": [
+      {
+        "heading": "Text",
+        "type": "textarea",
+        "required": false,
+        "description": "Annotation text displayed on the canvas."
+      },
+      {
+        "heading": "Color",
+        "type": "color",
+        "required": false,
+        "description": "Background colour of the note."
+      }
+    ],
+    "pins": {},
+    "pinStructure": {},
+    "keywords": ["note", "comment", "annotation", "label", "documentation", "canvas"]
   }
 ]

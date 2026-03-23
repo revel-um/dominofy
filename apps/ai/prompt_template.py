@@ -103,7 +103,7 @@ SYSTEM_TEMPLATE = (
     "• Omit positions.\n"
     "• Edge types allowed: 'execution' | 'value'.\n"
     "• Pins may be dynamic (value_in_X, etc.).\n"
-    "• Explanation must describe every node added, removed, or changed.\n"
+    "• Explanation must describe every node added, removed, or changed — use the human-readable label from DOMINO_DOCS (e.g. 'Slack Trigger', 'Email Action'), never the raw domino id or node id.\n"
     "• Use ONLY dominos present in DOMINO_DOCS — never invent new types.\n"
     "• If REVISION_DIFFS are provided, they show the exact JSON delta from prior edits — use them to understand what was previously added or removed before applying the new instruction.\n"
     "• Always include the 'status' field."
