@@ -239,34 +239,7 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
     data.setFieldValue?.('Code', e.target.value);
   };
 
-  // Listen for code editor results
-  useEffect(() => {
-    const checkForEditorResult = () => {
-      const result = sessionStorage.getItem('codeEditorResult');
-      if (result) {
-        try {
-          const parsedResult = JSON.parse(result);
-          if (parsedResult.saved) {
-            setCode(parsedResult.code);
-            data.setFieldValue?.('Code', parsedResult.code);
-          }
-          sessionStorage.removeItem('codeEditorResult');
-        } catch (e) {
-          console.error('Failed to parse code editor result:', e);
-        }
-      }
-    };
-
-    checkForEditorResult();
-    const interval = setInterval(checkForEditorResult, 500);
-    window.addEventListener('focus', checkForEditorResult);
-    window.addEventListener('visibilitychange', checkForEditorResult);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', checkForEditorResult);
-      window.removeEventListener('visibilitychange', checkForEditorResult);
-    };
-  }, [data.setFieldValue]);
+  const editorResultKey = `codeEditorResult:coderunner:${data.workflowId ?? 'default'}:${id}`;
 
   // Open code editor
   const routerOpenEditor = () => {
@@ -302,10 +275,41 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
       title: 'Custom Code Editor',
       functionName: functionName,
       variables: JSON.stringify(variablesForEditor),
+      returnTo: router.asPath,
+      resultKey: editorResultKey,
     });
 
     router.push(`/editor?${queryParams.toString()}`);
   };
+
+  useEffect(() => {
+    const pullResult = () => {
+      const raw = sessionStorage.getItem(editorResultKey);
+      if (!raw) return;
+
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.saved && typeof parsed.code === 'string') {
+          setCode(parsed.code);
+          data.setFieldValue?.('Code', parsed.code);
+        }
+      } catch (e) {
+        console.error('[CustomCodeDomino] Failed to parse editor result:', e);
+      } finally {
+        sessionStorage.removeItem(editorResultKey);
+      }
+    };
+
+    pullResult();
+    const onRouteChange = () => pullResult();
+    router.events.on('routeChangeComplete', onRouteChange);
+    window.addEventListener('focus', pullResult);
+
+    return () => {
+      router.events.off('routeChangeComplete', onRouteChange);
+      window.removeEventListener('focus', pullResult);
+    };
+  }, [data.setFieldValue, editorResultKey, router.events]);
 
   /* ───────── Render */
   return (

@@ -7,9 +7,26 @@ export function OAuthButtons() {
   const router = useRouter();
   const { callbackUrl } = router.query;
 
+  const normalizeCallbackUrl = (value: string | string[] | undefined) => {
+    if (typeof value !== 'string' || !value) return '/dashboard';
+
+    // Keep the OAuth callback target same-origin and relative in local dev.
+    if (value.startsWith('/')) return value;
+
+    try {
+      const url = new URL(value);
+      if (url.origin === window.location.origin) {
+        return `${url.pathname}${url.search}${url.hash}`;
+      }
+    } catch {
+      // Fall back to the dashboard if the callback URL is malformed.
+    }
+
+    return '/dashboard';
+  };
+
   const handleOAuthSignIn = (provider: 'google' | 'github') => {
-    // Use the callbackUrl from query params or default to '/dashboard'
-    const redirectTo = typeof callbackUrl === 'string' ? callbackUrl : '/dashboard';
+    const redirectTo = normalizeCallbackUrl(callbackUrl);
     signIn(provider, { callbackUrl: redirectTo });
   };
 

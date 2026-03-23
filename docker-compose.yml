@@ -47,21 +47,17 @@ services:
       dockerfile: apps/backend/Dockerfile
     container_name: dominofy-backend
     restart: always
-    depends_on:
-      - postgres
-      - gcs
-      - redis
+    env_file:
+      - apps/backend/.env
+    # depends_on:
+    #   - postgres
+    #   - gcs
+    #   - redis
     ports:
       - "3001:3001"
     environment:
       PORT: "3001"
       DATABASE_URL: postgres://dominofy:secret@postgres:5432/dominofy
-      GOOGLE_CLOUD_PROJECT: local-gcp
-      GCLOUD_PROJECT: local-gcp
-      GCS_BUCKET: dominofy-local
-
-      STORAGE_EMULATOR_HOST: http://gcs:8000
-      GCS_PUBLIC_BASE: http://localhost:8000
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_USER: dominofy
@@ -70,16 +66,12 @@ services:
       DATABASE_SCHEMA: public
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      
-      ENCRYPTION_KEY: qty43qasdfghjgew23456sdfgh
-      JWT_SECRET: 34tgfdw345tyhgfdsew4r5tgbvcxs
-
-      # ── Slack App credentials ────────────────────────────────────────────────
-      SLACK_CLIENT_ID: '9173438190631.9200848479169'
-      SLACK_CLIENT_SECRET: '41bc611bb92b5fe431c361ad3dcfb5fe'
-      SLACK_SIGNING_SECRET: 'ef61e8875876b6574e5c1de99e76b837'
-      SLACK_REDIRECT_URI: https://overly-organic-bluegill.ngrok-free.app/api/v1/slack
-      SLACK_SCOPES: chat:write,channels:read,im:read,commands
+      GOOGLE_CLOUD_PROJECT: local-gcp
+      GCLOUD_PROJECT: local-gcp
+      GCS_BUCKET: dominofy-local
+      STORAGE_EMULATOR_HOST: http://gcs:8000
+      GCS_PUBLIC_BASE: http://localhost:8000
+      FRONTEND_BASE_URL: http://localhost:3000
 
   frontend:
     build:
@@ -87,14 +79,14 @@ services:
       dockerfile: apps/web/Dockerfile
     container_name: dominofy-frontend
     restart: always
+    env_file:
+      - apps/web/.env
     depends_on:
       - backend
     ports:
       - "3000:3000"
     environment:
-      # Browser can hit host 3001 directly:
-      NEXT_PUBLIC_API_URL: http://localhost:3001/api
-      # (Optional for SSR/server calls) INTERNAL_API_URL: http://backend:3001/api
+      NEXT_PUBLIC_BACKEND_BASE_URL: http://localhost:3001/api/v1
 
 volumes:
   postgres_data:

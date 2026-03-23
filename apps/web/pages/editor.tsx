@@ -163,16 +163,24 @@ export default function EditorPage() {
   const [variables, setVariables] = useState<EditorVariable[]>([]);
   const [readOnlyRanges, setReadOnlyRanges] = useState<ReadOnlyRange[]>([]);
 
+  const [returnTo, setReturnTo] = useState<string>('/');
+  const [resultKey, setResultKey] = useState<string>('codeEditorResult');
+
   // Extract query parameters on mount
   useEffect(() => {
     if (!router.isReady) return;
 
     const {
-      code: queryCode = '',           // body from domino
+      code: queryCode = '',
       language: queryLanguage = 'javascript',
       title: queryTitle = 'Code Editor',
       functionName: queryFunctionName = '',
-      variables: queryVariables = '[]'
+      variables: queryVariables = '[]',
+      returnTo: queryReturnTo = '/',
+      resultKey: queryResultKey = 'codeEditorResult',
+      connectionStatus: qsStatus = 'disconnected',
+      connectionId: qsConnId = '',
+      connectionConfig: qsConnCfg = '',
     } = router.query;
 
     const codeValue = Array.isArray(queryCode) ? queryCode[0] : queryCode;
@@ -180,6 +188,30 @@ export default function EditorPage() {
     const titleValue = Array.isArray(queryTitle) ? queryTitle[0] : queryTitle;
     const functionNameValue = Array.isArray(queryFunctionName) ? queryFunctionName[0] : queryFunctionName;
     const variablesValue = Array.isArray(queryVariables) ? queryVariables[0] : queryVariables;
+
+    const returnToValue = Array.isArray(queryReturnTo) ? queryReturnTo[0] : queryReturnTo;
+    const resultKeyValue = Array.isArray(queryResultKey) ? queryResultKey[0] : queryResultKey;
+
+    const statusValue = Array.isArray(qsStatus) ? qsStatus[0] : qsStatus;
+    const connIdValue = Array.isArray(qsConnId) ? qsConnId[0] : qsConnId;
+    const connCfgValue = Array.isArray(qsConnCfg) ? qsConnCfg[0] : qsConnCfg;
+
+    setReturnTo(returnToValue || '/');
+    setResultKey(resultKeyValue || 'codeEditorResult');
+
+    setConnectionStatus(
+      statusValue === 'connected' ? 'connected' :
+      statusValue === 'connecting' ? 'connecting' : 'disconnected'
+    );
+
+    setConnectionId(connIdValue || null);
+
+    if (connCfgValue) {
+      try {
+        const parsed = JSON.parse(connCfgValue);
+        setConnectionConfig(parsed);
+      } catch {}
+    }
 
     // Parse variables from JSON string
     let parsedVariables: EditorVariable[] = [];
@@ -237,7 +269,7 @@ export default function EditorPage() {
   const handleSave = () => {
     let codeToSave = code;
 
-    // For JS, strip the wrapper and default-comment lines and only save the body
+    // For JS, strip wrapper and default-comment lines
     if (language === 'javascript' && functionName && code.includes(`function ${functionName}`)) {
       const functionRegex = new RegExp(
         `function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\}\\s*$`
@@ -246,12 +278,11 @@ export default function EditorPage() {
       if (match && match[1] !== undefined) {
         let body = match[1];
 
-        // Remove auto-generated default comments: // varName = default
         const lines = body.split('\n');
         const filtered = lines.filter(line => {
           const trimmed = line.trim();
           if (!trimmed.startsWith('//')) return true;
-          // If it looks like one of our default comments, drop it
+
           const isDefaultComment = variables.some(v =>
             trimmed === `// ${v.name} = ${v.defaultValue}` ||
             trimmed.startsWith(`// ${v.name} =`)
@@ -260,7 +291,6 @@ export default function EditorPage() {
         });
 
         body = filtered.join('\n');
-        // Trim leading/trailing whitespace-only lines
         body = body.replace(/^\s*\n+/, '').replace(/\n+\s*$/, '');
         codeToSave = body;
       }
@@ -269,11 +299,14 @@ export default function EditorPage() {
     const resultData = {
       code: codeToSave,
       saved: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    console.log('Saving code editor result:', resultData);
-    sessionStorage.setItem('codeEditorResult', JSON.stringify(resultData));
-    router.back();
+
+    console.log('[Editor] Saving result to', resultKey, resultData);
+    sessionStorage.setItem(resultKey, JSON.stringify(resultData));
+
+    // IMPORTANT: deterministic navigation
+    router.push(returnTo);
   };
 
   const handleCancel = () => {
@@ -282,12 +315,17 @@ export default function EditorPage() {
       if (!shouldCancel) return;
     }
 
-    sessionStorage.setItem('codeEditorResult', JSON.stringify({
+    const resultData = {
       code: initialCode,
       saved: false,
-      timestamp: Date.now()
-    }));
-    router.back();
+      timestamp: Date.now(),
+    };
+
+    console.log('[Editor] Cancel -> saving to', resultKey, resultData);
+    sessionStorage.setItem(resultKey, JSON.stringify(resultData));
+
+    // IMPORTANT: deterministic navigation
+    router.push(returnTo);
   };
 
   // Keyboard shortcuts
@@ -332,7 +370,8 @@ export default function EditorPage() {
 
       if (data.data?.connected) {
         setConnectionStatus('connected');
-        setConnectionId(`conn_${Date.now()}`);
+        // setConnectionId(`conn_${Date.now()}`); // generate a simple connection ID
+        setConnectionId(prev => prev); // for now, keep existing connection ID
         setShowConnectionForm(false);
       } else {
         throw new Error('Connection failed');
@@ -404,7 +443,7 @@ export default function EditorPage() {
             body: JSON.stringify({
               query: code,
               connectionId,
-              connectionConfig: connectionStatus === 'connected' ? connectionConfig : undefined
+              connectionConfig: JSON.stringify(connectionConfig),
             })
           });
 
@@ -509,7 +548,7 @@ export default function EditorPage() {
         )}>
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push(returnTo)}
               className={cn(
                 'flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
                 isDarkMode
