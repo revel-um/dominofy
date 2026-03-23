@@ -15,6 +15,8 @@ export interface AIWorkflowResponse {
   edges?: any[];
   explanation?: string;
   status?: string;
+  thought_summaries?: string[];
+  chain_of_thought?: string[];
 }
 
 interface NormalizeOptions {

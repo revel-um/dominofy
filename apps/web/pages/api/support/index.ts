@@ -6,14 +6,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const userId = (req.headers['x-user-id'] as string) || 'anon';
     if (req.method === 'GET') {
-      const r = await fetch(${BACKEND_URL}/support/my, {
+      const r = await fetch(`${BACKEND_URL}/support/my`, {
         headers: { 'x-user-id': userId, 'content-type': 'application/json' },
       });
       const data = await r.json();
       return res.status(r.status).json(data);
     }
     if (req.method === 'POST') {
-      const r = await fetch(${BACKEND_URL}/support, {
+      const r = await fetch(`${BACKEND_URL}/support`, {
         method: 'POST',
         headers: { 'x-user-id': userId, 'content-type': 'application/json' },
         body: JSON.stringify(req.body || {}),

@@ -2,7 +2,7 @@ from __future__ import annotations
 import os, json, chromadb, google.generativeai as genai
 from typing import List
 
-EMB_MODEL  = "models/embedding-001"
+EMB_MODEL  = "models/gemini-embedding-001"
 REF_PATH   = os.getenv("DOMINO_DOC_PATH", "domino_reference.json")
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./chroma")
 

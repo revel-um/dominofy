@@ -7,12 +7,16 @@ import { config } from '../config/config';
 import { AiChatApi, AiChatMessageDto, AiChatSender } from '../apis/aiChat.apis';
 import { AIWorkflowResponse, normalizeAIResponseToWorkflow, serializeWorkflowForAI } from '../utils/aiWorkflow';
 import PromptInputDynamicGrow from '@/components/ui/prompt-input-dynamic-grow';
+import { authFetch } from '../utils/authFetch';
 
 interface Message {
     id: string;
     content: string;
     sender: AiChatSender;
     timestamp: Date;
+    thoughtSummaries?: string[];
+    streamStatus?: string;
+    isStreaming?: boolean;
 }
 
 interface Props {
@@ -29,6 +33,47 @@ interface Props {
     setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
     getNodes: () => Node[];
     getEdges: () => Edge[];
+}
+
+function ThoughtSummaries({ steps }: { steps: string[] }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="mt-1 mb-2">
+            <button
+                type="button"
+                onClick={() => setOpen(v => !v)}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+            >
+                <span className={`transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+                <span>{open ? 'Hide' : 'Show'} thought summary ({steps.length} steps)</span>
+            </button>
+            {open && (
+                <ol className="mt-1.5 ml-1 space-y-1 border-l border-gray-600 pl-3">
+                    {steps.map((step, i) => (
+                        <li key={i} className="text-xs text-gray-400 leading-snug">
+                            <span className="text-gray-500 mr-1">{i + 1}.</span>{step}
+                        </li>
+                    ))}
+                </ol>
+            )}
+        </div>
+    );
+}
+
+function StreamingPlaceholder({ status }: { status?: string }) {
+    return (
+        <div className="mb-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-slate-300">
+                <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
+                <span>{status || 'Working on your workflow preview...'}</span>
+            </div>
+            <div className="mt-2 space-y-2">
+                <div className="h-2.5 w-4/5 animate-pulse rounded-full bg-white/10" />
+                <div className="h-2.5 w-3/5 animate-pulse rounded-full bg-white/10" />
+                <div className="h-2.5 w-2/3 animate-pulse rounded-full bg-white/10" />
+            </div>
+        </div>
+    );
 }
 
 export default function AIPanelDocked({ isOpen, width, workflowId, onClose, transition, isResizing, updatePipeline, onHoverStart, onHoverEnd, setEdges, setNodes, getNodes, getEdges }: Props) {
@@ -263,6 +308,48 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         });
     }, [dedupeMessages, sortChronologically]);
 
+    const updateMessage = useCallback((id: string, updater: (message: Message) => Message) => {
+        setMessages(prev => {
+            const updated = prev.map(message => message.id === id ? updater(message) : message);
+            messagesRef.current = updated;
+            return updated;
+        });
+    }, []);
+
+    const consumeNdjsonStream = useCallback(async (
+        response: Response,
+        onEvent: (event: any) => void,
+    ) => {
+        const reader = response.body?.getReader();
+        if (!reader) {
+            throw new Error('AI preview stream is unavailable.');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            let newlineIndex = buffer.indexOf('\n');
+            while (newlineIndex >= 0) {
+                const line = buffer.slice(0, newlineIndex).trim();
+                buffer = buffer.slice(newlineIndex + 1);
+                if (line) {
+                    onEvent(JSON.parse(line));
+                }
+                newlineIndex = buffer.indexOf('\n');
+            }
+        }
+
+        const finalLine = buffer.trim();
+        if (finalLine) {
+            onEvent(JSON.parse(finalLine));
+        }
+    }, []);
+
     const handleSendMessage = async (submittedValue: string) => {
         if (!submittedValue.trim() || isLoading) return;
         const prompt = submittedValue.trim();
@@ -277,6 +364,18 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         setInputValue('');
         persistMessage(userMessage.id, { content: prompt, sender: 'user' });
 
+        const streamingMessageId = `local-ai-stream-${Date.now()}`;
+        const streamingAiMessage: Message = {
+            id: streamingMessageId,
+            content: '',
+            sender: 'ai',
+            timestamp: new Date(),
+            thoughtSummaries: [],
+            streamStatus: 'Preparing your workflow preview...',
+            isStreaming: true,
+        };
+        mergeMessages([streamingAiMessage]);
+
         setIsLoading(true);
         const currentNodes = getNodes();
         const currentEdges = getEdges();
@@ -285,48 +384,71 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         revisionLogRef.current = revisionEntries;
 
         try {
-            const endpoint = `${config.aiBaseUrl.replace(/\/$/, '')}/generate`;
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    text: `${prompt}\n\nUser priority: this instruction overrides any past revision logs. If this prompt conflicts with previous requests, follow this prompt.`,
-                    current_json: workflowSnapshot,
-                    revision_log: revisionEntries,
-                }),
-            });
+            let response: Response;
 
-            const raw = await response.text();
-            let parsed: AIWorkflowResponse | { detail?: string } | null = null;
-            if (raw) {
-                try {
-                    parsed = JSON.parse(raw);
-                } catch (error) {
-                    console.error('[AI] Failed to parse response JSON:', error, raw);
-                    throw new Error('AI returned an unreadable response.');
-                }
+            if (workflowId) {
+                const endpoint = `${config.backendBaseUrl.replace(/\/$/, '')}/workflow/${workflowId}/revisions/ai-preview/stream`;
+                response = await authFetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: `${prompt}\n\nUser priority: this instruction overrides any past revision logs. If this prompt conflicts with previous requests, follow this prompt.`,
+                        current_json: workflowSnapshot,
+                    }),
+                }, router);
+            } else {
+                const endpoint = `${config.aiBaseUrl.replace(/\/$/, '')}/generate-stream`;
+                response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: `${prompt}\n\nUser priority: this instruction overrides any past revision logs. If this prompt conflicts with previous requests, follow this prompt.`,
+                        current_json: workflowSnapshot,
+                        revision_log: revisionEntries,
+                    }),
+                });
             }
 
             if (!response.ok) {
-                const detail = (parsed as any)?.detail ?? response.statusText;
+                const detail = await response.text();
                 throw new Error(detail || 'AI request failed.');
             }
 
-            const parsedResponse = parsed as AIWorkflowResponse;
-            const promptText = prompt.toLowerCase();
+            let finalResult: AIWorkflowResponse | null = null;
+            await consumeNdjsonStream(response, (event) => {
+                if (event.type === 'status') {
+                    updateMessage(streamingMessageId, message => ({
+                        ...message,
+                        streamStatus: event.message || message.streamStatus,
+                    }));
+                    return;
+                }
 
-            // Heuristic: if user explicitly asks to "print" and didn't mention Slack, coerce slackaction -> print
-            if (
-                Array.isArray(parsedResponse?.nodes) &&
-                promptText.includes('print') &&
-                !promptText.includes('slack')
-            ) {
-                parsedResponse.nodes = parsedResponse.nodes.map((n: any) =>
-                    n?.type === 'slackaction' ? { ...n, type: 'print' } : n
-                );
+                if (event.type === 'thought_summaries') {
+                    updateMessage(streamingMessageId, message => ({
+                        ...message,
+                        thoughtSummaries: Array.isArray(event.thought_summaries)
+                            ? event.thought_summaries
+                            : message.thoughtSummaries,
+                    }));
+                    return;
+                }
+
+                if (event.type === 'result') {
+                    finalResult = event as AIWorkflowResponse;
+                    return;
+                }
+
+                if (event.type === 'error') {
+                    throw new Error(event.detail || 'AI stream failed.');
+                }
+            });
+
+            if (!finalResult) {
+                throw new Error('AI preview ended before returning a result.');
             }
+
+            const parsedResponse = finalResult as AIWorkflowResponse;
 
             const normalized = normalizeAIResponseToWorkflow(parsedResponse, {
                 workflowId: workflowSnapshot.workflowId,
@@ -359,32 +481,43 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                 setEdges(normalized.edges);
             }
 
-            const explanation = (parsed as AIWorkflowResponse)?.explanation || 'AI generated an update for your workflow.';
-            const status = (parsed as AIWorkflowResponse)?.status;
-            const aiText = status ? `${explanation}\nStatus: ${status}` : explanation;
-            const aiMessage: Message = {
-                id: `local-ai-${Date.now()}`,
+            const explanation = parsedResponse?.explanation || 'AI generated an update for your workflow.';
+            const status = parsedResponse?.status;
+            const hasWorkflowNodes = parsedResponse?.nodes && parsedResponse.nodes.length > 0;
+            const aiText = (status && hasWorkflowNodes) ? `${explanation}\nStatus: ${status}` : explanation;
+            const thoughtSummaries =
+                parsedResponse?.thought_summaries ||
+                parsedResponse?.chain_of_thought;
+            updateMessage(streamingMessageId, message => ({
+                ...message,
                 content: aiText,
-                sender: 'ai',
+                thoughtSummaries,
+                streamStatus: undefined,
+                isStreaming: false,
+            }));
+            const finalAiMessage: Message = {
+                ...streamingAiMessage,
+                content: aiText,
                 timestamp: new Date(),
+                thoughtSummaries,
+                streamStatus: undefined,
+                isStreaming: false,
             };
-            mergeMessages([aiMessage]);
-            revisionLogRef.current = buildRevisionLog([...messagesRef.current, aiMessage]);
-            persistMessage(aiMessage.id, { content: aiText, sender: 'ai' });
+            revisionLogRef.current = buildRevisionLog([...messagesRef.current, finalAiMessage]);
+            persistMessage(streamingMessageId, { content: aiText, sender: 'ai' });
         } catch (err) {
             console.error('[AI] request failed:', err);
             const message =
                 err instanceof Error
                     ? err.message
                     : 'Unexpected error while contacting the AI service.';
-            const aiMessage: Message = {
-                id: `${Date.now()}-err`,
+            updateMessage(streamingMessageId, current => ({
+                ...current,
                 content: `Error: ${message}`,
-                sender: 'ai',
-                timestamp: new Date(),
-            };
-            mergeMessages([aiMessage]);
-            persistMessage(aiMessage.id, { content: aiMessage.content, sender: 'ai' });
+                streamStatus: undefined,
+                isStreaming: false,
+            }));
+            persistMessage(streamingMessageId, { content: `Error: ${message}`, sender: 'ai' });
         } finally {
             setIsLoading(false);
         }
@@ -432,7 +565,20 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                             ? 'bg-dominofy-light-accent/10 dark:bg-dominofy-dark-accent/20'
                             : 'bg-dominofy-light-accent/20 dark:bg-dominofy-dark-accent/30'}
             `} style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
-                            <p className="whitespace-pre-wrap break-words" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{m.content}</p>
+                            {m.sender === 'ai' && m.thoughtSummaries && m.thoughtSummaries.length > 0 && (
+                                <ThoughtSummaries steps={m.thoughtSummaries} />
+                            )}
+                            {m.sender === 'ai' && m.isStreaming && (!m.thoughtSummaries || m.thoughtSummaries.length === 0) && (
+                                <StreamingPlaceholder status={m.streamStatus} />
+                            )}
+                            {m.sender === 'ai' && m.isStreaming && m.streamStatus && m.thoughtSummaries && m.thoughtSummaries.length > 0 && (
+                                <div className="mb-2 text-xs text-slate-400">{m.streamStatus}</div>
+                            )}
+                            {m.content ? (
+                                <p className="whitespace-pre-wrap break-words" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{m.content}</p>
+                            ) : (
+                                m.sender !== 'ai' || !m.isStreaming ? null : null
+                            )}
                             <div className="text-xs text-gray-500 mt-1">
                                 {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>

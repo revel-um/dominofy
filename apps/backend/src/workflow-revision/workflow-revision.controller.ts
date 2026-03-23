@@ -6,7 +6,9 @@ import {
   Body,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { WorkflowRevisionService } from './workflow-revision.service';
 import { AiGenerateDto, WorkflowRevisionListDto } from './workflow-revision.dto';
 import { WorkflowService } from '../workflow/workflow.service';
@@ -29,6 +31,39 @@ export class WorkflowRevisionController {
       id,
       userId,
       aiGenerateDto,
+    );
+  }
+
+  /** Preview-only endpoint: returns AI-generated nodes/edges without persisting
+   *  a revision or updating the workflow. The frontend calls this so the user
+   *  can accept or reject before anything is saved. */
+  @Post('/ai-preview')
+  async previewAiRevision(
+    @Param('id') id: string,
+    @Body() aiGenerateDto: AiGenerateDto,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).user.id;
+    return await this.workflowRevisionService.previewAiRevision(
+      id,
+      userId,
+      aiGenerateDto,
+    );
+  }
+
+  @Post('/ai-preview/stream')
+  async streamPreviewAiRevision(
+    @Param('id') id: string,
+    @Body() aiGenerateDto: AiGenerateDto,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const userId = (req as any).user.id;
+    await this.workflowRevisionService.streamPreviewAiRevision(
+      id,
+      userId,
+      aiGenerateDto,
+      res,
     );
   }
 
