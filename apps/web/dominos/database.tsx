@@ -28,14 +28,14 @@ const DEFAULT_FIELDS: DominoField[] = [
     type: 'textInput',
     heading: 'Document Key',
     value: '',
-    inPinId: 'value_in_document_key',
+    inPinId: 'value_in',
     placeholder: 'customer-123',
   },
   {
     type: 'textArea',
     heading: 'Data',
     value: '{\n  "name": "Utsav"\n}',
-    inPinId: 'value_in_data',
+    inPinId: 'value_in_1',
     required: true,
     placeholder: '{ "name": "Utsav" }',
   } as DominoField,
@@ -206,8 +206,8 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
         </div>
 
         <div className="flex items-center gap-2 relative px-3">
-          <DominoPin id="value_in_document_key" pinType={PinType.VALUE_IN} inline />
-          {isConnected('value_in_document_key') ? (
+          <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+          {isConnected('value_in') ? (
             <span className="text-xs italic text-gray-500">Document key connected</span>
           ) : (
             <input
@@ -224,8 +224,8 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
         </div>
 
         <div className="flex items-start gap-2 relative px-3">
-          <DominoPin id="value_in_data" pinType={PinType.VALUE_IN} inline />
-          {isConnected('value_in_data') ? (
+          <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
+          {isConnected('value_in_1') ? (
             <div className="flex-1 rounded border px-2 py-2 text-xs italic text-gray-500 bg-dominofy-light-surface dark:bg-dominofy-dark-surface">
               Data connected from upstream
             </div>
@@ -248,7 +248,7 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
           <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
             Output
           </span>
-          <DominoPin id="value_out_Output" pinType={PinType.VALUE_OUT} inline />
+          <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
         </div>
       </div>
     </div>

@@ -158,10 +158,10 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
   /* =============== render =============== */
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
+      className={`transition-all duration-150 rounded-md w-80 overflow-visible shadow-sm
         ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{ minWidth: '13rem' }}
+      style={{ minWidth: '20rem' }}
     >
       {/* Header w/ exec handles */}
       <div
@@ -204,7 +204,7 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
       </div>
 
       {/* Key / Index rows */}
-      <div className="flex flex-col gap-2">
+      <div className="flex min-w-0 flex-col gap-2">
         {inputs.map((val, i) => {
           const pinId = `value_in_${i + 1}`;
           const isConnected = edges.some(
@@ -212,7 +212,7 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
           );
 
           return (
-            <div key={i} className="flex items-center gap-2 relative px-3">
+            <div key={i} className="relative flex min-w-0 items-center gap-2 px-3">
               <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline />
 
               <input
@@ -222,7 +222,7 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
                 readOnly={isConnected}
                 disabled={isConnected}
                 onChange={e => handleInputChange(i, e.target.value)}
-                className="flex-1 px-2 py-1 text-sm border rounded
+                className="min-w-0 flex-1 px-2 py-1 text-sm border rounded
                           bg-dominofy-light-surface dark:bg-dominofy-dark-surface
                           text-dominofy-light-text dark:text-dominofy-dark-text"
               />
@@ -232,7 +232,7 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
               {i > 0 && (
                 <button
                   onClick={() => removeInput(i)}
-                  className="p-1 bg-red-500 text-white rounded ml-1"
+                  className="ml-1 shrink-0 rounded bg-red-500 p-1 text-white"
                 >
                   <Trash size={16} />
                 </button>

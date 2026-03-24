@@ -11,7 +11,6 @@ export default function Dominofy() {
   const router = useRouter();
   const [currWorkflow, setCurrWorkflow] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     const { projectId, workflowId } = router.query;
@@ -21,7 +20,6 @@ export default function Dominofy() {
     const loadWorkflow = async () => {
       try {
         setLoading(true);
-        setError(null);
         
         const token = await TokenManager.getValidAccessToken();
         if (!token) {
@@ -36,6 +34,9 @@ export default function Dominofy() {
           const response = await WorkflowsApi.getWorkflowById(workflowId as string, token, router);
           if (response?.ok) {
             workflowData = await response.json();
+          } else if (response?.status === 404) {
+            router.push('/dashboard');
+            return;
           } else {
             throw new Error('Failed to load workflow');
           }
@@ -48,7 +49,7 @@ export default function Dominofy() {
             if (workflows && workflows.length > 0) {
               workflowData = workflows[0];
             } else {
-              throw new Error('No workflows found for project');
+              workflowData = null;
             }
           } else {
             throw new Error('Failed to load project');
@@ -62,9 +63,7 @@ export default function Dominofy() {
         setCurrWorkflow(workflowData);
       } catch (err: any) {
         console.error('Error loading workflow:', err);
-        setError(err.message);
-        // Optionally redirect to error page or dashboard
-        // router.push('/error');
+        setCurrWorkflow(null);
       } finally {
         setLoading(false);
       }
@@ -81,15 +80,7 @@ export default function Dominofy() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center text-xl text-red-500">
-        Error: {error}
-      </div>
-    );
-  }
-
-  if (!currWorkflow) {
+  if (!currWorkflow && !router.query.projectId) {
     return (
       <div className="w-screen h-screen flex items-center justify-center text-xl">
         No workflow found

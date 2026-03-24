@@ -58,13 +58,13 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
   useEffect(() => {
     const current = getEdges();
     if (
-      current.some(e => e.target === id && e.targetHandle === 'value_in_1') &&
+      current.some(e => e.target === id && e.targetHandle === 'value_in') &&
       value1 !== ''
     ) {
       setValue1('');
     }
     if (
-      current.some(e => e.target === id && e.targetHandle === 'value_in_2') &&
+      current.some(e => e.target === id && e.targetHandle === 'value_in_1') &&
       value2 !== ''
     ) {
       setValue2('');
@@ -120,8 +120,8 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
             type: 'Condition',
             description: 'Compare two values using an operator',
             fields: [
-              { type: 'textInput', heading: 'Text1', value: value1, inPinId: 'value_in_1', required: true, shouldRender: false },
-              { type: 'textInput', heading: 'Text2', value: value2, inPinId: 'value_in_2', required: true, shouldRender: false },
+              { type: 'textInput', heading: 'Text1', value: value1, inPinId: 'value_in', required: true, shouldRender: false },
+              { type: 'textInput', heading: 'Text2', value: value2, inPinId: 'value_in_1', required: true, shouldRender: false },
               { type: 'dropdown', heading: 'Option', value: operator, options, required: true, shouldRender: false },
             ],
           } as DominoNodeData;
@@ -143,8 +143,8 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
   };
 
   // render
-  const c1 = edges.some(e => e.target === id && e.targetHandle === 'value_in_1');
-  const c2 = edges.some(e => e.target === id && e.targetHandle === 'value_in_2');
+  const c1 = edges.some(e => e.target === id && e.targetHandle === 'value_in');
+  const c2 = edges.some(e => e.target === id && e.targetHandle === 'value_in_1');
 
   return (
     <div
@@ -165,18 +165,18 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
         <div className="flex flex-col items-end gap-1">
           <div className="flex items-center gap-1 relative px-3">
             <span className="text-xs">True</span>
-            <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} inline />
+            <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
           </div>
           <div className="flex items-center gap-1 relative px-3">
             <span className="text-xs">False</span>
-            <DominoPin id="exec_out_2" pinType={PinType.EXEC_OUT} inline />
+            <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} inline />
           </div>
         </div>
       </div>
 
       {/* Input 1 */}
       <div className="flex items-center gap-2 relative px-3 py-1">
-        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
+        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
         {c1 ? (
           <div className="flex-1 px-2 py-1 italic text-gray-500">Connected</div>
         ) : (
@@ -206,7 +206,7 @@ export default function ConditionDomino({ data, id, selected }: NodeProps) {
 
       {/* Input 2 */}
       <div className="flex items-center gap-2 relative px-3">
-        <DominoPin id="value_in_2" pinType={PinType.VALUE_IN} inline />
+        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
         {c2 ? (
           <div className="flex-1 px-2 py-1 italic text-gray-500">Connected</div>
         ) : (

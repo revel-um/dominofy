@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { DominoField, fieldWidgetMap } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
 import { Node } from 'reactflow';
@@ -17,9 +17,16 @@ interface Props {
 
 export default function DetailsMainPanel({ selectedNode, width, onClose, transition, isResizing, onHoverStart, onHoverEnd }: Props) {
     const { clearValidationForDominoId } = useDomino();
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+        containerRef.current.scrollTop = 0;
+    }, [selectedNode?.id]);
 
     return (
         <div
+            ref={containerRef}
             className="flex-1 overflow-y-auto px-4 pb-6 space-y-6 border-l border-gray-200 dark:border-gray-700 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
             style={{ width, transition: isResizing ? 'none' : transition }}
             onMouseEnter={onHoverStart}

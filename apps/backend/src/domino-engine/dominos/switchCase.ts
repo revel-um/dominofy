@@ -46,7 +46,7 @@ export class SwitchCaseDomino implements DominoExecutable {
         // 4️⃣ Build nextChainKeys: one exec_out_<n> per match, or default if none
         const nextChainKeys = matchedIndices.length > 0
             ? matchedIndices.map(i => `exec_out_${i + 1}`)
-            : ["exec_out_default"];
+            : ["exec_out"];
 
         return {
             id: this.id,

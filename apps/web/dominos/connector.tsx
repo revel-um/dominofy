@@ -90,7 +90,7 @@ export default function ConnectorDomino({ data, id, selected }: NodeProps) {
             ...old,
             heading,
             value: row.value,
-            inPinId: old.inPinId ?? row.id == 0 ? 'exec_in' : `exec_in_${row.id}`,
+            inPinId: old.inPinId ?? (row.id === 0 ? 'exec_in' : `exec_in_${row.id}`),
             shouldRender: false,
             required: true,
           };

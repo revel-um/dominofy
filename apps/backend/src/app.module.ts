@@ -63,6 +63,12 @@ import { StorageModule } from './storage/storage.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: import('@nestjs/common').MiddlewareConsumer) {
-    consumer.apply(VerifyTokenMiddleware).forRoutes({ path: '*', method: RequestMethod.ALL });
+    consumer
+      .apply(VerifyTokenMiddleware)
+      .exclude(
+        { path: 'workflow/:workflowId/trigger/:functionName', method: RequestMethod.POST, version: '1' },
+        { path: 'workflow/:workflowId/trigger/:functionName', method: RequestMethod.GET, version: '1' },
+      )
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }

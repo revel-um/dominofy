@@ -48,7 +48,7 @@ export class AggregatorDomino implements DominoExecutable {
         if (acc === undefined) acc = initialAccumulator(op, initRaw);
 
         /* inputs ----------------------------------------------------------- */
-        // 1. explicit pin mapping value_in / value_in_1 (new & legacy)
+        // 1. explicit pin mapping value_in / value_in_1 (plus some legacy cases)
         // 2. 'value' (if you wired iterator.value_out → aggregator.value)
         // 3. raw payload itself (iterator sends primitive or {key,value})
         let valIn: any = ctx.input.value_in ?? ctx.input.value_in_1;

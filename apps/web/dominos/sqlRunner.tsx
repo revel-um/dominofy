@@ -430,11 +430,11 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
           <div className="flex flex-col items-end gap-1">
             <div className="flex items-center gap-1 text-xs relative px-3">
               <span>Success</span>
-              <DominoPin id="exec_out_success" pinType={PinType.EXEC_OUT} inline />
+              <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
             </div>
             <div className="flex items-center gap-1 text-xs relative px-3">
               <span>On Error</span>
-              <DominoPin id="exec_out_error" pinType={PinType.EXEC_OUT} inline />
+              <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} inline />
             </div>
           </div>
         </div>
@@ -496,7 +496,11 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
 
         <div className="flex justify-center py-2 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center">
-            <DominoPin id="value_out_Result" pinType={PinType.VALUE_OUT} inline />
+            <DominoPin 
+              id="value_out" 
+              pinType={PinType.VALUE_OUT} 
+              inline 
+            />
             <span className="ml-1 text-xs text-gray-500">Results</span>
           </div>
         </div>

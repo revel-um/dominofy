@@ -478,8 +478,8 @@
 //             <span className="truncate">SQL Runner</span>
 //           </div>
 //           <div className="flex items-center gap-1">
-//             <DominoPin id="exec_out_success" pinType={PinType.EXEC_OUT} inline />
-//             <DominoPin id="exec_out_error" pinType={PinType.EXEC_OUT} inline />
+//             <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} inline />
+//             <DominoPin id="exec_out_2" pinType={PinType.EXEC_OUT} inline />
 //           </div>
 //         </div>
 
@@ -496,7 +496,7 @@
 //         </div>
 
 //         <div className="flex justify-center py-2">
-//           <DominoPin id="value_out_Result" pinType={PinType.VALUE_OUT} inline />
+//           <DominoPin id="value_out_1" pinType={PinType.VALUE_OUT} inline />
 //         </div>
 
 //         {hasError && (
@@ -666,6 +666,5 @@
 //     </>
 //   );
 // }
-
 
 

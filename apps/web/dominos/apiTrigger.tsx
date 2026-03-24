@@ -125,53 +125,43 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
       };
 
       data.setNodes((prev: any[]) =>
-        prev.map((node: { id: string; data: { details: any; workflowId: any; }; }) =>
-          node.id !== id
-            ? node
-            : {
-              ...node,
-              data: {
-                ...node.data,
-                setFieldValue,
-                exportFields: ['Function', 'Require File Upload', 'Require Body'],
-                details:
-                  node.data.details ??
-                  ({
-                    type: 'ApiTrigger',
-                    description:
-                      'Invoke this workflow via HTTP using the generated URL.',
-                    isTrigger: true,
-                    fields: [
-                      {
-                        type: 'copy',
-                        heading: 'Api Url',
-                        required: true,
-                        value:
-                          `${config.backendBaseUrl}/workflow/${node.data.workflowId}/trigger/` +
-                          fnName,
-                      },
-                      {
-                        type: 'textInput',
-                        heading: 'Function',
-                        placeholder: 'Enter trigger name…',
-                        value: fnName,
-                        required: true,
-                      },
-                      {
-                        type: 'checkbox',
-                        heading: 'Require File Upload',
-                        value: false,
-                      },
-                      {
-                        type: 'checkbox',
-                        heading: 'Require Body',
-                        value: false,
-                      },
-                    ],
-                  } as DominoNodeData),
-              },
-            }
-        )
+        prev.map((node: { id: string; data: { details: any; workflowId: any; }; }) => {
+          if (node.id !== id) return node;
+
+          const currentFn = node.data.details?.fields?.find(
+            (f: DominoField) => f.heading === 'Function'
+          )?.value ?? fnName;
+          const apiUrl = `${config.backendBaseUrl}/workflow/${node.data.workflowId}/trigger/${currentFn}`;
+
+          const details = node.data.details
+            ? {
+                ...node.data.details,
+                fields: (node.data.details.fields ?? []).map((f: DominoField) =>
+                  f.heading === 'Api Url' ? { ...f, value: apiUrl } : f
+                ),
+              }
+            : ({
+                type: 'ApiTrigger',
+                description: 'Invoke this workflow via HTTP using the generated URL.',
+                isTrigger: true,
+                fields: [
+                  { type: 'copy', heading: 'Api Url', required: true, value: apiUrl },
+                  { type: 'textInput', heading: 'Function', placeholder: 'Enter trigger name…', value: currentFn, required: true },
+                  { type: 'checkbox', heading: 'Require File Upload', value: false },
+                  { type: 'checkbox', heading: 'Require Body', value: false },
+                ],
+              } as DominoNodeData);
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              setFieldValue,
+              exportFields: ['Function', 'Require File Upload', 'Require Body'],
+              details,
+            },
+          };
+        })
       );
     }
   }, [data, id, fnName]);
@@ -274,12 +264,6 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
           </span>
           <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
         </div>
-      )}
-
-      {hasError && (
-        <p className="mt-1 text-xs text-red-500">
-          ⚠️ Value input pin is connected but execution pin is missing.
-        </p>
       )}
 
       {hasError && (

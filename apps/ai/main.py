@@ -30,8 +30,8 @@ except ImportError:  # pragma: no cover - optional dependency in local/dev envs
     google_genai = None
     google_genai_types = None
 
-from prompt_template import build_prompt, build_plan_prompt, build_intent_prompt, build_info_prompt
-from retrieval import get_domino_snippets
+from prompt_template import build_prompt, build_intent_prompt, build_info_prompt
+from retrieval import get_all_domino_docs, get_all_domino_ids
 from schema import PromptIn, AIResponseOut, safe_json_loads
 from json import JSONDecodeError
 
@@ -51,10 +51,6 @@ GEN_CONFIG = {
 }
 
 # Planning stage: lighter temperature, same structured output
-PLAN_CONFIG = {
-    "temperature": 0.1,
-    "response_mime_type": "application/json",
-}
 
 MODEL = genai.GenerativeModel(GEN_MODEL)
 GENAI_CLIENT = google_genai.Client(api_key=API_KEY) if google_genai and API_KEY else None
@@ -94,64 +90,12 @@ def ping() -> Dict[str, str]:
     }
 
 # ───────────────────────── 3. Hit helpers ───────────────────────
-def _as_hit_dict(obj: Any) -> Dict[str, Any]:
-    """Return Chroma-shaped dict no matter what was passed in."""
-    if isinstance(obj, dict):
-        return obj
-    manifests: List[Dict[str, Any]] = obj
-    ids        = [d["id"] for d in manifests]
-    distances  = [1.0] * len(manifests)
-    metadatas  = [{"category": d["category"], "label": d["label"]} for d in manifests]
-    docs_json  = [json.dumps(d, separators=(",", ":")) for d in manifests]
-    return {
-        "ids":        [ids],
-        "distances":  [distances],
-        "metadatas":  [metadatas],
-        "documents":  [docs_json],
-        "embeddings": None,
-        "uris":       None,
-        "data":       None,
-    }
-
-
-def merge_rag_hits(hit1_json: str, hit2_json: str) -> str:
-    """Merge two hits into one, preserving first-seen order."""
-    h1 = _as_hit_dict(json.loads(hit1_json))
-    h2 = _as_hit_dict(json.loads(hit2_json))
-
-    out: Dict[str, Any] = {k: [[]] for k in ("ids", "distances", "metadatas", "documents")}
-    out["embeddings"] = h1.get("embeddings") or h2.get("embeddings")
-    out["uris"]       = h1.get("uris")       or h2.get("uris")
-    out["data"]       = h1.get("data")       or h2.get("data")
-
-    seen: Set[str] = set()
-
-    def _append(src: Dict[str, Any]) -> None:
-        for i, did in enumerate(src["ids"][0]):
-            if did in seen:
-                continue
-            out["ids"][0].append(did)
-            out["distances"][0].append(src["distances"][0][i])
-            out["metadatas"][0].append(src["metadatas"][0][i])
-            out["documents"][0].append(src["documents"][0][i])
-            seen.add(did)
-
-    _append(h1)
-    _append(h2)
-    return json.dumps(out, separators=(",", ":"))
-
-
-def _docs_list_from_hit(hit_json: str) -> List[Dict[str, Any]]:
-    obj = json.loads(hit_json)
-    if isinstance(obj, list):
-        return obj
-    return [json.loads(s) for s in obj.get("documents", [[]])[0]]
 
 
 def parse_model_payload(raw: str) -> Dict[str, Any]:
     """
     With response_mime_type=application/json the model returns valid JSON directly.
-    safe_json_loads is kept as a belt-and-braces fallback.
+    safe_json_loads strips markdown fences and falls back to brace extraction.
     """
     cleaned = (raw or "").strip()
     if not cleaned:
@@ -162,9 +106,18 @@ def parse_model_payload(raw: str) -> Dict[str, Any]:
         pass
     try:
         return safe_json_loads(cleaned)
-    except JSONDecodeError as exc:
-        snippet = cleaned[:240].replace("\n", " ")
-        raise ValueError(f"Gemini JSON parse failed ({exc.msg}). Snippet: {snippet}") from exc
+    except JSONDecodeError:
+        pass
+    # Final fallback: extract between first { and last }
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return json.loads(cleaned[start : end + 1])
+        except JSONDecodeError:
+            pass
+    snippet = cleaned[:240].replace("\n", " ")
+    raise ValueError(f"Gemini returned unparseable output. Snippet: {snippet}")
 
 
 def _without_response_mime_type(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -236,28 +189,6 @@ def encode_stream_event(event_type: str, data: Dict[str, Any]) -> bytes:
     return (json.dumps({"type": event_type, **data}, separators=(",", ":")) + "\n").encode("utf-8")
 
 
-def build_retrieval_query(prompt: PromptIn) -> str:
-    """
-    Expand the retrieval query with existing node types and recent revision context.
-    """
-    parts: List[str] = [prompt.text.strip()]
-
-    current = prompt.current_json or {}
-    node_types = {
-        node.get("type", "")
-        for node in current.get("nodes", []) or []
-        if isinstance(node, dict) and node.get("type")
-    }
-    if node_types:
-        parts.append("existing nodes: " + ", ".join(sorted(node_types)))
-
-    if prompt.revision_log:
-        recent = [msg for msg in prompt.revision_log[-3:] if msg]
-        parts.extend(recent)
-
-    query = " ".join(p for p in parts if p).strip()
-    return query or "dominofy domino"
-
 # ───────────────────────── 4. Intent detection ──────────────────
 INTENT_CONFIG = {
     "temperature": 0.0,
@@ -283,14 +214,12 @@ def detect_intent(prompt: PromptIn) -> str:
     return "workflow"
 
 
-def generate_info_response(prompt: PromptIn, hit_json: str) -> Dict[str, Any]:
+def generate_info_response(prompt: PromptIn, all_docs: str) -> Dict[str, Any]:
     """
     Generate a plain-language answer for informational queries.
     Returns an AIResponseOut-compatible dict with empty nodes/edges.
     """
-    docs_list = _docs_list_from_hit(hit_json)
-    manifests_json = json.dumps(docs_list)
-    info_prompt = build_info_prompt(manifests_json, prompt)
+    info_prompt = build_info_prompt(all_docs, prompt)
     explanation = "I'm here to help with your Dominofy workflow. What would you like to know?"
 
     def _extract_explanation(text: str) -> str:
@@ -333,23 +262,6 @@ def generate_info_response(prompt: PromptIn, hit_json: str) -> Dict[str, Any]:
     }
 
 
-# ───────────────────────── 4b. Stage-1: Planner ─────────────────
-def plan_domino_types(prompt: PromptIn, known_ids: Set[str]) -> List[str]:
-    """
-    Lightweight Stage-1: ask the model which domino types it will need.
-    Returns only IDs present in known_ids so the result is always safe.
-    """
-    plan_prompt = build_plan_prompt(sorted(known_ids), prompt)
-    try:
-        result = generate_content_with_fallback(plan_prompt, PLAN_CONFIG)
-        planned = json.loads(result.text)
-        if isinstance(planned, list):
-            return [t for t in planned if isinstance(t, str) and t in known_ids]
-    except Exception:
-        pass
-    return []
-
-
 def finalize_generation_payload(payload: Dict[str, Any], known_ids: Set[str]) -> Dict[str, Any]:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
 
@@ -374,68 +286,28 @@ def finalize_generation_payload(payload: Dict[str, Any], known_ids: Set[str]) ->
 
     return payload
 
-# ───────────────────────── 5. Core RAG (sync) ───────────────────
-def generate_with_rag(prompt: PromptIn, hit_json: str) -> Dict[str, Any]:
+# ───────────────────────── 5. Core generation (sync) ────────────
+def generate_with_all_docs(prompt: PromptIn) -> Dict[str, Any]:
     """
-    Intent-aware two-stage blocking implementation:
-
-    Intent check — if the user is asking an informational question, answer it
-                   directly without generating workflow nodes/edges.
-
-    Stage 1 — Plan: identify which domino types are needed.
-               Any planned type not yet in the retrieved docs triggers a
-               targeted second retrieval (generalises the old iterator/
-               deconstructor special-case to ALL missing types).
-
-    Stage 2 — Generate: full workflow generation with enriched docs.
+    Full-context generation: all domino docs are always included.
+    No semantic search or planning stage needed.
     """
+    all_docs = get_all_domino_docs()
+    known_ids = set(get_all_domino_ids())
+
     # ── Intent detection ────────────────────────────────────────
     intent = detect_intent(prompt)
     if intent == "informational":
-        return generate_info_response(prompt, hit_json)
+        return generate_info_response(prompt, all_docs)
 
-    docs_list = _docs_list_from_hit(hit_json)
-    known_ids = {d["id"] for d in docs_list}
-
-    stage_summaries: List[str] = []
-
-    # ── Stage 1: plan ──────────────────────────────────────────
-    planned_types = plan_domino_types(prompt, known_ids)
-    if planned_types:
-        stage_summaries.append(
-            f"Identified {len(planned_types)} required component type(s): {', '.join(planned_types)}"
-        )
-    else:
-        stage_summaries.append("Planning stage: deriving component types from context")
-
-    missing = set(planned_types) - known_ids
-
-    if missing:
-        stage_summaries.append(
-            f"Fetching documentation for {len(missing)} missing type(s): {', '.join(sorted(missing))}"
-        )
-        extra_query = " ".join(sorted(missing))
-        extra_hit   = get_domino_snippets(top_k=len(missing) + 4, query=extra_query)
-        hit_json    = merge_rag_hits(hit_json, extra_hit)
-        docs_list   = _docs_list_from_hit(hit_json)
-        known_ids   = {d["id"] for d in docs_list}
-        stage_summaries.append(
-            f"Retrieved documentation for {len(docs_list)} component type(s) total"
-        )
-
-    # ── Stage 2: generate ──────────────────────────────────────
-    stage_summaries.append("Generating workflow with enriched component context")
-    manifests_json = json.dumps(docs_list)
-    full_prompt    = build_prompt(manifests_json, prompt)
+    # ── Generate ────────────────────────────────────────────────
+    full_prompt = build_prompt(all_docs, prompt)
     response_text, model_thought_summaries = generate_content_with_thought_summaries(full_prompt)
-    payload        = parse_model_payload(response_text)
-
+    payload = parse_model_payload(response_text)
     payload = finalize_generation_payload(payload, known_ids)
 
-    stage_summaries.append(
-        f"Built {len(payload.get('nodes', []))} node(s) and {len(payload.get('edges', []))} edge(s)"
-    )
-    thought_summaries = model_thought_summaries or stage_summaries
+    summary = f"Built {len(payload.get('nodes', []))} node(s) and {len(payload.get('edges', []))} edge(s)"
+    thought_summaries = model_thought_summaries or [summary]
     payload["thought_summaries"] = thought_summaries
     payload["chain_of_thought"] = thought_summaries
 
@@ -447,35 +319,15 @@ async def _run_blocking(func, *args):
     return await loop.run_in_executor(_RAG_EXECUTOR, partial(func, *args))
 
 
-async def get_domino_snippets_async(top_k: int, query: str) -> str:
-    return await _run_blocking(get_domino_snippets, top_k, query)
-
-
-async def generate_with_rag_async(prompt: PromptIn, hit_json: str) -> Dict[str, Any]:
-    return await _run_blocking(generate_with_rag, prompt, hit_json)
-
 
 async def stream_generate_with_rag(prompt: PromptIn) -> AsyncIterator[bytes]:
-    search_query = build_retrieval_query(prompt)
     yield encode_stream_event(
         "status",
-        {
-            "status": "retrieving_context",
-            "message": "Retrieving workflow component context",
-        },
+        {"status": "planning", "message": "Analysing your request."},
     )
 
-    first_hit = await get_domino_snippets_async(12, search_query)
-    docs_list = _docs_list_from_hit(first_hit)
-    known_ids = {d["id"] for d in docs_list}
-
-    yield encode_stream_event(
-        "status",
-        {
-            "status": "planning",
-            "message": f"Analysing your request.",
-        },
-    )
+    all_docs = await _run_blocking(get_all_domino_docs)
+    known_ids = set(get_all_domino_ids())
 
     # ── Intent detection ────────────────────────────────────────
     intent = await _run_blocking(detect_intent, prompt)
@@ -484,86 +336,18 @@ async def stream_generate_with_rag(prompt: PromptIn) -> AsyncIterator[bytes]:
             "status",
             {"status": "answering", "message": "Preparing your answer..."},
         )
-        info_result = await _run_blocking(generate_info_response, prompt, first_hit)
-        yield encode_stream_event(
-            "thought_summaries",
-            {"thought_summaries": [], "source": "fallback"},
-        )
+        info_result = await _run_blocking(generate_info_response, prompt, all_docs)
+        yield encode_stream_event("thought_summaries", {"thought_summaries": [], "source": "fallback"})
         yield encode_stream_event("result", info_result)
         return
 
-    planned_types = await _run_blocking(plan_domino_types, prompt, known_ids)
-    stage_summaries: List[str] = []
-    if planned_types:
-        planning_summary = (
-            f"Identified {len(planned_types)} required component type(s): {', '.join(planned_types)}"
-        )
-    else:
-        planning_summary = "Planning stage: deriving component types from context"
-    stage_summaries.append(planning_summary)
-    yield encode_stream_event(
-        "thought_summaries",
-        {
-            "thought_summaries": stage_summaries,
-            "source": "fallback",
-        },
-    )
-
-    missing = set(planned_types) - known_ids
-    if missing:
-        fetching_summary = (
-            f"Fetching documentation for {len(missing)} missing type(s): {', '.join(sorted(missing))}"
-        )
-        stage_summaries.append(fetching_summary)
-        yield encode_stream_event(
-            "status",
-            {
-                "status": "retrieving_missing_context",
-                "message": fetching_summary,
-            },
-        )
-        yield encode_stream_event(
-            "thought_summaries",
-            {
-                "thought_summaries": stage_summaries,
-                "source": "fallback",
-            },
-        )
-        extra_query = " ".join(sorted(missing))
-        extra_hit = await get_domino_snippets_async(len(missing) + 4, extra_query)
-        merged_hit = merge_rag_hits(first_hit, extra_hit)
-        docs_list = _docs_list_from_hit(merged_hit)
-        known_ids = {d["id"] for d in docs_list}
-        first_hit = merged_hit
-        retrieved_summary = f"Retrieved documentation for {len(docs_list)} component type(s) total"
-        stage_summaries.append(retrieved_summary)
-        yield encode_stream_event(
-            "thought_summaries",
-            {
-                "thought_summaries": stage_summaries,
-                "source": "fallback",
-            },
-        )
-
-    generation_summary = "Generating workflow with enriched component context"
-    stage_summaries.append(generation_summary)
+    # ── Generate ────────────────────────────────────────────────
     yield encode_stream_event(
         "status",
-        {
-            "status": "generating",
-            "message": generation_summary,
-        },
-    )
-    yield encode_stream_event(
-        "thought_summaries",
-        {
-            "thought_summaries": stage_summaries,
-            "source": "fallback",
-        },
+        {"status": "generating", "message": "Generating workflow..."},
     )
 
-    manifests_json = json.dumps(docs_list)
-    full_prompt = build_prompt(manifests_json, prompt)
+    full_prompt = build_prompt(all_docs, prompt)
     response_text, model_thought_summaries = await _run_blocking(
         generate_content_with_thought_summaries,
         full_prompt,
@@ -571,18 +355,12 @@ async def stream_generate_with_rag(prompt: PromptIn) -> AsyncIterator[bytes]:
     payload = parse_model_payload(response_text)
     payload = finalize_generation_payload(payload, known_ids)
 
-    completed_summary = (
-        f"Built {len(payload.get('nodes', []))} node(s) and {len(payload.get('edges', []))} edge(s)"
-    )
-    stage_summaries.append(completed_summary)
-    thought_summaries = model_thought_summaries or stage_summaries
+    completed_summary = f"Built {len(payload.get('nodes', []))} node(s) and {len(payload.get('edges', []))} edge(s)"
+    thought_summaries = model_thought_summaries or [completed_summary]
 
     yield encode_stream_event(
         "thought_summaries",
-        {
-            "thought_summaries": thought_summaries,
-            "source": "gemini" if model_thought_summaries else "fallback",
-        },
+        {"thought_summaries": thought_summaries, "source": "gemini" if model_thought_summaries else "fallback"},
     )
 
     payload["thought_summaries"] = thought_summaries
@@ -592,16 +370,9 @@ async def stream_generate_with_rag(prompt: PromptIn) -> AsyncIterator[bytes]:
 # ───────────────────────── 7. FastAPI route ────────────────────
 @app.post("/generate", tags=["ai"])
 async def generate(prompt: PromptIn):
-    """
-    1️⃣  async retrieval (top-12 semantic + keyword hybrid)
-    2️⃣  async two-stage RAG (plan → targeted retrieval → generate)
-    3️⃣  pydantic validation
-    """
     try:
-        search_query = build_retrieval_query(prompt)
-        first_hit    = await get_domino_snippets_async(12, search_query)
-        ai_json      = await generate_with_rag_async(prompt, first_hit)
-        validated    = AIResponseOut.parse_obj(ai_json)
+        ai_json   = await _run_blocking(generate_with_all_docs, prompt)
+        validated = AIResponseOut.parse_obj(ai_json)
         return validated.dict()
     except Exception as exc:
         raise HTTPException(500, detail=str(exc)) from exc

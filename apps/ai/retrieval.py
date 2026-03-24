@@ -44,6 +44,30 @@ def _keyword_ranked_docs(query: str) -> List[dict]:
     return [d for _, d in docs]
 
 
+def get_all_domino_ids() -> List[str]:
+    """Return every domino ID defined in the reference file."""
+    with open(REF_PATH, encoding="utf-8") as f:
+        docs = json.load(f)
+    return [d["id"] for d in docs if isinstance(d, dict) and d.get("id")]
+
+
+def get_all_domino_docs() -> str:
+    """Return the full domino reference JSON string — no search, all docs."""
+    with open(REF_PATH, encoding="utf-8") as f:
+        return f.read()
+
+
+def get_domino_catalogue() -> List[dict]:
+    """Return [{id, label, description}] for every domino — used by the planner."""
+    with open(REF_PATH, encoding="utf-8") as f:
+        docs = json.load(f)
+    return [
+        {"id": d["id"], "label": d.get("label", d["id"]), "description": d.get("description", "")}
+        for d in docs
+        if isinstance(d, dict) and d.get("id")
+    ]
+
+
 def get_domino_snippets(top_k: int, query: str = "") -> str:
     keyword_docs = _keyword_ranked_docs(query)
 

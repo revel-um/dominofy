@@ -4,11 +4,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Edge, Node } from 'reactflow';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
-import { Check, ChevronRight, User2, X } from 'lucide-react';
+import { Check, User2, X } from 'lucide-react';
 import { config } from '../config/config';
 import { AiChatApi, AiChatMessageDto, AiChatSender } from '../apis/aiChat.apis';
 import { AIWorkflowResponse, normalizeAIResponseToWorkflow, serializeWorkflowForAI } from '../utils/aiWorkflow';
-import AIThinkingBlock from '@/components/ui/ai-thinking-block';
 import { Button } from '@/components/ui/button';
 import PromptInputDynamicGrow from '@/components/ui/prompt-input-dynamic-grow';
 import { authFetch } from '../utils/authFetch';
@@ -228,12 +227,11 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
     }, [workflowId, getToken, router, normalizeDtos, defaultAiGreeting, ensureGreeting, scrollToBottom]);
 
     useEffect(() => {
-        if (!isOpen) return;
         setMessages([]);
         setHistoryCursor(null);
         setHasMoreHistory(true);
         loadLatestMessages();
-    }, [isOpen, workflowId, loadLatestMessages]);
+    }, [workflowId, loadLatestMessages]);
 
     const loadOlderMessages = useCallback(async () => {
         if (!workflowId || !hasMoreHistory || historyLoading) return;
@@ -495,7 +493,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
             const parsedResponse = finalResult as AIWorkflowResponse;
 
             const normalized = normalizeAIResponseToWorkflow(parsedResponse, {
-                workflowId: workflowSnapshot.workflowId,
+                workflowId: workflowId ?? workflowSnapshot.workflowId,
                 setNodes,
                 existingNodes: currentNodes,
                 existingEdges: currentEdges,
@@ -578,15 +576,23 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
         }
     }, [messages, isOpen, isNearBottom, scrollToBottom]);
 
-    if (!isOpen) return null;
-
     return (
         <div
-            className="relative flex flex-col overflow-hidden border-l border-gray-200 bg-dominofy-light-panel dark:border-gray-700 dark:bg-dominofy-dark-panel"
-            style={{ width, transition: isResizing ? 'none' : transition, userSelect: 'text', WebkitUserSelect: 'text' }}
-            onMouseEnter={onHoverStart}
-            onMouseLeave={onHoverEnd}
+            className={`relative flex flex-col overflow-hidden border-l border-gray-200 bg-dominofy-light-panel dark:border-gray-700 dark:bg-dominofy-dark-panel ${
+                isOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+            style={{
+                width: isOpen ? width : 0,
+                minWidth: isOpen ? width : 0,
+                transition: isResizing ? 'none' : transition,
+                userSelect: 'text',
+                WebkitUserSelect: 'text',
+                visibility: isOpen ? 'visible' : 'hidden',
+            }}
+            onMouseEnter={isOpen ? onHoverStart : undefined}
+            onMouseLeave={isOpen ? onHoverEnd : undefined}
             data-allow-copy="true"
+            aria-hidden={!isOpen}
         >
             <div
                 className={`relative flex-1 overflow-y-auto px-4 py-5 ${isResizing ? 'transition-none' : ''}`}
@@ -634,33 +640,38 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                                 )}
                             </div>
                             <div
-                                className={`rounded-[1.5rem] border p-4 text-sm shadow-[0_18px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur-xl ${
+                                className={`rounded-[1.5rem] border p-4 text-sm shadow-[0_18px_55px_-34px_rgba(15,23,42,0.45)] backdrop-blur-xl selection:bg-sky-200 selection:text-slate-950 ${
                                     m.sender === 'ai'
                                         ? 'border-slate-200/80 bg-white/80 text-slate-700 dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-200'
-                                        : 'border-sky-500/15 bg-gradient-to-br from-sky-500 to-blue-600 text-white'
+                                        : 'border-sky-500/15 bg-gradient-to-br from-sky-500 to-blue-600 text-white selection:bg-white/90 selection:text-sky-950'
                                 }`}
                                 style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                             >
                             {m.sender === 'ai' && m.isStreaming && (
-                                <AIThinkingBlock
-                                    title="Jelly is thinking"
-                                    elapsedSeconds={Math.max(0, Math.floor((clockTick - m.timestamp.getTime()) / 1000))}
-                                    thoughtSummaries={m.thoughtSummaries}
-                                    status={m.streamStatus}
-                                    className="mb-3"
-                                />
+                                <div className="mb-3 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <span>Thinking</span>
+                                        <span className="flex items-center gap-1" aria-hidden="true">
+                                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current [animation-delay:0ms]" />
+                                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current [animation-delay:200ms]" />
+                                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current [animation-delay:400ms]" />
+                                        </span>
+                                    </span>
+                                    <span className="text-xs text-slate-400 dark:text-slate-500">
+                                        {Math.max(0, Math.floor((clockTick - m.timestamp.getTime()) / 1000))}s
+                                    </span>
+                                </div>
                             )}
                             {m.sender === 'ai' && !m.isStreaming && m.thoughtSummaries && m.thoughtSummaries.length > 0 && (
                                 <ThoughtSummaries steps={m.thoughtSummaries} />
                             )}
-                            {m.sender === 'ai' && m.isStreaming && m.streamStatus && m.thoughtSummaries && m.thoughtSummaries.length > 0 && (
-                                <div className="mb-3 flex items-center gap-2 rounded-2xl border border-sky-500/15 bg-sky-500/5 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
-                                    <ChevronRight className="h-3.5 w-3.5 text-sky-500" />
+                            {m.sender === 'ai' && m.isStreaming && m.streamStatus && (
+                                <div className="mb-3 text-xs text-slate-500 dark:text-slate-400">
                                     {m.streamStatus}
                                 </div>
                             )}
                             {m.content ? (
-                                <p className={`whitespace-pre-wrap break-words leading-7 ${m.sender === 'user' ? 'text-white/95' : ''}`} style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{m.content}</p>
+                                <p className={`whitespace-pre-wrap break-words leading-7 ${m.sender === 'user' ? 'text-white/95 selection:bg-white/90 selection:text-sky-950' : ''}`} style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{m.content}</p>
                             ) : (
                                 m.sender !== 'ai' || !m.isStreaming ? null : null
                             )}
@@ -675,7 +686,7 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="border-t border-slate-200/70 bg-dominofy-light-panel p-4 dark:border-slate-800 dark:bg-dominofy-dark-panel" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
+            <div className="border-t border-slate-200/70 bg-dominofy-light-panel py-3 px-4 dark:border-slate-800 dark:bg-dominofy-dark-panel" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
                 <PromptInputDynamicGrow
                     value={inputValue}
                     onValueChange={setInputValue}

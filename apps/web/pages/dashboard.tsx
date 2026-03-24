@@ -136,7 +136,10 @@ export default function DominofyDashboard() {
     };
 
     // Helper function to merge cached workflow data with database workflow
-    const mergeCachedWorkflow = (workflow: Workflow): WorkflowWithCache => {
+    const mergeCachedWorkflow = (workflow?: Workflow | null): WorkflowWithCache | undefined => {
+        if (!workflow) {
+            return undefined;
+        }
         const cachedWorkflowData = sessionStorage.getItem(`workflow-${workflow.id}`);
         
         if (cachedWorkflowData) {
@@ -520,10 +523,12 @@ export default function DominofyDashboard() {
             };
             setUser({ name: user.name, email: user.email });
             setWorkflowCount(wfCount);
-            if (count > 0) {
+            if (wfCount > 0) {
                 const preferred = workflows.find((w) => w.id === lastActiveWorkflowId) || workflows[0];
                 const recentWorkflowWithCache = mergeCachedWorkflow(preferred);
                 setRecentWorkflow(recentWorkflowWithCache);
+            } else {
+                setRecentWorkflow(undefined);
             }
         } catch (err) {
             console.error("Error fetching projects:", err);

@@ -26,7 +26,7 @@ DOMINOFY_KNOWLEDGE = (
     "- Conditions/Logic: Dominos that branch or filter based on values.\n"
     "- Edges: 'execution' edges control the flow order; 'value' edges pass data between pins.\n"
     "- Fields: Each domino has configurable fields (heading + value pairs).\n"
-    "- Pins: Input/output connection points (e.g. value_in_X for dynamic data inputs).\n\n"
+    "- Pins: Input/output connection points (e.g. value_in or value_in_1 for dynamic data inputs).\n\n"
     "How a workflow runs:\n"
     "1. A trigger domino fires when an event occurs.\n"
     "2. Execution flows through connected dominos in sequence.\n"
@@ -48,7 +48,7 @@ NODE_SCHEMA = (
     "        {\n"
     "          \"heading\": \"string\",\n"
     "          \"value\":   \"any\",\n"
-    "          \"inPinId\": \"value_in_X\" | null,\n"
+    "          \"inPinId\": \"value_in\" | null,\n"
     "          \"connectedValue\": false\n"
     "        }\n"
     "      ]\n"
@@ -102,21 +102,32 @@ SYSTEM_TEMPLATE = (
     "• type = domino-id exactly as it appears in DOMINO_DOCS.\n"
     "• Omit positions.\n"
     "• Edge types allowed: 'execution' | 'value'.\n"
-    "• Pins may be dynamic (value_in_X, etc.).\n"
+    "• Use the exact pin ids defined in DOMINO_DOCS for each domino. As a general pattern, a single pin uses the base id (`value_in`, `value_out`, `exec_in`, `exec_out`), and additional pins usually continue as `_1`, `_2`, `_3`, etc., but DOMINO_DOCS is the final source of truth when a domino documents a specific mapping.\n"
     "• Explanation must describe every node added, removed, or changed — use the human-readable label from DOMINO_DOCS (e.g. 'Slack Trigger', 'Email Action'), never the raw domino id or node id.\n"
     "• Use ONLY dominos present in DOMINO_DOCS — never invent new types.\n"
     "• If REVISION_DIFFS are provided, they show the exact JSON delta from prior edits — use them to understand what was previously added or removed before applying the new instruction.\n"
-    "• Always include the 'status' field."
+    "• Always include the 'status' field.\n"
+    "• AI domino (llm) — value_in and the static Prompt field are mutually exclusive: when value_in is connected, the static Prompt is completely ignored. NEVER set a Prompt value AND connect value_in simultaneously.\n"
+    "• To combine a fixed instruction with dynamic runtime data for the AI domino, always insert a Join Text domino (jointext): set Input_1 to the static instruction, connect the dynamic value to value_in_1 (Input_2), then connect Join Text value_out to AI value_in. Leave the AI Prompt field empty.\n"
+    "• NEVER use the Print domino (print) to build strings for passing to other nodes — Print is for debugging/logging only. Use Join Text (jointext) whenever you need to construct a string to pass downstream.\n"
+    "• CRITICAL — two separate database dominos exist and they are NOT interchangeable:\n"
+    "  - storage (id='storage', label='Database Write'): the ONLY domino that can save, insert, update, upsert, or delete data. Use whenever the goal is to persist something. Operations: create, update, upsert, delete.\n"
+    "  - storageRetrieve (id='storageRetrieve', label='Database Read'): read-only, cannot write anything. Use only when you need to look up or fetch existing data.\n"
+    "  Rule: if the user prompt contains 'store', 'save', 'persist', 'record', 'log', 'write', or 'insert' → use storage. If it contains 'get', 'fetch', 'read', 'retrieve', 'look up', 'query' → use storageRetrieve. NEVER use storageRetrieve to save data.\n"
+    "• Read File (readexcel) recursively scans its entire input for an attachment — connect Email Trigger value_out DIRECTLY to Read File value_in. No Map, Code Runner, or array-extraction node is needed to get the first attachment from an email.\n"
+    "• To extract a specific field from an object or a specific index from an array, ALWAYS use the De-Construct domino (deconstructor). NEVER use Custom Code (codeRunner) for simple property or array-index extraction. Example: to check if an email has attachments, use De-Construct with Type=object and Key_1='hasAttachments'; its value_out carries the extracted boolean.\n"
+    "• Response domino (response) is ONLY for workflows triggered by an API Trigger (webhook). It sends the HTTP response back to the caller. NEVER include a Response node in workflows triggered by Email, Scheduler, Slack, or any other non-HTTP trigger."
 ).strip()
 
 PLAN_SYSTEM = (
     "You are a workflow planning assistant for Dominofy.\n"
-    "Given a user prompt and available domino IDs, output ONLY a JSON array of domino IDs needed.\n"
+    "Given a user prompt and the DOMINO_CATALOGUE (each entry has id, label, description), "
+    "output ONLY a JSON array of domino IDs needed to fulfil the request.\n"
     "Rules:\n"
-    "• Only use IDs from AVAILABLE_DOMINO_IDS.\n"
-    "• Include ALL domino types you expect to need for this request.\n"
+    "• Only use IDs that appear in DOMINO_CATALOGUE.\n"
+    "• Include ALL domino types you expect to need — use the label and description to understand what each one does.\n"
     "• Do not include types already present in CURRENT_WORKFLOW_NODE_TYPES unless the user explicitly wants to add more.\n"
-    "• Output only the JSON array, nothing else — no explanation, no markdown."
+    "• Output only the JSON array of id strings, nothing else — no explanation, no markdown."
 ).strip()
 
 # ───────────────────────── 4. Context helpers ───────────────────────────────
@@ -195,7 +206,7 @@ def build_info_prompt(domino_docs: str, p: PromptIn) -> str:
 
 # ───────────────────────── 5b. Workflow prompt builders ─────────────────────
 
-def build_plan_prompt(available_ids: List[str], p: PromptIn) -> str:
+def build_plan_prompt(catalogue: List[dict], p: PromptIn) -> str:
     """Stage-1 prompt: quickly identify needed domino types."""
     current_types = sorted({
         n.get("type", "")
@@ -204,7 +215,7 @@ def build_plan_prompt(available_ids: List[str], p: PromptIn) -> str:
     })
     return "\n\n".join([
         PLAN_SYSTEM,
-        "AVAILABLE_DOMINO_IDS:\n" + json.dumps(available_ids),
+        "DOMINO_CATALOGUE:\n" + json.dumps(catalogue, separators=(",", ":")),
         "CURRENT_WORKFLOW_NODE_TYPES:\n" + json.dumps(current_types),
         "USER PROMPT:\n" + p.text,
     ])

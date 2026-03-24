@@ -27,5 +27,17 @@ class AIResponseOut(BaseModel):
 
 def safe_json_loads(raw: str):
     txt = raw.strip()
-    txt = re.sub(r"^```[a-zA-Z0-9]*\s*|```$", "", txt, flags=re.MULTILINE).strip()
-    return json.loads(txt)
+    # Strip markdown code fences
+    txt = re.sub(r"^```[a-zA-Z0-9]*\s*", "", txt, flags=re.MULTILINE)
+    txt = re.sub(r"^```\s*$", "", txt, flags=re.MULTILINE)
+    txt = txt.strip()
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError:
+        pass
+    # Last-resort: extract between the first { and the last }
+    start = txt.find("{")
+    end = txt.rfind("}")
+    if start != -1 and end > start:
+        return json.loads(txt[start : end + 1])
+    raise json.JSONDecodeError("No JSON object found", txt, 0)

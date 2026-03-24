@@ -28,7 +28,7 @@ const DEFAULT_FIELDS: DominoField[] = [
     type: 'textInput',
     heading: 'Document Key',
     value: '',
-    inPinId: 'value_in_document_key',
+    inPinId: 'value_in',
     placeholder: 'customer-123',
   },
   {
@@ -220,8 +220,8 @@ export default function DatabaseRetrievalDomino({
 
         {isDocumentMode ? (
           <div className="flex items-center gap-2 relative px-3">
-            <DominoPin id="value_in_document_key" pinType={PinType.VALUE_IN} inline />
-            {isConnected('value_in_document_key') ? (
+            <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+            {isConnected('value_in') ? (
               <span className="text-xs italic text-gray-500">Document key connected</span>
             ) : (
               <input
@@ -265,7 +265,7 @@ export default function DatabaseRetrievalDomino({
           <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
             Output
           </span>
-          <DominoPin id="value_out_Output" pinType={PinType.VALUE_OUT} inline />
+          <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
         </div>
       </div>
     </div>

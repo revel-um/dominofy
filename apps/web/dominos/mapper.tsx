@@ -126,10 +126,10 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
 
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
+      className={`transition-all duration-150 rounded-md w-80 overflow-visible shadow-sm
         ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{ minWidth: '13rem' }}
+      style={{ minWidth: '20rem' }}
     >
       {/* header with exec pins */}
       <div
@@ -150,9 +150,9 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
       </div>
 
       {/* rename pairs */}
-      <div className="flex flex-col gap-2">
+      <div className="flex min-w-0 flex-col gap-2">
         {inputs.map((val, i) => (
-          <div key={i} className="flex items-center gap-2 relative px-2">
+          <div key={i} className="relative flex min-w-0 items-center gap-2 px-2">
             <input
               type="text"
               value={val[0]}
@@ -165,7 +165,7 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
                 });
               }}
               placeholder={`initial key ${i + 1}`}
-              className="flex-1 px-2 py-1 text-sm border rounded
+              className="min-w-0 flex-1 px-2 py-1 text-sm border rounded
                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
                          text-dominofy-light-text dark:text-dominofy-dark-text"
             />
@@ -182,7 +182,7 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
                 });
               }}
               placeholder={`renamed key ${i + 1}`}
-              className="flex-1 px-2 py-1 text-sm border rounded
+              className="min-w-0 flex-1 px-2 py-1 text-sm border rounded
                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
                          text-dominofy-light-text dark:text-dominofy-dark-text"
             />
@@ -190,7 +190,7 @@ export default function MapperDomino({ data, id, selected }: NodeProps) {
             {inputs.length > 1 && (
               <button
                 onClick={() => removeInput(i)}
-                className="p-1 bg-red-500 text-white rounded ml-1"
+                className="ml-1 shrink-0 rounded bg-red-500 p-1 text-white"
                 aria-label={`Remove mapping row ${i + 1}`}
               >
                 <Trash size={14} />

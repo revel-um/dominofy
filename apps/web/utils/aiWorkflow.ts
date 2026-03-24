@@ -62,7 +62,10 @@ dominoCatalog.forEach((entry: any) => {
   }
   if (entry?.categories) {
     entry.categories.forEach((cat: string) => {
-      DOMINO_LOOKUP.set(normaliseKey(cat), meta);
+      const key = normaliseKey(cat);
+      if (!DOMINO_LOOKUP.has(key)) {
+        DOMINO_LOOKUP.set(key, meta);
+      }
     });
   }
 });
@@ -113,6 +116,27 @@ const sanitise = (value: any) => {
 
 const normaliseHeading = (heading?: string | null) =>
   (heading ?? '').toString().trim().toLowerCase();
+
+const getHandleFamily = (handle?: string | null): 'exec' | 'value' | null => {
+  if (!handle) return null;
+  if (handle.startsWith('exec')) return 'exec';
+  if (handle.startsWith('value')) return 'value';
+  return null;
+};
+
+const isCompatibleHandlePair = (
+  sourceHandle?: string | null,
+  targetHandle?: string | null
+) => {
+  const sourceFamily = getHandleFamily(sourceHandle);
+  const targetFamily = getHandleFamily(targetHandle);
+
+  if (!sourceFamily || !targetFamily) {
+    return true;
+  }
+
+  return sourceFamily === targetFamily;
+};
 
 const normaliseDetails = (details: any, fallbackLabel: string) => {
   if (!details || typeof details !== 'object') {
@@ -425,6 +449,13 @@ export function normalizeAIResponseToWorkflow(
         .filter(
           edge => nodeIds.has(edge.source ?? '') && nodeIds.has(edge.target ?? '')
         )
+        .filter(edge => {
+          const isValid = isCompatibleHandlePair(edge.sourceHandle, edge.targetHandle);
+          if (!isValid) {
+            console.warn('[AI] Dropping invalid suggested edge with mismatched handle families:', edge);
+          }
+          return isValid;
+        })
     : (options.existingEdges ?? []).filter(
         edge => nodeIds.has(edge.source) && nodeIds.has(edge.target)
       ).map(edge => ({ ...edge }));

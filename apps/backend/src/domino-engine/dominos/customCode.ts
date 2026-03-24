@@ -96,7 +96,8 @@ export class CustomCodeDomino implements DominoExecutable {
         id: this.id,
         output: result,
         startedAt,
-        finishedAt: Date.now()
+        finishedAt: Date.now(),
+        nextChainKeys: ["exec_out"]
       };
 
     } catch (error) {
@@ -110,7 +111,7 @@ export class CustomCodeDomino implements DominoExecutable {
         },
         startedAt,
         finishedAt: Date.now(),
-        nextChainKeys: ["exec_out_error"]
+        nextChainKeys: ["exec_out_1"]
       };
     }
   }

@@ -73,14 +73,14 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
     const current = getEdges();
     // clear main input
     if (
-      current.some(e => e.target === id && e.targetHandle === 'value_in_1') &&
+      current.some(e => e.target === id && e.targetHandle === 'value_in') &&
       value !== ''
     ) {
       setValue('');
     }
     // clear additional inputs
     const newInputs = inputs.map((v, i) => {
-      const pin = `value_in_${i + 2}`;
+      const pin = `value_in_${i + 1}`;
       return current.some(e => e.target === id && e.targetHandle === pin) ? '' : v;
     });
     // only update if changed
@@ -106,17 +106,17 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
         type: 'textInput',
         heading: 'Input_1',
         value,
-        placeholder: current.some(e => e.target === id && e.targetHandle === 'value_in_1')
+        placeholder: current.some(e => e.target === id && e.targetHandle === 'value_in')
           ? 'Connected'
           : 'Input 1',
         required: true,
         shouldRender: false,
-        inPinId: 'value_in_1',
+        inPinId: 'value_in',
       }),
       ...inputs.flatMap((v, i) => {
         const opHeading = `Operator_${i + 1}`;
         const inputHeading = `Input_${i + 2}`;
-        const pinId = `value_in_${i + 2}`;
+        const pinId = `value_in_${i + 1}`;
         const isConnected = current.some(
           e => e.target === id && e.targetHandle === pinId
         );
@@ -209,18 +209,18 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
 
       {/* first input */}
       <div className="px-3 py-2 flex items-center gap-2 relative">
-        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
+        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
         <input
           type="text"
           value={value}
           onChange={handleMainChange}
           placeholder={
-            edges.some(e => e.target === id && e.targetHandle === 'value_in_1')
+            edges.some(e => e.target === id && e.targetHandle === 'value_in')
               ? 'Connected'
               : 'Input 1'
           }
-          readOnly={edges.some(e => e.target === id && e.targetHandle === 'value_in_1')}
-          disabled={edges.some(e => e.target === id && e.targetHandle === 'value_in_1')}
+          readOnly={edges.some(e => e.target === id && e.targetHandle === 'value_in')}
+          disabled={edges.some(e => e.target === id && e.targetHandle === 'value_in')}
           className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
         />
       </div>
@@ -228,7 +228,7 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
       {/* additional rows */}
       <div className="flex flex-col gap-2">
         {inputs.map((val, i) => {
-          const pinId = `value_in_${i + 2}`;
+          const pinId = `value_in_${i + 1}`;
           const connected =
             edges.some(e => e.target === id && e.targetHandle === pinId);
           return (

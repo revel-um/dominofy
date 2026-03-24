@@ -4,12 +4,13 @@ import React, {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Square } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type MenuOption = 'Auto' | 'Max' | 'Search' | 'Plan';
@@ -36,6 +37,13 @@ const MENU_VERTICAL_PADDING = 8;
 const MENU_OFFSET = 4;
 const VIEWPORT_PADDING = 12;
 
+const TEXTAREA_LINE_HEIGHT = 22;
+const TEXTAREA_VERTICAL_PADDING = 8;
+const TEXTAREA_MIN_HEIGHT = 32;
+const TEXTAREA_MAX_ROWS = 4;
+const TEXTAREA_MAX_HEIGHT =
+  TEXTAREA_LINE_HEIGHT * TEXTAREA_MAX_ROWS + TEXTAREA_VERTICAL_PADDING;
+
 export interface PromptInputDynamicGrowProps {
   value?: string;
   onValueChange?: (value: string) => void;
@@ -57,29 +65,22 @@ export interface PromptInputDynamicGrowProps {
 interface SendButtonProps {
   isDisabled: boolean;
   isLoading: boolean;
-  onStop?: () => void;
 }
 
-const SendButton = memo(({ isDisabled, isLoading, onStop }: SendButtonProps) => (
+const SendButton = memo(({ isDisabled, isLoading }: SendButtonProps) => (
   <button
-    type={isLoading ? 'button' : 'submit'}
-    aria-label={isLoading ? 'Stop generation' : 'Send message'}
-    disabled={isLoading ? false : isDisabled}
-    onClick={isLoading ? onStop : undefined}
+    type="submit"
+    aria-label="Send message"
+    disabled={isDisabled}
     className={cn(
       'ml-auto self-center flex h-8 w-8 items-center justify-center rounded-full border-0 p-0 transition-all z-20',
-      isLoading
-          ? 'cursor-pointer bg-rose-600 text-white opacity-95 hover:bg-rose-700 hover:shadow-lg'
-        : isDisabled
-          ? 'cursor-not-allowed bg-gray-300 text-white/60 opacity-40 dark:bg-gray-600'
-          : 'cursor-pointer bg-gray-900 text-white opacity-90 hover:opacity-100 hover:shadow-lg dark:bg-gray-100 dark:text-gray-900',
+      isDisabled
+        ? 'cursor-not-allowed bg-gray-300 text-white/60 opacity-40 dark:bg-gray-600'
+        : 'cursor-pointer bg-gray-900 text-white opacity-90 hover:opacity-100 hover:shadow-lg dark:bg-gray-100 dark:text-gray-900',
     )}
   >
     {isLoading ? (
-      <>
-        <Square className="h-3.5 w-3.5 fill-current" />
-        <span className="sr-only">Stop generation</span>
-      </>
+      <span className="sr-only">Sending…</span>
     ) : (
       <svg
         width="32"
@@ -121,7 +122,6 @@ export function PromptInputDynamicGrow({
   showEffects = true,
   menuOptions,
   className,
-  onStop,
 }: PromptInputDynamicGrowProps) {
   const [internalValue, setInternalValue] = useState(value ?? '');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -135,6 +135,8 @@ export function PromptInputDynamicGrow({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const throttleRef = useRef<number | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
+
   const controlled = value !== undefined;
   const currentValue = controlled ? value : internalValue;
   const options = useMemo(() => normalizeMenuOptions(menuOptions), [menuOptions]);
@@ -155,13 +157,59 @@ export function PromptInputDynamicGrow({
     }
   }, [controlled, value]);
 
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
+    const nextHeight = Math.min(
+      Math.max(textarea.scrollHeight, TEXTAREA_MIN_HEIGHT),
+      TEXTAREA_MAX_HEIGHT,
+    );
+    textarea.style.height = `${nextHeight}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    resizeTextarea();
+
+    if (resizeFrameRef.current) {
+      window.cancelAnimationFrame(resizeFrameRef.current);
+    }
+
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      resizeTextarea();
+    });
+
+    return () => {
+      if (resizeFrameRef.current) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+    };
+  }, [currentValue, resizeTextarea]);
+
   useEffect(() => {
-    if (!textareaRef.current) return;
-    textareaRef.current.style.height = 'auto';
-    const lineHeight = 22;
-    const maxHeight = lineHeight * 4 + 16;
-    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, maxHeight)}px`;
-  }, [currentValue]);
+    const handleWindowResize = () => resizeTextarea();
+    window.addEventListener('resize', handleWindowResize);
+
+    return () => {
+      window.removeEventListener('resize', handleWindowResize);
+    };
+  }, [resizeTextarea]);
+
+  useEffect(() => {
+    if (!textareaRef.current || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      resizeTextarea();
+    });
+
+    observer.observe(textareaRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [resizeTextarea]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -288,9 +336,10 @@ export function PromptInputDynamicGrow({
     setIsMenuOpen(false);
   }, []);
 
-  const isSubmitDisabled = disabled || !currentValue.trim();
+  const isSubmitDisabled = disabled || isLoading || !currentValue.trim();
   const hasModeSelected = selectedOptions.length > 0;
   const shouldExpand = expandOnFocus && !hasModeSelected;
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -381,15 +430,19 @@ export function PromptInputDynamicGrow({
               aria-label="Message Input"
               rows={1}
               disabled={disabled}
-              className="relative z-20 max-h-24 min-h-8 w-full resize-none overflow-y-auto border-0 bg-transparent px-3 py-1 pr-10 text-left text-sm font-normal text-gray-900 outline-none placeholder:text-gray-500 dark:text-gray-100 dark:placeholder:text-gray-400"
+              className="relative z-20 w-full resize-none overflow-y-auto border-0 bg-transparent px-3 py-1 pr-10 text-left text-sm font-normal text-gray-900 outline-none placeholder:text-gray-500 dark:text-gray-100 dark:placeholder:text-gray-400"
               style={{
                 color: textColor,
                 fontFamily: '"Inter", sans-serif',
                 letterSpacing: '-0.14px',
-                lineHeight: '22px',
+                lineHeight: `${TEXTAREA_LINE_HEIGHT}px`,
+                boxSizing: 'border-box',
+                minHeight: `${TEXTAREA_MIN_HEIGHT}px`,
+                maxHeight: `${TEXTAREA_MAX_HEIGHT}px`,
+                height: `${TEXTAREA_MIN_HEIGHT}px`,
               }}
             />
-            <SendButton isDisabled={isSubmitDisabled} isLoading={isLoading} onStop={onStop} />
+            <SendButton isDisabled={isSubmitDisabled} isLoading={isLoading} />
           </div>
         </div>
 
@@ -424,6 +477,7 @@ export function PromptInputDynamicGrow({
           </div>
         )}
       </div>
+
       {isMenuOpen && typeof document !== 'undefined'
         ? createPortal(
             <div

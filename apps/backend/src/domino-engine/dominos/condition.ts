@@ -45,9 +45,9 @@ export class ConditionDomino implements DominoExecutable {
         const result = this.compare(a, b, op);
 
         // Determine which branches to follow
-        // Assuming step.next contains keys like 'exec_out_1' and 'exec_out_2'
-        const trueBranch = 'exec_out_1';
-        const falseBranch = 'exec_out_2';
+        // Assuming step.next contains keys like 'exec_out' and 'exec_out_1'
+        const trueBranch = 'exec_out';
+        const falseBranch = 'exec_out_1';
         const nextKeys: string[] = result
             ? [trueBranch]   // follow the first branch when condition is true
             : [falseBranch]; // follow the second branch when false
