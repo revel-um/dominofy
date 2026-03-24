@@ -275,6 +275,25 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
     }
   }, [connectionId, persistSqlRunnerState]);
 
+  const handlePopupSave = useCallback(async () => {
+    persistSqlRunnerState({
+      query,
+      connectionId,
+      connectionConfig,
+      connectionStatus: effectiveConnectionStatus,
+      output,
+      error,
+    });
+  }, [
+    connectionConfig,
+    connectionId,
+    effectiveConnectionStatus,
+    error,
+    output,
+    persistSqlRunnerState,
+    query,
+  ]);
+
   const runQuery = useCallback(async () => {
     if (!connectionId) {
       setError('Not connected to a database');
@@ -497,6 +516,9 @@ export default function SQLRunnerDomino({ data, id, selected }: NodeProps) {
           query={query}
           output={output}
           connectionStatus={effectiveConnectionStatus}
+          connectionId={connectionId}
+          connectionConfig={connectionConfig}
+          onSave={handlePopupSave}
           onQueryChange={updateQueryEverywhere}
           onRun={runQuery}
           onConnect={() => setShowConfigModal(true)}

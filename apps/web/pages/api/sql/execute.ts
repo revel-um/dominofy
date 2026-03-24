@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { executeQuery, testConnection, closeConnection, ConnectionConfig } from '@/lib/db';
+import { executeQuery, testConnection, listTables, closeConnection, ConnectionConfig } from '@/lib/db';
 
 type ResponseData = {
   data?: any;
@@ -129,6 +129,35 @@ export async function executeSqlQuery(
   }
 }
 
+export async function listSqlTables(
+  req: NextApiRequest,
+  res: NextApiResponse<ResponseData>
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { connectionId, connectionConfig } = req.body as {
+    connectionId?: string;
+    connectionConfig?: ConnectionConfig;
+  };
+
+  try {
+    const tables = await listTables(connectionId, connectionConfig);
+    return res.status(200).json({
+      data: {
+        tables,
+      },
+    });
+  } catch (error) {
+    console.error('Error listing SQL tables:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return res.status(500).json({
+      error: `List tables failed: ${errorMessage}`,
+    });
+  }
+}
+
 export async function disconnectSqlConnection(
   req: NextApiRequest,
   res: NextApiResponse<ResponseData>
@@ -174,6 +203,8 @@ export default allowCors(async function handler(
     switch (action) {
       case 'test-connection':
         return await testDbConnection(req, res);
+      case 'list-tables':
+        return await listSqlTables(req, res);
       case 'execute':
       default:
         return await executeSqlQuery(req, res);
