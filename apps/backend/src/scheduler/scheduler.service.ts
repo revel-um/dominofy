@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Queue, Worker, Job } from 'bullmq';
+import { Socket } from 'net';
 import { Repository } from 'typeorm';
 import { Schedule } from './scheduler.entity';
 import { Workflow } from 'src/workflow/workflow.entity';
@@ -23,6 +24,7 @@ interface SchedulerNodeConfig {
 export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   private queue: Queue | null = null;
   private worker: Worker | null = null;
+  private schedulerEnabled = true;
   private readonly queueName = 'workflow-scheduler';
   private readonly jobName = 'run-workflow';
   private readonly logger = new Logger(SchedulerService.name);
@@ -41,26 +43,36 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     const connection = this.getRedisConnection();
-    this.queue = new Queue(this.queueName, {
-      connection,
-      defaultJobOptions: {
-        removeOnComplete: 500,
-        removeOnFail: 500,
-      },
-    });
+    const redisAvailable = await this.ensureRedisAvailability(connection);
 
-    this.worker = new Worker(
-      this.queueName,
-      async (job) => this.handleJob(job),
-      { connection },
-    );
+    if (redisAvailable) {
+      this.queue = new Queue(this.queueName, {
+        connection,
+        defaultJobOptions: {
+          removeOnComplete: 500,
+          removeOnFail: 500,
+        },
+      });
 
-    this.worker.on('failed', (job, err) => {
-      this.logger.error(`Job ${job?.id} failed for schedule ${job?.data?.scheduleId}: ${err?.message}`);
-    });
+      this.worker = new Worker(
+        this.queueName,
+        async (job) => this.handleJob(job),
+        { connection },
+      );
+
+      this.worker.on('failed', (job, err) => {
+        this.logger.error(`Job ${job?.id} failed for schedule ${job?.data?.scheduleId}: ${err?.message}`);
+      });
+    } else {
+      this.schedulerEnabled = false;
+    }
 
     await this.syncAllWorkflowsToSchedules();
-    await this.restoreSchedulesFromDatabase();
+    if (this.schedulerEnabled) {
+      await this.restoreSchedulesFromDatabase();
+    } else {
+      this.logger.warn('Scheduler queue is disabled because Redis is unavailable.');
+    }
   }
 
   async onModuleDestroy() {
@@ -175,6 +187,51 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       password: this.config.get<string>('REDIS_PASSWORD'),
       db: Number(this.config.get('REDIS_DB') ?? 0),
     };
+  }
+
+  private isRedisRequired() {
+    const raw = this.config.get<string>('REDIS_REQUIRED');
+    if (raw === undefined) {
+      return this.config.get<string>('NODE_ENV') === 'production';
+    }
+
+    return raw.toLowerCase() === 'true';
+  }
+
+  private async ensureRedisAvailability(connection: { host: string; port: number }) {
+    const isReachable = await this.canReachRedis(connection.host, connection.port);
+    if (isReachable) {
+      return true;
+    }
+
+    const message = `Redis is unavailable at ${connection.host}:${connection.port}. Scheduler jobs will not be registered.`;
+    if (this.isRedisRequired()) {
+      throw new Error(message);
+    }
+
+    this.logger.warn(message);
+    return false;
+  }
+
+  private async canReachRedis(host: string, port: number) {
+    return await new Promise<boolean>((resolve) => {
+      const socket = new Socket();
+      let settled = false;
+
+      const finish = (value: boolean) => {
+        if (!settled) {
+          settled = true;
+          socket.destroy();
+          resolve(value);
+        }
+      };
+
+      socket.setTimeout(1000);
+      socket.once('connect', () => finish(true));
+      socket.once('timeout', () => finish(false));
+      socket.once('error', () => finish(false));
+      socket.connect(port, host);
+    });
   }
 
   private buildJobId(schedule: Schedule) {
