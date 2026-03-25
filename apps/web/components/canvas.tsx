@@ -64,7 +64,7 @@ import dominoCatalog from "../dominos/dominos";
 
 /* helpers */
 import { buildPipeline } from "../../../shared/helpers/buildPipeline";
-import { validateNodeConnections } from "../helpers/errorDetector";
+import { validateNodeConnectionsDetailed } from "../helpers/errorDetector";
 import { useDomino } from "../contexts/dominoContext";
 import { useRouter } from "next/router";
 import { useCopyPaste } from '../hooks/useCopyPaste';
@@ -699,7 +699,7 @@ export default function Canvas(props: CanvasProps) {
 
   /* validation */
   useEffect(() => {
-    setConnectionErrors(validateNodeConnections(nodes, edges));
+    setConnectionErrors(validateNodeConnectionsDetailed(nodes, edges));
   }, [nodes, edges, setConnectionErrors]);
 
   /* drop */

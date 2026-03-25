@@ -225,11 +225,6 @@ export default function ConstructorDomino({ data, id, selected }: NodeProps) {
         <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
       </div>
 
-      {hasError && (
-        <p className="px-3 pb-2 text-xs text-red-500">
-          ⚠️ One or more required fields are missing or an input pin is disconnected.
-        </p>
-      )}
     </div>
   );
 }

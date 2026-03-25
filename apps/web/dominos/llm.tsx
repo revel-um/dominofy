@@ -4,7 +4,6 @@ import { PinType } from '../types/pinTypes';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useDomino } from '../contexts/dominoContext';
 import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
-import { FiAlertCircle } from 'react-icons/fi';
 
 type LLMField = {
   type: string;
@@ -238,12 +237,6 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
         <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
       </div>
 
-      {hasError && (
-        <div className="px-3 py-1.5 text-xs text-red-500 bg-red-50 dark:bg-red-900/20 flex items-center gap-1.5 border-t border-red-100 dark:border-red-900/30">
-          <FiAlertCircle className="flex-shrink-0" />
-          <span>Missing required connection</span>
-        </div>
-      )}
     </div>
   );
 }

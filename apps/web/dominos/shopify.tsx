@@ -326,12 +326,6 @@ export default function ShopifyDomino({
         {fields.map(renderField)}
       </div>
 
-      {hasError && (
-        <p className="px-3 pb-2 text-xs text-red-500">
-          ⚠️ One or more required fields are missing or an input pin is
-          connected without a value.
-        </p>
-      )}
     </div>
   );
 }

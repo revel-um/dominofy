@@ -241,11 +241,6 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
         </div>
       </div>
 
-      {hasError && (
-        <p className="px-3 pb-2 text-xs text-red-500">
-          ⚠️ Please configure connection, execution, and required fields.
-        </p>
-      )}
     </div>
   );
 }

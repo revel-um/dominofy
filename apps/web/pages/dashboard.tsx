@@ -23,6 +23,7 @@ import { useNodesState, useEdgesState, type Node, type Edge } from "reactflow";
 import { TokenManager } from "../utils/auth";
 import { resumeScoringTemplate } from "../templates/resumeScoringTemplate";
 import { WorkspaceApi, WorkspaceSummary } from "../apis/workspace.apis";
+import { getActiveWorkspaceIdFromStorage, setActiveWorkspaceIdInStorage } from "../utils/workspace";
 
 const CANVAS_MODE_STORAGE_KEY_PREFIX = "dominofy-canvas-mode";
 
@@ -231,17 +232,23 @@ export default function DominofyDashboard() {
             return; // Skip backend fetches gracefully
         }
 
+        const requestedWorkspaceId =
+            (typeof router.query.workspaceId === "string" ? router.query.workspaceId : null) ||
+            getActiveWorkspaceIdFromStorage() ||
+            undefined;
         const offset = (page - 1) * limit;
-        const cacheKey = `${page}-${limit}-${query}`;
+        const cacheKey = `${requestedWorkspaceId || "default"}-${page}-${limit}-${query}`;
 
         try {
             const workspaceResponse = await WorkspaceApi.getCurrentWorkspaceSummary(
                 currentToken ?? "",
                 router,
+                requestedWorkspaceId,
             );
             if (workspaceResponse?.ok) {
                 const workspace = await workspaceResponse.json() as WorkspaceSummary;
                 setWorkspaceSummary(workspace);
+                setActiveWorkspaceIdInStorage(workspace.id);
             }
 
             if (pageCache[cacheKey]) {
@@ -494,6 +501,7 @@ export default function DominofyDashboard() {
                 limit,
                 offset,
                 query,
+                requestedWorkspaceId,
             );
             if (!response?.ok) return;
 
@@ -539,7 +547,7 @@ export default function DominofyDashboard() {
         if (booting || session === undefined) return;
         fetchProjects();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, limit, query, status, session, booting, lastActiveWorkflowId]);
+    }, [page, limit, query, status, session, booting, lastActiveWorkflowId, router.query.workspaceId]);
 
     const createProject = async (name: string, description?: string) => {
         const token = await TokenManager.getValidAccessToken();
@@ -552,6 +560,7 @@ export default function DominofyDashboard() {
         const response = await ProjectsApi.createProject(token ?? "", router, {
             name,
             description,
+            workspaceId: workspaceSummary?.id,
         });
 
         if (response?.ok) {
@@ -781,6 +790,13 @@ export default function DominofyDashboard() {
                                             </p>
                                         </div>
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => router.push("/workspaces")}
+                                        className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-[18px] border border-slate-200/80 bg-white/85 px-4 py-2 text-sm font-medium text-slate-800 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-sky-400/50 dark:hover:text-sky-300"
+                                    >
+                                        Manage workspace
+                                    </button>
                                 </div>
                             </div>
                         </section>

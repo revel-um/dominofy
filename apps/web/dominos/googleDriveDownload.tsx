@@ -334,11 +334,6 @@ import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
          </div>
        </div>
 
-       {hasError && (
-         <p className="mt-1 text-xs text-red-500 px-3 pb-2">
-           Missing required fields or a value pin is connected without exec_in.
-         </p>
-       )}
      </div>
    );
  }

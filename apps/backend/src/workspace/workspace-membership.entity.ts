@@ -10,6 +10,11 @@ export enum WorkspaceRole {
   VIEWER = 'viewer',
 }
 
+export enum WorkspaceMembershipAcceptanceStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+}
+
 @Entity('workspace_memberships')
 @Unique('uq_workspace_memberships_workspace_user', ['workspace', 'user'])
 export class WorkspaceMembership extends BaseEntity {
@@ -36,4 +41,17 @@ export class WorkspaceMembership extends BaseEntity {
 
   @Column({ type: 'jsonb', nullable: true })
   permissions?: Record<string, boolean> | null;
+
+  @Column({
+    type: 'enum',
+    enum: WorkspaceMembershipAcceptanceStatus,
+    default: WorkspaceMembershipAcceptanceStatus.ACCEPTED,
+  })
+  acceptanceStatus: WorkspaceMembershipAcceptanceStatus;
+
+  @Column({ type: 'timestamp', nullable: true })
+  invitedAt?: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  acceptedAt?: Date | null;
 }

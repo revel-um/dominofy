@@ -5,9 +5,16 @@ import { config } from "../config/config";
 import { authFetch } from "../utils/authFetch";
 
 export class WorkflowsApi {
-  static async getRecentWorkflowsAndCount(token: string, router: NextRouter) {
+  static async getRecentWorkflowsAndCount(
+    token: string,
+    router: NextRouter,
+    query?: string,
+  ) {
     try {
-      const response = await authFetch(`${config.backendBaseUrl}/workflow/recent`, {
+      const params = new URLSearchParams();
+      if (query && query.trim().length > 0) params.set('query', query.trim());
+      const suffix = params.toString() ? `?${params.toString()}` : '';
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/recent${suffix}`, {
         method: "GET",
         token,
       }, router);

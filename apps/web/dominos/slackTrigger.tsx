@@ -304,12 +304,6 @@ export default function SlackTriggerDomino({
           <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
         </div>
 
-        {/* error banner */}
-        {hasError && (
-          <p className="px-3 pb-2 text-xs text-red-500">
-            ⚠️ Please configure both connection and channel.
-          </p>
-        )}
       </div>
     </div>
   );

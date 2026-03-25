@@ -4,12 +4,13 @@ import { authFetch } from "../utils/authFetch";
 import { config } from "../config/config";
 
 export class ProjectsApi {
-    static async getProjects(token: string, router: NextRouter, limit=10, offset=0, query?: string) {
+    static async getProjects(token: string, router: NextRouter, limit=10, offset=0, query?: string, workspaceId?: string) {
         try {
             const params = new URLSearchParams();
             params.set('limit', String(limit));
             params.set('offset', String(offset));
             if (query && query.trim().length > 0) params.set('query', query.trim());
+            if (workspaceId) params.set('workspaceId', workspaceId);
             const url = `${config.backendBaseUrl}/projects?${params.toString()}`;
             const response = await authFetch(url, {
                 token,
@@ -23,6 +24,7 @@ export class ProjectsApi {
     static async createProject(token: string, router: NextRouter, body: {
         name: string
         description?: string
+        workspaceId?: string
     }) {
         try {
             const response = await authFetch(`${config.backendBaseUrl}/projects/create`, {

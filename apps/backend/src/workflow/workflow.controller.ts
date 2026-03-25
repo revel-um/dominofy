@@ -60,9 +60,12 @@ export class WorkflowController extends BaseController<
   }
 
   @Get('recent')
-  async getRecentWorkflows(@Req() req: Request) {
+  async getRecentWorkflows(
+    @Req() req: Request,
+    @Query('query') query?: string,
+  ) {
     const id = (req as any).user.id;
-    return this.workflowService.getRecentWorkflows(id);
+    return this.workflowService.getRecentWorkflows(id, query);
   }
 
   @Get('user/all')

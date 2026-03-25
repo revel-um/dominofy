@@ -1,52 +1,33 @@
-import React, { useEffect, useState } from "react";
+import React, { Fragment, useEffect, useState } from "react";
 import {
-  FiArrowDown,
-  FiArrowUp,
   FiArrowUpRight,
   FiBarChart2,
   FiCheckCircle,
-  FiChevronLeft,
-  FiChevronRight,
   FiGrid,
   FiLayers,
   FiPackage,
-  FiRadio,
   FiSearch,
+  FiMaximize2,
   FiZap,
 } from "react-icons/fi";
+import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from "@headlessui/react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { ToastContainer } from "react-toastify";
 import { ProjectsApi } from "../apis/projects.apis";
+import { WorkspaceApi, WorkspaceListItem } from "../apis/workspace.apis";
 import { WorkflowsApi } from "../apis/workflow.apis";
 import { TokenManager } from "../utils/auth";
-
-// Update SortField type to include workflow fields
-type SortField = 'name' | 'workflowCount' | 'scheduledCount' | 'deployedCount' | 'description' | 'projectName' | 'isPublished';
-type SortDirection = 'asc' | 'desc';
-
-interface WorkflowVisualJson {
-    nodes: unknown[];
-    edges: unknown[];
-}
-
-interface Workflow {
-    id: string;
-    name: string;
-    projectId: string;
-    projectName: string;
-    visualJson: WorkflowVisualJson;
-    isPublished: boolean;
-}
-
-interface Project {
-    id: string;
-    name: string;
-    description: string;
-    workflowCount: number;
-    scheduledCount: number;
-    deployedCount: number;
-}
+import { getActiveWorkspaceIdFromStorage } from "../utils/workspace";
+import {
+  OverviewDirectoryTable,
+  OverviewProject,
+  OverviewSortDirection,
+  OverviewSortField,
+  OverviewWorkflow,
+  OverviewWorkspace,
+  OverviewWorkflowVisualJson,
+} from "../components/overviewDirectoryTable";
 
 interface ProjectApiItem {
     id: string;
@@ -62,86 +43,16 @@ interface WorkflowApiItem {
         id?: string | null;
         name?: string | null;
     } | null;
-    visualJson?: WorkflowVisualJson | null;
+    visualJson?: OverviewWorkflowVisualJson | null;
     isPublished?: boolean | null;
 }
 
 // Backend-driven data holders
-const EMPTY_PROJECTS: Project[] = [];
-const EMPTY_WORKFLOWS: Workflow[] = [];
-
-function getPaginationRange(
-    current: number,
-    total: number,
-    siblingCount = 1
-): (number | "ellipsis")[] {
-    const totalNumbers = siblingCount * 2 + 5; // first + last + current block + 2 ellipses
-    if (total <= totalNumbers) return Array.from({ length: total }, (_, i) => i + 1);
-
-    const left = Math.max(current - siblingCount, 2);
-    const right = Math.min(current + siblingCount, total - 1);
-
-    const range: (number | "ellipsis")[] = [1]; // first page
-
-    if (left > 2) range.push("ellipsis");
-
-    for (let i = left; i <= right; i++) range.push(i);
-
-    if (right < total - 1) range.push("ellipsis");
-
-    range.push(total); // last page
-    return range;
-}
-
-const ROW_H = "calc(100% / 10)"; // one-tenth of the list panel
+const EMPTY_PROJECTS: OverviewProject[] = [];
+const EMPTY_WORKFLOWS: OverviewWorkflow[] = [];
 
 function formatCompactNumber(value: number) {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
-}
-
-function SortIndicator({ field, currentField, direction }: { 
-  field: SortField; 
-  currentField: SortField; 
-  direction: SortDirection 
-}) {
-  if (field !== currentField) return null;
-  return <span className="ml-1 inline-block">
-    {direction === 'asc' ? <FiArrowUp className="inline w-3 h-3" /> : <FiArrowDown className="inline w-3 h-3" />}
-  </span>;
-}
-
-function ColumnHeader({ 
-  field, 
-  label, 
-  sortField, 
-  sortDirection, 
-  onSort,
-  centered = false 
-}: { 
-  field: SortField;
-  label: string;
-  sortField: SortField;
-  sortDirection: SortDirection;
-  onSort: (field: SortField) => void;
-  centered?: boolean;
-}) {
-  const baseClasses = `
-    flex-1 px-4 py-3 text-xs font-medium 
-    text-gray-500 dark:text-gray-400 uppercase 
-    cursor-pointer hover:text-gray-700 
-    dark:hover:text-gray-200 transition-colors
-    ${field === sortField ? 'text-indigo-600 dark:text-indigo-400' : ''}
-    ${centered ? 'text-center' : ''}
-  `;
-
-  return (
-    <div className={baseClasses} onClick={() => onSort(field)}>
-      <span className={`flex items-center gap-1 ${centered ? 'justify-center' : 'justify-start'}`}>
-        {label}
-        <SortIndicator field={field} currentField={sortField} direction={sortDirection} />
-      </span>
-    </div>
-  );
 }
 
 function MetricCard({
@@ -180,25 +91,54 @@ function MetricCard({
   );
 }
 
-export default function OverviewPage({ view = "project" }: { view?: "project" | "workflow" }) {
+export default function OverviewPage({ view = "project" }: { view?: "project" | "workflow" | "workspace" }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortField, setSortField] = useState<SortField>('name');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sortField, setSortField] = useState<OverviewSortField>('name');
+  const [sortDirection, setSortDirection] = useState<OverviewSortDirection>('asc');
+  const [isDirectoryModalOpen, setIsDirectoryModalOpen] = useState(false);
+  const [workspaceInventory, setWorkspaceInventory] = useState<WorkspaceListItem[]>([]);
+  const [workspaceInventoryLoading, setWorkspaceInventoryLoading] = useState(true);
+  const [workspaceListMode, setWorkspaceListMode] = useState<"owned" | "member">("owned");
   const itemsPerPage = 6;
+  const previewItemsCount = 4;
+  const workspaceItemsPerPage = 6;
   const router = useRouter();
   const { status } = useSession();
   const qpView = typeof router.query.view === 'string' ? router.query.view : undefined;
-  const activeView: "project" | "workflow" = qpView === 'workflow' ? 'workflow' : view;
+  const activeView: "project" | "workflow" | "workspace" =
+    qpView === 'workflow' ? 'workflow' : qpView === 'workspace' ? 'workspace' : view;
 
   const [overviewCounts, setOverviewCounts] = useState<{ projectCount: number; workflowCount: number; publishedCount: number } | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(true);
 
   // Lists and counts for table
-  const [projects, setProjects] = useState<Project[]>(EMPTY_PROJECTS);
-  const [workflows, setWorkflows] = useState<Workflow[]>(EMPTY_WORKFLOWS);
+  const [projects, setProjects] = useState<OverviewProject[]>(EMPTY_PROJECTS);
+  const [workflows, setWorkflows] = useState<OverviewWorkflow[]>(EMPTY_WORKFLOWS);
   const [totalCount, setTotalCount] = useState(0);
   const [listLoading, setListLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchWorkspaceInventory = async () => {
+      try {
+        setWorkspaceInventoryLoading(true);
+        const token = await TokenManager.getValidAccessToken();
+        if (!token) return;
+
+        const response = await WorkspaceApi.listWorkspaces(token, router);
+        if (!response?.ok) return;
+
+        const data = await response.json() as WorkspaceListItem[];
+        setWorkspaceInventory(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setWorkspaceInventoryLoading(false);
+      }
+    };
+
+    fetchWorkspaceInventory();
+  }, [router, status]);
 
   useEffect(() => {
     const fetchGlobalOverview = async () => {
@@ -291,7 +231,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
           const response = await ProjectsApi.getProjects(token ?? '', router, itemsPerPage, (currentPage - 1) * itemsPerPage, searchQuery || undefined);
           if (!response?.ok) return;
           const { data, count } = await response.json() as { data?: ProjectApiItem[]; count?: number };
-          const mapped: Project[] = (data || []).map((p) => ({
+          const mapped: OverviewProject[] = (data || []).map((p) => ({
             id: p.id,
             name: p.name,
             description: p.description || '',
@@ -301,11 +241,11 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
           }));
           setProjects(mapped);
           setTotalCount(count || 0);
-        } else {
-          const wfRes = await WorkflowsApi.getRecentWorkflowsAndCount(token ?? '', router);
+        } else if (activeView === 'workflow') {
+          const wfRes = await WorkflowsApi.getRecentWorkflowsAndCount(token ?? '', router, searchQuery || undefined);
           if (!wfRes?.ok) return;
           const { workflows: wf, count } = await wfRes.json() as { workflows?: WorkflowApiItem[]; count?: number };
-          const mapped: Workflow[] = (wf || []).map((w) => ({
+          const mapped: OverviewWorkflow[] = (wf || []).map((w) => ({
             id: w.id,
             name: w.name,
             projectId: w.project?.id || '',
@@ -315,6 +255,12 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
           }));
           setWorkflows(mapped);
           setTotalCount(count || mapped.length);
+        } else {
+          const response = await WorkspaceApi.listWorkspaces(token ?? '', router, searchQuery || undefined);
+          if (!response?.ok) return;
+          const data = await response.json() as WorkspaceListItem[];
+          setWorkspaceInventory(data);
+          setTotalCount(data.length);
         }
       } catch (e) {
         console.error(e);
@@ -326,7 +272,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, searchQuery, currentPage, itemsPerPage, status]);
 
-  const handleSort = (field: SortField) => {
+  const handleSort = (field: OverviewSortField) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -336,7 +282,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
     setCurrentPage(1); // Reset to first page when sorting changes
   };
 
-  const sortData = <T extends Project | Workflow>(data: T[]): T[] => {
+  const sortData = <T extends OverviewProject | OverviewWorkflow | OverviewWorkspace>(data: T[]): T[] => {
     return [...data].sort((a, b) => {
       const aValue = a[sortField as keyof T];
       const bValue = b[sortField as keyof T];
@@ -360,34 +306,92 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
     )
   );
 
-  const filteredWorkflows = sortData(
-    workflows.filter(wf =>
-      wf.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (wf.projectName || '').toLowerCase().includes(searchQuery.toLowerCase())
-    )
+  const filteredWorkflows = sortData(workflows);
+  const normalizeWorkspaceItem = (workspace: WorkspaceListItem): OverviewWorkspace => ({
+    id: workspace.id,
+    name: workspace.name,
+    description: workspace.isOwnedByUser
+      ? 'Created by you'
+      : workspace.createdByName || workspace.createdByEmail || 'Shared workspace',
+    workflowCount: workspace.projectCount,
+    role: workspace.role,
+    projectCount: workspace.projectCount,
+    memberCount: workspace.memberCount,
+    createdByName: workspace.createdByName,
+    createdByEmail: workspace.createdByEmail,
+    isOwnedByUser: workspace.isOwnedByUser,
+  });
+  const filteredOwnedWorkspaces: OverviewWorkspace[] = workspaceInventory
+    .filter((workspace) => workspace.isOwnedByUser)
+    .map(normalizeWorkspaceItem);
+  const filteredInvitedWorkspaces: OverviewWorkspace[] = workspaceInventory
+    .filter((workspace) => !workspace.isOwnedByUser)
+    .map(normalizeWorkspaceItem);
+  const activeWorkspaceId =
+    (typeof router.query.workspaceId === 'string' ? router.query.workspaceId : null) ||
+    getActiveWorkspaceIdFromStorage();
+  const filteredWorkspaceInventory = sortData(
+    workspaceListMode === 'owned' ? filteredOwnedWorkspaces : filteredInvitedWorkspaces
   );
 
   const data = activeView === "project" ? filteredProjects : filteredWorkflows;
   const totalPages = Math.max(1, Math.ceil((activeView === 'project' ? totalCount : data.length) / itemsPerPage));
   const startIdx = (currentPage - 1) * itemsPerPage;
   const pageData = activeView === 'project' ? data /* server-paged */ : data.slice(startIdx, startIdx + itemsPerPage);
+  const previewData = pageData.slice(0, previewItemsCount);
+  const previewVisibleCount = previewData.length;
   const visibleCount = pageData.length;
   const publishedCount = overviewCounts?.publishedCount ?? 0;
   const workflowCount = overviewCounts?.workflowCount ?? 0;
   const projectCount = overviewCounts?.projectCount ?? 0;
   const publishedRatio = workflowCount > 0 ? Math.round((publishedCount / workflowCount) * 100) : 0;
   const workflowsPerProject = projectCount > 0 ? (workflowCount / projectCount).toFixed(1) : "0.0";
-  const activeSummaryLabel = activeView === "project" ? "Projects in focus" : "Workflows in focus";
-  const activeSummaryText = activeView === "project"
-    ? `${visibleCount} project${visibleCount === 1 ? "" : "s"} visible on this page`
-    : `${visibleCount} workflow${visibleCount === 1 ? "" : "s"} visible on this page`;
-  const statusSummaryText = activeView === "project"
-    ? `${workflowCount} total workflows distributed across ${projectCount || 0} projects`
-    : `${publishedCount} published workflow${publishedCount === 1 ? "" : "s"} ready for production`;
-  const emptyStateTitle = activeView === "project" ? "No projects found" : "No workflows found";
+  const workspaceTotalPages = Math.max(1, Math.ceil(filteredWorkspaceInventory.length / workspaceItemsPerPage));
+  const workspacePageData = filteredWorkspaceInventory.slice(
+    (currentPage - 1) * workspaceItemsPerPage,
+    currentPage * workspaceItemsPerPage,
+  );
+  const workspaceVisibleCount = workspacePageData.length;
+  const activeSummaryLabel =
+    activeView === "project"
+      ? "Projects in focus"
+      : activeView === "workflow"
+        ? "Workflows in focus"
+        : "Workspaces in focus";
+  const activeSummaryText =
+    activeView === "project"
+      ? `${visibleCount} project${visibleCount === 1 ? "" : "s"} visible on this page`
+      : activeView === "workflow"
+        ? `${visibleCount} workflow${visibleCount === 1 ? "" : "s"} visible on this page`
+        : `${workspaceVisibleCount} workspace${workspaceVisibleCount === 1 ? "" : "s"} visible on this page`;
+  const statusSummaryText =
+    activeView === "project"
+      ? `${workflowCount} total workflows distributed across ${projectCount || 0} projects`
+      : activeView === "workflow"
+        ? `${publishedCount} published workflow${publishedCount === 1 ? "" : "s"} ready for production`
+        : `${workspaceInventory.length} total workspace${workspaceInventory.length === 1 ? "" : "s"} available to your account`;
+  const emptyStateTitle =
+    activeView === "project" ? "No projects found" : activeView === "workflow" ? "No workflows found" : "No workspaces found";
   const emptyStateBody = searchQuery
     ? `No ${activeView}s match "${searchQuery}". Try a different keyword.`
     : `There are no ${activeView}s to display yet.`;
+  const previewStatusLabel = visibleCount === 0 && listLoading
+    ? "Loading items..."
+    : `${previewVisibleCount} shown here${visibleCount > previewVisibleCount ? ` of ${visibleCount} on this page` : ""}`;
+  const fullStatusLabel = listLoading
+    ? "Refreshing data..."
+    : `${visibleCount} visible on page ${currentPage} of ${totalPages}`;
+
+  const openWorkflowEntry = (workflow: OverviewWorkflow) => {
+    const query = workflow.projectId
+      ? `/dominofy?projectId=${workflow.projectId}&workflowId=${workflow.id}`
+      : `/dominofy?workflowId=${workflow.id}`;
+    router.push(query);
+  };
+  const nonWorkspaceView = activeView === 'workspace' ? 'project' : activeView;
+  const workspaceStatusLabel = workspaceInventoryLoading
+    ? 'Loading workspaces...'
+    : `${workspaceVisibleCount} visible on page ${currentPage} of ${workspaceTotalPages}`;
 
   return (
     <div className="relative flex h-screen max-h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.16),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_48%,_#ffffff_100%)] px-4 py-4 text-slate-900 dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.14),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#0f172a_52%,_#111827_100%)] sm:px-5 sm:py-5">
@@ -401,7 +405,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
               Workspace command center
             </div>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
-              {activeView === "project" ? "Project overview" : "Workflow overview"}
+              {activeView === "project" ? "Project overview" : activeView === "workflow" ? "Workflow overview" : "Workspace overview"}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-5 text-slate-600 dark:text-slate-300">
               Review delivery volume, inspect publishing momentum, and jump straight into the items that need attention.
@@ -431,6 +435,19 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
               >
                 <FiLayers className="h-4 w-4" />
                 Workflows
+              </button>
+              <button
+                className={`inline-flex min-h-[44px] items-center gap-2 rounded-[14px] px-4 text-sm font-medium transition-all ${
+                  activeView === 'workspace'
+                    ? 'bg-slate-950 text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-950'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                } disabled:cursor-not-allowed disabled:opacity-45`}
+                onClick={() => { router.replace('/overview?view=workspace'); setSearchQuery(''); setCurrentPage(1); setWorkspaceListMode('owned'); }}
+                disabled={workspaceInventoryLoading || workspaceInventory.length <= 1}
+                title={workspaceInventory.length <= 1 ? 'Workspace view is available when you have more than one workspace.' : undefined}
+              >
+                <FiPackage className="h-4 w-4" />
+                Workspaces
               </button>
             </div>
 
@@ -518,240 +535,176 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
       </section>
 
       <div className="mt-3 flex-1 min-h-0">
-        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white/75 shadow-[0_26px_70px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-white/10 dark:bg-slate-900/70">
-          <div className="border-b border-slate-200/80 px-5 py-3 dark:border-white/10 sm:px-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-500 dark:text-slate-400">
-                  {activeView} directory
-                </p>
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
-                  Browse and sort your workspace inventory
-                </h2>
-              </div>
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1.5 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                <FiRadio className="h-4 w-4 text-emerald-500" />
-                {listLoading ? "Refreshing data..." : `${visibleCount} visible on page ${currentPage} of ${totalPages}`}
-              </div>
-            </div>
-          </div>
-
-        {/* Shared scroll container keeps header and rows aligned */}
-        <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
-          {/* Column headers */}
-          <div className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/95 backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/80">
-            <div className="flex min-w-[720px]">
-              <ColumnHeader
-                field="name"
-                label="Name"
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-              {activeView === "project" ? (
-                <>
-                  <ColumnHeader
-                    field="description"
-                    label="Description"
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  <ColumnHeader
-                    field="workflowCount"
-                    label="Workflows"
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                    centered
-                  />
-                  <ColumnHeader
-                    field="scheduledCount"
-                    label="Scheduled"
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                    centered
-                  />
-                  <ColumnHeader
-                    field="deployedCount"
-                    label="Deployed"
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                    centered
-                  />
-                </>
-              ) : (
-                <>
-                  <ColumnHeader
-                    field="projectName"
-                    label="Project"
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                  />
-                  <ColumnHeader
-                    field="isPublished"
-                    label="Status"
-                    sortField={sortField}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                    centered
-                  />
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Data rows */}
-          <div className="flex h-full min-w-[720px] flex-col divide-y divide-slate-200/80 dark:divide-white/10">
-            {!listLoading && pageData.length === 0 && (
-              <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-12 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300">
-                  <FiSearch className="h-6 w-6" />
-                </div>
-                <h3 className="mt-5 text-lg font-semibold text-slate-950 dark:text-white">
-                  {emptyStateTitle}
-                </h3>
-                <p className="mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
-                  {emptyStateBody}
-                </p>
-              </div>
-            )}
-            {pageData.map((item, index) =>
-              activeView === "project" ? (
-                /* ------------ project row ------------ */
-                <div
-                  key={(item as Project).id}
-                  style={{ height: ROW_H }}
-                  className="group flex shrink-0 cursor-pointer items-center transition-colors hover:bg-slate-50/90 dark:hover:bg-white/[0.03]"
-                  onClick={() => openProjectEntryWorkflow((item as Project).id)}
-                >
-                  <div className="flex-1 px-4 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-100">
-                        <FiPackage className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-900 transition-colors group-hover:text-sky-700 dark:text-slate-100 dark:group-hover:text-sky-200">
-                          {(item as Project).name}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Project {startIdx + index + 1}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="line-clamp-2 flex-1 px-4 py-2.5 text-sm text-slate-500 dark:text-slate-400">
-                    {(item as Project).description || "No description added yet."}
-                  </div>
-                  <div className="flex-1 px-4 py-2.5 text-center text-sm font-medium text-slate-800 dark:text-slate-100">
-                    {(item as Project).workflowCount}
-                  </div>
-                  <div className="flex-1 px-4 py-2.5 text-center text-sm text-amber-600 dark:text-amber-300">
-                    {(item as Project).scheduledCount}
-                  </div>
-                  <div className="flex-1 px-4 py-2.5 text-center text-sm text-emerald-600 dark:text-emerald-300">
-                    {(item as Project).deployedCount}
-                  </div>
-                </div>
-              ) : (
-                /* ------------ workflow row ------------ */
-                <div
-                  key={(item as Workflow).id}
-                  style={{ height: ROW_H }}
-                  className="group flex shrink-0 cursor-pointer items-center transition-colors hover:bg-slate-50/90 dark:hover:bg-white/[0.03]"
-                  onClick={() => {
-                    const wf = item as Workflow;
-                    const query = wf.projectId
-                      ? `/dominofy?projectId=${wf.projectId}&workflowId=${wf.id}`
-                      : `/dominofy?workflowId=${wf.id}`;
-                    router.push(query);
-                  }}
-                >
-                  <div className="flex-1 px-4 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-100">
-                        <FiLayers className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-900 transition-colors group-hover:text-violet-700 dark:text-slate-100 dark:group-hover:text-violet-200">
-                          {(item as Workflow).name}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Workflow {startIdx + index + 1}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex-1 px-4 py-2.5 text-sm text-slate-500 dark:text-slate-400">
-                    {(item as Workflow).projectName || "Standalone workflow"}
-                  </div>
-                  <div className="flex flex-1 justify-center px-4 py-2.5">
-                    {(item as Workflow).isPublished ? (
-                      <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-200">
-                        Published
-                      </span>
-                    ) : (
-                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-200">
-                        Draft
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Pagination – now inside the same card */}
-        <div className="flex flex-none items-center justify-between border-t border-slate-200/80 px-4 py-2.5 dark:border-white/10 sm:px-6">
-          <p className="hidden text-sm text-slate-500 dark:text-slate-400 sm:block">
-            Sorted by <span className="font-medium text-slate-800 dark:text-slate-200">{sortField}</span> in {sortDirection} order.
-          </p>
-          <div className="inline-flex items-center space-x-1 rounded-full border border-slate-200/80 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
-            {/* Prev */}
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-              disabled={currentPage === 1}
-              className="rounded-full p-2 text-slate-600 transition hover:bg-white hover:text-slate-950 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-            >
-              <FiChevronLeft />
-            </button>
-
-            {/* Page numbers + ellipses */}
-            {getPaginationRange(currentPage, totalPages).map((item, idx) =>
-              item === "ellipsis" ? (
-                <span key={`ellipsis-${idx}`} className="px-2 select-none text-slate-500 dark:text-slate-400">
-                  …
-                </span>
-              ) : (
+        {activeView === 'workspace' ? (
+          <OverviewDirectoryTable
+            activeView="workspace"
+            items={workspacePageData}
+            emptyStateTitle={workspaceListMode === 'owned' ? 'No owned workspaces found' : 'No invited workspaces found'}
+            emptyStateBody={
+              searchQuery
+                ? `No ${workspaceListMode === 'owned' ? 'owned' : 'member'} workspaces match "${searchQuery}". Try a different keyword.`
+                : workspaceListMode === 'owned'
+                  ? 'You do not own any workspaces yet.'
+                  : 'You have not been invited to any workspaces yet.'
+            }
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            onOpenProject={openProjectEntryWorkflow}
+            onOpenWorkflow={openWorkflowEntry}
+            onOpenWorkspace={(workspace) => router.push(`/workspaces?workspaceId=${workspace.id}`)}
+            statusLabel={workspaceStatusLabel}
+            title="Browse and sort your workspace inventory"
+            subtitle="workspace directory"
+            listLoading={workspaceInventoryLoading}
+            currentPage={currentPage}
+            totalPages={workspaceTotalPages}
+            onPageChange={setCurrentPage}
+            startIndex={(currentPage - 1) * workspaceItemsPerPage}
+            mode="full"
+            headerAction={
+              <div className="inline-flex rounded-2xl border border-slate-200/80 bg-white/80 p-1 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
                 <button
-                  key={item}
-                  onClick={() => setCurrentPage(item)}
-                  className={`rounded-full px-3 py-1.5 text-sm focus:outline-none ${item === currentPage
-                      ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
-                      : "text-slate-600 hover:bg-white hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-                      }`}
+                  type="button"
+                  onClick={() => {
+                    setWorkspaceListMode('owned');
+                    setCurrentPage(1);
+                  }}
+                  className={`inline-flex min-h-[40px] items-center rounded-[14px] px-4 text-sm font-medium transition-all ${
+                    workspaceListMode === 'owned'
+                      ? 'bg-slate-950 text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-950'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                  }`}
                 >
-                  {item}
+                  Owned
                 </button>
-              )
-            )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWorkspaceListMode('member');
+                    setCurrentPage(1);
+                  }}
+                  className={`inline-flex min-h-[40px] items-center rounded-[14px] px-4 text-sm font-medium transition-all ${
+                    workspaceListMode === 'member'
+                      ? 'bg-slate-950 text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-950'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                  }`}
+                >
+                  Member
+                </button>
+              </div>
+            }
+          />
+        ) : (
+          <OverviewDirectoryTable
+            activeView={nonWorkspaceView}
+            items={previewData}
+            emptyStateTitle={emptyStateTitle}
+            emptyStateBody={emptyStateBody}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            onOpenProject={openProjectEntryWorkflow}
+            onOpenWorkflow={openWorkflowEntry}
+            statusLabel={previewStatusLabel}
+            title="Browse and sort your workspace inventory"
+            subtitle={`${activeView} directory`}
+            listLoading={listLoading}
+            startIndex={startIdx}
+            mode="preview"
+            headerAction={
+              pageData.length > previewItemsCount || totalPages > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setIsDirectoryModalOpen(true)}
+                  className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-sky-200/80 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-200 dark:hover:border-sky-400/35 dark:hover:bg-sky-400/15"
+                >
+                  <FiMaximize2 className="h-4 w-4" />
+                  Show all
+                </button>
+              ) : null
+            }
+          />
+        )}
+      </div>
 
-            {/* Next */}
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className="rounded-full p-2 text-slate-600 transition hover:bg-white hover:text-slate-950 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-            >
-              <FiChevronRight />
-            </button>
+      <Transition show={isDirectoryModalOpen && activeView !== 'workspace'} as={Fragment}>
+        <Dialog
+          as="div"
+          className="relative z-50"
+          onClose={() => setIsDirectoryModalOpen(false)}
+        >
+          <TransitionChild
+            as={Fragment}
+            enter="ease-out duration-150"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-100"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_28%),rgba(15,23,42,0.42)] backdrop-blur-sm dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_24%),rgba(2,6,23,0.72)]" />
+          </TransitionChild>
+
+          <div className="fixed inset-0 p-4 sm:p-6">
+            <div className="flex h-full items-center justify-center">
+              <TransitionChild
+                as={Fragment}
+                enter="ease-out duration-150"
+                enterFrom="opacity-0 translate-y-2 scale-95"
+                enterTo="opacity-100 translate-y-0 scale-100"
+                leave="ease-in duration-100"
+                leaveFrom="opacity-100 translate-y-0 scale-100"
+                leaveTo="opacity-0 translate-y-2 scale-95"
+              >
+                <DialogPanel className="flex h-[min(88vh,920px)] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-slate-200/80 bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(248,250,252,0.94)_100%)] shadow-[0_30px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-[linear-gradient(180deg,_rgba(15,23,42,0.94)_0%,_rgba(2,6,23,0.94)_100%)]">
+                  <div className="border-b border-slate-200/70 bg-slate-50/70 px-6 py-5 dark:border-white/10 dark:bg-white/[0.03]">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <DialogTitle className="text-xl font-semibold text-slate-950 dark:text-white">
+                          {activeView === "project" ? "All projects" : "All workflows"}
+                        </DialogTitle>
+                        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                          Use search, sorting, and pagination to inspect the full directory without stretching the overview page.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsDirectoryModalOpen(false)}
+                        className="inline-flex min-h-[40px] items-center justify-center rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="min-h-0 flex-1 bg-white/60 p-5 dark:bg-transparent">
+                    <OverviewDirectoryTable
+                      activeView={nonWorkspaceView}
+                      items={pageData}
+                      emptyStateTitle={emptyStateTitle}
+                      emptyStateBody={emptyStateBody}
+                      sortField={sortField}
+                      sortDirection={sortDirection}
+                      onSort={handleSort}
+                      onOpenProject={openProjectEntryWorkflow}
+                      onOpenWorkflow={openWorkflowEntry}
+                      statusLabel={fullStatusLabel}
+                      title="Browse and sort your workspace inventory"
+                      subtitle={`${activeView} directory`}
+                      listLoading={listLoading}
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPage}
+                      startIndex={startIdx}
+                    />
+                  </div>
+                </DialogPanel>
+              </TransitionChild>
+            </div>
           </div>
-        </div>
-      </div>
-      </div>
+        </Dialog>
+      </Transition>
     </div>
   );
 

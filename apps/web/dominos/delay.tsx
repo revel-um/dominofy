@@ -193,11 +193,6 @@ export default function DelayDomino({ data, id, selected }: NodeProps) {
       </div>
 
 
-      {hasError && (
-        <p className="px-3 pb-2 text-xs text-red-500">
-          ⚠️ Value input pin is connected but execution pin is missing.
-        </p>
-      )}
     </div>
   );
 }

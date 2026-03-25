@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import DominoPin from "../components/shared/dominoPin";
 import { PinType } from "../types/pinTypes";
-import { FiLoader, FiUpload, FiX, FiAlertCircle } from "react-icons/fi";
+import { FiLoader, FiUpload, FiX } from "react-icons/fi";
 import { useDomino } from "../contexts/dominoContext";
 import { getExpandedDominoHeaderStyle } from "./dominoHeaderStyle";
 import { DominoNodeData } from "../types/dominoFieldTypes";
@@ -337,12 +337,6 @@ export default function ReadExcelDomino({ data, id, selected }: NodeProps) {
           <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
         </div>
 
-        {hasError && (
-          <p className="mt-2 px-3 text-xs text-red-500 flex items-center gap-1">
-            <FiAlertCircle />
-            Value pin connected but execution pin missing.
-          </p>
-        )}
       </div>
     </div>
   );

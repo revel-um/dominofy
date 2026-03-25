@@ -137,7 +137,7 @@ export default function DetailsPanel({
 
   return (
     <aside
-      className="absolute right-0 top-0 z-60 flex flex-row
+      className="absolute right-0 top-0 z-60 flex flex-row overflow-hidden
                  bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
       style={{ bottom: `${bottomOffset}px` }}
     >

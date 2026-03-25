@@ -7,6 +7,11 @@ import { Vault } from 'src/vault/vault.entity';
 import { Workspace } from 'src/workspace/workspace.entity';
 import { WorkspaceMembership } from 'src/workspace/workspace-membership.entity';
 
+export enum UserAccountStatus {
+  ACTIVE = 'active',
+  PENDING_INVITE = 'pending_invite',
+}
+
 @Entity('users')
 export class User extends BaseEntity {
   @Column()
@@ -26,6 +31,13 @@ export class User extends BaseEntity {
 
   @Column({ type: 'varchar', nullable: true })
   profilePicture?: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: UserAccountStatus,
+    default: UserAccountStatus.ACTIVE,
+  })
+  accountStatus: UserAccountStatus;
 
   @OneToMany(() => Project, (project) => project.user)
   projects: Project[];

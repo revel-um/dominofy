@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod, forwardRef } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -11,8 +11,8 @@ import { RefreshToken } from 'src/auth/refresh-token.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, RefreshToken]),
-    ProjectsModule,
-    WorkspaceModule,
+    forwardRef(() => ProjectsModule),
+    forwardRef(() => WorkspaceModule),
   ],
   providers: [UserService],
   controllers: [UserController],

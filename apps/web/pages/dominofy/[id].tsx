@@ -14,13 +14,14 @@ import {
   type NodeChange,
   type EdgeChange,
 } from 'reactflow';
-import LogsPanel, { WorkflowLog } from "../../components/logs";
+import LogsPanel, { WorkflowLog, WorkflowProblem } from "../../components/logs";
 import { DominoContext } from "../../contexts/dominoContext";
 import { buildPipeline } from "../../../../shared/helpers/buildPipeline";
 import { useRouter } from "next/router";
 import { ProjectsApi } from "../../apis/projects.apis";
 import { WorkflowsApi } from "../../apis/workflow.apis";
 import { importWorkflow } from "../../helpers/workflowManager";
+import { NodeErrorMap } from "../../helpers/errorDetector";
 import { SSEProvider } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
 import WorkflowToolbar from "@/components/workflowToolbar";
@@ -38,6 +39,13 @@ const LEGACY_LAST_ACTIVE_TAB_KEY = "dominofy-last-active-tab";
 const CANVAS_MODE_STORAGE_KEY_PREFIX = "dominofy-canvas-mode";
 const TOOLBAR_HEIGHT = 56;
 const EMPTY_WORKFLOW_NAME = "Untitled workflow";
+
+type ErrorInput = string[] | NodeErrorMap;
+
+const normalizeErrors = (errors: ErrorInput): NodeErrorMap =>
+  Array.isArray(errors)
+    ? Object.fromEntries(errors.map(id => [id, 'This node has a validation error.']))
+    : errors;
 
 interface Props {
   currWorkflow?: {
@@ -91,6 +99,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [canvasLoading, setCanvasLoading] = useState(false);
   const [logsMinimized, setLogsMinimized] = useState(true);
   const openLogsPanel = () => setLogsMinimized(false);
+  const [workflowProblems, setWorkflowProblems] = useState<WorkflowProblem[]>([]);
   const [isSubmittingWorkflowCreate, setIsSubmittingWorkflowCreate] = useState(false);
 
   // @ts-ignore - TODO: Implement logging functionality
@@ -102,11 +111,41 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   // @ts-ignore - TODO: Implement logging functionality
   const clearLogs = useCallback(() => { logsRef.current = []; setLogs([]); }, []);
 
-  const [connectionErrors, setConnectionErrors] = useState<string[]>([]);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [connectionErrors, setConnectionErrors] = useState<NodeErrorMap>({});
+  const [validationErrors, setValidationErrors] = useState<NodeErrorMap>({});
   const erroredNodes = useMemo(
-    () => Array.from(new Set([...connectionErrors, ...validationErrors])),
+    () => Array.from(new Set([...Object.keys(connectionErrors), ...Object.keys(validationErrors)])),
     [connectionErrors, validationErrors]
+  );
+  const nodeProblems = useMemo<WorkflowProblem[]>(() => {
+    const nodeLabelMap = Object.fromEntries(
+      nodes.map((node) => {
+        const nodeData = node.data as any;
+        return [
+          node.id,
+          nodeData?.details?.type || nodeData?.label || node.type || 'Node',
+        ];
+      })
+    ) as Record<string, string>;
+
+    return [
+      ...Object.entries(connectionErrors).map(([nodeId, message]) => ({
+        id: `connection-${nodeId}`,
+        nodeId,
+        nodeLabel: nodeLabelMap[nodeId],
+        message,
+      })),
+      ...Object.entries(validationErrors).map(([nodeId, message]) => ({
+        id: `validation-${nodeId}`,
+        nodeId,
+        nodeLabel: nodeLabelMap[nodeId],
+        message,
+      })),
+    ];
+  }, [nodes, connectionErrors, validationErrors]);
+  const combinedProblems = useMemo(
+    () => [...nodeProblems, ...workflowProblems],
+    [nodeProblems, workflowProblems]
   );
 
   const router = useRouter();
@@ -117,14 +156,30 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [router?.query?.projectId, project?.id, workflow?.project?.id]);
   const tabsStorageKey = `${TABS_STORAGE_KEY_PREFIX}:${currentProjectId}`;
   const lastActiveTabKey = `${LAST_ACTIVE_TAB_KEY_PREFIX}:${currentProjectId}`;
+  const setConnectionErrorMap = useCallback((errors: ErrorInput) => {
+    setConnectionErrors(normalizeErrors(errors));
+  }, []);
+  const setValidationErrorMap = useCallback((errors: ErrorInput) => {
+    setValidationErrors(normalizeErrors(errors));
+  }, []);
   const contextValue = {
     erroredNodes,
-    setConnectionErrors,
-    setValidationErrors,
-    clearConnectionErrors: () => setConnectionErrors([]),
+    setConnectionErrors: setConnectionErrorMap,
+    setValidationErrors: setValidationErrorMap,
+    clearConnectionErrors: () => setConnectionErrors({}),
     clearValidationForDominoId: (dominoId: string) =>
-      setValidationErrors(prev => prev.filter(errId => errId !== dominoId)),
+      setValidationErrors(prev => {
+        if (!(dominoId in prev)) return prev;
+        const next = { ...prev };
+        delete next[dominoId];
+        return next;
+      }),
+    getNodeErrorMessage: (dominoId: string) => validationErrors[dominoId] ?? connectionErrors[dominoId],
   };
+
+  useEffect(() => {
+    setWorkflowProblems([]);
+  }, [workflowId]);
 
   const getStoredCanvasMode = useCallback((id?: string | null) => {
     if (typeof window === 'undefined' || !id) return true;
@@ -840,28 +895,72 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   // Open a workflow and ensure its tab is selected
   const openWorkflowInTab = useCallback(
-    (wf: { id: string; name: string; visualJson: any }) => {
+    (wf: { id: string; name: string; visualJson: any; project?: any }) => {
       if (!wf) return;
+
+      const normalizedWorkflow = {
+        ...wf,
+        isActive: typeof (wf as any)?.isActive === 'boolean' ? (wf as any).isActive : false,
+        createdAt: (wf as any)?.createdAt ? new Date((wf as any).createdAt) : new Date(),
+        updatedAt: (wf as any)?.updatedAt ? new Date((wf as any).updatedAt) : new Date(),
+        isPublished: typeof (wf as any)?.isPublished === 'boolean' ? (wf as any).isPublished : false,
+        isDefault: typeof (wf as any)?.isDefault === 'boolean' ? (wf as any).isDefault : false,
+        visualJson:
+          wf?.visualJson &&
+          Array.isArray(wf.visualJson.nodes) &&
+          Array.isArray(wf.visualJson.edges)
+            ? wf.visualJson
+            : { nodes: [], edges: [] },
+      };
 
       // 1) Ensure this workflow has a tab
       setTabs(prev => {
-        const exists = prev.some(t => t.id === wf.id);
+        const exists = prev.some(t => t.id === normalizedWorkflow.id);
         if (exists) {
           // keep name updated
           return prev.map(t =>
-            t.id === wf.id ? { ...t, name: wf.name } : t
+            t.id === normalizedWorkflow.id ? { ...t, name: normalizedWorkflow.name } : t
           );
         }
-        return [...prev, { id: wf.id, name: wf.name }];
+        return [...prev, { id: normalizedWorkflow.id, name: normalizedWorkflow.name }];
       });
 
-      // 2) Make its tab active
-      setActiveTabId(wf.id);
+      setProjectWorkflows(prev => {
+        const exists = prev.some(w => w.id === normalizedWorkflow.id);
+        if (exists) {
+          return prev.map(w => (w.id === normalizedWorkflow.id ? { ...w, ...normalizedWorkflow } : w));
+        }
+        return [normalizedWorkflow, ...prev];
+      });
 
-      // 3) Switch canvas to that workflow
-      switchToWorkflow(wf.id);
+      if (normalizedWorkflow.project) {
+        setProject(normalizedWorkflow.project);
+      }
+
+      // 2) Make its tab active
+      setActiveTabId(normalizedWorkflow.id);
+
+      // 3) Switch canvas to that workflow immediately when we already have its payload.
+      if (workflow?.id !== normalizedWorkflow.id) {
+        undoStack.current = [];
+        redoStack.current = [];
+        setCanUndo(false);
+        setCanRedo(false);
+        hasHydratedRef.current = false;
+        isRestoring.current = true;
+        _setNodes([]);
+        _setEdges([]);
+
+        setCanvasLoading(true);
+        setWorkflow(normalizedWorkflow as Props['currWorkflow']);
+        setWorkflowId(normalizedWorkflow.id);
+        updateCanvasMode(getStoredCanvasMode(normalizedWorkflow.id), normalizedWorkflow.id);
+        setHasUnsavedChanges(false);
+      } else {
+        setCanvasLoading(false);
+      }
     },
-    [setTabs, setActiveTabId, switchToWorkflow]
+    [workflow?.id, updateCanvasMode, getStoredCanvasMode]
   );
 
   const handleWorkflowRenamed = useCallback(
@@ -947,12 +1046,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             : { nodes: [], edges: [] },
       };
 
-      setProjectWorkflows(prev => [normalizedWorkflow, ...prev]);
-      setTabs([{ id: normalizedWorkflow.id, name: normalizedWorkflow.name }]);
-      setActiveTabId(normalizedWorkflow.id);
-      setWorkflow(normalizedWorkflow);
-      setWorkflowId(normalizedWorkflow.id);
-      updateCanvasMode(getStoredCanvasMode(normalizedWorkflow.id), normalizedWorkflow.id);
+      openWorkflowInTab(normalizedWorkflow);
     } catch (err) {
       console.error('Failed to create workflow:', err);
       toast.error('Failed to create workflow.');
@@ -964,8 +1058,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     router,
     project?.id,
     workflow?.project?.id,
-    updateCanvasMode,
-    getStoredCanvasMode,
+    openWorkflowInTab,
   ]);
 
 
@@ -1131,6 +1224,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               getNodes={() => nodes}
               getEdges={() => edges}
               openLogsPanel={openLogsPanel}
+              onProblemsChange={setWorkflowProblems}
               onWorkflowSaved={(latestNodes, latestEdges) => markWorkflowClean(latestNodes, latestEdges, workflow?.id)}
             />
           )}
@@ -1257,6 +1351,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                 <LogsPanel
                   workflowId={workflowId!}
                   openWorkflowIds={tabs.map((t) => t.id)}
+                  problems={combinedProblems}
                   className="absolute bottom-0 left-0 right-0 z-10 border-t border-gray-200 dark:border-gray-700"
                   collapsedHeight={collapsedHeight}
                   defaultHeight={defaultLogsHeight}
