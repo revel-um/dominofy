@@ -66,6 +66,13 @@ export class AppModule implements NestModule {
     consumer
       .apply(VerifyTokenMiddleware)
       .exclude(
+        { path: 'user/login', method: RequestMethod.POST, version: '1' },
+        { path: 'user', method: RequestMethod.POST, version: '1' },
+        { path: 'auth/exchange', method: RequestMethod.POST, version: '1' },
+        { path: 'auth/refresh', method: RequestMethod.POST, version: '1' },
+        { path: 'auth/logout', method: RequestMethod.POST, version: '1' },
+        { path: 'workspace/invitations/:token', method: RequestMethod.GET, version: '1' },
+        { path: 'workspace/invitations/:token/accept', method: RequestMethod.POST, version: '1' },
         { path: 'workflow/:workflowId/trigger/:functionName', method: RequestMethod.POST, version: '1' },
         { path: 'workflow/:workflowId/trigger/:functionName', method: RequestMethod.GET, version: '1' },
       )

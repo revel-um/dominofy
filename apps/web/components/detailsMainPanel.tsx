@@ -27,8 +27,14 @@ export default function DetailsMainPanel({ selectedNode, width, onClose, transit
     return (
         <div
             ref={containerRef}
-            className="flex-1 overflow-y-auto px-4 pb-6 space-y-6 border-l border-gray-200 dark:border-gray-700 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
-            style={{ width, transition: isResizing ? 'none' : transition }}
+            className="min-w-0 shrink-0 overflow-x-hidden overflow-y-auto px-4 pb-6 space-y-6 border-l border-gray-200 dark:border-gray-700 bg-dominofy-light-panel dark:bg-dominofy-dark-panel"
+            style={{
+                width,
+                minWidth: width,
+                maxWidth: width,
+                flex: `0 0 ${width}px`,
+                transition: isResizing ? 'none' : transition,
+            }}
             onMouseEnter={onHoverStart}
             onMouseLeave={onHoverEnd}
         >

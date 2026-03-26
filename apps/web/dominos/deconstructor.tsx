@@ -252,11 +252,6 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
         </button>
       </div>
 
-      {hasError && (
-        <p className="px-3 pb-2 text-xs text-red-500">
-          ⚠️ Value input pin is connected but execution pin is missing.
-        </p>
-      )}
     </div>
   );
 }

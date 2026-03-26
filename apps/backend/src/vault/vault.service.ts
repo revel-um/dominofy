@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 
@@ -15,6 +15,7 @@ export class VaultService extends BaseService<Vault> {
         @InjectRepository(Vault)
         private readonly vaultRepository: Repository<Vault>,
         private readonly dataSource: DataSource,
+        @Inject(forwardRef(() => WorkspaceService))
         private readonly workspaceService: WorkspaceService,
     ) {
         super(vaultRepository);

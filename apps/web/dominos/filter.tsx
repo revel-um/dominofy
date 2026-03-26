@@ -374,11 +374,6 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
         <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
       </div>
 
-      {hasError && (
-        <p className="px-3 pb-2 text-xs text-red-500">
-          ⚠️ Required input pins are not connected.
-        </p>
-      )}
     </div>
   );
 }

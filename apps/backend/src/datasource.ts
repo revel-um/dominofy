@@ -10,6 +10,7 @@ import { WorkflowRevision } from './workflow-revision/workflow-revision.entity';
 import { Schedule } from './scheduler/scheduler.entity';
 import { Workspace } from './workspace/workspace.entity';
 import { WorkspaceMembership } from './workspace/workspace-membership.entity';
+import { WorkspaceInvitation } from './workspace/workspace-invitation.entity';
 import { Collection } from './storage/collection.entity';
 import { Document } from './storage/document.entity';
 
@@ -34,6 +35,7 @@ export default new DataSource({
     Schedule,
     Workspace,
     WorkspaceMembership,
+    WorkspaceInvitation,
     Collection,
     Document,
   ],

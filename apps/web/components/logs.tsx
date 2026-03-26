@@ -18,6 +18,13 @@ export interface WorkflowLog {
   isPending?: boolean;
 }
 
+export interface WorkflowProblem {
+  id: string;
+  message: string;
+  nodeId?: string;
+  nodeLabel?: string;
+}
+
 type PrintSeqEntry = { seq: number; output?: unknown };
 
 interface RunLogAggregate {
@@ -30,6 +37,7 @@ interface RunLogAggregate {
 interface LogsPanelProps {
   workflowId: string;
   openWorkflowIds?: string[];
+  problems?: WorkflowProblem[];
   className?: string;
   maxHeight?: string;
   defaultHeight?: string;
@@ -169,6 +177,7 @@ function buildWorkflowLogs(
 export const LogsPanel = React.memo(function LogsPanel({
   workflowId,
   openWorkflowIds = [],
+  problems = [],
   className,
   maxHeight = '100vh',
   defaultHeight = '60px',
@@ -191,6 +200,8 @@ export const LogsPanel = React.memo(function LogsPanel({
   const isMinimized = typeof controlledMinimized === 'boolean' ? controlledMinimized : internalMinimized;
   const setIsMinimized = controlledSetMinimized || setInternalMinimized;
   const [isDragging, setIsDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState<'logs' | 'problems'>('logs');
+  const previousProblemsCountRef = useRef(0);
 
   // filters & polling
   const [refreshInterval, setRefreshInterval] = useState(30);
@@ -222,6 +233,19 @@ export const LogsPanel = React.memo(function LogsPanel({
   const limit = 50;
   const dateSelected = rangeStart !== '' && rangeEnd !== '';
   const isFiltering = minutesFilter !== null || dateSelected;
+
+  useEffect(() => {
+    const hadProblems = previousProblemsCountRef.current > 0;
+    const hasProblems = problems.length > 0;
+
+    if (!hadProblems && hasProblems) {
+      setActiveTab('problems');
+    } else if (hadProblems && !hasProblems && activeTab === 'problems') {
+      setActiveTab('logs');
+    }
+
+    previousProblemsCountRef.current = problems.length;
+  }, [problems.length, activeTab]);
 
   const liveLogsRef = useRef<Record<string, Record<string, RunLogAggregate>>>({});
   const pendingRunsRef = useRef<Record<string, Map<string, Date>>>({});
@@ -566,16 +590,34 @@ export const LogsPanel = React.memo(function LogsPanel({
         )}
         onClick={toggleMinimize}
       >
-        <div className="flex items-center space-x-3">
-          <h3 className="text-sm font-semibold flex items-center gap-2">
-            <span
+        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab('logs')}
               className={cn(
-                'inline-flex h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0',
-                !isDragging && 'animate-pulse'
+                'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
+                activeTab === 'logs'
+                  ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
               )}
-            />
-            <span className="text-gray-800 dark:text-gray-100">Workflow Logs</span>
-          </h3>
+            >
+              Logs
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('problems')}
+              className={cn(
+                'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
+                activeTab === 'problems'
+                  ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+              )}
+            >
+              Problems
+              {problems.length > 0 ? ` (${problems.length})` : ''}
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center space-x-8 text-xs">
@@ -711,7 +753,37 @@ export const LogsPanel = React.memo(function LogsPanel({
           className="flex-grow w-full overflow-y-scroll bg-white dark:bg-gray-900 relative z-0 border-l border-gray-200 dark:border-gray-700"
           style={{ maxHeight: 'calc(100vh - 56px)' }}
         >
-          {logs.length === 0 ? (
+          {activeTab === 'problems' ? (
+            problems.length === 0 ? (
+              <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 shrink-0">
+                  <FiFile className="h-6 w-6 text-red-400" />
+                </div>
+                <h4 className="mb-1 text-gray-700 dark:text-gray-200 font-medium">No problems</h4>
+                <p className="max-w-md text-sm text-gray-500 dark:text-gray-400">
+                  Validation issues will appear here when a workflow run is blocked.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {problems.map((problem) => (
+                  <div
+                    key={problem.id}
+                    className="border-l-4 border-red-500 px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                  >
+                    {problem.nodeLabel && (
+                      <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-red-600 dark:text-red-300">
+                        {problem.nodeLabel}
+                      </div>
+                    )}
+                    <div className="whitespace-pre-wrap break-words text-red-700 dark:text-red-300">
+                      {problem.message}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : logs.length === 0 ? (
             <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 shrink-0">
                 <FiFile className="h-6 w-6 text-blue-400" />

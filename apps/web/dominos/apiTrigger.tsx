@@ -266,11 +266,6 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         </div>
       )}
 
-      {hasError && (
-        <p className="mt-1 text-xs text-red-500">
-          ⚠️ Value input pin is connected but execution pin is missing.
-        </p>
-      )}
     </div>
   );
 }

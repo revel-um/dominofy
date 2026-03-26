@@ -6,7 +6,8 @@ import {
   FiHeadphones,
   FiMenu,
   FiX,
-  FiShield
+  FiShield,
+  FiUsers,
 } from "react-icons/fi";
 import { useRouter } from "next/router";
 import { ReactElement, useState, useEffect } from "react";
@@ -25,6 +26,7 @@ const navItems: NavItemProps[] = [
   { label: "Overview", icon: <FiGrid />, href: "/overview" },
   { label: "Support", icon: <FiHeadphones />, href: "/support" },
   { label: "Vault", icon: <FiShield />, href: "/vault" },
+  { label: "Workspaces", icon: <FiUsers />, href: "/workspaces" },
   { label: "Settings", icon: <FiSettings />, href: "/settings" },
 ];
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { BaseService } from 'src/common/base.service';
 import { User } from './user.entity';
 import { DataSource, Repository } from 'typeorm';
@@ -20,7 +20,9 @@ export class UserService extends BaseService<User> {
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     private readonly configService: ConfigService,
+    @Inject(forwardRef(() => ProjectsService))
     private readonly projectsService: ProjectsService,
+    @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
     private readonly dataSource: DataSource,
   ) {

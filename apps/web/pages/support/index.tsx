@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 import {
   FiActivity,
   FiClock,
@@ -337,18 +338,40 @@ export default function SupportPage() {
         </div>
       </section>
 
-      {showForm && (
-        <div className="fixed inset-0 z-50 bg-slate-950/55 p-4 backdrop-blur-sm">
-          <div className="flex min-h-full items-center justify-center">
-            <div className="w-full max-w-xl">
-              <TicketForm
-                onSubmit={handleCreateTicket}
-                onClose={() => setShowForm(false)}
-              />
-            </div>
+      <Transition show={showForm} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setShowForm(false)}>
+          <TransitionChild
+            as={Fragment}
+            enter="ease-out duration-150"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-100"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_28%),rgba(15,23,42,0.42)] backdrop-blur-sm dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_24%),rgba(2,6,23,0.72)]" />
+          </TransitionChild>
+
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <TransitionChild
+              as={Fragment}
+              enter="ease-out duration-150"
+              enterFrom="opacity-0 translate-y-2 scale-95"
+              enterTo="opacity-100 translate-y-0 scale-100"
+              leave="ease-in duration-100"
+              leaveFrom="opacity-100 translate-y-0 scale-100"
+              leaveTo="opacity-0 translate-y-2 scale-95"
+            >
+              <DialogPanel className="w-full max-w-xl">
+                <TicketForm
+                  onSubmit={handleCreateTicket}
+                  onClose={() => setShowForm(false)}
+                />
+              </DialogPanel>
+            </TransitionChild>
           </div>
-        </div>
-      )}
+        </Dialog>
+      </Transition>
 
       {showDetails && selectedTicket && (
         <div className="fixed inset-0 z-50 bg-slate-950/55 p-4 backdrop-blur-sm">

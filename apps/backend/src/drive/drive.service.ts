@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -57,6 +59,7 @@ export class DriveService {
 
   constructor(
     private readonly vaultService: VaultService,
+    @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     private readonly config: ConfigService,
     private readonly gcs: GcsService,

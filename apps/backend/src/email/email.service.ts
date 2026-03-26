@@ -65,6 +65,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly vaultService: VaultService,
+    @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     private readonly config: ConfigService,
     @Inject(forwardRef(() => WorkflowService))

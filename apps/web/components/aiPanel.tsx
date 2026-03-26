@@ -578,12 +578,14 @@ export default function AIPanelDocked({ isOpen, width, workflowId, onClose, tran
 
     return (
         <div
-            className={`relative flex flex-col overflow-hidden border-l border-gray-200 bg-dominofy-light-panel dark:border-gray-700 dark:bg-dominofy-dark-panel ${
+            className={`relative shrink-0 flex flex-col overflow-hidden border-l border-gray-200 bg-dominofy-light-panel dark:border-gray-700 dark:bg-dominofy-dark-panel ${
                 isOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
             }`}
             style={{
                 width: isOpen ? width : 0,
                 minWidth: isOpen ? width : 0,
+                maxWidth: isOpen ? width : 0,
+                flex: isOpen ? `0 0 ${width}px` : '0 0 0px',
                 transition: isResizing ? 'none' : transition,
                 userSelect: 'text',
                 WebkitUserSelect: 'text',

@@ -1,4 +1,5 @@
 import {
+  forwardRef,
   MiddlewareConsumer,
   Module,
   NestModule,
@@ -14,7 +15,7 @@ import { UserModule } from 'src/user/user.module';
 import { GcsModule } from 'src/gcs/gcs.module';
 
 @Module({
-  imports: [ConfigModule, VaultModule, UserModule, GcsModule],
+  imports: [ConfigModule, VaultModule, forwardRef(() => UserModule), GcsModule],
   controllers: [DriveController],
   providers: [DriveService],
   exports: [DriveService],

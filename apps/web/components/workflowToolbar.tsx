@@ -10,12 +10,16 @@ import {
 } from 'react-icons/fi';
 import { Node, Edge } from 'reactflow';
 import { exportWorkflow } from '../helpers/workflowManager';
-import { validateAndMarkErrors } from '../helpers/errorDetector';
+import {
+  validateAndMarkErrorsDetailed,
+  validateNodeConnectionsDetailed,
+} from '../helpers/errorDetector';
 import { useDomino } from '../contexts/dominoContext';
 import { WorkflowsApi } from '../apis/workflow.apis';
 import { ProjectsApi } from '../apis/projects.apis';
 import { useRouter } from 'next/router';
 import { useSSE } from '@/contexts/sseContext';
+import type { WorkflowProblem } from './logs';
 
 /* ───────────────────────── Types */
 interface WorkflowToolbarProps {
@@ -44,6 +48,7 @@ interface WorkflowToolbarProps {
   getEdges: () => Edge[];
   openLogsPanel?: () => void;
   onWorkflowSaved?: (nodes: Node[], edges: Edge[]) => void;
+  onProblemsChange?: (problems: WorkflowProblem[]) => void;
 }
 
 const TOOLBAR_HEIGHT = 56;
@@ -57,9 +62,10 @@ export default function WorkflowToolbar({
   getEdges,
   openLogsPanel,
   onWorkflowSaved,
+  onProblemsChange,
 }: WorkflowToolbarProps) {
   const router = useRouter();
-  const { setValidationErrors } = useDomino();
+  const { setConnectionErrors, setValidationErrors } = useDomino();
   const { start: startSSE, stop: stopSSE } = useSSE();
 
   /* UI state */
@@ -72,17 +78,39 @@ export default function WorkflowToolbar({
   /* keep original name to restore on cancel */
   const originalNameRef = useRef<string | null>(null);
 
+  const buildNodeLabelMap = useCallback((nodes: Node[]) => {
+    return Object.fromEntries(
+      nodes.map((node) => [
+        node.id,
+        node.data?.details?.type || node.data?.label || node.type || 'Node',
+      ])
+    ) as Record<string, string>;
+  }, []);
+
   /* ───────── validation helper ───────── */
   const isWorkflowValid = useCallback(() => {
     const nodes = getNodes();
     const edges = getEdges();
+    const nodeLabels = buildNodeLabelMap(nodes);
     if (nodes.length <= 1) {
-      alert('You must have at least two connected dominos to deploy.');
+      setConnectionErrors({});
+      setValidationErrors({});
+      onProblemsChange?.([
+        {
+          id: 'workflow-min-nodes',
+          message: 'You must have at least two connected dominos to run the workflow.',
+        },
+      ]);
       return false;
     }
-    const errorIds = validateAndMarkErrors(nodes);
-    setValidationErrors(errorIds);
-    if (errorIds.length) return false;
+    const connectionErrors = validateNodeConnectionsDetailed(nodes, edges);
+    const validationErrors = validateAndMarkErrorsDetailed(nodes);
+    setConnectionErrors(connectionErrors);
+    setValidationErrors(validationErrors);
+    if (Object.keys(connectionErrors).length || Object.keys(validationErrors).length) {
+      onProblemsChange?.([]);
+      return false;
+    }
 
     const adj: Record<string, string[]> = {};
     nodes.forEach(n => (adj[n.id] = []));
@@ -98,7 +126,14 @@ export default function WorkflowToolbar({
 
     const startNodeId = nodes[0]?.id;
     if (!startNodeId || !adj[startNodeId]) {
-      alert('Workflow is missing a valid starting domino.');
+      onProblemsChange?.([
+        {
+          id: 'workflow-missing-start',
+          message: 'Workflow is missing a valid starting domino.',
+          nodeId: startNodeId,
+          nodeLabel: startNodeId ? nodeLabels[startNodeId] : undefined,
+        },
+      ]);
       return false;
     }
 
@@ -114,11 +149,22 @@ export default function WorkflowToolbar({
       });
     }
     if (seen.size !== nodes.length) {
-      alert('Disconnected dominos found.');
+      const disconnectedNodeIds = nodes
+        .map(node => node.id)
+        .filter(nodeId => !seen.has(nodeId));
+      const disconnectedErrors = Object.fromEntries(
+        disconnectedNodeIds.map(nodeId => [
+          nodeId,
+          'This node is disconnected from the workflow execution path.',
+        ])
+      );
+      setConnectionErrors(disconnectedErrors);
+      onProblemsChange?.([]);
       return false;
     }
+    onProblemsChange?.([]);
     return true;
-  }, [getNodes, getEdges, setValidationErrors]);
+  }, [getNodes, getEdges, buildNodeLabelMap, setConnectionErrors, setValidationErrors, onProblemsChange]);
 
   /* ───────── actions ───────── */
   const onSave = useCallback(async () => {
@@ -159,6 +205,7 @@ export default function WorkflowToolbar({
       if (!resp?.ok) {
         return false;
       }
+      onProblemsChange?.([]);
       onWorkflowSaved?.(nodesSnapshot, edgesSnapshot);
       startSSE(workflow.id, token);
       setJustRan(true);
@@ -167,7 +214,7 @@ export default function WorkflowToolbar({
     } catch {
       return false;
     }
-  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE, openLogsPanel, onWorkflowSaved]);
+  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE, openLogsPanel, onWorkflowSaved, onProblemsChange]);
 
   const onDeploy = useCallback(() => {
     if (isWorkflowValid()) alert('Deploying...');

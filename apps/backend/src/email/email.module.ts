@@ -20,7 +20,7 @@ import { WorkflowLoggerModule } from 'src/workflow-logger/workflow-logger.module
   imports: [
     ConfigModule,
     forwardRef(() => VaultModule),
-    UserModule,
+    forwardRef(() => UserModule),
     forwardRef(() => WorkflowModule),
     forwardRef(() => RunnerLauncherModule),
     WorkflowLoggerModule,

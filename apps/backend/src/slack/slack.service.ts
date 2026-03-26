@@ -36,6 +36,7 @@ export class SlackService {
   constructor(
     private readonly config: ConfigService,
     private readonly vaultService: VaultService,
+    @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     @Inject(forwardRef(() => WorkflowService)) private readonly workflowService: WorkflowService,
     @Inject(forwardRef(() => RunnerLauncherService)) private readonly runnerLauncherService: RunnerLauncherService

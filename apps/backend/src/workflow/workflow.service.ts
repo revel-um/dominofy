@@ -1,12 +1,14 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { BaseService } from 'src/common/base.service';
 import { Workflow } from './workflow.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { UserService } from 'src/user/user.service';
 import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
 import { PipelineStep } from '../../../../shared/types/pipelineStepType';
@@ -23,8 +25,11 @@ export class WorkflowService extends BaseService<Workflow> {
     private readonly workflowRepository: Repository<Workflow>,
     @InjectRepository(Project)
     private readonly projectRepository: Repository<Project>,
+    @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
+    @Inject(forwardRef(() => RunnerLauncherService))
     private readonly runnerLauncherService: RunnerLauncherService,
+    @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
   ) {
     super(workflowRepository);
@@ -106,7 +111,7 @@ export class WorkflowService extends BaseService<Workflow> {
   }
 
 
-  async getRecentWorkflows(userId: string) {
+  async getRecentWorkflows(userId: string, query?: string) {
     const user = await this.userService.findOne(userId);
     if (!user) return;
 
@@ -115,14 +120,26 @@ export class WorkflowService extends BaseService<Workflow> {
       return { workflows: [], count: 0, user };
     }
 
-    const [workflows, count] = await this.workflowRepository
+    const qb = this.workflowRepository
       .createQueryBuilder('workflow')
       .leftJoinAndSelect('workflow.project', 'project')
       .leftJoin('project.workspace', 'workspace')
       .where('workspace.id IN (:...workspaceIds)', { workspaceIds })
       .orderBy('workflow.updatedAt', 'DESC')
-      .take(25)
-      .getManyAndCount();
+      .take(25);
+
+    if (query?.trim()) {
+      const normalizedQuery = `%${query.trim()}%`;
+      qb.andWhere(
+        new Brackets((subQb) => {
+          subQb
+            .where('workflow.name ILIKE :query', { query: normalizedQuery })
+            .orWhere('project.name ILIKE :query', { query: normalizedQuery });
+        }),
+      );
+    }
+
+    const [workflows, count] = await qb.getManyAndCount();
 
     return { workflows, count, user };
   }

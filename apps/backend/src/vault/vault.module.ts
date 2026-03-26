@@ -10,7 +10,7 @@ import { WorkspaceModule } from 'src/workspace/workspace.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Vault]),
-    WorkspaceModule,
+    forwardRef(() => WorkspaceModule),
     forwardRef(() => EmailModule),
   ],
   controllers: [VaultController],

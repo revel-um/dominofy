@@ -198,11 +198,6 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
         <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
       </div>
 
-      {hasError && (
-        <p className="mt-1 text-xs text-red-500 px-3 pb-2">
-          ⚠️ Value input pin is connected but execution pin is missing.
-        </p>
-      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod, forwardRef } from '@nestjs/common';
 import { WorkflowController } from './workflow.controller';
 import { WorkflowService } from './workflow.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -13,10 +13,10 @@ import { WorkspaceModule } from 'src/workspace/workspace.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Workflow, Project]),
-    UserModule,
-    RunnerLauncherModule,
+    forwardRef(() => UserModule),
+    forwardRef(() => RunnerLauncherModule),
     SchedulerModule,
-    WorkspaceModule,
+    forwardRef(() => WorkspaceModule),
   ],
   controllers: [WorkflowController],
   providers: [WorkflowService],
