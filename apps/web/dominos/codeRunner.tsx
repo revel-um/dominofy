@@ -466,25 +466,33 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
                 Add variables to pass values into your function.
               </div>
             ) : (
-              variables.map((variable) => {
-                const valuePinId = `value_in_${variable.id}`;
+              <>
+                <div
+                  className="h-px w-full opacity-90 dark:opacity-100"
+                  style={{
+                    backgroundImage:
+                      'repeating-linear-gradient(to right, rgba(148,163,184,0.95) 0 6px, transparent 6px 10px)',
+                  }}
+                />
+                {variables.map((variable, index) => {
+                const valuePinId = variable.id == 1 ? 'value_in': `value_in_${variable.id - 1}`;
                 const isValueConnected = isPinConnected(valuePinId);
+                const isLastVariable = index === variables.length - 1;
 
                 return (
-                  <div key={variable.id} className="mx-4 rounded-lg border border-white/10 bg-foreground/[0.02] p-3 dark:bg-white/[0.03]">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
-                          Variable {variable.id}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeVariable(variable.id)}
-                          className="rounded-md p-1 text-rose-500 transition hover:bg-rose-500/10"
-                        >
-                          <Trash size={12} />
-                        </button>
+                  <div key={variable.id} className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                        Variable {variable.id}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => removeVariable(variable.id)}
+                        className="rounded-md p-1 text-rose-500 transition hover:bg-rose-500/10"
+                      >
+                        <Trash size={12} />
+                      </button>
+                    </div>
 
                       <div className="min-h-11 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
                         <input
@@ -498,20 +506,21 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
-                            <Braces className="h-3 w-3" />
-                            Value
-                          </div>
-                          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
-                            {isValueConnected ? 'Live input' : 'Static input'}
-                          </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                          <Braces className="h-3 w-3" />
+                          Value
                         </div>
+                        <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                          {isValueConnected ? 'Live input' : 'Static input'}
+                        </span>
+                      </div>
 
-                        <div className="relative -mx-11">
-                          <div className="flex items-center gap-2 px-11">
-                            <DominoPin id={valuePinId} pinType={PinType.VALUE_IN} inline />
+                      <div className="pb-2">
+                        <div className="relative">
+                          <div className="flex items-center gap-2">
+                            <DominoPin id={valuePinId} pinType={PinType.VALUE_IN} inline offset={-16} />
                             <div className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
                               {!isValueConnected ? (
                                 <input
@@ -521,10 +530,10 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
                                     handleVariableChange(variable.id, 'value', e.target.value)
                                   }
                                   placeholder="Value"
-                                  className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                                  className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
                                 />
                               ) : (
-                                <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                                <div className="flex min-h-11 items-center px-4 py-2.5 text-sm font-medium italic text-slate-500 dark:text-slate-400">
                                   Connected
                                 </div>
                               )}
@@ -533,24 +542,24 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
                         </div>
                       </div>
                     </div>
+                    <div className="pt-1">
+                      <div
+                        className="h-px w-full opacity-90 dark:opacity-100"
+                        style={{
+                          backgroundImage:
+                            'repeating-linear-gradient(to right, rgba(148,163,184,0.95) 0 6px, transparent 6px 10px)',
+                        }}
+                      />
+                    </div>
                   </div>
                 );
-              })
+              })}
+              </>
             )}
           </div>
         </div>
 
         <div className="space-y-3 px-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
-              <Play className="h-3 w-3" />
-              Runner
-            </div>
-            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
-              Ready
-            </span>
-          </div>
-
           <button
             type="button"
             onClick={routerOpenEditor}
