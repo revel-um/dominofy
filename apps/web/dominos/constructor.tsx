@@ -1,6 +1,6 @@
 import { NodeProps, useEdges } from 'reactflow';
-import { useEffect, useRef, useState } from 'react';
-import { Braces, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Braces, Check, ChevronDown, KeyRound, Plus, Trash2 } from 'lucide-react';
 
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
@@ -11,31 +11,179 @@ import dominoCatalog from './dominos';
 type ConstructorPair = {
   key: string;
   value: string;
+  valueType: 'string' | 'number' | 'boolean' | 'json';
 };
 
 const constructorMeta = dominoCatalog.find((entry) => entry.id === 'constructor');
 const constructorAccentColor = constructorMeta?.badgeStyle?.background
   ? String(constructorMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
   : '#2563eb';
+const constructorValueTypeLabels: Record<ConstructorPair['valueType'], string> = {
+  string: 'Text',
+  number: 'Number',
+  boolean: 'Boolean',
+  json: 'JSON',
+};
 
 export default function ConstructorDomino({ data, id, selected }: NodeProps) {
   const edges = useEdges();
-  const edgeCount = edges.length;
   const setNodesRef = useRef(data.setNodes);
-  const didHydrateRef = useRef(false);
-  const lastSyncedSignatureRef = useRef<string | null>(null);
+  const latestNodeSnapshotRef = useRef({
+    fields: data.details?.fields ?? [],
+    exportFields: data.exportFields ?? [],
+  });
+  const bootstrappedRef = useRef(false);
 
   useEffect(() => {
     setNodesRef.current = data.setNodes;
   }, [data.setNodes]);
 
+  useEffect(() => {
+    latestNodeSnapshotRef.current = {
+      fields: data.details?.fields ?? [],
+      exportFields: data.exportFields ?? [],
+    };
+  }, [data.details?.fields, data.exportFields]);
+
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const connectedValuePinIds = edges
+    .filter(
+      (edge) =>
+        edge.target === id &&
+        typeof edge.targetHandle === 'string' &&
+        edge.targetHandle.startsWith('value_in')
+    )
+    .map((edge) => edge.targetHandle as string)
+    .sort();
+  const connectedValuePinSet = new Set(connectedValuePinIds);
+  const connectedValueSignature = connectedValuePinIds.join('|');
 
-  const [pairs, setPairs] = useState<ConstructorPair[]>([{ key: '', value: '' }]);
+  const [pairs, setPairs] = useState<ConstructorPair[]>([{ key: '', value: '', valueType: 'string' }]);
+  const [openTypeIndex, setOpenTypeIndex] = useState<number | null>(null);
+  const typeMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const persistPairs = useCallback(
+    (nextPairs: ConstructorPair[]) => {
+      const setNodes = setNodesRef.current;
+      if (!setNodes) return;
+
+      const previousFields: DominoField[] = latestNodeSnapshotRef.current.fields as DominoField[];
+      const getOldField = (heading: string) =>
+        previousFields.find((field) => field.heading === heading);
+      const makeField = (
+        base: Omit<DominoField, 'connectedValue' | 'file'> & { heading: string }
+      ): DominoField => ({ ...getOldField(base.heading), ...base } as DominoField);
+
+      const newFields: DominoField[] = nextPairs.flatMap((pair, index) => {
+        const row = index + 1;
+
+        return [
+          makeField({
+            type: 'textInput',
+            heading: `Key_${row}`,
+            value: pair.key,
+            placeholder: `key ${row}`,
+            required: true,
+            shouldRender: false,
+          }),
+          makeField({
+            type: 'textInput',
+            heading: `Value_${row}`,
+            value: pair.value,
+            placeholder: connectedValuePinSet.has(`value_in_${row}`) ? 'Connected' : `value ${row}`,
+            required: false,
+            shouldRender: false,
+            inPinId: `value_in_${row}`,
+          }),
+          makeField({
+            type: 'dropdown',
+            heading: `ValueType_${row}`,
+            value: pair.valueType,
+            options: [
+              { label: 'Text', value: 'string' },
+              { label: 'Number', value: 'number' },
+              { label: 'Boolean', value: 'boolean' },
+              { label: 'JSON', value: 'json' },
+            ],
+            required: true,
+            shouldRender: false,
+          }),
+        ];
+      });
+
+      const nextExport = newFields.map((field) => field.heading);
+      const currentFields = latestNodeSnapshotRef.current.fields as DominoField[];
+      const currentExportFields = latestNodeSnapshotRef.current.exportFields as string[];
+      const sameAsCurrentFields =
+        currentFields.length === newFields.length &&
+        currentFields.every(
+          (field, index) => JSON.stringify(field) === JSON.stringify(newFields[index])
+        );
+      const sameAsCurrentExport =
+        currentExportFields.length === nextExport.length &&
+        currentExportFields.every((heading, index) => heading === nextExport[index]);
+
+      if (sameAsCurrentFields && sameAsCurrentExport) {
+        return;
+      }
+
+      latestNodeSnapshotRef.current = {
+        fields: newFields,
+        exportFields: nextExport,
+      };
+
+      setNodes((nodes: any[]) =>
+        nodes.map(
+          (node: { id: string; data: { details: any; exportFields?: string[] } }) => {
+            if (node.id !== id) return node;
+
+            const existingFields = node.data.details?.fields ?? [];
+            const sameFields =
+              existingFields.length === newFields.length &&
+              existingFields.every(
+                (field: any, index: number) =>
+                  JSON.stringify(field) === JSON.stringify(newFields[index])
+              );
+            const sameExport =
+              Array.isArray(node.data.exportFields) &&
+              node.data.exportFields.length === nextExport.length &&
+              node.data.exportFields.every(
+                (heading: string, index: number) => heading === nextExport[index]
+              );
+
+            if (sameFields && sameExport) return node;
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                details: { ...node.data.details, fields: newFields },
+                exportFields: nextExport,
+              },
+            };
+          }
+        )
+      );
+    },
+    [connectedValueSignature, id]
+  );
 
   useEffect(() => {
-    if (didHydrateRef.current) return;
+    if (openTypeIndex === null) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!typeMenuRef.current?.contains(event.target as Node)) {
+        setOpenTypeIndex(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [openTypeIndex]);
+
+  useEffect(() => {
+    if (bootstrappedRef.current) return;
 
     const fields = data.details?.fields ?? [];
     const keyFields = fields
@@ -56,21 +204,29 @@ export default function ConstructorDomino({ data, id, selected }: NodeProps) {
         return {
           key: String(field.value ?? ''),
           value: String(valueField?.value ?? ''),
+          valueType:
+            valueField && 'type' in valueField && valueField.type === 'boolean'
+              ? 'boolean'
+              : (fields.find(
+                  (candidate: { heading?: string; value?: unknown }) =>
+                    candidate.heading === `ValueType_${idx}`
+                )?.value as 'string' | 'number' | 'boolean' | 'json' | undefined) ?? 'string',
         };
       });
 
       setPairs(loadedPairs);
+      persistPairs(loadedPairs);
+    } else {
+      persistPairs([{ key: '', value: '', valueType: 'string' }]);
     }
 
-    didHydrateRef.current = true;
-  }, [data.details?.fields]);
+    bootstrappedRef.current = true;
+  }, [data.details?.fields, persistPairs]);
 
   useEffect(() => {
     const nextPairs = pairs.map((pair, index) => {
       const pinId = `value_in_${index + 1}`;
-      const connected = edges.some(
-        (edge) => edge.target === id && edge.targetHandle === pinId
-      );
+      const connected = connectedValuePinSet.has(pinId);
 
       if (connected && pair.value !== '') {
         return { ...pair, value: '' };
@@ -82,134 +238,47 @@ export default function ConstructorDomino({ data, id, selected }: NodeProps) {
     const changed = nextPairs.some(
       (pair, index) =>
         pair.key !== pairs[index]?.key || pair.value !== pairs[index]?.value
+        || pair.valueType !== pairs[index]?.valueType
     );
 
     if (changed) {
       setPairs(nextPairs);
+      persistPairs(nextPairs);
     }
-  }, [edgeCount, edges, id, pairs]);
-
-  useEffect(() => {
-    const setNodes = setNodesRef.current;
-    if (!setNodes) return;
-
-    const previousFields: DominoField[] = data.details?.fields ?? [];
-    const getOldField = (heading: string) =>
-      previousFields.find((field) => field.heading === heading);
-    const makeField = (
-      base: Omit<DominoField, 'connectedValue' | 'file'> & { heading: string }
-    ): DominoField => ({ ...getOldField(base.heading), ...base } as DominoField);
-
-    const newFields: DominoField[] = pairs.flatMap((pair, index) => {
-      const row = index + 1;
-
-      return [
-        makeField({
-          type: 'textInput',
-          heading: `Key_${row}`,
-          value: pair.key,
-          placeholder: `key ${row}`,
-          required: true,
-          shouldRender: false,
-        }),
-        makeField({
-          type: 'textInput',
-          heading: `Value_${row}`,
-          value: pair.value,
-          placeholder: edges.some(
-            (edge) => edge.target === id && edge.targetHandle === `value_in_${row}`
-          )
-            ? 'Connected'
-            : `value ${row}`,
-          required: false,
-          shouldRender: false,
-          inPinId: `value_in_${row}`,
-        }),
-      ];
-    });
-
-    const nextExport = newFields.map((field) => field.heading);
-    const nextSignature = JSON.stringify({
-      fields: newFields,
-      exportFields: nextExport,
-    });
-
-    if (lastSyncedSignatureRef.current === nextSignature) {
-      return;
-    }
-
-    const currentSignature = JSON.stringify({
-      fields: data.details?.fields ?? [],
-      exportFields: data.exportFields ?? [],
-    });
-
-    if (currentSignature === nextSignature) {
-      lastSyncedSignatureRef.current = nextSignature;
-      return;
-    }
-
-    setNodes((nodes: any[]) => {
-      let didChange = false;
-
-      const nextNodes = nodes.map(
-        (node: { id: string; data: { details: any; exportFields?: string[] } }) => {
-          if (node.id !== id) return node;
-
-          const existingFields = node.data.details?.fields ?? [];
-          const sameFields =
-            existingFields.length === newFields.length &&
-            existingFields.every(
-              (field: any, index: number) =>
-                JSON.stringify(field) === JSON.stringify(newFields[index])
-            );
-          const sameExport =
-            Array.isArray(node.data.exportFields) &&
-            node.data.exportFields.length === nextExport.length &&
-            node.data.exportFields.every(
-              (heading: string, index: number) => heading === nextExport[index]
-            );
-
-          if (sameFields && sameExport) return node;
-          didChange = true;
-
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              details: { ...node.data.details, fields: newFields },
-              exportFields: nextExport,
-            },
-          };
-        }
-      );
-
-      if (didChange) {
-        lastSyncedSignatureRef.current = nextSignature;
-        return nextNodes;
-      }
-
-      lastSyncedSignatureRef.current = nextSignature;
-      return nodes;
-    });
-  }, [data.details?.fields, data.exportFields, edges, id, pairs]);
+  }, [connectedValueSignature, pairs, persistPairs]);
 
   const updatePair = (index: number, patch: Partial<ConstructorPair>) => {
     clearValidationForDominoId(id);
-    setPairs((previous) =>
-      previous.map((pair, currentIndex) =>
+    setPairs((previous) => {
+      const nextPairs = previous.map((pair, currentIndex) =>
         currentIndex === index ? { ...pair, ...patch } : pair
-      )
-    );
+      );
+      persistPairs(nextPairs);
+      return nextPairs;
+    });
   };
 
   const addPair = () => {
     clearValidationForDominoId(id);
-    setPairs((previous) => [...previous, { key: '', value: '' }]);
+    setPairs((previous) => {
+      const nextPairs = [...previous, { key: '', value: '', valueType: 'string' as const }];
+      persistPairs(nextPairs);
+      return nextPairs;
+    });
   };
 
   const removePair = (index: number) => {
     clearValidationForDominoId(id);
-    setPairs((previous) => previous.filter((_, currentIndex) => currentIndex !== index));
+    setPairs((previous) => {
+      const nextPairs = previous.filter((_, currentIndex) => currentIndex !== index);
+      persistPairs(nextPairs);
+      return nextPairs;
+    });
+    setOpenTypeIndex((previous) => {
+      if (previous === null) return previous;
+      if (previous === index) return null;
+      return previous > index ? previous - 1 : previous;
+    });
   };
 
   return (
@@ -275,9 +344,7 @@ export default function ConstructorDomino({ data, id, selected }: NodeProps) {
 
           {pairs.map((pair, index) => {
             const pinId = `value_in_${index + 1}`;
-            const isConnected = edges.some(
-              (edge) => edge.target === id && edge.targetHandle === pinId
-            );
+            const isConnected = connectedValuePinSet.has(pinId);
             const isLastPair = index === pairs.length - 1;
 
             return (
@@ -323,20 +390,59 @@ export default function ConstructorDomino({ data, id, selected }: NodeProps) {
                     <div className="relative">
                       <div className="flex items-center gap-2">
                         <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline offset={-16} />
-                        <div className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
-                          {!isConnected ? (
-                            <input
-                              type="text"
-                              value={pair.value}
-                              onChange={(event) => updatePair(index, { value: event.target.value })}
-                              placeholder={`Value ${index + 1}`}
-                              className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
-                            />
-                          ) : (
-                            <div className="flex min-h-11 items-center px-4 py-2.5 text-sm font-medium italic text-slate-500 dark:text-slate-400">
-                              Connected
-                            </div>
-                          )}
+                        <div className="min-w-0 flex-1">
+                          <div
+                            ref={openTypeIndex === index ? typeMenuRef : null}
+                            className="relative flex min-h-11 overflow-visible rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10"
+                          >
+                            {!isConnected ? (
+                              <input
+                                type="text"
+                                value={pair.value}
+                                onChange={(event) => updatePair(index, { value: event.target.value })}
+                                placeholder={`Value ${index + 1}`}
+                                className="nodrag min-h-11 min-w-0 flex-1 rounded-l-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                              />
+                            ) : (
+                              <div className="flex min-h-11 min-w-0 flex-1 items-center rounded-l-lg px-4 py-2.5 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                                Connected
+                              </div>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenTypeIndex((previous) => (previous === index ? null : index))
+                              }
+                              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1 border-l border-slate-300/80 px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/60 transition hover:bg-black/[0.03] hover:text-foreground/85 dark:border-slate-600 dark:hover:bg-white/[0.04]"
+                            >
+                              {constructorValueTypeLabels[pair.valueType]}
+                              <ChevronDown className="h-3 w-3" />
+                            </button>
+
+                            {openTypeIndex === index && (
+                              <div className="absolute right-0 top-[calc(100%+0.4rem)] z-30 min-w-[9rem] overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+                                {(
+                                  Object.entries(constructorValueTypeLabels) as Array<
+                                    [ConstructorPair['valueType'], string]
+                                  >
+                                ).map(([type, label]) => (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => {
+                                      updatePair(index, { valueType: type });
+                                      setOpenTypeIndex(null);
+                                    }}
+                                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                  >
+                                    <span>{label}</span>
+                                    {pair.valueType === type ? <Check className="h-3.5 w-3.5" /> : null}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
