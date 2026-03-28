@@ -79,17 +79,17 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
         nodes.map((node: SlackActionNodeRecord) =>
           node.id === id
             ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  details: {
-                    ...node.data.details,
-                    fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
-                      field.heading === heading ? { ...field, value: newValue } : field
-                    ),
-                  },
+              ...node,
+              data: {
+                ...node.data,
+                details: {
+                  ...node.data.details,
+                  fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
+                    field.heading === heading ? { ...field, value: newValue } : field
+                  ),
                 },
-              }
+              },
+            }
             : node
         )
       );
@@ -163,17 +163,17 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
           nodes.map((node: SlackActionNodeRecord) =>
             node.id === id
               ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    details: {
-                      ...node.data.details,
-                      fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
-                        field.heading === heading ? { ...field, value } : field
-                      ),
-                    },
+                ...node,
+                data: {
+                  ...node.data,
+                  details: {
+                    ...node.data.details,
+                    fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
+                      field.heading === heading ? { ...field, value } : field
+                    ),
                   },
-                }
+                },
+              }
               : node
           )
         );
@@ -249,13 +249,12 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
 
   return (
     <div
-      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
-        hasError
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${hasError
           ? 'error-border'
           : selected
             ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
             : 'unselected-border dark:border-gray-600'
-      } hover:shadow-lg`}
+        } hover:shadow-lg`}
       style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
@@ -268,9 +267,9 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
             style={
               slackAccentColor
                 ? {
-                    borderColor: slackAccentColor,
-                    backgroundColor: `${slackAccentColor}22`,
-                  }
+                  borderColor: slackAccentColor,
+                  backgroundColor: `${slackAccentColor}22`,
+                }
                 : undefined
             }
           >
@@ -398,36 +397,41 @@ export default function SlackActionDomino({ data, id, selected }: NodeProps) {
             </span>
           </div>
 
-          <div className="pb-4">
-            <div className="relative">
-              <div className="flex items-center gap-2 px-4">
-                <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
-                <div className="min-h-12 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
-                  {isTextConnected ? (
-                    <div className="flex h-full min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
-                      Connected
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      placeholder="Hello from Dominofy!"
-                      value={textValue}
-                      onChange={(event) => setFieldValue('text', event.target.value)}
-                      className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none transition placeholder:text-inherit dark:text-dominofy-dark-text"
-                    />
-                  )}
-                </div>
+          <div className="relative">
+            <div className="flex items-center gap-2 px-4">
+              <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+              <div className="min-h-12 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                {isTextConnected ? (
+                  <div className="flex h-full min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                    Connected
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="Hello from Dominofy!"
+                    value={textValue}
+                    onChange={(event) => setFieldValue('text', event.target.value)}
+                    className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none transition placeholder:text-inherit dark:text-dominofy-dark-text"
+                  />
+                )}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="relative pb-2 pt-1">
-          <div className="flex items-center justify-end gap-2 px-4">
-            <div className="min-w-0 text-right text-sm font-medium text-foreground/65 dark:text-slate-300">
-              Output
+        <div className="relative px-4 pb-4 pt-1">
+          <div className="relative rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  Slack message payload
+                </div>
+              </div>
             </div>
-            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline offset={-17} />
           </div>
         </div>
       </div>

@@ -439,12 +439,19 @@ export default function GoogleDriveDownloadDomino({ data, id, selected }: NodePr
           ),
         })}
 
-        <div className="relative pt-1">
-          <div className="flex items-center justify-end gap-2 px-4">
-            <div className="min-w-0 text-right text-sm font-medium text-foreground/65 dark:text-slate-300">
-              File
+        <div className="relative px-4 pt-1">
+          <div className="relative rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  Downloaded file payload
+                </div>
+              </div>
             </div>
-            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline offset={-17} />
           </div>
         </div>
       </div>

@@ -502,8 +502,18 @@ export default function Canvas(props: CanvasProps) {
   );
 
   const displayedEdges = useMemo(() => {
+    const getEdgeStroke = (edge: Edge) => (edge.selected ? '#298fe3' : '#64748b');
+
     if (isExpandedMode) {
-      return edges;
+      return edges.map((edge) => ({
+        ...edge,
+        style: {
+          ...edge.style,
+          stroke: getEdgeStroke(edge),
+          strokeWidth: edge.selected ? 5 : (edge.style?.strokeWidth ?? 3.5),
+          opacity: edge.selected ? 1 : (edge.style?.opacity ?? 1),
+        },
+      }));
     }
 
     const placeholderEdges = new Map<string, Edge>();
@@ -527,7 +537,7 @@ export default function Canvas(props: CanvasProps) {
           style: {
             ...edge.style,
             stroke: '#64748b',
-            strokeWidth: 2.5,
+            strokeWidth: 3.5,
             opacity: 0.6,
           },
         });
@@ -555,7 +565,7 @@ export default function Canvas(props: CanvasProps) {
             style: {
               ...edge.style,
               stroke: sourceExpanded || targetExpanded ? '#475569' : '#64748b',
-              strokeWidth: sourceExpanded || targetExpanded ? 2.75 : 2.25,
+              strokeWidth: sourceExpanded || targetExpanded ? 3.75 : 3.25,
               opacity: sourceExpanded || targetExpanded ? 0.9 : 0.65,
             },
           });
@@ -574,7 +584,7 @@ export default function Canvas(props: CanvasProps) {
             style: {
               ...edge.style,
               stroke: '#64748b',
-              strokeWidth: 2.25,
+              strokeWidth: 3.25,
               opacity: 0.65,
             },
           });
@@ -601,9 +611,9 @@ export default function Canvas(props: CanvasProps) {
           animated: false,
           style: {
             ...edge.style,
-            stroke: '#64748b',
-            strokeWidth: 2.25,
-            opacity: 0.65,
+            stroke: getEdgeStroke(edge),
+            strokeWidth: edge.selected ? 5 : 3.25,
+            opacity: edge.selected ? 1 : 0.65,
           },
         });
       }
@@ -1486,6 +1496,13 @@ export default function Canvas(props: CanvasProps) {
   const canPanReadonly = allowReadonlyPanning ?? (readonly && id.includes('dashboard'));
   const canPanReadonlyOnScroll = allowReadonlyPanOnScroll ?? false;
   const canvasClassName = `absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none ${!isDominofyCanvas ? 'locked-canvas' : ''}`;
+  const defaultEdgeStyle = useMemo(
+    () => ({
+      strokeWidth: 3.5,
+      stroke: '#64748b',
+    }),
+    []
+  );
 
   return (
     <div 
@@ -1513,6 +1530,8 @@ export default function Canvas(props: CanvasProps) {
           onEdgeClick={handleEdgeClick}
           onMove={handleReactFlowMove}
           isValidConnection={isValidConnection}
+          defaultEdgeOptions={{ style: defaultEdgeStyle }}
+          connectionLineStyle={defaultEdgeStyle}
           defaultViewport={getInitialViewport()}
           fitView={isNewTab} // Only fit view for new tabs
           nodesDraggable={!readonly && isSelectionMode}
