@@ -1,17 +1,17 @@
 // src/dominos/customCode.tsx
-import { NodeProps } from 'reactflow';
+import { NodeProps, useEdges } from 'reactflow';
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DominoField,
   DominoNodeData,
 } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { useRouter } from 'next/router';
-import { Trash } from 'lucide-react';
+import { Braces, Code2, FunctionSquare, Play, Trash, Variable } from 'lucide-react';
 import { toast } from 'react-toastify';
+import dominoCatalog from './dominos';
 
 /* ───────────────────────── Types */
 type VariableRow = {
@@ -20,11 +20,27 @@ type VariableRow = {
   value: string;
 };
 
+type CustomCodeNodeData = DominoNodeData & {
+  workflowId?: string;
+  setFieldValue?: (heading: string, value: unknown) => void;
+};
+
+type CustomCodeNodeRecord = {
+  id: string;
+  data: CustomCodeNodeData;
+};
+
+const codeRunnerMeta = dominoCatalog.find((entry) => entry.id === 'codeRunner');
+const codeRunnerAccentColor = codeRunnerMeta?.badgeStyle?.background
+  ? String(codeRunnerMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+  : undefined;
+
 /* ───────────────────────── Component */
 export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const router = useRouter();
+  const edges = useEdges();
   const setNodesRef = useRef(data.setNodes);
   const setFieldValueRef = useRef(data.setFieldValue);
   useEffect(() => {
@@ -59,7 +75,8 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
           const prop = parts[2] as 'name' | 'value';
           if (!Number.isNaN(varId) && (prop === 'name' || prop === 'value')) {
             const existing = varsMap.get(varId) ?? { id: varId, name: '', value: '' };
-            (existing as any)[prop] = String(f.value ?? '');
+            if (prop === 'name') existing.name = String(f.value ?? '');
+            if (prop === 'value') existing.value = String(f.value ?? '');
             varsMap.set(varId, existing);
           }
         }
@@ -88,23 +105,22 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
     });
   };
 
-  const handleVariableChange = (
-    varId: number,
-    field: 'name' | 'value',
-    newValue: string
-  ) => {
-    clearValidationForDominoId?.(id);
-    setVariables((prev) =>
-      prev.map((v) => (v.id === varId ? { ...v, [field]: newValue } : v))
-    );
-  };
+  const handleVariableChange = useCallback(
+    (varId: number, field: 'name' | 'value', newValue: string) => {
+      clearValidationForDominoId?.(id);
+      setVariables((prev) =>
+        prev.map((v) => (v.id === varId ? { ...v, [field]: newValue } : v))
+      );
+    },
+    [clearValidationForDominoId, id]
+  );
 
   /* ───────── Push → node (sync fields + pin ids, PRESERVE connections) */
   useEffect(() => {
     const setNodes = setNodesRef.current;
     if (!setNodes) return;
 
-    setNodes((nodes: any[]) =>
+    setNodes((nodes: CustomCodeNodeRecord[]) =>
       nodes.map((n) => {
         if (n.id !== id) return n;
 
@@ -197,18 +213,19 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
   useEffect(() => {
     const setNodes = setNodesRef.current;
     if (setFieldValueRef.current || !setNodes) return;
-    const setFieldValue = (heading: string, newValue: any) => {
-      if (heading === 'FunctionName') setFunctionName(newValue);
-      if (heading === 'Code') setCode(newValue);
+    const setFieldValue = (heading: string, newValue: unknown) => {
+      const nextValue = typeof newValue === 'string' ? newValue : '';
+      if (heading === 'FunctionName') setFunctionName(nextValue);
+      if (heading === 'Code') setCode(nextValue);
 
       const varMatch = /^Variable_(\d+)_(\w+)$/.exec(heading);
       if (varMatch) {
         const varId = Number(varMatch[1]);
         const field = varMatch[2] as 'name' | 'value';
-        handleVariableChange(varId, field, newValue);
+        handleVariableChange(varId, field, nextValue);
       }
 
-      setNodes((nodes: any[]) =>
+      setNodes((nodes: CustomCodeNodeRecord[]) =>
         nodes.map((n) => {
           if (n.id !== id) return n;
           return {
@@ -227,17 +244,12 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
       );
     };
 
-    setNodes((nodes: any[]) =>
+    setNodes((nodes: CustomCodeNodeRecord[]) =>
       nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, setFieldValue } } : n
       )
     );
   }, [handleVariableChange, id]);
-
-  // Handle code input changes
-  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    data.setFieldValue?.('Code', e.target.value);
-  };
 
   const editorResultKey = `codeEditorResult:coderunner:${data.workflowId ?? 'default'}:${id}`;
 
@@ -309,133 +321,254 @@ export default function CustomCodeDomino({ data, id, selected }: NodeProps) {
       router.events.off('routeChangeComplete', onRouteChange);
       window.removeEventListener('focus', pullResult);
     };
-  }, [data.setFieldValue, editorResultKey, router.events]);
+  }, [data, data.setFieldValue, editorResultKey, router.events]);
+
+  const isPinConnected = (pinId: string) =>
+    edges.some((edge) => edge.target === id && edge.targetHandle === pinId);
 
   /* ───────── Render */
   return (
     <div
-      style={{ minWidth: '14rem' }}
-      className={`transition-all duration-150 rounded-md overflow-visible shadow-sm w-56
-        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95
+        ${hasError
+          ? 'error-border'
+          : selected
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+            : 'unselected-border dark:border-gray-600'}
+        hover:shadow-lg`}
     >
-      {/* Header with Exec pins */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
       <div
-        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('codeRunner')}
+        className="relative rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10"
       >
-        <div className="flex items-center gap-1">
-          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <span className="truncate">Custom Code</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
-          <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} inline />
-        </div>
-      </div>
-
-      {/* Function name input */}
-      <div className="px-3 py-1">
-        <input
-          type="text"
-          value={functionName}
-          onChange={(e) => data.setFieldValue?.('FunctionName', e.target.value)}
-          placeholder="Function name (required)"
-          className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-        />
-      </div>
-
-      {/* Code input area (opens editor) */}
-      <div className="px-3 py-1 relative">
-        <div className="relative">
-          <textarea
-            value={code}
-            onChange={handleCodeChange}
-            onClick={routerOpenEditor}
-            placeholder="console.log('Hello world');"
-            rows={5}
-            className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text resize-none cursor-pointer pr-8"
-            style={{ resize: 'none', minHeight: 'auto', maxHeight: 'auto' }}
-            readOnly
-          />
-          {code && code.length > 150 && (
-            <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white dark:bg-gray-800 px-1 rounded shadow-sm pointer-events-none">
-              ...
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Variables section */}
-      <div className="flex flex-col gap-2">
-        {variables.map((variable) => {
-          const valuePinId = `value_in_${variable.id}`;
-          const valueField = detailsFields.find(
-            (f) => f.heading === `Variable_${variable.id}_value`
-          );
-          const isValueConnected = !!valueField?.connectedValue;
-
-          return (
-            <div key={variable.id} className="flex items-center gap-2 relative px-3">
-              {/* Variable name (no pin) */}
-              <input
-                type="text"
-                value={variable.name}
-                onChange={(e) =>
-                  handleVariableChange(variable.id, 'name', e.target.value)
-                }
-                placeholder="Variable name"
-                className="flex-1 px-2 py-1 text-xs border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3 pr-28">
+            <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+              style={codeRunnerAccentColor ? { borderColor: codeRunnerAccentColor, backgroundColor: `${codeRunnerAccentColor}22` } : undefined}
+            >
+              <Code2
+                className="h-4 w-4"
+                style={codeRunnerAccentColor ? { color: codeRunnerAccentColor } : codeRunnerMeta?.iconStyle}
               />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold tracking-tight text-foreground">Custom Code</div>
+              <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                Action
+              </div>
+            </div>
+          </div>
 
-              {/* Value pin + "Connected" label */}
-              <DominoPin id={valuePinId} pinType={PinType.VALUE_IN} inline />
-              {!isValueConnected ? (
-                <input
-                  type="text"
-                  value={variable.value}
-                  onChange={(e) =>
-                    handleVariableChange(variable.id, 'value', e.target.value)
-                  }
-                  placeholder="Value"
-                  className="flex-1 px-2 py-1 text-xs border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-                />
-              ) : (
-                <span className="flex-1 text-xs italic text-gray-500 truncate">
-                  Connected
-                </span>
-              )}
+          <div className="absolute right-0 top-4 flex w-24 flex-col gap-2">
+            <div className="relative">
+              <div className="pr-4 text-right text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                Success
+              </div>
+              <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+            </div>
+            <div className="relative">
+              <div className="pr-4 text-right text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                On Error
+              </div>
+              <DominoPin id="exec_out_1" pinType={PinType.EXEC_OUT} inline />
+            </div>
+          </div>
+        </div>
+      </div>
 
+      <div className="space-y-4 pb-4 pt-4">
+        <div className="space-y-3 px-4">
+          <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+            <FunctionSquare className="h-3 w-3" />
+            Function
+          </div>
+
+          <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+            <input
+              type="text"
+              value={functionName}
+              onChange={(e) => data.setFieldValue?.('FunctionName', e.target.value)}
+              placeholder="Function name (required)"
+              className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-3 px-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Code2 className="h-3 w-3" />
+              Code
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Editor
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={routerOpenEditor}
+            className="relative min-h-28 w-full rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-left transition hover:border-slate-400/80 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:hover:border-slate-500"
+          >
+            {code ? (
+              <div className="h-full overflow-hidden">
+                <div
+                  className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-dominofy-light-text dark:text-dominofy-dark-text"
+                  style={{
+                    display: '-webkit-box',
+                    WebkitLineClamp: 5,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {code}
+                </div>
+                {code.length > 150 && (
+                  <div className="absolute bottom-3 right-3 rounded bg-white/80 px-1.5 py-0.5 text-[10px] text-foreground/50 shadow-sm dark:bg-slate-800/80 dark:text-slate-400">
+                    ...
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="text-sm italic text-foreground/45 dark:text-slate-500">
+                Click to open the code editor...
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="px-4">
+              <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <Variable className="h-3 w-3" />
+                Variables
+              </div>
+            </div>
+            <div className="px-4">
               <button
-                onClick={() => removeVariable(variable.id)}
-                className="p-1 bg-red-500 text-white rounded"
+                type="button"
+                onClick={addVariable}
+                className="rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-sky-600"
               >
-                <Trash size={12} />
+                Add Variable
               </button>
             </div>
-          );
-        })}
-      </div>
+          </div>
 
-      {/* Add Variable button */}
-      <div className="px-3 py-2">
-        <button
-          onClick={addVariable}
-          className="px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
-        >
-          Add Variable
-        </button>
-      </div>
+          <div className="space-y-3 px-4">
+            {variables.length === 0 ? (
+              <div className="mx-4 rounded-lg border border-dashed border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-sm text-foreground/60 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+                Add variables to pass values into your function.
+              </div>
+            ) : (
+              variables.map((variable) => {
+                const valuePinId = `value_in_${variable.id}`;
+                const isValueConnected = isPinConnected(valuePinId);
 
-      {/* Value Out pin for result object */}
-      <div className="px-3 py-2 flex items-center justify-between relative">
-        <div></div>
-        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
-          Output
-        </span>
-        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
-      </div>
+                return (
+                  <div key={variable.id} className="mx-4 rounded-lg border border-white/10 bg-foreground/[0.02] p-3 dark:bg-white/[0.03]">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                          Variable {variable.id}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeVariable(variable.id)}
+                          className="rounded-md p-1 text-rose-500 transition hover:bg-rose-500/10"
+                        >
+                          <Trash size={12} />
+                        </button>
+                      </div>
 
+                      <div className="min-h-11 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                        <input
+                          type="text"
+                          value={variable.name}
+                          onChange={(e) =>
+                            handleVariableChange(variable.id, 'name', e.target.value)
+                          }
+                          placeholder="Variable name"
+                          className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                            <Braces className="h-3 w-3" />
+                            Value
+                          </div>
+                          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                            {isValueConnected ? 'Live input' : 'Static input'}
+                          </span>
+                        </div>
+
+                        <div className="relative -mx-11">
+                          <div className="flex items-center gap-2 px-11">
+                            <DominoPin id={valuePinId} pinType={PinType.VALUE_IN} inline />
+                            <div className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                              {!isValueConnected ? (
+                                <input
+                                  type="text"
+                                  value={variable.value}
+                                  onChange={(e) =>
+                                    handleVariableChange(variable.id, 'value', e.target.value)
+                                  }
+                                  placeholder="Value"
+                                  className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                                />
+                              ) : (
+                                <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                                  Connected
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-3 px-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Play className="h-3 w-3" />
+              Runner
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Ready
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={routerOpenEditor}
+            className="w-full rounded-lg bg-sky-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-sky-600"
+          >
+            Open Editor
+          </button>
+        </div>
+
+        <div className="relative pt-1">
+          <div className="flex items-center justify-end gap-2 px-4">
+            <div className="min-w-0 text-right text-sm font-medium text-foreground/65 dark:text-slate-300">
+              Result
+            </div>
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

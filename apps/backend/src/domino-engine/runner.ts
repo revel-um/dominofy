@@ -16,10 +16,21 @@ export class Runner extends EventEmitter {
   private skipped = new Set<string>();                         // pruned branch nodes
   private executionErrorNodeId: string | null = null;
   private executionErrorMessage: string | null = null;
+  private controlParents = new Map<string, Set<string>>();
 
   constructor(private pipeline: PipelineStep[], private maxConcurrency = 20, private visualJson: any) {
     super();
     this.queue = new PQueue({ concurrency: this.maxConcurrency });
+    this.pipeline.forEach((node) => {
+      Object.values(node.next || {}).forEach((list) => {
+        list.forEach((childId) => {
+          if (!this.controlParents.has(childId)) {
+            this.controlParents.set(childId, new Set());
+          }
+          this.controlParents.get(childId)!.add(node.id);
+        });
+      });
+    });
   }
 
   /* ───────────────────────── run ───────────────────────── */
@@ -148,10 +159,15 @@ export class Runner extends EventEmitter {
       // 1️⃣ build runtime inputs & upstream done flag
       const runtimeInputs: Record<string, any> = {};
       let upstreamDone = false;
+      let hasIteratorValueParent = false;
       for (const [fieldName, fieldObj] of Object.entries(step.data)) {
         const obj = fieldObj as any;
         if (obj.connectedValue) {
           const upstreamId = obj.connectedValue as string;
+          const upstreamStep = this.pipeline.find(n => n.id === upstreamId);
+          if (upstreamStep?.type === "iterator") {
+            hasIteratorValueParent = true;
+          }
           const upstreamOutput = results[upstreamId];
           if (upstreamOutput === undefined) {
             throw new Error(`Node ${id} expected output from ${upstreamId}`);
@@ -221,7 +237,7 @@ export class Runner extends EventEmitter {
 
       // prune unused branches so they don't count as deadlock
       const shouldPruneSkippedBranches =
-        res.nextChainKeys !== undefined || nodeDone;
+        nodeDone || (res.nextChainKeys !== undefined && !hasIteratorValueParent);
       if (shouldPruneSkippedBranches) {
         const skippedChildren = [...controlChildren].filter(cid => !branchChildren.has(cid));
         skippedChildren.forEach(cid => this.skipSubtree(cid, children, deps, unresolved));
@@ -232,6 +248,9 @@ export class Runner extends EventEmitter {
         const childDeps = deps.get(childId)!;
         if (childDeps.size > 0) continue;
         if (controlChildren.has(childId) && !branchChildren.has(childId)) continue;
+        const isDataOnlyChild = !controlChildren.has(childId);
+        const hasAnyControlParent = (this.controlParents.get(childId)?.size ?? 0) > 0;
+        if (step.type === "iterator" && isDataOnlyChild && hasAnyControlParent) continue;
         this.scheduleNode(childId, runId, globalInput, runtimeMeta, children, deps, results, unresolved);
       }
 

@@ -216,7 +216,7 @@ function CompactDominoNode(
 const withRenderKey = (typeId: string, Component: any) => (props: any) => {
   const renderKey = props?.data?.renderKey ?? 0;
   const modeKey = props?.data?.compactMode ? 'compact' : 'expanded';
-  const animationKey = `${props?.id ?? 'node'}-${modeKey}-${renderKey}`;
+  const animationKey = `${props?.id ?? 'node'}-${modeKey}`;
   if (props?.data?.compactMode) {
     return (
       <AnimatedNodeWrapper
@@ -1100,6 +1100,75 @@ export default function Canvas(props: CanvasProps) {
       }
     };
   }, [rfInstance, currentWorkflowId]);
+
+  useEffect(() => {
+    if (!rfInstance) return;
+
+    const canvasElement = rfInstance.getContainer?.();
+    if (!canvasElement) return;
+
+    let lastGestureScale = 1;
+
+    const isInteractiveElement = (element: HTMLElement | null) =>
+      Boolean(element?.closest('input, textarea, select, [contenteditable="true"]'));
+
+    const isCanvasInteractiveContext = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null;
+      const activeElement = document.activeElement as HTMLElement | null;
+      const targetInsideCanvas = Boolean(element && canvasElement.contains(element));
+      const activeInsideCanvas = Boolean(activeElement && canvasElement.contains(activeElement));
+
+      return (
+        (targetInsideCanvas && isInteractiveElement(element)) ||
+        (activeInsideCanvas && isInteractiveElement(activeElement))
+      );
+    };
+
+    const handleInteractiveZoom = (event: WheelEvent) => {
+      const isInteractive = isCanvasInteractiveContext(event.target);
+      const isZoomGesture = event.ctrlKey || event.metaKey;
+
+      if (!isInteractive || !isZoomGesture) return;
+
+      event.preventDefault();
+
+      const currentZoom = rfInstance.getZoom();
+      const nextZoom = Math.min(2, Math.max(0.1, currentZoom - event.deltaY * 0.0015));
+      rfInstance.zoomTo(nextZoom, {
+        duration: 0,
+      });
+    };
+
+    const handleGestureStart = (event: Event) => {
+      if (!isCanvasInteractiveContext(event.target)) return;
+      event.preventDefault();
+      lastGestureScale = 1;
+    };
+
+    const handleGestureChange = (event: Event) => {
+      if (!isCanvasInteractiveContext(event.target)) return;
+      event.preventDefault();
+
+      const gestureEvent = event as Event & { scale?: number };
+      const nextScale = gestureEvent.scale ?? 1;
+      const scaleDelta = nextScale / lastGestureScale;
+      lastGestureScale = nextScale;
+
+      const currentZoom = rfInstance.getZoom();
+      const nextZoom = Math.min(2, Math.max(0.1, currentZoom * scaleDelta));
+      rfInstance.zoomTo(nextZoom, { duration: 0 });
+    };
+
+    window.addEventListener('wheel', handleInteractiveZoom, { passive: false, capture: true });
+    document.addEventListener('gesturestart', handleGestureStart as EventListener, { passive: false, capture: true });
+    document.addEventListener('gesturechange', handleGestureChange as EventListener, { passive: false, capture: true });
+
+    return () => {
+      window.removeEventListener('wheel', handleInteractiveZoom, true);
+      document.removeEventListener('gesturestart', handleGestureStart as EventListener, true);
+      document.removeEventListener('gesturechange', handleGestureChange as EventListener, true);
+    };
+  }, [rfInstance]);
 
   // Persist viewport states to sessionStorage
   useEffect(() => {
