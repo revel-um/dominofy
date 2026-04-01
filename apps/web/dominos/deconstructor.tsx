@@ -1,257 +1,428 @@
-// src/dominos/deconstruct.tsx
-import { NodeProps, useReactFlow } from 'reactflow';
+import { NodeProps, useEdges } from 'reactflow';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowRightLeft, Braces, ListTree, Plus, Trash2 } from 'lucide-react';
+
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useRef, useState } from 'react';
+import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
-import { Trash } from 'lucide-react';
-import { DominoField, DominoFieldOption } from '../types/dominoFieldTypes';
-import { pruneInvalidEdges } from '@/helpers/pruneEdges';
+import dominoCatalog from './dominos';
 
-/* ——————————————————— Component */
+type DeconstructorNodeRecord = {
+  id: string;
+  data: {
+    details?: {
+      type?: string;
+      description?: string;
+      fields?: DominoField[];
+    };
+    exportFields?: string[];
+  };
+};
+
+const deconstructorMeta = dominoCatalog.find((entry) => entry.id === 'deconstructor');
+const deconstructorAccentColor = deconstructorMeta?.badgeStyle?.background
+  ? String(deconstructorMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+  : '#7c3aed';
+
+const TYPE_OPTIONS = [
+  { label: 'Array', value: 'array' },
+  { label: 'Object', value: 'object' },
+] as const;
+
 export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
-
-  // React Flow context
-  const { getEdges } = useReactFlow();
-  const edges = getEdges();
+  const edges = useEdges();
   const setNodesRef = useRef(data.setNodes);
+  const latestNodeSnapshotRef = useRef({
+    fields: data.details?.fields ?? [],
+    exportFields: data.exportFields ?? [],
+  });
+  const bootstrappedRef = useRef(false);
+
   useEffect(() => {
     setNodesRef.current = data.setNodes;
   }, [data.setNodes]);
 
+  useEffect(() => {
+    latestNodeSnapshotRef.current = {
+      fields: data.details?.fields ?? [],
+      exportFields: data.exportFields ?? [],
+    };
+  }, [data.details?.fields, data.exportFields]);
+
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
-  /* dropdown options */
-  const options: DominoFieldOption[] = [
-    { label: 'Array',  value: 'array'  },
-    { label: 'Object', value: 'object' },
-  ];
+  const connectedSelectorPinIds = edges
+    .filter(
+      (edge) =>
+        edge.target === id &&
+        typeof edge.targetHandle === 'string' &&
+        edge.targetHandle.startsWith('value_in_')
+    )
+    .map((edge) => edge.targetHandle as string)
+    .sort();
+  const connectedSelectorPinSet = new Set(connectedSelectorPinIds);
+  const connectedSelectorSignature = connectedSelectorPinIds.join('|');
+  const isMainInputConnected = edges.some(
+    (edge) => edge.target === id && edge.targetHandle === 'value_in'
+  );
 
-  /* local state */
-  const [inputs, setInputs] = useState<string[]>(['']);
-  const [type,   setType]   = useState(options[0].value);
+  const [selectors, setSelectors] = useState<string[]>(['']);
+  const [kind, setKind] = useState<'array' | 'object'>('array');
 
-  // 🔁 clear input if connected (just like SwitchDomino)
-  useEffect(() => {
-    let updated = false;
-    const cleared = inputs.map((val, i) => {
-      const pinId = `value_in_${i + 1}`;
-      const isConnected = edges.some(
-        edge => edge.target === id && edge.targetHandle === pinId
-      );
-      if (isConnected && val !== '') {
-        updated = true;
-        return '';
-      }
-      return val;
-    });
-    if (updated) setInputs(cleared);
-  }, [edges]);
+  const persistSelectors = useCallback(
+    (nextSelectors: string[], nextKind: 'array' | 'object') => {
+      const setNodes = setNodesRef.current;
+      if (!setNodes) return;
 
-  /* ---------- handlers ---------- */
-  const addInput = () => {
-    clearValidationForDominoId(id);
-    setInputs(p => [...p, '']);
-  };
+      const previousFields: DominoField[] = latestNodeSnapshotRef.current.fields as DominoField[];
+      const getOldField = (heading: string) =>
+        previousFields.find((field) => field.heading === heading);
+      const makeField = (
+        base: Omit<DominoField, 'connectedValue' | 'file'> & { heading: string }
+      ): DominoField => ({ ...getOldField(base.heading), ...base } as DominoField);
 
-  const removeInput = (idx: number) => {
-    clearValidationForDominoId(id);
-    setInputs(p => p.filter((_, i) => i !== idx));
-    // pruneInvalidEdges(getEdges(), id, `value_in_${idx + 1}`, data.setNodes);
-  };
+      const newFields: DominoField[] = [
+        makeField({
+          type: 'text',
+          heading: 'Input',
+          inPinId: 'value_in',
+          required: true,
+          shouldRender: false,
+          value: getOldField('Input')?.value ?? '',
+        }),
+        makeField({
+          type: 'dropdown',
+          heading: 'Type',
+          value: nextKind,
+          options: TYPE_OPTIONS.map((option) => ({ ...option })),
+          required: true,
+          shouldRender: false,
+        }),
+        ...nextSelectors.map((selector, index) =>
+          makeField({
+            type: 'text',
+            heading: `Key_${index + 1}`,
+            value: selector,
+            inPinId: `value_in_${index + 1}`,
+            outPinId: `value_out_${index + 1}`,
+            required: true,
+            shouldRender: false,
+          })
+        ),
+      ];
 
-  const handleInputChange = (idx: number, v: string) => {
-    clearValidationForDominoId(id);
-    setInputs(p => {
-      const c = [...p];
-      c[idx] = v;
-      return c;
-    });
-  };
-
-  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    clearValidationForDominoId(id);
-    setType(e.target.value);
-  };
-
-  /* ---------- bootstrap from saved node ---------- */
-  useEffect(() => {
-    const tField = data.details?.fields?.find((f: { heading: string; }) => f.heading === 'Type');
-    if (tField && tField.value) setType(String(tField.value));
-
-    const keyFields = data.details?.fields?.filter((f: { heading: string; }) => f.heading?.startsWith('Key_'));
-    if (keyFields?.length) setInputs(keyFields.map((f: { value: any; }) => String(f.value ?? '')));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* ---------- sync → node.data ---------- */
-  useEffect(() => {
-    const setNodes = setNodesRef.current;
-    if (!setNodes) return;
-
-    setNodes((nodes: any[]) =>
-      nodes.map((node: { id: string; data: { details: { fields: any; }; }; }) => {
-        if (node.id !== id) return node;
-
-        /* reuse existing field objects so we keep connectedValue/file */
-        const old = Object.fromEntries(
-          (node.data.details?.fields ?? []).map((f: any) => [f.heading, f])
+      const nextExport = ['Input', 'Type', ...nextSelectors.map((_, index) => `Key_${index + 1}`)];
+      const currentFields = latestNodeSnapshotRef.current.fields as DominoField[];
+      const currentExportFields = latestNodeSnapshotRef.current.exportFields as string[];
+      const sameAsCurrentFields =
+        currentFields.length === newFields.length &&
+        currentFields.every(
+          (field, index) => JSON.stringify(field) === JSON.stringify(newFields[index])
         );
+      const sameAsCurrentExport =
+        currentExportFields.length === nextExport.length &&
+        currentExportFields.every((heading, index) => heading === nextExport[index]);
 
-        const inputField =
-          old['Input'] ??
-          ({
-            type: 'text',
-            heading: 'Input',
-            inPinId: 'value_in',
-            required: true,
-            shouldRender: false,
-          } as DominoField);
+      if (sameAsCurrentFields && sameAsCurrentExport) {
+        return;
+      }
 
-        const newFields: DominoField[] = [
-          inputField,
-          {
-            ...(old['Type'] ?? {}),
-            type: 'dropdown',
-            heading: 'Type',
-            value: type,
-            options,
-            required: true,
-            shouldRender: false,
-          },
-          ...inputs.map((v, i) => ({
-            ...(old[`Key_${i + 1}`] ?? {}),
-            type: 'text',
-            heading: `Key_${i + 1}`,
-            value: v,
-            inPinId:  `value_in_${i + 1}`,
-            outPinId: `value_out_${i + 1}`,
-            required: true,
-            shouldRender: false,
-          })),
-        ];
+      latestNodeSnapshotRef.current = {
+        fields: newFields,
+        exportFields: nextExport,
+      };
 
-        const exportFields = ['Input', 'Type', ...inputs.map((_, i) => `Key_${i + 1}`)];
-        const sameFields =
-          (node.data.details?.fields?.length === newFields.length) &&
-          node.data.details.fields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(newFields[idx]));
-        const sameExport =
-          Array.isArray(node.data.exportFields) &&
-          node.data.exportFields.length === exportFields.length &&
-          node.data.exportFields.every((h: string, i: number) => h === exportFields[i]);
-        if (sameFields && sameExport) return node;
+      setNodes((nodes: DeconstructorNodeRecord[]) =>
+        nodes.map((node) => {
+          if (node.id !== id) return node;
 
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            details: { ...node.data.details, fields: newFields },
-            exportFields,
-          },
-        };
-      })
-    );
-  }, [inputs, type, id]);
+          const existingFields = node.data.details?.fields ?? [];
+          const sameFields =
+            existingFields.length === newFields.length &&
+            existingFields.every(
+              (field, index) => JSON.stringify(field) === JSON.stringify(newFields[index])
+            );
+          const sameExport =
+            Array.isArray(node.data.exportFields) &&
+            node.data.exportFields.length === nextExport.length &&
+            node.data.exportFields.every((heading, index) => heading === nextExport[index]);
 
-  /* =============== render =============== */
+          if (sameFields && sameExport) return node;
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              details: {
+                type: 'Deconstructor',
+                description: 'Extract values from an array or object input.',
+                ...(node.data.details ?? {}),
+                fields: newFields,
+              },
+              exportFields: nextExport,
+            },
+          };
+        })
+      );
+    },
+    [id]
+  );
+
+  useEffect(() => {
+    if (bootstrappedRef.current) return;
+
+    const fields = data.details?.fields ?? [];
+    const typeField = fields.find((field: DominoField) => field.heading === 'Type');
+    const keyFields = fields
+      .filter((field: DominoField) => field.heading?.startsWith('Key_'))
+      .sort((a: DominoField, b: DominoField) => {
+        const aIdx = Number(a.heading?.split('_')[1] ?? 0);
+        const bIdx = Number(b.heading?.split('_')[1] ?? 0);
+        return aIdx - bIdx;
+      });
+
+    const nextKind =
+      typeField?.value === 'object' || typeField?.value === 'array'
+        ? (typeField.value as 'array' | 'object')
+        : 'array';
+    const nextSelectors = keyFields.length
+      ? keyFields.map((field: DominoField) => String(field.value ?? ''))
+      : [''];
+
+    setKind(nextKind);
+    setSelectors(nextSelectors);
+    persistSelectors(nextSelectors, nextKind);
+    bootstrappedRef.current = true;
+  }, [data.details?.fields, persistSelectors]);
+
+  useEffect(() => {
+    const nextSelectors = selectors.map((selector, index) => {
+      const pinId = `value_in_${index + 1}`;
+      return connectedSelectorPinSet.has(pinId) ? '' : selector;
+    });
+
+    const changed = nextSelectors.some((selector, index) => selector !== selectors[index]);
+    if (!changed) return;
+
+    setSelectors(nextSelectors);
+    persistSelectors(nextSelectors, kind);
+  }, [connectedSelectorSignature, kind, persistSelectors, selectors]);
+
+  const updateSelector = (index: number, value: string) => {
+    clearValidationForDominoId(id);
+    setSelectors((previous) => {
+      const nextSelectors = previous.map((selector, currentIndex) =>
+        currentIndex === index ? value : selector
+      );
+      persistSelectors(nextSelectors, kind);
+      return nextSelectors;
+    });
+  };
+
+  const addSelector = () => {
+    clearValidationForDominoId(id);
+    setSelectors((previous) => {
+      const nextSelectors = [...previous, ''];
+      persistSelectors(nextSelectors, kind);
+      return nextSelectors;
+    });
+  };
+
+  const removeSelector = (index: number) => {
+    clearValidationForDominoId(id);
+    setSelectors((previous) => {
+      const nextSelectors = previous.filter((_, currentIndex) => currentIndex !== index);
+      persistSelectors(nextSelectors, kind);
+      return nextSelectors.length ? nextSelectors : [''];
+    });
+  };
+
+  const handleTypeChange = (value: 'array' | 'object') => {
+    clearValidationForDominoId(id);
+    setKind(value);
+    persistSelectors(selectors, value);
+  };
+
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-80 overflow-visible shadow-sm
-        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{ minWidth: '20rem' }}
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 shadow-sm backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
+        hasError
+          ? 'error-border'
+          : selected
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+            : 'unselected-border dark:border-gray-600'
+      } hover:shadow-lg`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
-      {/* Header w/ exec handles */}
-      <div
-        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('deconstructor')}
-      >
-        <div className="flex items-center gap-1">
-          <DominoPin id="exec_in"  pinType={PinType.EXEC_IN}  inline />
-          <span>De-Construct</span>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+      <div className="relative flex items-start justify-between gap-3 rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
+        <div className="flex min-w-0 items-center gap-3 pr-3">
+          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+            style={{
+              borderColor: deconstructorAccentColor,
+              backgroundColor: `${deconstructorAccentColor}22`,
+            }}
+          >
+            <ArrowRightLeft className="h-4 w-4" style={{ color: deconstructorAccentColor }} />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold tracking-tight text-foreground">
+              Deconstructor
+            </div>
+            <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+              Data Transformation
+            </div>
+          </div>
         </div>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      {/* Input row */}
-      <div className="px-3 py-2 flex items-center gap-2 relative">
-        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
-        <span className="text-sm text-dominofy-light-text dark:text-dominofy-dark-text">
-          Input
-        </span>
-      </div>
-
-      {/* Type row */}
-      <div className="px-3 py-2 flex items-center gap-2">
-        <span className="text-sm text-dominofy-light-text dark:text-dominofy-dark-text">
-          Type:
-        </span>
-        <select
-          value={type}
-          onChange={handleTypeChange}
-          className="px-1 py-1 text-sm border rounded w-full
-                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                     text-dominofy-light-text dark:text-dominofy-dark-text"
-        >
-          {options.map(o => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Key / Index rows */}
-      <div className="flex min-w-0 flex-col gap-2">
-        {inputs.map((val, i) => {
-          const pinId = `value_in_${i + 1}`;
-          const isConnected = edges.some(
-            edge => edge.target === id && edge.targetHandle === pinId
-          );
-
-          return (
-            <div key={i} className="relative flex min-w-0 items-center gap-2 px-3">
-              <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline />
-
-              <input
-                type="text"
-                value={val}
-                placeholder={isConnected ? 'Connected' : `${type === 'object' ? 'Key' : 'Index'} ${i + 1}`}
-                readOnly={isConnected}
-                disabled={isConnected}
-                onChange={e => handleInputChange(i, e.target.value)}
-                className="min-w-0 flex-1 px-2 py-1 text-sm border rounded
-                          bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                          text-dominofy-light-text dark:text-dominofy-dark-text"
-              />
-
-              <DominoPin id={`value_out_${i + 1}`} pinType={PinType.VALUE_OUT} inline />
-
-              {i > 0 && (
-                <button
-                  onClick={() => removeInput(i)}
-                  className="ml-1 shrink-0 rounded bg-red-500 p-1 text-white"
-                >
-                  <Trash size={16} />
-                </button>
-              )}
+      <div className="relative space-y-4 px-4 py-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Braces className="h-3.5 w-3.5" />
+              Source
             </div>
-          );
-        })}
-      </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {isMainInputConnected ? 'Live input' : 'Awaiting input'}
+            </span>
+          </div>
 
-      {/* add key/index */}
-      <div className="px-3 py-2">
-        <button
-          onClick={addInput}
-          className="px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
-        >
-          Add {type === 'object' ? 'Key' : 'Index'}
-        </button>
-      </div>
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline offset={-16} />
+              <div className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-4 py-2.5 text-sm font-medium text-foreground/75 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:text-slate-300">
+                Array or object payload
+              </div>
+            </div>
+          </div>
+        </div>
 
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <ListTree className="h-3.5 w-3.5" />
+              Shape
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Output strategy
+            </span>
+          </div>
+
+          <div className="min-h-11 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+            <select
+              value={kind}
+              onChange={(event) => handleTypeChange(event.target.value as 'array' | 'object')}
+              className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none dark:text-dominofy-dark-text"
+            >
+              {TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="text-xs text-foreground/55 dark:text-slate-400">
+            {kind === 'array'
+              ? 'Use indexes like 0, 1, 2'
+              : 'Use property names like email or status'}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+              Selectors
+            </div>
+            <button
+              type="button"
+              onClick={addSelector}
+              className="rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-sky-600"
+            >
+              {`Add ${kind === 'object' ? 'Key' : 'Index'}`}
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <div
+              className="h-px w-full opacity-90 dark:opacity-100"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(to right, rgba(148,163,184,0.95) 0 6px, transparent 6px 10px)',
+              }}
+            />
+
+            {selectors.map((selector, index) => {
+              const pinId = `value_in_${index + 1}`;
+              const outPinId = `value_out_${index + 1}`;
+              const isConnected = connectedSelectorPinSet.has(pinId);
+              const isLastSelector = index === selectors.length - 1;
+
+              return (
+                <div key={pinId} className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                      {kind === 'object' ? `Key ${index + 1}` : `Index ${index + 1}`}
+                    </div>
+                    {selectors.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeSelector(index)}
+                        className="rounded-md p-1 text-rose-500 transition hover:bg-rose-500/10"
+                        aria-label={`Remove selector ${index + 1}`}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <div className="flex items-center gap-2">
+                      <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline offset={-16} />
+                      <div className="relative min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                        {isConnected ? (
+                          <div className="flex min-h-11 items-center px-4 py-2.5 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                            Connected
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            value={selector}
+                            placeholder={kind === 'object' ? `Key ${index + 1}` : `Index ${index + 1}`}
+                            onChange={(event) => updateSelector(index, event.target.value)}
+                            className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 pr-14 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                          />
+                        )}
+                        <DominoPin id={outPinId} pinType={PinType.VALUE_OUT} inline offset={-16} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {!isLastSelector && (
+                    <div className="pt-1">
+                      <div
+                        className="h-px w-full opacity-90 dark:opacity-100"
+                        style={{
+                          backgroundImage:
+                            'repeating-linear-gradient(to right, rgba(148,163,184,0.95) 0 6px, transparent 6px 10px)',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

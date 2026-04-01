@@ -24,17 +24,29 @@ export class ApiTriggerDomino implements DominoExecutable {
       }
     });
 
-    // 2️⃣ If you have a known redundant wrapper pin (like Text),
-    // and it also holds a nested { body }, unwrap it:
+    // Unwrap common request-body wrappers so downstream nodes receive the payload directly.
+    if (
+      Object.keys(cleanedOutput).length === 1 &&
+      'body' in cleanedOutput &&
+      cleanedOutput.body !== undefined
+    ) {
+      return {
+        id: this.id,
+        output:
+          typeof cleanedOutput.body === 'object' && cleanedOutput.body !== null
+            ? cleanedOutput.body
+            : { body: cleanedOutput.body },
+        startedAt,
+        finishedAt: Date.now(),
+      };
+    }
+
     if (
       cleanedOutput['Text'] &&
       typeof cleanedOutput['Text'] === 'object' &&
-      cleanedOutput['Text'].body
+      cleanedOutput['Text'].body !== undefined
     ) {
-      // Merge Text.body into cleanedOutput.body
       cleanedOutput.body = cleanedOutput['Text'].body;
-
-      // Optionally delete the redundant Text field
       delete cleanedOutput['Text'];
     }
 

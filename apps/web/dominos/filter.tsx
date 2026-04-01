@@ -1,6 +1,7 @@
-// src/dominos/filterDomino.tsx
-import { NodeProps, useReactFlow } from 'reactflow';
+import { NodeProps, useEdges } from 'reactflow';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Filter as FilterIcon, Layers3, SlidersHorizontal, ScanSearch } from 'lucide-react';
+
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import {
@@ -9,7 +10,15 @@ import {
   DominoNodeData,
 } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
+import dominoCatalog from './dominos';
+
+type FilterNodeRecord = {
+  id: string;
+  data: {
+    details?: DominoNodeData;
+    exportFields?: string[];
+  };
+};
 
 const OPERATOR_OPTIONS: DominoFieldOption[] = [
   { label: 'Equal to', value: 'equal' },
@@ -27,12 +36,30 @@ const TYPE_OPTIONS: DominoFieldOption[] = [
   { label: 'Each item is an object (with fields)', value: 'object' },
 ];
 
+const filterMeta = dominoCatalog.find((entry) => entry.id === 'filter');
+const filterAccentColor = filterMeta?.badgeStyle?.background
+  ? String(filterMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+  : '#34d399';
+
+const operatorLabel = (operator: string) =>
+  OPERATOR_OPTIONS.find((option) => option.value === operator)?.label ?? 'Equal to';
+
+const areFieldsEqual = (a: DominoField[] = [], b: DominoField[] = []) =>
+  a.length === b.length && a.every((field, index) => JSON.stringify(field) === JSON.stringify(b[index]));
+
+const areStringArraysEqual = (a: string[] = [], b: string[] = []) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
+const mergeField = (existingFields: DominoField[], nextField: DominoField): DominoField => {
+  const existingField = existingFields.find((field) => field.heading === nextField.heading);
+  return existingField ? { ...nextField, ...existingField } : nextField;
+};
+
 export default function FilterDomino({ data, id, selected }: NodeProps) {
-  // React Flow context & live edges count (like ConditionDomino)
-  const { getEdges } = useReactFlow();
-  const edges = getEdges();
-  const edgeCount = edges.length;
+  const edges = useEdges();
   const setNodesRef = useRef(data.setNodes);
+  const bootstrappedRef = useRef(false);
+
   useEffect(() => {
     setNodesRef.current = data.setNodes;
   }, [data.setNodes]);
@@ -40,128 +67,70 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
 
-  // helpers to read existing fields
-  const getField = (heading: string) =>
-    (data.details as DominoNodeData | undefined)?.fields?.find(f => f.heading === heading);
+  const getField = useCallback(
+    (heading: string) =>
+      (data.details as DominoNodeData | undefined)?.fields?.find((field) => field.heading === heading),
+    [data.details]
+  );
 
-  /* ───────── state (mirrors ConditionDomino style) */
   const [filterType, setFilterType] = useState<string>(getField('Type')?.value ?? 'object');
   const [property, setProperty] = useState<string>(getField('Property')?.value ?? '');
-  const [operator, setOperator] = useState<string>(getField('Operator')?.value ?? OPERATOR_OPTIONS[0].value);
+  const [operator, setOperator] = useState<string>(
+    getField('Operator')?.value ?? OPERATOR_OPTIONS[0].value
+  );
   const [filterValue, setFilterValue] = useState<string>(getField('Filter Value')?.value ?? '');
 
-  /* sync from node details when workflow is loaded/imported */
   useEffect(() => {
-    setFilterType(getField('Type')?.value ?? 'object');
-    setProperty(getField('Property')?.value ?? '');
-    setOperator(getField('Operator')?.value ?? OPERATOR_OPTIONS[0].value);
-    setFilterValue(getField('Filter Value')?.value ?? '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.details?.fields]);
+    if (bootstrappedRef.current) return;
 
-  /* connected flags (like ConditionDomino's c1/c2) */
-  const cProperty = edges.some(e => e.target === id && e.targetHandle === 'value_in_1'); // Property
-  const cValue    = edges.some(e => e.target === id && e.targetHandle === 'value_in_2'); // Filter Value
+    const nextFilterType = getField('Type')?.value ?? 'object';
+    const nextProperty = getField('Property')?.value ?? '';
+    const nextOperator = getField('Operator')?.value ?? OPERATOR_OPTIONS[0].value;
+    const nextFilterValue = getField('Filter Value')?.value ?? '';
 
-  /* clear inputs when pins connect (like ConditionDomino) */
-  useEffect(() => {
-    const cur = getEdges();
+    setFilterType(nextFilterType);
+    setProperty(nextProperty);
+    setOperator(nextOperator);
+    setFilterValue(nextFilterValue);
 
-    if (
-      filterType === 'object' &&
-      cur.some(e => e.target === id && e.targetHandle === 'value_in_1') &&
-      property !== ''
-    ) {
-      setProperty('');
-      // also push to node data
-      const setNodes = setNodesRef.current;
-      if (setNodes) {
-        setNodes((nodes: any[]) =>
-          nodes.map(n => {
-            if (n.id !== id) return n;
-            const nextFields = (n.data.details as DominoNodeData).fields.map(f =>
-              f.heading === 'Property' ? { ...f, value: '' } : f
-            );
-            const same =
-              n.data.details?.fields?.length === nextFields.length &&
-              n.data.details.fields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(nextFields[idx]));
-            if (same) return n;
-            return {
-              ...n,
-              data: {
-                ...n.data,
-                details: {
-                  ...(n.data.details as DominoNodeData),
-                  fields: nextFields,
-                },
-              },
-            };
-          })
-        );
-      }
+    if (data.details?.fields?.length) {
+      bootstrappedRef.current = true;
     }
+  }, [data.details?.fields, getField]);
 
-    if (
-      cur.some(e => e.target === id && e.targetHandle === 'value_in_2') &&
-      filterValue !== ''
-    ) {
-      setFilterValue('');
-      const setNodes = setNodesRef.current;
-      if (setNodes) {
-        setNodes((nodes: any[]) =>
-          nodes.map(n => {
-            if (n.id !== id) return n;
-            const nextFields = (n.data.details as DominoNodeData).fields.map(f =>
-              f.heading === 'Filter Value' ? { ...f, value: '' } : f
-            );
-            const same =
-              n.data.details?.fields?.length === nextFields.length &&
-              n.data.details.fields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(nextFields[idx]));
-            if (same) return n;
-            return {
-              ...n,
-              data: {
-                ...n.data,
-                details: {
-                  ...(n.data.details as DominoNodeData),
-                  fields: nextFields,
-                },
-              },
-            };
-          })
-        );
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [edgeCount]); // mimic ConditionDomino's pattern
+  const isPropertyConnected = edges.some(
+    (edge) => edge.target === id && edge.targetHandle === 'value_in_1'
+  );
+  const isFilterValueConnected = edges.some(
+    (edge) => edge.target === id && edge.targetHandle === 'value_in_2'
+  );
 
-  /* helper to update both local state and node data fields */
-  const setFieldValue = useCallback(
-    (heading: string, val: string) => {
-      if (heading === 'Type') setFilterType(val);
-      else if (heading === 'Property') setProperty(val);
-      else if (heading === 'Operator') setOperator(val);
-      else if (heading === 'Filter Value') setFilterValue(val);
-
+  const syncFieldValue = useCallback(
+    (heading: string, value: string) => {
       const setNodes = setNodesRef.current;
       if (!setNodes) return;
-      setNodes((nodes: any[]) =>
-        nodes.map(n => {
-          if (n.id !== id) return n;
-          const nextFields = (n.data.details as DominoNodeData).fields.map(f =>
-            f.heading === heading ? { ...f, value: val } : f
-          );
-          const same =
-            n.data.details?.fields?.length === nextFields.length &&
-            n.data.details.fields.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(nextFields[idx]));
-          if (same) return n;
+
+      setNodes((nodes: FilterNodeRecord[]) =>
+        nodes.map((node) => {
+          if (node.id !== id || !node.data.details) return node;
+
+          let changed = false;
+          const fields = node.data.details.fields.map((field) => {
+            if (field.heading !== heading) return field;
+            if (field.value === value) return field;
+            changed = true;
+            return { ...field, value };
+          });
+
+          if (!changed) return node;
+
           return {
-            ...n,
+            ...node,
             data: {
-              ...n.data,
+              ...node.data,
               details: {
-                ...(n.data.details as DominoNodeData),
-                fields: nextFields,
+                ...node.data.details,
+                fields,
               },
             },
           };
@@ -171,209 +140,326 @@ export default function FilterDomino({ data, id, selected }: NodeProps) {
     [id]
   );
 
-  /* one-time bootstrap (details + setFieldValue) and keep fields/exportFields in sync */
+  useEffect(() => {
+    if (filterType === 'object' && isPropertyConnected && property !== '') {
+      setProperty('');
+      syncFieldValue('Property', '');
+    }
+
+    if (isFilterValueConnected && filterValue !== '') {
+      setFilterValue('');
+      syncFieldValue('Filter Value', '');
+    }
+  }, [filterType, filterValue, isFilterValueConnected, isPropertyConnected, property, syncFieldValue]);
+
+  const setFieldValue = useCallback(
+    (heading: string, value: string) => {
+      if (heading === 'Type') setFilterType(value);
+      if (heading === 'Property') setProperty(value);
+      if (heading === 'Operator') setOperator(value);
+      if (heading === 'Filter Value') setFilterValue(value);
+
+      syncFieldValue(heading, value);
+    },
+    [syncFieldValue]
+  );
+
   useEffect(() => {
     const setNodes = setNodesRef.current;
     if (!setNodes) return;
-    setNodes((prev: any[]) => {
-      let changed = false;
-      const next = prev.map(node => {
+
+    setNodes((nodes: FilterNodeRecord[]) =>
+      nodes.map((node) => {
         if (node.id !== id) return node;
-        const newData: any = { ...node.data };
 
-        if (!newData.setFieldValue) {
-          newData.setFieldValue = setFieldValue;
-          changed = true;
+        const existingFields = node.data.details?.fields ?? [];
+        const fields: DominoField[] = [
+          mergeField(existingFields, {
+            type: 'input',
+            heading: 'Input',
+            inPinId: 'value_in',
+            required: true,
+            shouldRender: false,
+          } as unknown as DominoField),
+          mergeField(existingFields, {
+            type: 'dropdown',
+            heading: 'Type',
+            value: filterType,
+            options: TYPE_OPTIONS,
+            required: true,
+            shouldRender: false,
+          } as DominoField),
+          ...(filterType === 'object'
+            ? [
+                mergeField(existingFields, {
+                  type: 'textInput',
+                  heading: 'Property',
+                  value: property,
+                  inPinId: 'value_in_1',
+                  required: true,
+                  shouldRender: false,
+                } as DominoField),
+              ]
+            : []),
+          mergeField(existingFields, {
+            type: 'dropdown',
+            heading: 'Operator',
+            value: operator,
+            options: OPERATOR_OPTIONS,
+            required: true,
+            shouldRender: false,
+          } as DominoField),
+          mergeField(existingFields, {
+            type: 'textInput',
+            heading: 'Filter Value',
+            value: filterValue,
+            inPinId: 'value_in_2',
+            required: false,
+            shouldRender: false,
+          } as DominoField),
+        ];
+
+        const exportFields = [
+          'Input',
+          'Type',
+          ...(filterType === 'object' ? ['Property'] : []),
+          'Operator',
+          'Filter Value',
+        ];
+
+        const currentDetails = node.data.details;
+        const sameFields = areFieldsEqual(currentDetails?.fields ?? [], fields);
+        const sameExportFields = areStringArraysEqual(node.data.exportFields ?? [], exportFields);
+        const sameType = currentDetails?.type === 'Filter';
+        const sameDescription =
+          currentDetails?.description ===
+          'Filter an array of values or objects based on conditions';
+
+        if (sameFields && sameExportFields && sameType && sameDescription) {
+          return node;
         }
 
-        const hasDetails = (newData.details as DominoNodeData)?.fields;
-        if (!hasDetails) {
-          newData.details = {
-            type: 'Filter',
-            description: 'Filter an array of values or objects based on conditions',
-            fields: [
-              { type: 'input', heading: 'Input', inPinId: 'value_in', required: true, shouldRender: false },
-              { type: 'dropdown', heading: 'Type', value: filterType, options: TYPE_OPTIONS, required: true, shouldRender: false },
-              ...(filterType === 'object'
-                ? [{ type: 'textInput', heading: 'Property', value: property, inPinId: 'value_in_1', required: true, shouldRender: false } as DominoField]
-                : []),
-              { type: 'dropdown', heading: 'Operator', value: operator, options: OPERATOR_OPTIONS, required: true, shouldRender: false },
-              { type: 'textInput', heading: 'Filter Value', value: filterValue, inPinId: 'value_in_2', required: false, shouldRender: false },
-            ],
-          } as DominoNodeData;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            details: {
+              ...(node.data.details ?? {}),
+              type: 'Filter',
+              description: 'Filter an array of values or objects based on conditions',
+              fields,
+            },
+            exportFields,
+          },
+        };
+      })
+    );
+  }, [filterType, filterValue, id, operator, property]);
 
-          newData.exportFields = [
-            'Input',
-            'Type',
-            ...(filterType === 'object' ? ['Property'] : []),
-            'Operator',
-            'Filter Value',
-          ];
-          changed = true;
-        } else {
-          // Keep presence/absence of Property aligned with Type
-          let fields = (newData.details as DominoNodeData).fields;
-          const idxProp = fields.findIndex((f: DominoField) => f.heading === 'Property');
-
-          if (filterType === 'object') {
-            if (idxProp === -1) {
-              const propField: DominoField = {
-                type: 'textInput',
-                heading: 'Property',
-                value: property,
-                inPinId: 'value_in_1',
-                required: true,
-                shouldRender: false,
-              };
-              const typeIdx = fields.findIndex((f: DominoField) => f.heading === 'Type');
-              fields =
-                typeIdx !== -1
-                  ? [...fields.slice(0, typeIdx + 1), propField, ...fields.slice(typeIdx + 1)]
-                  : [propField, ...fields];
-              changed = true;
-            }
-          } else {
-            if (idxProp !== -1) {
-              fields = fields.filter((f: DominoField) => f.heading !== 'Property');
-              changed = true;
-            }
-          }
-
-          // write back fields + exportFields if changed
-          if (changed) {
-            newData.details = { ...(newData.details as DominoNodeData), fields };
-            newData.exportFields = [
-              'Input',
-              'Type',
-              ...(filterType === 'object' ? ['Property'] : []),
-              'Operator',
-              'Filter Value',
-            ];
-          }
-        }
-
-        return changed ? { ...node, data: newData } : node;
-      });
-
-      return changed ? next : prev;
-    });
-  }, [
-    id,
-    setFieldValue,
-    filterType,
-    property,
-    operator,
-    filterValue,
-  ]);
-
-  /* input handler (prevents edits while connected, like ConditionDomino UI) */
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = event.target;
     clearValidationForDominoId(id);
 
-    if (name === 'Property' && cProperty) return;
-    if (name === 'Filter Value' && cValue) return;
+    if (name === 'Property' && isPropertyConnected) return;
+    if (name === 'Filter Value' && isFilterValueConnected) return;
 
     setFieldValue(name, value);
   };
 
-  /* ───────── render (mirrors ConditionDomino feel) */
   return (
     <div
-      style={{ minWidth: '13rem' }}
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
-        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 shadow-sm backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
+        hasError
+          ? 'error-border'
+          : selected
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+            : 'unselected-border dark:border-gray-600'
+      } hover:shadow-lg`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
-      {/* Header */}
-      <div
-        className="flex justify-between text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('filter')}
-      >
-        <div className="flex items-center gap-1 px-3 py-2">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+      <div className="relative flex items-start justify-between gap-3 rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
+        <div className="flex min-w-0 items-center gap-3 pr-3">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <span>Filter</span>
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+            style={{
+              borderColor: filterAccentColor,
+              backgroundColor: `${filterAccentColor}22`,
+            }}
+          >
+            <FilterIcon className="h-4 w-4" style={{ color: filterAccentColor }} />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold tracking-tight text-foreground">
+              Filter
+            </div>
+            <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+              Data Transformation
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-1 relative px-3">
-          <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+      </div>
+
+      <div className="relative space-y-4 px-4 py-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Layers3 className="h-3.5 w-3.5" />
+              Source
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {filterType === 'object' ? 'Object items' : 'Primitive items'}
+            </span>
+          </div>
+
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline offset={-16} />
+              <div className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-4 py-2.5 text-sm font-medium text-foreground/75 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:text-slate-300">
+                Connect the list or stream to evaluate
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Input (array) */}
-      <div className="flex items-center gap-2 relative px-3 py-1">
-        <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
-        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">Input</span>
-      </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filter Type
+            </div>
+          </div>
 
-      {/* Type dropdown */}
-      <div className="px-3">
-        <select
-          value={filterType}
-          name="Type"
-          onChange={handleChange}
-          className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
-        >
-          {TYPE_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Property (object only) */}
-      {filterType === 'object' && (
-        <div className="flex items-center gap-2 relative px-3 py-1">
-          <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
-          {cProperty ? (
-            <div className="flex-1 px-2 py-1 italic text-gray-500">Connected</div>
-          ) : (
-            <input
-              name="Property"
-              value={property}
+          <div className="min-h-11 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+            <select
+              value={filterType}
+              name="Type"
               onChange={handleChange}
-              placeholder="Property name"
-              className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-            />
-          )}
+              className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none dark:text-dominofy-dark-text"
+            >
+              {TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      )}
 
-      {/* Operator */}
-      <div className="px-3">
-        <select
-          value={operator}
-          name="Operator"
-          onChange={handleChange}
-          className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text mb-1"
-        >
-          {OPERATOR_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
+        {filterType === 'object' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <ScanSearch className="h-3.5 w-3.5" />
+                Property
+              </div>
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                {isPropertyConnected ? 'Live input' : 'Static field'}
+              </span>
+            </div>
 
-      {/* Filter Value */}
-      <div className="flex items-center gap-2 relative px-3">
-        <DominoPin id="value_in_2" pinType={PinType.VALUE_IN} inline />
-        {cValue ? (
-          <div className="flex-1 px-2 py-1 italic text-gray-500">Connected</div>
-        ) : (
-          <input
-            name="Filter Value"
-            value={filterValue}
-            onChange={handleChange}
-            placeholder="Value to compare"
-            className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-          />
+            <div className="relative">
+              <div className="flex items-center gap-2">
+                <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline offset={-16} />
+                <div className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                  {isPropertyConnected ? (
+                    <div className="flex min-h-11 items-center px-4 py-2.5 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                      Connected
+                    </div>
+                  ) : (
+                    <input
+                      name="Property"
+                      value={property}
+                      onChange={handleChange}
+                      placeholder="Property name"
+                      className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
-      </div>
 
-      {/* Output */}
-      <div className="relative px-3 py-2 flex items-center justify-between">
-        <div />
-        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">Output</span>
-        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
-      </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <FilterIcon className="h-3.5 w-3.5" />
+              Operator
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {operatorLabel(operator)}
+            </span>
+          </div>
 
+          <div className="min-h-11 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+            <select
+              value={operator}
+              name="Operator"
+              onChange={handleChange}
+              className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none dark:text-dominofy-dark-text"
+            >
+              {OPERATOR_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <ScanSearch className="h-3.5 w-3.5" />
+              Filter Value
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {isFilterValueConnected ? 'Live input' : 'Static value'}
+            </span>
+          </div>
+
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <DominoPin id="value_in_2" pinType={PinType.VALUE_IN} inline offset={-16} />
+              <div className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                {isFilterValueConnected ? (
+                  <div className="flex min-h-11 items-center px-4 py-2.5 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                    Connected
+                  </div>
+                ) : (
+                  <input
+                    name="Filter Value"
+                    value={filterValue}
+                    onChange={handleChange}
+                    placeholder="Value to compare"
+                    className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative pt-1">
+          <div className="relative rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  Filtered result
+                </div>
+              </div>
+            </div>
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline offset={-17} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

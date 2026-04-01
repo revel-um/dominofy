@@ -28,9 +28,13 @@ const iteratorAccentColor = iteratorMeta?.badgeStyle?.background
 export default function IteratorDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const setNodes = data.setNodes;
+  const setNodesRef = useRef(data.setNodes);
   const nodeDetails = data.details as DominoNodeData | undefined;
   const edges = useEdges();
+
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
   const getField = useCallback(
     (heading: string) => nodeDetails?.fields?.find((field) => field.heading === heading),
@@ -39,6 +43,7 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
 
   const updateFieldValue = useCallback(
     (heading: string, value: unknown) => {
+      const setNodes = setNodesRef.current;
       if (!setNodes) return;
       setNodes((nodes: IteratorNodeRecord[]) =>
         nodes.map((node) => {
@@ -57,7 +62,7 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
         })
       );
     },
-    [id, setNodes]
+    [id]
   );
 
   const [order, setOrder] = useState<'forward' | 'reverse'>(
@@ -80,30 +85,35 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
   const bootstrappedRef = useRef(false);
 
   useEffect(() => {
+    const currentMax = getField('Max')?.value;
+    const currentRangeStart = String(getField('Range Start')?.value ?? '0');
+    const currentRangeEnd = String(getField('Range End')?.value ?? '0');
+
     if (isInputConnected && !prevConnected.current) {
       setIsMax(true);
-      updateFieldValue('Max', true);
+      if (currentMax !== true) updateFieldValue('Max', true);
       setRangeStart('0');
       setRangeEnd('0');
-      updateFieldValue('Range Start', '0');
-      updateFieldValue('Range End', '0');
+      if (currentRangeStart !== '0') updateFieldValue('Range Start', '0');
+      if (currentRangeEnd !== '0') updateFieldValue('Range End', '0');
     }
 
     if (!isInputConnected && prevConnected.current) {
       setIsMax(false);
-      updateFieldValue('Max', false);
+      if (currentMax !== false) updateFieldValue('Max', false);
     }
 
     if (isInputConnected && !bootstrappedRef.current) {
       setIsMax(true);
-      updateFieldValue('Max', true);
+      if (currentMax !== true) updateFieldValue('Max', true);
       bootstrappedRef.current = true;
     }
 
     prevConnected.current = isInputConnected;
-  }, [isInputConnected, updateFieldValue]);
+  }, [getField, isInputConnected, updateFieldValue]);
 
   useEffect(() => {
+    const setNodes = setNodesRef.current;
     if (nodeDetails || !setNodes) return;
     setNodes((prev: IteratorNodeRecord[]) =>
       prev.map((node) =>
@@ -163,7 +173,7 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
             }
       )
     );
-  }, [id, nodeDetails, setNodes]);
+  }, [id, nodeDetails]);
 
   const onOrderChange = (value: 'forward' | 'reverse') => {
     clearValidationForDominoId(id);

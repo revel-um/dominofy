@@ -356,6 +356,7 @@ export default function Canvas(props: CanvasProps) {
   const [isProgrammaticMove, setIsProgrammaticMove] = useState(false);
   const [interactionMode, setInteractionMode] = useState<CanvasInteractionMode>('selection');
   const [animatingNodeIds, setAnimatingNodeIds] = useState<Set<string>>(new Set());
+  const canvasRootRef = useRef<HTMLDivElement | null>(null);
   const viewportChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
   const previousCompactModeRef = useRef<Record<string, boolean>>({});
@@ -711,6 +712,96 @@ export default function Canvas(props: CanvasProps) {
   useEffect(() => {
     setConnectionErrors(validateNodeConnectionsDetailed(nodes, edges));
   }, [nodes, edges, setConnectionErrors]);
+
+  useEffect(() => {
+    let frameId = 0;
+
+    frameId = requestAnimationFrame(() => {
+      const root = canvasRootRef.current;
+      if (!root || !edges.length) return;
+
+      const expandedNodeIds = new Set(
+        renderedNodes
+          .filter((node) => !(node.data as any)?.compactMode && !animatingNodeIds.has(node.id))
+          .map((node) => node.id)
+      );
+      if (!expandedNodeIds.size) return;
+
+      const handleElements = Array.from(
+        root.querySelectorAll<HTMLElement>('.react-flow__handle[data-nodeid][data-handleid]')
+      );
+      if (!handleElements.length) return;
+
+      const availableHandles = new Map<string, Set<string>>();
+      handleElements.forEach((element) => {
+        const nodeId = element.getAttribute('data-nodeid');
+        const handleId = element.getAttribute('data-handleid');
+        if (!nodeId || !handleId) return;
+        if (!availableHandles.has(nodeId)) {
+          availableHandles.set(nodeId, new Set());
+        }
+        availableHandles.get(nodeId)?.add(handleId);
+      });
+
+      const removedEdges = edges.filter((edge) => {
+        const invalidSource =
+          !!edge.sourceHandle &&
+          expandedNodeIds.has(edge.source) &&
+          !availableHandles.get(edge.source)?.has(edge.sourceHandle);
+        const invalidTarget =
+          !!edge.targetHandle &&
+          expandedNodeIds.has(edge.target) &&
+          !availableHandles.get(edge.target)?.has(edge.targetHandle);
+        return invalidSource || invalidTarget;
+      });
+
+      if (!removedEdges.length) return;
+
+      const removedIds = new Set(removedEdges.map((edge) => edge.id));
+
+      setEdges((prev) => {
+        const next = prev.filter((edge) => !removedIds.has(edge.id));
+        return next.length === prev.length ? prev : next;
+      });
+      setNodes((prevNodes) =>
+        prevNodes.map((node: any) => {
+          const fields = node.data?.details?.fields;
+          if (!Array.isArray(fields)) return node;
+
+          let mutated = false;
+          const nextFields = fields.map((field: any) => {
+            const removedEdge = removedEdges.find(
+              (edge) => edge.target === node.id && edge.targetHandle === field.inPinId
+            );
+            if (!removedEdge) return field;
+            if (field.connectedValue === undefined && field.connectedPin === undefined) {
+              return field;
+            }
+            mutated = true;
+            return {
+              ...field,
+              connectedValue: undefined,
+              connectedPin: undefined,
+            };
+          });
+
+          if (!mutated) return node;
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              details: {
+                ...node.data.details,
+                fields: nextFields,
+              },
+            },
+          };
+        })
+      );
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [edges, renderedNodes, animatingNodeIds, setEdges, setNodes]);
 
   /* drop */
   const onDrop = useCallback(
@@ -1506,6 +1597,7 @@ export default function Canvas(props: CanvasProps) {
 
   return (
     <div 
+      ref={canvasRootRef}
       className="relative w-full h-full" 
       style={{ overscrollBehavior: 'none', overscrollBehaviorX: 'none' }}
       onContextMenu={onPaneContextMenu}
