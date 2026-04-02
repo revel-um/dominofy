@@ -1,8 +1,9 @@
 import { NodeProps, useEdges } from 'reactflow';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Braces, Check, ChevronDown, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { Braces, KeyRound, Plus, Trash2 } from 'lucide-react';
 
 import DominoPin from '../components/shared/dominoPin';
+import PinnedSplitInputDropdown from '../components/shared/pinnedSplitInputDropdown';
 import { PinType } from '../types/pinTypes';
 import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
@@ -60,8 +61,6 @@ export default function ConstructorDomino({ data, id, selected }: NodeProps) {
   const connectedValueSignature = connectedValuePinIds.join('|');
 
   const [pairs, setPairs] = useState<ConstructorPair[]>([{ key: '', value: '', valueType: 'string' }]);
-  const [openTypeIndex, setOpenTypeIndex] = useState<number | null>(null);
-  const typeMenuRef = useRef<HTMLDivElement | null>(null);
 
   const persistPairs = useCallback(
     (nextPairs: ConstructorPair[]) => {
@@ -170,19 +169,6 @@ export default function ConstructorDomino({ data, id, selected }: NodeProps) {
   );
 
   useEffect(() => {
-    if (openTypeIndex === null) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!typeMenuRef.current?.contains(event.target as Node)) {
-        setOpenTypeIndex(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
-  }, [openTypeIndex]);
-
-  useEffect(() => {
     if (bootstrappedRef.current) return;
 
     const fields = data.details?.fields ?? [];
@@ -273,11 +259,6 @@ export default function ConstructorDomino({ data, id, selected }: NodeProps) {
       const nextPairs = previous.filter((_, currentIndex) => currentIndex !== index);
       persistPairs(nextPairs);
       return nextPairs;
-    });
-    setOpenTypeIndex((previous) => {
-      if (previous === null) return previous;
-      if (previous === index) return null;
-      return previous > index ? previous - 1 : previous;
     });
   };
 
@@ -387,65 +368,25 @@ export default function ConstructorDomino({ data, id, selected }: NodeProps) {
                       </span>
                     </div>
 
-                    <div className="relative">
-                      <div className="flex items-center gap-2">
-                        <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline offset={-16} />
-                        <div className="min-w-0 flex-1">
-                          <div
-                            ref={openTypeIndex === index ? typeMenuRef : null}
-                            className="relative flex min-h-11 overflow-visible rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10"
-                          >
-                            {!isConnected ? (
-                              <input
-                                type="text"
-                                value={pair.value}
-                                onChange={(event) => updatePair(index, { value: event.target.value })}
-                                placeholder={`Value ${index + 1}`}
-                                className="nodrag min-h-11 min-w-0 flex-1 rounded-l-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
-                              />
-                            ) : (
-                              <div className="flex min-h-11 min-w-0 flex-1 items-center rounded-l-lg px-4 py-2.5 text-sm font-medium italic text-slate-500 dark:text-slate-400">
-                                Connected
-                              </div>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setOpenTypeIndex((previous) => (previous === index ? null : index))
-                              }
-                              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1 border-l border-slate-300/80 px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/60 transition hover:bg-black/[0.03] hover:text-foreground/85 dark:border-slate-600 dark:hover:bg-white/[0.04]"
-                            >
-                              {constructorValueTypeLabels[pair.valueType]}
-                              <ChevronDown className="h-3 w-3" />
-                            </button>
-
-                            {openTypeIndex === index && (
-                              <div className="absolute right-0 top-[calc(100%+0.4rem)] z-30 min-w-[9rem] overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-1 shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
-                                {(
-                                  Object.entries(constructorValueTypeLabels) as Array<
-                                    [ConstructorPair['valueType'], string]
-                                  >
-                                ).map(([type, label]) => (
-                                  <button
-                                    key={type}
-                                    type="button"
-                                    onClick={() => {
-                                      updatePair(index, { valueType: type });
-                                      setOpenTypeIndex(null);
-                                    }}
-                                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                                  >
-                                    <span>{label}</span>
-                                    {pair.valueType === type ? <Check className="h-3.5 w-3.5" /> : null}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <PinnedSplitInputDropdown
+                      pinId={pinId}
+                      connected={isConnected}
+                      value={pair.value}
+                      valuePlaceholder={`Value ${index + 1}`}
+                      onValueChange={(nextValue) => updatePair(index, { value: nextValue })}
+                      dropdownValue={pair.valueType}
+                      dropdownOptions={Object.entries(constructorValueTypeLabels).map(
+                        ([value, label]) => ({
+                          value,
+                          label,
+                        })
+                      )}
+                      onDropdownChange={(nextValue) =>
+                        updatePair(index, {
+                          valueType: nextValue as ConstructorPair['valueType'],
+                        })
+                      }
+                    />
                   </div>
                 </div>
 

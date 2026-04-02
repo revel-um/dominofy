@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRightLeft, Braces, ListTree, Plus, Trash2 } from 'lucide-react';
 
 import DominoPin from '../components/shared/dominoPin';
+import DominoDropdown from '../components/shared/dominoDropdown';
 import { PinType } from '../types/pinTypes';
 import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
@@ -315,19 +316,12 @@ export default function DeconstrctDomino({ data, id, selected }: NodeProps) {
             </span>
           </div>
 
-          <div className="min-h-11 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
-            <select
-              value={kind}
-              onChange={(event) => handleTypeChange(event.target.value as 'array' | 'object')}
-              className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none dark:text-dominofy-dark-text"
-            >
-              {TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <DominoDropdown
+            value={kind}
+            options={[...TYPE_OPTIONS]}
+            onChange={(nextValue) => handleTypeChange(nextValue as 'array' | 'object')}
+            className="min-h-11 py-2.5"
+          />
 
           <div className="text-xs text-foreground/55 dark:text-slate-400">
             {kind === 'array'

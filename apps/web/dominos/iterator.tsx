@@ -7,6 +7,7 @@ import { NodeProps, useEdges } from 'reactflow';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { AlignLeft, ArrowDownUp, ListOrdered, Workflow } from 'lucide-react';
 import DominoPin from '../components/shared/dominoPin';
+import DominoDropdown from '../components/shared/dominoDropdown';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
@@ -24,6 +25,10 @@ const iteratorMeta = dominoCatalog.find((entry) => entry.id === 'iterator');
 const iteratorAccentColor = iteratorMeta?.badgeStyle?.background
   ? String(iteratorMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
   : undefined;
+const iteratorOrderOptions = [
+  { label: 'Forward', value: 'forward' },
+  { label: 'Reverse', value: 'reverse' },
+] as const;
 
 export default function IteratorDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
@@ -283,16 +288,11 @@ export default function IteratorDomino({ data, id, selected }: NodeProps) {
             Order
           </div>
 
-          <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface dark:border-slate-600 dark:bg-dominofy-dark-surface">
-            <select
-              value={order}
-              onChange={(event) => onOrderChange(event.target.value as 'forward' | 'reverse')}
-              className="nodrag h-full w-full rounded-lg bg-dominofy-light-surface px-4 py-3 text-sm text-dominofy-light-text outline-none dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text"
-            >
-              <option value="forward" className="bg-dominofy-light-surface text-dominofy-light-text dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text">Forward</option>
-              <option value="reverse" className="bg-dominofy-light-surface text-dominofy-light-text dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text">Reverse</option>
-            </select>
-          </div>
+          <DominoDropdown
+            value={order}
+            options={[...iteratorOrderOptions]}
+            onChange={(nextValue) => onOrderChange(nextValue as 'forward' | 'reverse')}
+          />
         </div>
 
         <div className="space-y-3 px-4">

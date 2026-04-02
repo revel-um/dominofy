@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlignLeft, ArrowDownUp, Database, ShieldCheck } from 'lucide-react';
 
 import DominoPin from '../components/shared/dominoPin';
+import DominoDropdown from '../components/shared/dominoDropdown';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
@@ -319,19 +320,17 @@ export default function DatabaseRetrievalDomino({
             </span>
           </div>
 
-          <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
-            <select
-              value={operation}
-              onChange={(event) => {
-                setOperation(event.target.value);
-                updateField('Operation', event.target.value);
-              }}
-              className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none dark:text-dominofy-dark-text"
-            >
-              <option value="document">Get document</option>
-              <option value="list">List recent documents</option>
-            </select>
-          </div>
+          <DominoDropdown
+            value={operation}
+            options={[
+              { label: 'Get document', value: 'document' },
+              { label: 'List recent documents', value: 'list' },
+            ]}
+            onChange={(nextValue) => {
+              setOperation(nextValue);
+              updateField('Operation', nextValue);
+            }}
+          />
         </div>
 
         {isDocumentMode ? (

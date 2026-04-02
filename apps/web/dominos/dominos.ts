@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 
 import { FiFileText } from "react-icons/fi";
-import { SiGoogledrive, SiShopify, SiSlack } from "react-icons/si";
+import { SiGoogledrive, SiSlack } from "react-icons/si";
 
 export type DominoCatalogEntry = {
   id: string;
@@ -365,15 +365,6 @@ export default [
       background: "linear-gradient(135deg, #bef264 0%, #15803d 100%)",
     },
     iconStyle: { color: "#020617" },
-  },
-  {
-    id: "shopify",
-    label: "Shopify",
-    description: "Interact with Shopify orders and products",
-    icon: SiShopify,
-    categories: ["Shopify"],
-    badgeStyle: { background: "#95BF47" },
-    iconStyle: { color: "#ffffff" },
   },
   {
     id: "note",

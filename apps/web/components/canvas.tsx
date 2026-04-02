@@ -55,7 +55,6 @@ import ResponseDomino from "../dominos/response";
 import LLMDomino from "../dominos/llm";
 import SchedulerDomino from "../dominos/scheduler";
 import ConnectorDomino from "@/dominos/connector";
-import ShopifyDomino from "@/dominos/shopify";
 import DatabaseDomino from "@/dominos/database";
 import DatabaseRetrievalDomino from "@/dominos/databaseRetrieval";
 /* NEW: Note node */
@@ -280,7 +279,6 @@ const nodeTypes = {
   connector: withRenderKey('connector', ConnectorDomino),
   storage: withRenderKey('storage', DatabaseDomino),
   storageRetrieve: withRenderKey('storageRetrieve', DatabaseRetrievalDomino),
-  shopify: withRenderKey('shopify', ShopifyDomino),
   /* NEW */
   note: withRenderKey('note', NoteDomino),
 };

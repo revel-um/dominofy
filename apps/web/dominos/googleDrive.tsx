@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { FolderCog, FolderInput, FolderPen, FolderSync, HardDriveUpload, Shield, Tags } from 'lucide-react';
 import DominoPin from '../components/shared/dominoPin';
+import DominoDropdown from '../components/shared/dominoDropdown';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
@@ -797,20 +798,14 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
               Connected
             </div>
           ) : (
-            <select
+            <DominoDropdown
               value={actionMode}
-              onChange={(e) => {
-                setActionMode(e.target.value);
+              options={ACTION_OPTIONS}
+              onChange={(nextValue) => {
+                setActionMode(nextValue);
                 clearValidationForDominoId(id);
               }}
-              className="nodrag h-full min-h-12 w-full rounded-lg bg-dominofy-light-surface px-4 py-3 text-sm text-dominofy-light-text outline-none dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text"
-            >
-              {ACTION_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            />
           ),
         })}
 
@@ -911,20 +906,14 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                   Connected
                 </div>
               ) : (
-                <select
+                <DominoDropdown
                   value={bulkAction}
-                  onChange={(e) => {
-                    setBulkAction(e.target.value);
+                  options={BULK_ACTION_OPTIONS}
+                  onChange={(nextValue) => {
+                    setBulkAction(nextValue);
                     clearValidationForDominoId(id);
                   }}
-                  className="nodrag h-full min-h-12 w-full rounded-lg bg-dominofy-light-surface px-4 py-3 text-sm text-dominofy-light-text outline-none dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text"
-                >
-                  {BULK_ACTION_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                />
               ),
             })}
 
@@ -1039,20 +1028,14 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                       Connected
                     </div>
                   ) : (
-                    <select
+                    <DominoDropdown
                       value={accessRole}
-                      onChange={(e) => {
-                        setAccessRole(e.target.value);
+                      options={ACCESS_ROLE_OPTIONS}
+                      onChange={(nextValue) => {
+                        setAccessRole(nextValue);
                         clearValidationForDominoId(id);
                       }}
-                      className="nodrag h-full min-h-12 w-full rounded-lg bg-dominofy-light-surface px-4 py-3 text-sm text-dominofy-light-text outline-none dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text"
-                    >
-                      {ACCESS_ROLE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   ),
                 })}
                 {renderPinnedControl({
@@ -1065,20 +1048,14 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                       Connected
                     </div>
                   ) : (
-                    <select
+                    <DominoDropdown
                       value={accessType}
-                      onChange={(e) => {
-                        setAccessType(e.target.value);
+                      options={ACCESS_TYPE_OPTIONS}
+                      onChange={(nextValue) => {
+                        setAccessType(nextValue);
                         clearValidationForDominoId(id);
                       }}
-                      className="nodrag h-full min-h-12 w-full rounded-lg bg-dominofy-light-surface px-4 py-3 text-sm text-dominofy-light-text outline-none dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text"
-                    >
-                      {ACCESS_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   ),
                 })}
                 {(accessType === 'user' || accessType === 'group') && (

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlignLeft, ArrowDownUp, Braces, Database } from 'lucide-react';
 
 import DominoPin from '../components/shared/dominoPin';
+import DominoDropdown from '../components/shared/dominoDropdown';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
@@ -282,19 +283,17 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
         <div className="space-y-3 px-4">
           {renderSectionLabel(ArrowDownUp, 'Operation')}
 
-          <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface dark:border-slate-600 dark:bg-dominofy-dark-surface">
-            <select
-              value={operation}
-              onChange={(event) => {
-                setOperation(event.target.value);
-                updateField('Operation', event.target.value);
-              }}
-              className="nodrag h-full w-full rounded-lg bg-dominofy-light-surface px-4 py-3 text-sm text-dominofy-light-text outline-none dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text"
-            >
-              <option value="create">Create</option>
-              <option value="upsert">Upsert by key</option>
-            </select>
-          </div>
+          <DominoDropdown
+            value={operation}
+            options={[
+              { label: 'Create', value: 'create' },
+              { label: 'Upsert by key', value: 'upsert' },
+            ]}
+            onChange={(nextValue) => {
+              setOperation(nextValue);
+              updateField('Operation', nextValue);
+            }}
+          />
         </div>
 
         {renderPinnedControl({

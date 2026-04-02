@@ -3,6 +3,7 @@ import { NodeProps, useEdges } from 'reactflow';
 import { ArrowDownUp, Braces, Globe, Package, Webhook } from 'lucide-react';
 
 import DominoPin from '../components/shared/dominoPin';
+import DominoDropdown from '../components/shared/dominoDropdown';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
@@ -260,23 +261,11 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
             Method
           </div>
 
-          <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface dark:border-slate-600 dark:bg-dominofy-dark-surface">
-            <select
-              value={method}
-              onChange={(event) => setFieldValue('Method', event.target.value)}
-              className="nodrag h-full w-full rounded-lg bg-dominofy-light-surface px-4 py-3 text-sm text-dominofy-light-text outline-none dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text"
-            >
-              {METHOD_OPTIONS.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                  className="bg-dominofy-light-surface text-dominofy-light-text dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text"
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <DominoDropdown
+            value={method}
+            options={METHOD_OPTIONS}
+            onChange={(nextValue) => setFieldValue('Method', nextValue)}
+          />
         </div>
 
         <div className="space-y-3 px-4">
