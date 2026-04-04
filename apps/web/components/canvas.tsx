@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import React, { memo, useCallback, useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import ReactFlow, {
   addEdge,
   Background,
@@ -286,6 +287,200 @@ const nodeTypes = {
 const DASHBOARD_PREVIEW_ZOOM = 1 / 3;
 const MIN_CANVAS_ZOOM = 1 / 3;
 
+/* ─────────────────────────  CANVAS COMMENTS  ───────────────────────── */
+export interface CanvasComment {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  createdAt: string;
+}
+
+interface CommentsLayerProps {
+  comments: CanvasComment[];
+  onCommentsChange: (comments: CanvasComment[]) => void;
+  pendingComment: { x: number; y: number } | null;
+  onPendingConfirm: (text: string) => void;
+  onPendingCancel: () => void;
+  portalHost: HTMLElement | null;
+}
+
+const CommentsLayer = memo(function CommentsLayer({
+  comments,
+  onCommentsChange,
+  pendingComment,
+  onPendingConfirm,
+  onPendingCancel,
+  portalHost,
+}: CommentsLayerProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [pendingText, setPendingText] = useState('');
+  const pendingRef = useRef<HTMLTextAreaElement>(null);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+
+  const syncTextareaHeight = useCallback((textarea: HTMLTextAreaElement | null) => {
+    if (!textarea) return;
+    textarea.style.height = '0px';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, []);
+
+  useEffect(() => {
+    if (pendingComment) {
+      setPendingText('');
+      setTimeout(() => {
+        const textarea = pendingRef.current;
+        if (!textarea) return;
+        textarea.focus();
+        syncTextareaHeight(textarea);
+      }, 50);
+    }
+  }, [pendingComment, syncTextareaHeight]);
+
+  useEffect(() => {
+    if (editingId) {
+      setTimeout(() => {
+        const textarea = editRef.current;
+        if (!textarea) return;
+        textarea.focus();
+        const end = textarea.value.length;
+        textarea.setSelectionRange(end, end);
+        syncTextareaHeight(textarea);
+      }, 50);
+    }
+  }, [editingId, syncTextareaHeight]);
+
+  useEffect(() => {
+    syncTextareaHeight(editRef.current);
+  }, [editText, syncTextareaHeight]);
+
+  useEffect(() => {
+    syncTextareaHeight(pendingRef.current);
+  }, [pendingText, syncTextareaHeight]);
+
+  const handleStartEdit = (comment: CanvasComment) => {
+    setEditingId(comment.id);
+    setEditText(comment.text);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingId) return;
+    if (editText.trim()) {
+      onCommentsChange(
+        comments.map(c => c.id === editingId ? { ...c, text: editText.trim() } : c)
+      );
+    } else {
+      onCommentsChange(comments.filter(c => c.id !== editingId));
+    }
+    setEditingId(null);
+  };
+
+  const handlePendingKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape') {
+      onPendingCancel();
+    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      onPendingConfirm(pendingText);
+    }
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape') {
+      setEditingId(null);
+    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      handleSaveEdit();
+    }
+  };
+
+  if (!portalHost) return null;
+
+  return createPortal(
+    <div
+      className="absolute inset-0 pointer-events-none"
+      style={{ zIndex: 20, overflow: 'visible' }}
+    >
+      {comments.map(comment => {
+        const isEditing = editingId === comment.id;
+        return (
+          <div
+            key={comment.id}
+            className="canvas-comment nodrag group absolute inline-block"
+            style={{
+              left: comment.x,
+              top: comment.y,
+              width: 'max-content',
+              pointerEvents: 'auto',
+            }}
+          >
+            <div
+              className="relative rounded-md border border-slate-500/40 bg-dominofy-light-surface dark:border-slate-700/60 dark:bg-dominofy-dark-surface"
+            >
+              {isEditing ? (
+                <textarea
+                  ref={editRef}
+                  className="block min-w-[1ch] resize-none overflow-x-auto overflow-y-hidden rounded-md bg-transparent px-2 py-1.5 !text-white caret-white focus:outline-none placeholder:text-slate-500"
+                  rows={1}
+                  wrap="off"
+                  style={{ width: 'auto', fieldSizing: 'content' as any, fontSize: '28px', lineHeight: '1.5' }}
+                  value={editText}
+                  onChange={e => setEditText(e.target.value)}
+                  onBlur={handleSaveEdit}
+                  onKeyDown={handleEditKeyDown}
+                />
+              ) : (
+                <div
+                  className="cursor-text overflow-x-auto whitespace-pre px-2 py-1.5 text-slate-100"
+                  style={{ fontSize: '28px', lineHeight: '1.5' }}
+                  onClick={() => handleStartEdit(comment)}
+                  title="Click to edit"
+                >
+                  {comment.text}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {pendingComment && (() => {
+        return (
+          <div
+            className="canvas-comment nodrag absolute inline-block"
+            style={{
+              left: pendingComment.x,
+              top: pendingComment.y,
+              width: 'max-content',
+              pointerEvents: 'auto',
+              zIndex: 30,
+            }}
+          >
+            <div className="rounded-md border border-slate-500/40 bg-dominofy-light-surface dark:border-slate-700/60 dark:bg-dominofy-dark-surface">
+              <textarea
+                ref={pendingRef}
+                className="block min-w-[1ch] resize-none overflow-x-auto overflow-y-hidden rounded-md bg-transparent px-2 py-1.5 !text-white caret-white focus:outline-none placeholder:text-slate-500"
+                rows={1}
+                wrap="off"
+                style={{ width: 'auto', fieldSizing: 'content' as any, fontSize: '28px', lineHeight: '1.5' }}
+                placeholder="Add a comment…"
+                value={pendingText}
+                onChange={e => setPendingText(e.target.value)}
+                onBlur={() => {
+                  if (pendingText.trim()) {
+                    onPendingConfirm(pendingText);
+                  } else {
+                    onPendingCancel();
+                  }
+                }}
+                onKeyDown={handlePendingKeyDown}
+              />
+            </div>
+          </div>
+        );
+      })()}
+    </div>,
+    portalHost
+  );
+});
+
 /* ─────────────────────────  PROPS  ───────────────────────── */
 interface CanvasProps {
   id: string;
@@ -311,7 +506,11 @@ interface CanvasProps {
   onCancelInsertNote?: () => void;
   isExpandedMode?: boolean;
   onToggleExpandedMode?: () => void;
-  
+
+  /* Canvas comments (stored separately from visualJson) */
+  comments?: CanvasComment[];
+  onCommentsChange?: (comments: CanvasComment[]) => void;
+
   /* NEW: viewport change callback for template carousel */
   onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;
   allowReadonlyPanning?: boolean;
@@ -333,6 +532,8 @@ export default function Canvas(props: CanvasProps) {
     onCancelInsertNote,
     isExpandedMode = true,
     onToggleExpandedMode,
+    comments = [],
+    onCommentsChange,
     onViewportChange,
     allowReadonlyPanning,
     allowReadonlyPanOnScroll,
@@ -354,6 +555,8 @@ export default function Canvas(props: CanvasProps) {
   const [isProgrammaticMove, setIsProgrammaticMove] = useState(false);
   const [interactionMode, setInteractionMode] = useState<CanvasInteractionMode>('selection');
   const [animatingNodeIds, setAnimatingNodeIds] = useState<Set<string>>(new Set());
+  const [pendingComment, setPendingComment] = useState<{ x: number; y: number } | null>(null);
+  const [commentsPortalHost, setCommentsPortalHost] = useState<HTMLElement | null>(null);
   const canvasRootRef = useRef<HTMLDivElement | null>(null);
   const viewportChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
@@ -366,6 +569,13 @@ export default function Canvas(props: CanvasProps) {
       setIsCanvasReady(false);
     }
   }, [nodes, renderGuarded]);
+
+  useEffect(() => {
+    if (!canvasRootRef.current) return;
+    setCommentsPortalHost(
+      canvasRootRef.current.querySelector('.react-flow__viewport') as HTMLElement | null
+    );
+  }, [rfInstance, nodes.length, edges.length]);
 
   // Handle viewport changes using ReactFlow's built-in onMove event
   const handleReactFlowMove = useCallback(
@@ -402,6 +612,39 @@ export default function Canvas(props: CanvasProps) {
       }
     };
   }, []);
+
+  // Forward wheel events from comment elements to the canvas zoom/pan.
+  // Comments live outside ReactFlowProvider so their wheel events bypass
+  // ReactFlow's non-passive listener and can reach the browser, causing
+  // unwanted browser zoom. Intercept those here and forward them to canvas.
+  useEffect(() => {
+    const el = canvasRootRef.current;
+    if (!el) return;
+
+    const handler = (e: WheelEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.canvas-comment')) return;
+
+      e.preventDefault();
+      if (!rfInstance) return;
+
+      const vp = rfInstance.getViewport();
+      if (e.ctrlKey || e.metaKey) {
+        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+        const newZoom = Math.min(Math.max(vp.zoom * factor, MIN_CANVAS_ZOOM), 8);
+        rfInstance.zoomTo(newZoom, { x: e.clientX, y: e.clientY });
+      } else {
+        rfInstance.setViewport({
+          x: vp.x - e.deltaX,
+          y: vp.y - e.deltaY,
+          zoom: vp.zoom,
+        });
+      }
+    };
+
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [rfInstance]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -1402,7 +1645,7 @@ export default function Canvas(props: CanvasProps) {
 
   /* pane click behavior:
      - If note tool is active, drop a note where user clicked and exit note mode.
-     - Otherwise default: clear selection (unless meta/ctrl/shift). */
+     - Otherwise: open a comment input at the clicked position. */
   const handlePaneClick = useCallback(
     (e: React.MouseEvent) => {
       // Insert note if tool active
@@ -1441,13 +1684,41 @@ export default function Canvas(props: CanvasProps) {
         return;
       }
 
-      // Default selection behavior
+      // Clear selection first
       if (e.metaKey || e.ctrlKey || e.shiftKey) return;
       setNodes((prev) => prev.map((n) => ({ ...n, selected: false })));
       setEdges((prev) => prev.map((edge) => ({ ...edge, selected: false })));
       setSelectedNode(null);
+
     },
-    [noteToolActive, rfInstance, setNodes, setEdges, edges, updatePipeline, onCancelInsertNote, workflowId]
+    [id, noteToolActive, rfInstance, setNodes, setEdges, edges, updatePipeline, onCancelInsertNote, workflowId, onCommentsChange]
+  );
+
+  const handlePaneDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (noteToolActive) return;
+      if (id !== 'dominofy' || !onCommentsChange || !rfInstance) return;
+
+      const targetEl = e.target as HTMLElement | null;
+      if (
+        targetEl?.closest(
+          '.react-flow__node, .react-flow__edge, .canvas-comment, .react-flow__minimap, .react-flow__controls'
+        )
+      ) {
+        return;
+      }
+
+      if (
+        !targetEl?.closest('.react-flow__pane') &&
+        !targetEl?.closest('.react-flow__background')
+      ) {
+        return;
+      }
+
+      const pos = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      setPendingComment({ x: pos.x, y: pos.y });
+    },
+    [id, noteToolActive, onCommentsChange, rfInstance]
   );
 
   const handleEdgeClick = useCallback(
@@ -1599,6 +1870,7 @@ export default function Canvas(props: CanvasProps) {
       className="relative w-full h-full" 
       style={{ overscrollBehavior: 'none', overscrollBehaviorX: 'none' }}
       onContextMenu={onPaneContextMenu}
+      onDoubleClick={handlePaneDoubleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -1631,6 +1903,7 @@ export default function Canvas(props: CanvasProps) {
           panOnScroll={canPanReadonlyOnScroll || !readonly}
           preventScrolling={!readonly}
           zoomOnScroll={false}
+          zoomOnDoubleClick={false}
 
           /* ✅ MULTI-SELECT via rectangle (hold Shift) */
           selectionOnDrag={!readonly && isSelectionMode}
@@ -1704,6 +1977,30 @@ export default function Canvas(props: CanvasProps) {
           {/* <Controls /> */}
         </ReactFlow>
       </ReactFlowProvider>
+
+      {/* Canvas comments overlay */}
+      {isDominofyCanvas && onCommentsChange && (
+        <CommentsLayer
+          comments={comments}
+          onCommentsChange={onCommentsChange}
+          pendingComment={pendingComment}
+          portalHost={commentsPortalHost}
+          onPendingConfirm={(text) => {
+            if (pendingComment && text.trim()) {
+              const newComment: CanvasComment = {
+                id: `comment-${Date.now()}`,
+                text: text.trim(),
+                x: pendingComment.x,
+                y: pendingComment.y,
+                createdAt: new Date().toISOString(),
+              };
+              onCommentsChange([...comments, newComment]);
+            }
+            setPendingComment(null);
+          }}
+          onPendingCancel={() => setPendingComment(null)}
+        />
+      )}
 
       {/* modal */}
       {isModalOpen && (

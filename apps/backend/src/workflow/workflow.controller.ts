@@ -145,6 +145,25 @@ export class WorkflowController extends BaseController<
     };
   }
 
+  @Patch(':id/comments')
+  async saveComments(
+    @Param('id') id: string,
+    @Body('comments') comments: string,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).user.id;
+    const workflow = await this.workflowService.findOneAndVerify(id, userId, [
+      WorkspaceRole.OWNER,
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.MEMBER,
+    ]);
+    if (!workflow) {
+      throw new NotFoundException(`Workflow with id ${id} not found`);
+    }
+    workflow.comments = JSON.parse(comments);
+    return await this.workflowService.update(id, workflow);
+  }
+
   @Patch(':id/rename')
   async renameWorkflow(
     @Param('id') id: string,

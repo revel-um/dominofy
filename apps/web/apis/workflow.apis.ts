@@ -121,6 +121,23 @@ export class WorkflowsApi {
     }
   }
 
+  static async saveComments(id: string, comments: string, token: string, router: NextRouter) {
+    try {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/${id}/comments`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ comments }),
+        token,
+      }, router);
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
   static async createWorkflow(name: string, projectId: string, token: string, router: NextRouter) {
     try {
       const response = await authFetch(`${config.backendBaseUrl}/workflow`, {

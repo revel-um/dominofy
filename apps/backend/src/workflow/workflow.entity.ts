@@ -43,6 +43,15 @@ export class Workflow extends BaseEntity {
   @Column({ type: 'jsonb', default: { nodes: [], edges: [] } })
   visualJson: { nodes: any[]; edges: any[] };
 
+  @Column({ type: 'jsonb', default: [] })
+  comments: {
+    id: string;
+    text: string;
+    x: number;
+    y: number;
+    createdAt: string;
+  }[];
+
   @Column({ default: false })
   isPublished: boolean;
 

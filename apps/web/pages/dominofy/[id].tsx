@@ -26,6 +26,7 @@ import { SSEProvider } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
 import WorkflowToolbar from "@/components/workflowToolbar";
 import { FiGitBranch, FiPlus } from 'react-icons/fi';
+import type { CanvasComment } from "@/components/canvas";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -58,6 +59,7 @@ interface Props {
       edges: any[];
       nodes: any[];
     };
+    comments?: CanvasComment[];
     isPublished: boolean;
     isDefault: boolean;
     project?: {
@@ -414,6 +416,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [canRedo, setCanRedo] = useState(false);
 
   const [noteToolActive, setNoteToolActive] = useState(false);
+  const [comments, setComments] = useState<CanvasComment[]>([]);
   const latestEdgesRef = useRef<Edge[]>(edges);
   const nodeSetterRef = useRef<React.Dispatch<React.SetStateAction<Node[]>>>(() => []);
   useEffect(() => {
@@ -1138,6 +1141,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         }
 
         setHasUnsavedChanges(cacheDirty);
+        setComments((workflow as any).comments || []);
         setProjectWorkflows(prev =>
           prev.map(w => (w.id === workflow.id ? { ...w, isCached: cacheDirty } : w))
         );
@@ -1189,6 +1193,17 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     hydrateContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflow]);
+
+  const handleCommentsChange = useCallback(async (newComments: CanvasComment[]) => {
+    setComments(newComments);
+    const token = localStorage.getItem('token');
+    if (!token || !workflowId) return;
+    try {
+      await WorkflowsApi.saveComments(workflowId, JSON.stringify(newComments), token, router);
+    } catch (err) {
+      console.error('Failed to save comments:', err);
+    }
+  }, [workflowId, router]);
 
   if (loading) {
     return <div className="w-screen h-screen flex items-center justify-center text-xl">Loading workflow...</div>;
@@ -1307,6 +1322,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                           noteToolActive={noteToolActive}
                           onStartInsertNote={() => setNoteToolActive(true)}
                           onCancelInsertNote={() => setNoteToolActive(false)}
+                          comments={comments}
+                          onCommentsChange={handleCommentsChange}
                           isExpandedMode={isCanvasExpanded}
                           onToggleExpandedMode={() => updateCanvasMode(!isCanvasExpanded, workflowId)}
                         />
