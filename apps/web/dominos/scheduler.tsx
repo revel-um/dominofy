@@ -468,6 +468,12 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     }
   };
 
+  const showsTimeInput =
+    schedule.frequency === 'once' ||
+    schedule.frequency === 'day' ||
+    schedule.frequency === 'week' ||
+    schedule.frequency === 'month';
+
   return (
     <div
       className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 shadow-sm backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
@@ -612,7 +618,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
           </div>
         )}
 
-        {(schedule.frequency === 'day' || schedule.frequency === 'week' || schedule.frequency === 'month') && (
+        {showsTimeInput && (
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
@@ -620,7 +626,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
                 Time
               </div>
               <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
-                Local schedule time
+                {schedule.frequency === 'once' ? 'Execution time' : 'Local schedule time'}
               </span>
             </div>
             <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">

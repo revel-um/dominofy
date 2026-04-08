@@ -7,6 +7,7 @@ import {
   FiCheck,
   FiX,
   FiLoader,
+  FiArrowLeft,
 } from 'react-icons/fi';
 import { Node, Edge } from 'reactflow';
 import { exportWorkflow } from '../helpers/workflowManager';
@@ -283,11 +284,18 @@ export default function WorkflowToolbar({
                    border-b border-[#b0b3b8] dark:border-[#44474a]"
         style={{ height: TOOLBAR_HEIGHT }}
       >
-        {/* Brand */}
+        {/* Brand + Back */}
         <div className="flex items-center gap-3">
-          <img 
-            src="/dominofy.png" 
-            alt="Dominofy" 
+          <button
+            onClick={() => router.back()}
+            className="p-1.5 rounded-md hover:bg-[var(--secondary-hover)] text-[var(--text-secondary)] hover:text-white transition-colors"
+            title="Go back"
+          >
+            <FiArrowLeft className="w-4 h-4" />
+          </button>
+          <img
+            src="/dominofy.png"
+            alt="Dominofy"
             className="w-6 h-6"
           />
           <h1 className="text-xl font-bold">Dominofy</h1>

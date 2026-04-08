@@ -25,7 +25,7 @@ import { NodeErrorMap } from "../../helpers/errorDetector";
 import { SSEProvider } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
 import WorkflowToolbar from "@/components/workflowToolbar";
-import { FiGitBranch, FiPlus } from 'react-icons/fi';
+import { FiArrowLeft, FiGitBranch, FiPlus } from 'react-icons/fi';
 import type { CanvasComment } from "@/components/canvas";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -1222,6 +1222,13 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               style={{ height: TOOLBAR_HEIGHT }}
             >
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => router.back()}
+                  className="p-1.5 rounded-md hover:bg-[var(--secondary-hover)] text-[var(--text-secondary)] hover:text-white transition-colors"
+                  title="Go back"
+                >
+                  <FiArrowLeft className="w-4 h-4" />
+                </button>
                 <Image src="/dominofy.png" alt="Dominofy" width={24} height={24} className="h-6 w-6" />
                 <h1 className="text-xl font-bold">Dominofy</h1>
               </div>
