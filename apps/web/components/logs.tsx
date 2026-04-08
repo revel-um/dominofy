@@ -61,7 +61,16 @@ const timeOptions: { value: number; label: string }[] = [
 ];
 
 function isRenderableOutputDomino(dominoId: string): boolean {
-  return dominoId.startsWith('print') || dominoId.startsWith('response');
+  return (
+    dominoId === '__workflow__' ||
+    dominoId.startsWith('print') ||
+    dominoId.startsWith('response')
+  );
+}
+
+function shouldRenderLogEntry(log: { dominoId?: string; status?: string }): boolean {
+  if (log.status === 'failure') return true;
+  return isRenderableOutputDomino(log.dominoId || '');
 }
 
 function stringifyLogValue(value: unknown): string {
@@ -251,6 +260,7 @@ export const LogsPanel = React.memo(function LogsPanel({
   const pendingRunsRef = useRef<Record<string, Map<string, Date>>>({});
   const sseRefs = useRef<Map<string, EventSource>>(new Map());
   const processedEventCountRef = useRef(0);
+  const openWorkflowIdsSignature = openWorkflowIds.join('|');
 
   const getPendingRuns = useCallback((wfId: string) => {
     const current = pendingRunsRef.current[wfId];
@@ -304,7 +314,7 @@ export const LogsPanel = React.memo(function LogsPanel({
 
     const grouped: Record<string, RunLogAggregate> = {};
     raw
-      .filter((l: any) => isRenderableOutputDomino(l.dominoId || ''))
+      .filter((l: any) => shouldRenderLogEntry(l))
       .forEach((l: any) => {
         const runId = l.runId;
         const ts = new Date(l.updatedAt);
@@ -357,7 +367,7 @@ export const LogsPanel = React.memo(function LogsPanel({
           const wfId = payload.workflowId || id;
           const log = payload.log;
           if (!log) return;
-          if (!isRenderableOutputDomino(log.dominoId || '')) return;
+          if (!shouldRenderLogEntry(log)) return;
 
           const ts = new Date(log.updatedAt || log.createdAt || Date.now());
           const runId = log.runId || payload.runId || `${Date.now()}`;
@@ -379,7 +389,7 @@ export const LogsPanel = React.memo(function LogsPanel({
     return () => {
       closeAll();
     };
-  }, [isLive, isMinimized, workflowId, openWorkflowIds, appendLiveLog]);
+  }, [isLive, isMinimized, workflowId, openWorkflowIdsSignature, appendLiveLog]);
 
   useEffect(() => {
     if (!activeWorkflowId) return;

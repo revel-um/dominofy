@@ -4,7 +4,7 @@ import { buildGraph } from "./graph";
 import { dominoRegistry } from "./registry";
 import { PipelineStep } from "../../../../shared/types/pipelineStepType";
 import { ExecuteContext, DominoResult } from "./domino-engine.type";
-import { validateWorkflow } from "../../../../shared/helpers/validateWorkflow";
+import { getWorkflowValidationError } from "../../../../shared/helpers/validateWorkflow";
 
 export class Runner extends EventEmitter {
   private queue: PQueue;
@@ -42,8 +42,10 @@ export class Runner extends EventEmitter {
   ) {
     
     //Validate if workflow is invalid
-    const isWorkflowValid = validateWorkflow(this.visualJson);
-    if(!isWorkflowValid) return;
+    const workflowValidationError = getWorkflowValidationError(this.visualJson);
+    if (workflowValidationError) {
+      throw new Error(`Workflow validation failed: ${workflowValidationError}`);
+    }
 
     const { children, deps } = buildGraph(this.pipeline);
     const results: Record<string, any> = {};

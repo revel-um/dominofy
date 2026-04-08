@@ -34,6 +34,17 @@ export class AppService {
 
     return new Observable(subscriber => {
       const runId = uuidv4();
+      const logRunFailure = async (message: string, stack?: string) => {
+        await this.workflowLogger.logLine({
+          workflowId,
+          type: 'workflow',
+          runId,
+          dominoId: '__workflow__',
+          status: WorkflowLogStatus.FAILURE,
+          error: { message, stack },
+        });
+        await this.workflowLogger.flushNow();
+      };
 
       const isBlocking = isWorkflowBlocking(pipeline);
 
@@ -51,7 +62,12 @@ export class AppService {
         }
 
         
-        execPool.run({ workflowId, runId, visualJson: pipeline }).catch(err => subscriber.error(err));
+        execPool.run({ workflowId, runId, visualJson: pipeline }).catch(async err => {
+          const message = err instanceof Error ? err.message : String(err);
+          await logRunFailure(message, err instanceof Error ? err.stack : undefined);
+          send({ type: 'RUN_ERROR', error: { message } });
+          subscriber.complete();
+        });
 
         const sub = fromEvent(progressEmitter, runId).subscribe((msg: any) => {
           switch (msg.type) {
@@ -76,17 +92,15 @@ export class AppService {
             case 'NODE_ERROR': {
               const { nodeId, message } = msg;
               const type = nodeId.split('-')[0];
-              if (type === 'print') {
-                this.workflowLogger.logLine({
-                  workflowId,
-                  type,
-                  runId,
-                  dominoId: nodeId,
-                  status: WorkflowLogStatus.FAILURE,
-                  error: { message },
-                  seq: seq++,
-                });
-              }
+              this.workflowLogger.logLine({
+                workflowId,
+                type,
+                runId,
+                dominoId: nodeId,
+                status: WorkflowLogStatus.FAILURE,
+                error: { message },
+                seq: seq++,
+              });
               send({ nodeId, error: { message } });
               break;
             }
@@ -126,7 +140,12 @@ export class AppService {
           .catch(err => subscriber.error(err))
           .finally(() => subscriber.complete());
       });
-      runner.run(runId, {}, { workflowId }).catch(err => subscriber.error(err));
+      runner.run(runId, {}, { workflowId }).catch(async err => {
+        const message = err instanceof Error ? err.message : String(err);
+        await logRunFailure(message, err instanceof Error ? err.stack : undefined);
+        send({ type: 'RUN_ERROR', error: { message } });
+        subscriber.complete();
+      });
 
       send({ type: 'ACCEPTED' });
       return () => runner.removeAllListeners();

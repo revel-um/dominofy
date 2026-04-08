@@ -110,6 +110,26 @@ export class WorkflowService extends BaseService<Workflow> {
     return qb.getMany();
   }
 
+  async findWorkflowsByGoogleCalendarTrigger(vaultId: string): Promise<Workflow[]> {
+    const createdMatch = JSON.stringify({
+      nodes: [{ type: 'googleCalendarEventCreated', data: { vaultId } }],
+    });
+    const updatedMatch = JSON.stringify({
+      nodes: [{ type: 'googleCalendarEventUpdated', data: { vaultId } }],
+    });
+
+    return this.workflowRepository
+      .createQueryBuilder('workflow')
+      .where(
+        new Brackets(qb =>
+          qb
+            .where('workflow.visualJson @> :createdMatch', { createdMatch })
+            .orWhere('workflow.visualJson @> :updatedMatch', { updatedMatch }),
+        ),
+      )
+      .getMany();
+  }
+
 
   async getRecentWorkflows(userId: string, query?: string) {
     const user = await this.userService.findOne(userId);

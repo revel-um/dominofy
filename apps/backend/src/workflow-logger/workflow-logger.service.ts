@@ -77,7 +77,13 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
 
   /** Push a single log DTO into the in‑memory buffer. */
   async logLine(dto: WorkflowLogDto) {
-    if (dto.type !== 'print') {
+    const shouldPersist =
+      dto.status === WorkflowLogStatus.FAILURE ||
+      dto.type === 'print' ||
+      dto.type === 'response' ||
+      dto.dominoId === '__workflow__';
+
+    if (!shouldPersist) {
       return;
     }
 
@@ -235,7 +241,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
        *  Normalize all successful domino outputs into sequenced entries.
        */
       const normalizedOutputs = (() => {
-        if (d.type !== 'print') {
+        if (d.type !== 'print' && d.type !== 'response') {
           return [];
         }
 

@@ -19,6 +19,7 @@ import { AiChatModule } from './ai-chat/ai-chat.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { EmailModule } from './email/email.module';
 import { DriveModule } from './drive/drive.module';
+import { CalendarModule } from './calendar/calendar.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { StorageModule } from './storage/storage.module';
 
@@ -50,6 +51,7 @@ import { StorageModule } from './storage/storage.module';
     SlackModule,
     EmailModule,
     DriveModule,
+    CalendarModule,
     WorkspaceModule,
     StorageModule,
     RunnerLauncherModule,
@@ -71,6 +73,14 @@ export class AppModule implements NestModule {
         { path: 'auth/exchange', method: RequestMethod.POST, version: '1' },
         { path: 'auth/refresh', method: RequestMethod.POST, version: '1' },
         { path: 'auth/logout', method: RequestMethod.POST, version: '1' },
+        { path: 'email/google/callback', method: RequestMethod.GET, version: '1' },
+        { path: 'email/inbound', method: RequestMethod.POST, version: '1' },
+        { path: 'email/notifications/gmail', method: RequestMethod.POST, version: '1' },
+        { path: 'drive/google/callback', method: RequestMethod.GET, version: '1' },
+        { path: 'calendar/google/callback', method: RequestMethod.GET, version: '1' },
+        { path: 'slack', method: RequestMethod.GET, version: '1' },
+        { path: 'slack/events', method: RequestMethod.POST, version: '1' },
+        { path: 'slack/commands/:command', method: RequestMethod.POST, version: '1' },
         { path: 'workspace/invitations/:token', method: RequestMethod.GET, version: '1' },
         { path: 'workspace/invitations/:token/accept', method: RequestMethod.POST, version: '1' },
         { path: 'workflow/:workflowId/trigger/:functionName', method: RequestMethod.POST, version: '1' },

@@ -118,6 +118,12 @@ export class VaultService extends BaseService<Vault> {
             .getMany();
     }
 
+    async findByType(type: VaultType): Promise<Vault[]> {
+        return this.vaultRepository.find({
+            where: { type, isActive: true } as any,
+        });
+    }
+
     /* ─────────────────────────────
      * Attach / detach users
      * ────────────────────────────*/

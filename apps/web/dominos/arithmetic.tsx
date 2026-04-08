@@ -103,7 +103,7 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
 
     const normalizedInputs = moreInputs.length ? moreInputs : [''];
     const normalizedOperators = normalizedInputs.map(
-      (_, index) => savedOps[index] ?? '+'
+      (_value: string, index: number) => savedOps[index] ?? '+'
     );
 
     if (!areStringArraysEqual(normalizedInputs, inputsRef.current)) {
@@ -186,7 +186,9 @@ export default function ArithmeticDomino({ data, id, selected }: NodeProps) {
       }),
     ];
 
-    const nextExportFields = newFields.map((field) => field.heading);
+    const nextExportFields = newFields
+      .map((field) => field.heading)
+      .filter((heading): heading is string => typeof heading === 'string');
     const currentFields = latestNodeSnapshotRef.current.fields as DominoField[];
     const currentExportFields = latestNodeSnapshotRef.current.exportFields as string[];
 

@@ -308,6 +308,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const initialTabState = readTabState();
   const [tabs, setTabs] = useState<WorkflowTabMeta[]>(initialTabState.tabs);
   const [activeTabId, setActiveTabId] = useState<string | null>(initialTabState.activeTabId);
+  const openWorkflowIds = useMemo(() => tabs.map((tab) => tab.id), [tabs]);
 
   // Ensure current `workflow` is in the tabs list and set default active tab
   useEffect(() => {
@@ -1374,7 +1375,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               {!showCreateWorkflowEmptyState && workflowId && (
                 <LogsPanel
                   workflowId={workflowId!}
-                  openWorkflowIds={tabs.map((t) => t.id)}
+                  openWorkflowIds={openWorkflowIds}
                   problems={combinedProblems}
                   className="absolute bottom-0 left-0 right-0 z-10 border-t border-gray-200 dark:border-gray-700"
                   collapsedHeight={collapsedHeight}

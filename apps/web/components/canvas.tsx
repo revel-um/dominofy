@@ -38,6 +38,8 @@ import JoinTextDomino from "../dominos/joinText";
 import ReadExcelDomino from "../dominos/readExcel";
 import GoogleDriveDomino from "../dominos/googleDrive";
 import GoogleDriveDownloadDomino from "../dominos/googleDriveDownload";
+import GoogleCalendarActionDomino from "../dominos/googleCalendarAction";
+import GoogleCalendarTriggerDomino from "../dominos/googleCalendarTrigger";
 import DeconstrctDomino from "../dominos/deconstructor";
 import ConstructorDomino from "../dominos/constructor";
 import IteratorDomino from "../dominos/iterator";
@@ -263,6 +265,11 @@ const nodeTypes = {
   readexcel: withRenderKey('readexcel', ReadExcelDomino),
   googleDrive: withRenderKey('googleDrive', GoogleDriveDomino),
   googleDriveDownload: withRenderKey('googleDriveDownload', GoogleDriveDownloadDomino),
+  googleCalendarCreate: withRenderKey('googleCalendarCreate', GoogleCalendarActionDomino),
+  googleCalendarUpdate: withRenderKey('googleCalendarUpdate', GoogleCalendarActionDomino),
+  googleCalendarDelete: withRenderKey('googleCalendarDelete', GoogleCalendarActionDomino),
+  googleCalendarEventCreated: withRenderKey('googleCalendarEventCreated', GoogleCalendarTriggerDomino),
+  googleCalendarEventUpdated: withRenderKey('googleCalendarEventUpdated', GoogleCalendarTriggerDomino),
   deconstructor: withRenderKey('deconstructor', DeconstrctDomino),
   constructor: withRenderKey('constructor', ConstructorDomino),
   iterator: withRenderKey('iterator', IteratorDomino),
@@ -420,7 +427,7 @@ const CommentsLayer = memo(function CommentsLayer({
                   className="block min-w-[1ch] resize-none overflow-x-auto overflow-y-hidden rounded-md bg-transparent px-2 py-1.5 !text-white caret-white focus:outline-none placeholder:text-slate-500"
                   rows={1}
                   wrap="off"
-                  style={{ width: 'auto', fieldSizing: 'content' as any, fontSize: '28px', lineHeight: '1.5' }}
+                  style={{ width: 'auto', fontSize: '28px', lineHeight: '1.5' }}
                   value={editText}
                   onChange={e => setEditText(e.target.value)}
                   onBlur={handleSaveEdit}
@@ -459,7 +466,7 @@ const CommentsLayer = memo(function CommentsLayer({
                 className="block min-w-[1ch] resize-none overflow-x-auto overflow-y-hidden rounded-md bg-transparent px-2 py-1.5 !text-white caret-white focus:outline-none placeholder:text-slate-500"
                 rows={1}
                 wrap="off"
-                style={{ width: 'auto', fieldSizing: 'content' as any, fontSize: '28px', lineHeight: '1.5' }}
+                style={{ width: 'auto', fontSize: '28px', lineHeight: '1.5' }}
                 placeholder="Add a comment…"
                 value={pendingText}
                 onChange={e => setPendingText(e.target.value)}
