@@ -1,7 +1,7 @@
 import { PipelineStep } from "../../../../../shared/types/pipelineStepType";
 import { DominoExecutable, ExecuteContext, DominoResult } from "../domino-engine.type";
 import { CalendarService } from "../../calendar/calendar.service";
-import { buildCalendarDateTime } from "./googleCalendar.shared";
+import { buildCalendarDateTime, mergeCalendarDateIntoDateTime } from "./googleCalendar.shared";
 
 export class GoogleCalendarUpdateDomino implements DominoExecutable {
   id: string;
@@ -13,11 +13,13 @@ export class GoogleCalendarUpdateDomino implements DominoExecutable {
   private readonly literalSummary: string;
   private readonly literalDescription: string;
   private readonly literalLocation: string;
+  private readonly literalDate: string;
   private readonly literalStart: string;
   private readonly literalEnd: string;
   private readonly literalAttendees: any;
   private readonly literalTimezone: string;
   private readonly literalSendUpdates: string;
+  private readonly literalRecurrence: any;
 
   constructor(node: PipelineStep) {
     this.id = node.id;
@@ -27,11 +29,13 @@ export class GoogleCalendarUpdateDomino implements DominoExecutable {
     this.literalSummary = node.data?.summary?.value ?? "";
     this.literalDescription = node.data?.description?.value ?? "";
     this.literalLocation = node.data?.location?.value ?? "";
+    this.literalDate = node.data?.date?.value ?? "";
     this.literalStart = node.data?.start?.value ?? "";
     this.literalEnd = node.data?.end?.value ?? "";
     this.literalAttendees = node.data?.attendees?.value ?? [];
     this.literalTimezone = node.data?.timezone?.value ?? "";
     this.literalSendUpdates = node.data?.sendUpdates?.value ?? "all";
+    this.literalRecurrence = node.data?.recurrence?.value ?? "";
   }
 
   async execute(ctx: ExecuteContext): Promise<DominoResult> {
@@ -53,14 +57,26 @@ export class GoogleCalendarUpdateDomino implements DominoExecutable {
     const attendees = input.attendees ?? this.literalAttendees;
     const timezone = input.timezone ?? this.literalTimezone;
     const sendUpdates = String(input.sendUpdates ?? this.literalSendUpdates ?? "all");
+    const recurrence = input.recurrence ?? this.literalRecurrence;
+    const date = input.date ?? this.literalDate;
+    const resolvedStart = mergeCalendarDateIntoDateTime(date, input.start ?? this.literalStart);
+    const resolvedEnd = mergeCalendarDateIntoDateTime(date, input.end ?? this.literalEnd);
 
     const payload = {
       summary: (input.summary ?? this.literalSummary) || undefined,
       description: (input.description ?? this.literalDescription) || undefined,
       location: (input.location ?? this.literalLocation) || undefined,
-      start: buildCalendarDateTime(input.start ?? this.literalStart, timezone, "start", false),
-      end: buildCalendarDateTime(input.end ?? this.literalEnd, timezone, "end", false),
+      start: buildCalendarDateTime(resolvedStart, timezone, "start", false),
+      end: buildCalendarDateTime(resolvedEnd, timezone, "end", false),
       sendUpdates,
+      recurrence: Array.isArray(recurrence)
+        ? recurrence.filter(Boolean)
+        : typeof recurrence === "string" && recurrence.trim()
+          ? recurrence
+              .split(/\n|,/)
+              .map((rule: string) => rule.trim())
+              .filter(Boolean)
+          : undefined,
       attendees: Array.isArray(attendees)
         ? attendees.map((email: string) => ({ email }))
         : typeof attendees === "string" && attendees.trim()

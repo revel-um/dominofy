@@ -19,6 +19,55 @@ function appendError(errors: NodeErrorMap, nodeId: string, message: string) {
   errors[nodeId] = errors[nodeId] ? `${errors[nodeId]} ${message}` : message;
 }
 
+function getNodeKind(node: Node): string {
+  const explicitType = typeof node.type === 'string' ? node.type : '';
+  if (explicitType) return explicitType;
+  const detailsType = String(node.data?.details?.type ?? '').trim();
+  if (detailsType === 'Calendar Create Event') return 'googleCalendarCreate';
+  if (detailsType === 'Calendar Update Event') return 'googleCalendarUpdate';
+  if (detailsType === 'Calendar Delete Event') return 'googleCalendarDelete';
+  return detailsType;
+}
+
+function getFieldValue(fields: DominoField[], heading: string): string {
+  const field = fields.find(f => f.heading === heading);
+  return String(field?.value ?? '').trim();
+}
+
+function isFieldConnected(fields: DominoField[], heading: string): boolean {
+  const field = fields.find(f => f.heading === heading);
+  return !isEmptyFieldValue(field?.connectedValue);
+}
+
+function extractDatePart(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const isoMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch?.[1]) return isoMatch[1];
+  const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, month, day, year] = slashMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  return '';
+}
+
+function extractTimePart(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const match = trimmed.match(/T(\d{2}:\d{2})/);
+  return match?.[1] ?? '';
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isValidRecurrenceRule(value: string): boolean {
+  if (!value) return true;
+  return /^(RRULE|EXDATE|RDATE):/i.test(value);
+}
+
 /* ─────────────────────────────────────────
  * CONNECTION-LEVEL VALIDATION
  * - “value_in” requires a matching “exec_in”
@@ -183,6 +232,89 @@ export function validateAndMarkErrorsDetailed(nodes: Node[]): NodeErrorMap {
           errors,
           node.id,
           'Iterator needs either Max enabled or a valid range where Range End is greater than Range Start.',
+        );
+      }
+    }
+
+    const nodeKind = getNodeKind(node);
+    if (nodeKind === 'googleCalendarCreate' || nodeKind === 'googleCalendarUpdate') {
+      const date = getFieldValue(fields, 'date');
+      const start = getFieldValue(fields, 'start');
+      const end = getFieldValue(fields, 'end');
+      const attendees = getFieldValue(fields, 'attendees');
+      const recurrence = getFieldValue(fields, 'recurrence');
+
+      const dateConnected = isFieldConnected(fields, 'date');
+      const startConnected = isFieldConnected(fields, 'start');
+      const endConnected = isFieldConnected(fields, 'end');
+      const attendeesConnected = isFieldConnected(fields, 'attendees');
+      const recurrenceConnected = isFieldConnected(fields, 'recurrence');
+
+      if (!dateConnected && date && !extractDatePart(date)) {
+        appendError(
+          errors,
+          node.id,
+          'Date must be a valid calendar date.',
+        );
+      }
+
+      if (!startConnected && start && !extractTimePart(start)) {
+        appendError(
+          errors,
+          node.id,
+          'Start Time must be a valid time value.',
+        );
+      }
+
+      if (!endConnected && end && !extractTimePart(end)) {
+        appendError(
+          errors,
+          node.id,
+          'End Time must be a valid time value.',
+        );
+      }
+
+      if (!startConnected && !endConnected && start && end) {
+        const startDatePart = extractDatePart(start);
+        const endDatePart = extractDatePart(end);
+        const startTimePart = extractTimePart(start);
+        const endTimePart = extractTimePart(end);
+        const resolvedDate = extractDatePart(date) || startDatePart || endDatePart;
+
+        if (resolvedDate && startTimePart && endTimePart) {
+          const startStamp = `${resolvedDate}T${startTimePart}:00`;
+          const endStamp = `${resolvedDate}T${endTimePart}:00`;
+          if (startStamp >= endStamp) {
+            appendError(
+              errors,
+              node.id,
+              'End Time must be later than Start Time.',
+            );
+          }
+        }
+      }
+
+      if (!attendeesConnected && attendees) {
+        const invalidEmails = attendees
+          .split(',')
+          .map(email => email.trim())
+          .filter(Boolean)
+          .filter(email => !isValidEmail(email));
+
+        if (invalidEmails.length) {
+          appendError(
+            errors,
+            node.id,
+            `Attendees contains invalid email${invalidEmails.length === 1 ? '' : 's'}: ${invalidEmails.join(', ')}.`,
+          );
+        }
+      }
+
+      if (!recurrenceConnected && recurrence && !isValidRecurrenceRule(recurrence)) {
+        appendError(
+          errors,
+          node.id,
+          'Recurrence must be a valid Google Calendar rule such as RRULE:FREQ=WEEKLY.',
         );
       }
     }

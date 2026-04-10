@@ -156,10 +156,15 @@ function buildWorkflowLogs(
         .sort(([a], [b]) => a - b)
         .map(([, message]) => message);
 
+      const fallbackMessages = data.fallbackMessages.filter(
+        (message) => message && message !== 'null'
+      );
+      const message = [...orderedMessages, ...fallbackMessages].join('\n');
+
       return {
         id: runId,
         type: data.type,
-        message: [...orderedMessages, ...data.fallbackMessages].join('\n'),
+        message: message || 'Waiting for response...',
         timestamp: data.timestamp,
         source: runId,
       } as WorkflowLog;

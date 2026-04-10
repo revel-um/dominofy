@@ -10,6 +10,7 @@ import { useDomino } from '../contexts/dominoContext';
 import DominoDropdown from '../components/shared/dominoDropdown';
 import SearchableSelect from '@/components/searchableDropdown';
 import { CalendarApi, CalendarConnection, CalendarListItem } from '@/apis/calendar.apis';
+import { DateTimeRangePicker } from '@/components/ui/date-picker';
 import dominoCatalog from './dominos';
 
 type CalendarActionNodeRecord = {
@@ -55,6 +56,15 @@ const MEET_LINK_OPTIONS = [
   { label: 'Do not add Meet link', value: 'false' },
 ];
 
+const RECURRENCE_OPTIONS = [
+  { label: 'Does not repeat', value: '' },
+  { label: 'Every day', value: 'RRULE:FREQ=DAILY' },
+  { label: 'Every week', value: 'RRULE:FREQ=WEEKLY' },
+  { label: 'Every month', value: 'RRULE:FREQ=MONTHLY' },
+  { label: 'Every year', value: 'RRULE:FREQ=YEARLY' },
+  { label: 'Weekdays', value: 'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' },
+];
+
 const VALUE_PINS = {
   vaultId: 'value_in',
   calendarId: 'value_in_1',
@@ -62,12 +72,14 @@ const VALUE_PINS = {
   summary: 'value_in_3',
   description: 'value_in_4',
   location: 'value_in_5',
-  start: 'value_in_6',
-  end: 'value_in_7',
-  attendees: 'value_in_8',
-  timezone: 'value_in_9',
-  sendUpdates: 'value_in_10',
-  createMeetLink: 'value_in_11',
+  date: 'value_in_6',
+  start: 'value_in_7',
+  end: 'value_in_8',
+  attendees: 'value_in_9',
+  recurrence: 'value_in_10',
+  timezone: 'value_in_11',
+  sendUpdates: 'value_in_12',
+  createMeetLink: 'value_in_13',
 } as const;
 
 const TYPE_META: Record<string, { title: string; subtitle: string; icon: any; exportFields: string[] }> = {
@@ -75,13 +87,13 @@ const TYPE_META: Record<string, { title: string; subtitle: string; icon: any; ex
     title: 'Calendar Create Event',
     subtitle: 'Action',
     icon: CalendarPlus2,
-    exportFields: ['vaultId', 'calendarId', 'summary', 'description', 'location', 'start', 'end', 'attendees', 'timezone', 'sendUpdates', 'createMeetLink'],
+    exportFields: ['vaultId', 'calendarId', 'summary', 'description', 'location', 'date', 'start', 'end', 'attendees', 'recurrence', 'timezone', 'sendUpdates', 'createMeetLink'],
   },
   googleCalendarUpdate: {
     title: 'Calendar Update Event',
     subtitle: 'Action',
     icon: CalendarSync,
-    exportFields: ['vaultId', 'calendarId', 'eventId', 'summary', 'description', 'location', 'start', 'end', 'attendees', 'timezone', 'sendUpdates'],
+    exportFields: ['vaultId', 'calendarId', 'eventId', 'summary', 'description', 'location', 'date', 'start', 'end', 'attendees', 'recurrence', 'timezone', 'sendUpdates'],
   },
   googleCalendarDelete: {
     title: 'Calendar Delete Event',
@@ -121,9 +133,11 @@ function buildInitialFields(nodeType: string): DominoField[] {
     { type: 'textInput', heading: 'summary', value: '', required: nodeType === 'googleCalendarCreate', inPinId: VALUE_PINS.summary },
     { type: 'textArea', heading: 'description', value: '', inPinId: VALUE_PINS.description },
     { type: 'textInput', heading: 'location', value: '', inPinId: VALUE_PINS.location },
+    { type: 'textInput', heading: 'date', value: '', inPinId: VALUE_PINS.date },
     { type: 'textInput', heading: 'start', value: '', required: nodeType === 'googleCalendarCreate', inPinId: VALUE_PINS.start },
     { type: 'textInput', heading: 'end', value: '', required: nodeType === 'googleCalendarCreate', inPinId: VALUE_PINS.end },
     { type: 'textInput', heading: 'attendees', value: '', inPinId: VALUE_PINS.attendees },
+    { type: 'dropdown', heading: 'recurrence', value: '', inPinId: VALUE_PINS.recurrence, options: RECURRENCE_OPTIONS },
     {
       type: 'dropdown',
       heading: 'timezone',
@@ -189,7 +203,7 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
 
   useEffect(() => {
     const nextDrafts: Record<string, string> = {};
-    for (const fieldName of ['eventId', 'summary', 'description', 'location', 'start', 'end', 'attendees', 'timezone', 'sendUpdates', 'createMeetLink']) {
+    for (const fieldName of ['eventId', 'summary', 'description', 'location', 'date', 'start', 'end', 'attendees', 'recurrence', 'timezone', 'sendUpdates', 'createMeetLink']) {
       const nextValue = getField(fieldName)?.value;
       nextDrafts[fieldName] = typeof nextValue === 'string' ? nextValue : String(nextValue ?? '');
     }
@@ -418,6 +432,9 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
   );
   const vaultIdConnected = edges.some((edge) => edge.target === id && edge.targetHandle === VALUE_PINS.vaultId);
   const calendarIdConnected = edges.some((edge) => edge.target === id && edge.targetHandle === VALUE_PINS.calendarId);
+  const dateConnected = edges.some((edge) => edge.target === id && edge.targetHandle === VALUE_PINS.date);
+  const startConnected = edges.some((edge) => edge.target === id && edge.targetHandle === VALUE_PINS.start);
+  const endConnected = edges.some((edge) => edge.target === id && edge.targetHandle === VALUE_PINS.end);
 
   return (
     <div
@@ -521,22 +538,6 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
 
         {nodeType !== 'googleCalendarDelete' ? (
           renderDropdownField(
-            'timezone',
-            'Timezone',
-            draftValues.timezone ?? String(getField('timezone')?.value ?? 'Asia/Kolkata'),
-            TIMEZONE_OPTIONS,
-            (value) => {
-              setDraftValues((prev) => ({ ...prev, timezone: value }));
-              setFieldValue('timezone', value);
-            },
-            'Select timezone',
-            VALUE_PINS.timezone,
-            'min-w-[14rem]',
-          )
-        ) : null}
-
-        {nodeType !== 'googleCalendarDelete' ? (
-          renderDropdownField(
             'sendUpdates',
             'Guest Email',
             draftValues.sendUpdates ?? String(getField('sendUpdates')?.value ?? 'all'),
@@ -575,9 +576,57 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
             {renderTextField('summary', 'Summary', 'Team sync', VALUE_PINS.summary)}
             {renderTextField('description', 'Description', 'Agenda and notes', VALUE_PINS.description)}
             {renderTextField('location', 'Location', 'Conference room or URL', VALUE_PINS.location)}
-            {renderTextField('start', 'Start', '2026-04-08T10:00:00+05:30', VALUE_PINS.start)}
-            {renderTextField('end', 'End', '2026-04-08T10:30:00+05:30', VALUE_PINS.end)}
+            <DateTimeRangePicker
+              label="Date"
+              dateValue={draftValues.date ?? String(getField('date')?.value ?? '')}
+              startValue={draftValues.start ?? String(getField('start')?.value ?? '')}
+              endValue={draftValues.end ?? String(getField('end')?.value ?? '')}
+              onDateChange={(value) => {
+                setDraftValues((prev) => ({ ...prev, date: value }));
+                setFieldValue('date', value);
+              }}
+              onStartChange={(value) => {
+                setDraftValues((prev) => ({ ...prev, start: value }));
+                setFieldValue('start', value);
+              }}
+              onEndChange={(value) => {
+                setDraftValues((prev) => ({ ...prev, end: value }));
+                setFieldValue('end', value);
+              }}
+              dateConnected={dateConnected}
+              startConnected={startConnected}
+              endConnected={endConnected}
+              datePin={<DominoPin id={VALUE_PINS.date} pinType={PinType.VALUE_IN} inline offset={-16} />}
+              startPin={<DominoPin id={VALUE_PINS.start} pinType={PinType.VALUE_IN} inline offset={-16} />}
+              endPin={<DominoPin id={VALUE_PINS.end} pinType={PinType.VALUE_IN} inline offset={-16} />}
+            />
+            {renderDropdownField(
+              'timezone',
+              'Timezone',
+              draftValues.timezone ?? String(getField('timezone')?.value ?? 'Asia/Kolkata'),
+              TIMEZONE_OPTIONS,
+              (value) => {
+                setDraftValues((prev) => ({ ...prev, timezone: value }));
+                setFieldValue('timezone', value);
+              },
+              'Select timezone',
+              VALUE_PINS.timezone,
+              'min-w-[14rem]',
+            )}
             {renderTextField('attendees', 'Attendees', 'a@x.com, b@y.com', VALUE_PINS.attendees)}
+            {renderDropdownField(
+              'recurrence',
+              'Recurrence',
+              draftValues.recurrence ?? String(getField('recurrence')?.value ?? ''),
+              RECURRENCE_OPTIONS,
+              (value) => {
+                setDraftValues((prev) => ({ ...prev, recurrence: value }));
+                setFieldValue('recurrence', value);
+              },
+              'Select recurrence',
+              VALUE_PINS.recurrence,
+              'min-w-[14rem]',
+            )}
           </>
         ) : (
           renderTextField('eventId', 'Event Id', 'abc123@google.com', VALUE_PINS.eventId)
