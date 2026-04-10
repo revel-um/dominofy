@@ -65,7 +65,6 @@ import NoteDomino from "../dominos/note";
 import dominoCatalog from "../dominos/dominos";
 
 /* helpers */
-import { buildPipeline } from "../../../shared/helpers/buildPipeline";
 import { validateNodeConnectionsDetailed } from "../helpers/errorDetector";
 import { useDomino } from "../contexts/dominoContext";
 import { useRouter } from "next/router";
@@ -551,7 +550,6 @@ export default function Canvas(props: CanvasProps) {
 
   /* local state */
   const [rfInstance, setRfInstance] = useState<any>(null);
-  const [pipeline, setPipeline] = useState<any[]>([]);
   const [connectStart, setConnectStart] = useState<
     Parameters<OnConnectStart>[1] | null
   >(null);
@@ -941,20 +939,13 @@ export default function Canvas(props: CanvasProps) {
   const getNodes = () => nodes;
   const getEdges = () => edges;
   const updatePipeline = useCallback(
-    (currentNodes: Node[] = nodes, currentEdges: Edge[] = edges) => {
-      try {
-        setPipeline(buildPipeline(currentNodes, currentEdges));
-      } catch (err) {
-        console.error('[pipeline] failed to build', err);
-        setPipeline([]);
-      }
+    (_currentNodes?: Node[], _currentEdges?: Edge[]) => {
+      // Intentionally a no-op on canvas interactions.
+      // The workflow is exported directly from current nodes/edges on save/run,
+      // so rebuilding a pipeline graph on every drag/select/update only adds render cost.
     },
-    [nodes, edges]
+    []
   );
-
-  useEffect(() => {
-    updatePipeline(nodes, edges);
-  }, [nodes, edges, updatePipeline]);
 
   /* validation */
   useEffect(() => {
@@ -1190,17 +1181,15 @@ export default function Canvas(props: CanvasProps) {
       }
     };
 
-    // Initial check and periodic re-check for dynamic content
+    // Initial check and one delayed re-check for dynamic content
     findAndObserveDetailsPanel();
-    intervalId = setInterval(findAndObserveDetailsPanel, 1000);
+    intervalId = setTimeout(findAndObserveDetailsPanel, 1000) as unknown as NodeJS.Timeout;
     
     return () => {
       if (resizeObserver) {
         resizeObserver.disconnect();
       }
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
+      if (intervalId) clearTimeout(intervalId);
     };
   }, []);
 
