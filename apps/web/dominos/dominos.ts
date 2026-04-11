@@ -181,7 +181,7 @@ export default [
     label: "Calendar Create Event",
     description: "Create an event in Google Calendar",
     icon: CalendarPlus2,
-    categories: ["Action", "Google"],
+    categories: ["Action", "Google Calendar"],
     badgeStyle: {
       background: "linear-gradient(135deg, #4285F4 0%, #34A853 100%)",
     },
@@ -192,7 +192,7 @@ export default [
     label: "Calendar Update Event",
     description: "Update an existing Google Calendar event",
     icon: CalendarSync,
-    categories: ["Action", "Google"],
+    categories: ["Action", "Google Calendar"],
     badgeStyle: {
       background: "linear-gradient(135deg, #FBBC05 0%, #4285F4 100%)",
     },
@@ -203,7 +203,7 @@ export default [
     label: "Calendar Delete Event",
     description: "Delete an event from Google Calendar",
     icon: CalendarX2,
-    categories: ["Action", "Google"],
+    categories: ["Action", "Google Calendar"],
     badgeStyle: {
       background: "linear-gradient(135deg, #EA4335 0%, #FBBC05 100%)",
     },
@@ -214,7 +214,7 @@ export default [
     label: "Calendar Event Created",
     description: "Trigger when a new Google Calendar event is created",
     icon: CalendarPlus2,
-    categories: ["Trigger", "Google"],
+    categories: ["Trigger", "Google Calendar"],
     badgeStyle: {
       background: "linear-gradient(135deg, #34A853 0%, #4285F4 100%)",
     },
@@ -225,7 +225,7 @@ export default [
     label: "Calendar Event Updated",
     description: "Trigger when a Google Calendar event is updated",
     icon: CalendarDays,
-    categories: ["Trigger", "Google"],
+    categories: ["Trigger", "Google Calendar"],
     badgeStyle: {
       background: "linear-gradient(135deg, #FBBC05 0%, #EA4335 100%)",
     },

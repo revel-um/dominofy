@@ -232,9 +232,12 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
             </div>
           ) : safeConnections.length > 0 ? (
             <div className="space-y-2">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-                Gmail Account
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                  <MailCheck className="h-3.5 w-3.5" />
+                  Gmail Account
+                </div>
+              </div>
               <SearchableSelect
                 value={vaultId}
                 onChange={updateVaultId}

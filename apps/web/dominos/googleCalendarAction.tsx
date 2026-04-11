@@ -1,6 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NodeProps, useEdges } from 'reactflow';
-import { CalendarPlus2, CalendarSync, CalendarX2, Link2 } from 'lucide-react';
+import {
+  CalendarDays,
+  CalendarPlus2,
+  CalendarSync,
+  CalendarX2,
+  Clock3,
+  FileText,
+  Link2,
+  MapPin,
+  MessageSquareText,
+  Repeat,
+  Send,
+  UserRoundSearch,
+  Users,
+  Video,
+} from 'lucide-react';
 import { useRouter, NextRouter } from 'next/router';
 
 import DominoPin from '../components/shared/dominoPin';
@@ -107,6 +122,18 @@ const OUTPUT_LABELS: Record<string, string> = {
   googleCalendarCreate: 'Created event payload',
   googleCalendarUpdate: 'Updated event payload',
   googleCalendarDelete: 'Delete result payload',
+};
+
+const FIELD_HEADING_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  eventId: Link2,
+  summary: FileText,
+  description: MessageSquareText,
+  location: MapPin,
+  timezone: Clock3,
+  attendees: Users,
+  recurrence: Repeat,
+  sendUpdates: Send,
+  createMeetLink: Video,
 };
 
 function getNodeType(id: string, explicitType?: string) {
@@ -362,12 +389,11 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
     const connected = pinId
       ? edges.some((edge) => edge.target === id && edge.targetHandle === pinId)
       : false;
+    const HeadingIcon = FIELD_HEADING_ICONS[heading] ?? Link2;
 
     return (
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-          {label}
-        </label>
+      <div className="space-y-2">
+        {renderDecoratedHeading(label, HeadingIcon)}
         <div className="relative">
           <div className="flex items-center gap-2">
             {pinId ? <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline offset={-16} /> : null}
@@ -403,10 +429,8 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
       : false;
 
     return (
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-          {label}
-        </label>
+      <div className="space-y-2">
+        {renderDecoratedHeading(label, FIELD_HEADING_ICONS[heading] ?? Link2)}
         <div className="relative">
           <div className="flex items-center gap-2">
             {pinId ? <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline offset={-16} /> : null}
@@ -421,6 +445,18 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
               />
             </div>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDecoratedHeading = (label: string, icon: React.ComponentType<{ className?: string }>) => {
+    const HeadingIcon = icon;
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+          <HeadingIcon className="h-3.5 w-3.5" />
+          {label}
         </div>
       </div>
     );
@@ -447,6 +483,8 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
       } hover:shadow-lg`}
       style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
+      <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
       <div className="relative flex items-start justify-between gap-3 rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
         <div className="flex min-w-0 items-center gap-3 pr-3">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
@@ -470,9 +508,7 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
 
       <div className="relative space-y-4 px-4 py-4">
         <div className="rounded-xl border border-black/5 bg-black/[0.02] p-3 dark:border-white/10 dark:bg-white/[0.03]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-            Connection
-          </div>
+          {renderDecoratedHeading('Connection', Link2)}
           <div className="mt-1 text-sm font-medium text-foreground/80 dark:text-slate-200">
             {selectedConnection ? selectedConnection.email || selectedConnection.name : 'Connect a Google Calendar account'}
           </div>
@@ -480,7 +516,7 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
 
         <button
           type="button"
-          className="w-full rounded-lg border border-blue-500/30 bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-lg border border-sky-500/30 bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
           onClick={startOAuth}
           disabled={loadingConns}
         >
@@ -488,9 +524,7 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
         </button>
 
         <div className="space-y-2">
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-            Google Account
-          </label>
+          {renderDecoratedHeading('Google Account', UserRoundSearch)}
           <div className="relative">
             <div className="flex items-center gap-2">
               <DominoPin id={VALUE_PINS.vaultId} pinType={PinType.VALUE_IN} inline offset={-16} />
@@ -514,9 +548,7 @@ export default function GoogleCalendarActionDomino(props: NodeProps) {
         </div>
 
         <div className="space-y-2">
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-            Calendar
-          </label>
+          {renderDecoratedHeading('Calendar', CalendarDays)}
           <div className="relative">
             <div className="flex items-center gap-2">
               <DominoPin id={VALUE_PINS.calendarId} pinType={PinType.VALUE_IN} inline offset={-16} />

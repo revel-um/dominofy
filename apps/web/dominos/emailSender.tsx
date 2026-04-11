@@ -393,8 +393,9 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
             </div>
           ) : connections.length > 0 ? (
             <div className="space-y-3">
-              <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
-                Sending account
+              <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <Mail className="h-3 w-3" />
+                Sending Account
               </div>
               <div className="rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-1 py-1 dark:border-slate-600 dark:bg-dominofy-dark-surface">
                 <SearchableSelect

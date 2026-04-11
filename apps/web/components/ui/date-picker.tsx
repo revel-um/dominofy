@@ -3,7 +3,7 @@
 import * as React from "react"
 import { DatePicker, parseDate } from "@ark-ui/react/date-picker"
 import { Portal } from "@ark-ui/react/portal"
-import { Calendar, ChevronLeft, ChevronRight, X } from "lucide-react"
+import { Calendar, ChevronLeft, ChevronRight, Clock3, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -83,6 +83,23 @@ function dateValueToIso(value: { year: number; month: number; day: number } | un
   return `${String(value.year).padStart(4, "0")}-${String(value.month).padStart(2, "0")}-${String(value.day).padStart(2, "0")}`
 }
 
+function DecoratedHeading({
+  label,
+  icon: Icon,
+}: {
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+    </div>
+  )
+}
+
 export function DateTimeRangePicker({
   label = "Date",
   dateValue = "",
@@ -160,9 +177,7 @@ export function DateTimeRangePicker({
       >
         <DatePicker.Control className="space-y-3">
           <div className="space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-              {label}
-            </div>
+            <DecoratedHeading label={label} icon={Calendar} />
             <div className="relative">
               <div className="flex items-center gap-2">
                 {datePin}
@@ -194,11 +209,7 @@ export function DateTimeRangePicker({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="w-full text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-              Start Time
-            </div>
-          </div>
+          <DecoratedHeading label="Start Time" icon={Clock3} />
 
           <div className="relative">
             <div className="flex items-center gap-2">
@@ -225,11 +236,7 @@ export function DateTimeRangePicker({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="w-full text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-              End Time
-            </div>
-          </div>
+          <DecoratedHeading label="End Time" icon={Clock3} />
 
           <div className="relative">
             <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NodeProps } from 'reactflow';
-import { CalendarDays, CalendarPlus2 } from 'lucide-react';
+import { CalendarDays, CalendarPlus2, Radio, UserRoundSearch } from 'lucide-react';
 import { useRouter, NextRouter } from 'next/router';
 
 import DominoPin from '../components/shared/dominoPin';
@@ -201,9 +201,21 @@ export default function GoogleCalendarTriggerDomino(props: NodeProps) {
     [connections, vaultId],
   );
 
+  const renderDecoratedHeading = (label: string, icon: React.ComponentType<{ className?: string }>) => {
+    const HeadingIcon = icon;
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+          <HeadingIcon className="h-3.5 w-3.5" />
+          {label}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
-      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 shadow-sm backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
         hasError
           ? 'error-border'
           : selected
@@ -212,6 +224,8 @@ export default function GoogleCalendarTriggerDomino(props: NodeProps) {
       } hover:shadow-lg`}
       style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
+      <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
       <div className="relative flex items-start justify-between gap-3 rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
         <div className="flex min-w-0 items-center gap-3 pr-3">
           <div
@@ -234,9 +248,7 @@ export default function GoogleCalendarTriggerDomino(props: NodeProps) {
 
       <div className="relative space-y-4 px-4 py-4">
         <div className="rounded-xl border border-black/5 bg-black/[0.02] p-3 dark:border-white/10 dark:bg-white/[0.03]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-            Trigger Mode
-          </div>
+          {renderDecoratedHeading('Trigger Mode', Radio)}
           <div className="mt-1 text-sm font-medium text-foreground/80 dark:text-slate-200">
             {isCreatedTrigger ? 'Runs on newly created events' : 'Runs when an existing event changes'}
           </div>
@@ -244,7 +256,7 @@ export default function GoogleCalendarTriggerDomino(props: NodeProps) {
 
         <button
           type="button"
-          className="w-full rounded-lg border border-blue-500/30 bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-lg border border-sky-500/30 bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
           onClick={startOAuth}
           disabled={loadingConns}
         >
@@ -252,9 +264,7 @@ export default function GoogleCalendarTriggerDomino(props: NodeProps) {
         </button>
 
         <div className="space-y-2">
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-            Google Account
-          </label>
+          {renderDecoratedHeading('Google Account', UserRoundSearch)}
           <SearchableSelect
             value={vaultId}
             onChange={(value) => {
@@ -270,9 +280,7 @@ export default function GoogleCalendarTriggerDomino(props: NodeProps) {
         </div>
 
         <div className="space-y-2">
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-            Calendar
-          </label>
+          {renderDecoratedHeading('Calendar', CalendarDays)}
           <SearchableSelect
             value={calendarId}
             onChange={(value) => setFieldValue('calendarId', value)}
