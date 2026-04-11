@@ -60,7 +60,6 @@ import SchedulerDomino from "../dominos/scheduler";
 import ConnectorDomino from "@/dominos/connector";
 import DatabaseDomino from "@/dominos/database";
 import DatabaseRetrievalDomino from "@/dominos/databaseRetrieval";
-/* NEW: Note node */
 import NoteDomino from "../dominos/note";
 import dominoCatalog from "../dominos/dominos";
 
@@ -286,7 +285,6 @@ const nodeTypes = {
   connector: withRenderKey('connector', ConnectorDomino),
   storage: withRenderKey('storage', DatabaseDomino),
   storageRetrieve: withRenderKey('storageRetrieve', DatabaseRetrievalDomino),
-  /* NEW */
   note: withRenderKey('note', NoteDomino),
 };
 
@@ -1639,47 +1637,9 @@ export default function Canvas(props: CanvasProps) {
     return () => document.removeEventListener('selectstart', handleSelectionStart);
   }, [handleSelectionStart]);
 
-  /* pane click behavior:
-     - If note tool is active, drop a note where user clicked and exit note mode.
-     - Otherwise: open a comment input at the clicked position. */
+  /* pane click behavior: clear selection. */
   const handlePaneClick = useCallback(
     (e: React.MouseEvent) => {
-      // Insert note if tool active
-      if (noteToolActive && rfInstance) {
-        const screen = { x: e.clientX, y: e.clientY };
-        const pos = rfInstance.screenToFlowPosition(screen);
-        const id = `note-${Date.now()}`;
-
-        const newNode: Node = {
-          id,
-          type: "note",
-          position: pos,
-          data: {
-            text: "Double-click to edit",
-            color: "#FFF9C4", // soft yellow
-            workflowId,
-            // 👇 important: stable shape expected by rest of app
-            details: { fields: [] },
-          },
-          draggable: true,
-          selectable: true,
-        };
-
-        setNodes((prev) => {
-          const cleared = prev.map((n) => ({ ...n, selected: false }));
-          const upd = [...cleared, newNode];
-          updatePipeline(upd, edges);
-          
-          // Auto-save is now handled centrally in the parent component
-          
-          return upd;
-        });
-
-        // leave insert mode
-        onCancelInsertNote?.();
-        return;
-      }
-
       // Clear selection first
       if (e.metaKey || e.ctrlKey || e.shiftKey) return;
       setNodes((prev) => prev.map((n) => ({ ...n, selected: false })));
@@ -1687,7 +1647,7 @@ export default function Canvas(props: CanvasProps) {
       setSelectedNode(null);
 
     },
-    [id, noteToolActive, rfInstance, setNodes, setEdges, edges, updatePipeline, onCancelInsertNote, workflowId, onCommentsChange]
+    [setNodes, setEdges]
   );
 
   const handlePaneDoubleClick = useCallback(

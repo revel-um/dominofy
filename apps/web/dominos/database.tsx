@@ -4,6 +4,7 @@ import { AlignLeft, ArrowDownUp, Braces, Database } from 'lucide-react';
 
 import DominoPin from '../components/shared/dominoPin';
 import DominoDropdown from '../components/shared/dominoDropdown';
+import ExpandableTextarea from '@/components/shared/expandableTextarea';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
@@ -330,15 +331,17 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
               Data connected from upstream
             </div>
           ) : (
-            <textarea
+            <ExpandableTextarea
               value={jsonText}
-              onChange={(event) => {
-                setJsonText(event.target.value);
-                updateField('Data', event.target.value);
+              onChange={(nextValue) => {
+                setJsonText(nextValue);
+                updateField('Data', nextValue);
               }}
               rows={6}
               placeholder='{ "name": "Utsav" }'
-              className="nodrag min-h-28 w-full resize-none rounded-lg bg-transparent px-4 py-3 text-sm font-mono text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+              modalTitle="Data"
+              validateJson
+              className="min-h-28 font-mono"
             />
           ),
         })}

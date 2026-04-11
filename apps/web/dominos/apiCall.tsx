@@ -32,6 +32,13 @@ const METHOD_OPTIONS = [
   { label: 'DELETE', value: 'DELETE' },
 ];
 
+const VALUE_PINS = {
+  url: 'value_in',
+  method: 'value_in_1',
+  headers: 'value_in_2',
+  body: 'value_in_3',
+} as const;
+
 export default function ApiCallDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
@@ -91,7 +98,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
         placeholder: 'https://api.example.com',
         value: url,
         required: true,
-        inPinId: 'value_in',
+        inPinId: VALUE_PINS.url,
         outPinId: 'value_out',
       },
       {
@@ -100,16 +107,19 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
         value: typeof data.method === 'string' ? data.method : 'GET',
         required: true,
         options: METHOD_OPTIONS,
+        inPinId: VALUE_PINS.method,
       },
       {
         type: 'json',
         heading: 'Headers',
         value: data.headers ?? {},
+        inPinId: VALUE_PINS.headers,
       },
       {
         type: 'json',
         heading: 'Body',
         value: data.body ?? {},
+        inPinId: VALUE_PINS.body,
       },
     ];
 
@@ -176,7 +186,16 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
   );
 
   const isUrlConnected = edges.some(
-    (edge) => edge.target === id && edge.targetHandle === 'value_in'
+    (edge) => edge.target === id && edge.targetHandle === VALUE_PINS.url
+  );
+  const isMethodConnected = edges.some(
+    (edge) => edge.target === id && edge.targetHandle === VALUE_PINS.method
+  );
+  const areHeadersConnected = edges.some(
+    (edge) => edge.target === id && edge.targetHandle === VALUE_PINS.headers
+  );
+  const isBodyConnected = edges.some(
+    (edge) => edge.target === id && edge.targetHandle === VALUE_PINS.body
   );
   const method = String(getField('Method')?.value ?? 'GET');
   const headersField = getField('Headers');
@@ -234,7 +253,7 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
           <div className="pb-3">
             <div className="relative">
               <div className="flex items-center gap-2 px-4">
-                <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+                <DominoPin id={VALUE_PINS.url} pinType={PinType.VALUE_IN} inline />
                 <div className="min-h-12 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
                   {isUrlConnected ? (
                     <div className="flex h-full min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
@@ -256,49 +275,98 @@ export default function ApiCallDomino({ data, id, selected }: NodeProps) {
         </div>
 
         <div className="space-y-3 px-4">
-          <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
-            <ArrowDownUp className="h-3 w-3" />
-            Method
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <ArrowDownUp className="h-3 w-3" />
+              Method
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {isMethodConnected ? 'Live input' : 'Static input'}
+            </span>
           </div>
 
-          <DominoDropdown
-            value={method}
-            options={METHOD_OPTIONS}
-            onChange={(nextValue) => setFieldValue('Method', nextValue)}
-          />
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <DominoPin id={VALUE_PINS.method} pinType={PinType.VALUE_IN} inline offset={-16} />
+              <div className="flex-1">
+                <DominoDropdown
+                  value={method}
+                  options={METHOD_OPTIONS}
+                  onChange={(nextValue) => setFieldValue('Method', nextValue)}
+                  disabled={isMethodConnected}
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-3 px-4">
-          <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
-            <Braces className="h-3 w-3" />
-            Headers
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Braces className="h-3 w-3" />
+              Headers
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {areHeadersConnected ? 'Live input' : 'Static input'}
+            </span>
           </div>
 
           {headersField && (
-            <JsonEditor
-              field={headersField}
-              onChange={(parsedValue) => {
-                if (parsedValue !== null) setFieldValue('Headers', parsedValue);
-              }}
-              className="min-h-24 w-full rounded-lg border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm outline-none transition placeholder:text-inherit dark:border-slate-600 dark:bg-dominofy-dark-surface"
-            />
+            <div className="relative">
+              <div className="flex items-start gap-2">
+                <DominoPin id={VALUE_PINS.headers} pinType={PinType.VALUE_IN} inline offset={-16} />
+                <div className="min-w-0 flex-1">
+                  {areHeadersConnected ? (
+                    <div className="flex min-h-24 items-center rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm font-medium italic text-slate-500 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:text-slate-400">
+                      Connected
+                    </div>
+                  ) : (
+                    <JsonEditor
+                      field={headersField}
+                      onChange={(parsedValue) => {
+                        if (parsedValue !== null) setFieldValue('Headers', parsedValue);
+                      }}
+                      className="min-h-24 w-full rounded-lg border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm outline-none transition placeholder:text-inherit dark:border-slate-600 dark:bg-dominofy-dark-surface"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
         <div className="space-y-3 px-4">
-          <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
-            <Package className="h-3 w-3" />
-            Body
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Package className="h-3 w-3" />
+              Body
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {isBodyConnected ? 'Live input' : 'Static input'}
+            </span>
           </div>
 
           {bodyField && (
-            <JsonEditor
-              field={bodyField}
-              onChange={(parsedValue) => {
-                if (parsedValue !== null) setFieldValue('Body', parsedValue);
-              }}
-              className="min-h-28 w-full rounded-lg border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm outline-none transition placeholder:text-inherit dark:border-slate-600 dark:bg-dominofy-dark-surface"
-            />
+            <div className="relative">
+              <div className="flex items-start gap-2">
+                <DominoPin id={VALUE_PINS.body} pinType={PinType.VALUE_IN} inline offset={-16} />
+                <div className="min-w-0 flex-1">
+                  {isBodyConnected ? (
+                    <div className="flex min-h-28 items-center rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm font-medium italic text-slate-500 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:text-slate-400">
+                      Connected
+                    </div>
+                  ) : (
+                    <JsonEditor
+                      field={bodyField}
+                      onChange={(parsedValue) => {
+                        if (parsedValue !== null) setFieldValue('Body', parsedValue);
+                      }}
+                      className="min-h-28 w-full rounded-lg border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm outline-none transition placeholder:text-inherit dark:border-slate-600 dark:bg-dominofy-dark-surface"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </div>
 

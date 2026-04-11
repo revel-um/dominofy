@@ -425,17 +425,6 @@ export default [
     },
     iconStyle: { color: "#020617" },
   },
-  {
-    id: "note",
-    label: "Note",
-    description: "Add a comment or annotation to the canvas",
-    icon: FiFileText,
-    categories: ["Utility"],
-    badgeStyle: {
-      background: "linear-gradient(135deg, #fef08a 0%, #fbbf24 100%)",
-    },
-    iconStyle: { color: "#78350f" },
-  },
   // {
   //   id: 'webhook',
   //   label: 'Webhook',

@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Database, FileSpreadsheet, ShieldCheck, Type } from 'lucide-react';
 import DominoPin from '../components/shared/dominoPin';
 import DominoDropdown from '../components/shared/dominoDropdown';
+import ExpandableTextarea from '@/components/shared/expandableTextarea';
 import { PinType } from '../types/pinTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { FiFileText, FiX } from 'react-icons/fi';
+import { FiFileText } from 'react-icons/fi';
 import { DominoField } from '../types/dominoFieldTypes';
 import dominoCatalog from './dominos';
 
@@ -63,7 +64,6 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
 
   const didInitRef = useRef(false);
   const lastFieldsHashRef = useRef<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
 
   // 👉 subscribe to React Flow edges so this re-renders when connections change
   const edges = useEdges();
@@ -482,19 +482,17 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
             <div className="flex items-center gap-2">
               <DominoPin id="value_in_5" pinType={PinType.VALUE_IN} inline offset={-16} />
               {!isInputBoxConnected ? (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="min-h-24 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-left text-sm text-dominofy-light-text transition hover:bg-black/[0.03] dark:border-slate-600 dark:bg-dominofy-dark-surface dark:text-dominofy-dark-text dark:hover:bg-white/[0.04]"
-                >
-                  <div className="line-clamp-4 overflow-hidden break-all font-mono text-xs">
-                    {config.textInput || (
-                      <span className="text-slate-400 dark:text-slate-500">
-                        Click to edit input...
-                      </span>
-                    )}
-                  </div>
-                </button>
+                <div className="min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                  <ExpandableTextarea
+                    value={config.textInput}
+                    onChange={(nextValue) => handleFieldChange('textInput', nextValue)}
+                    placeholder="Enter your text data here..."
+                    rows={4}
+                    modalTitle="Input Box"
+                    validateJson={config.inputType === 'json'}
+                    className="min-h-24 font-mono text-xs"
+                  />
+                </div>
               ) : (
                 <div className="flex min-h-24 min-w-0 flex-1 items-center rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm font-medium italic text-slate-500 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:text-slate-400">
                   Connected
@@ -541,49 +539,6 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         </div>
       </div>
 
-      {/* Input Editor Modal */}
-      {isEditing && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[600px] h-[400px] flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Input Text</h3>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-              >
-                <FiX className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="flex-1 p-4">
-              <textarea
-                value={config.textInput}
-                onChange={(e) => handleFieldChange('textInput', e.target.value)}
-                placeholder="Enter your text data here..."
-                className="w-full h-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded transition-colors"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

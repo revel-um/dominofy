@@ -7,6 +7,7 @@ import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
+import ExpandableTextarea from '@/components/shared/expandableTextarea';
 import SearchableSelect from '@/components/searchableDropdown';
 import { EmailApi, EmailConnection } from '@/apis/email.apis';
 import dominoCatalog from './dominos';
@@ -307,12 +308,13 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
                     Connected
                   </div>
                 ) : isTextArea ? (
-                  <textarea
+                  <ExpandableTextarea
                     value={value}
-                    onChange={(event) => setFieldValue(heading, event.target.value)}
+                    onChange={(nextValue) => setFieldValue(heading, nextValue)}
                     placeholder={placeholder}
                     rows={3}
-                    className="nodrag min-h-24 w-full resize-none rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none transition placeholder:text-inherit dark:text-dominofy-dark-text"
+                    modalTitle={label}
+                    className="min-h-24"
                   />
                 ) : (
                   <input

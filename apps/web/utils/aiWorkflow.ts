@@ -28,7 +28,7 @@ interface NormalizeOptions {
 
 const GRID_X = 320;
 const GRID_Y = 200;
-const FALLBACK_TYPE = 'note';
+const FALLBACK_TYPE = 'response';
 
 type DominoCatalogEntry = {
   id: string;
@@ -83,7 +83,7 @@ dominoCatalog.forEach((entry: any) => {
 
 const fallbackDomino =
   DOMINO_META.get(FALLBACK_TYPE) ??
-  DOMINO_META.values().next().value ?? { id: FALLBACK_TYPE, label: 'Note' };
+  DOMINO_META.values().next().value ?? { id: FALLBACK_TYPE, label: 'Response' };
 
 const resolveDominoEntry = (raw: any): DominoCatalogEntry => {
   const candidates = [
