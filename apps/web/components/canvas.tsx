@@ -519,6 +519,7 @@ interface CanvasProps {
   onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;
   allowReadonlyPanning?: boolean;
   allowReadonlyPanOnScroll?: boolean;
+  rightPanelWidth?: number;
 }
 
 /* ─────────────────────────  COMPONENT  ───────────────────────── */
@@ -541,6 +542,7 @@ export default function Canvas(props: CanvasProps) {
     onViewportChange,
     allowReadonlyPanning,
     allowReadonlyPanOnScroll,
+    rightPanelWidth,
   } = props;
 
   const router = useRouter();
@@ -579,6 +581,84 @@ export default function Canvas(props: CanvasProps) {
       canvasRootRef.current.querySelector('.react-flow__viewport') as HTMLElement | null
     );
   }, [rfInstance, nodes.length, edges.length]);
+
+  useEffect(() => {
+    const root = canvasRootRef.current;
+    if (!root) return;
+
+    const handles = Array.from(
+      root.querySelectorAll<HTMLElement>('.react-flow__node .react-flow__handle')
+    );
+    const controls = Array.from(
+      root.querySelectorAll<HTMLElement>('.react-flow__node input, .react-flow__node textarea, .react-flow__node select, .react-flow__node button:not([data-allow-readonly-interaction="true"]), .react-flow__node [contenteditable="true"]')
+    );
+
+    const cleanup: Array<() => void> = [];
+
+    handles.forEach((handle) => {
+      const previousPointerEvents = handle.style.pointerEvents;
+      const previousCursor = handle.style.cursor;
+      if (readonly) {
+        handle.style.pointerEvents = 'none';
+        handle.style.cursor = 'default';
+      }
+      cleanup.push(() => {
+        handle.style.pointerEvents = previousPointerEvents;
+        handle.style.cursor = previousCursor;
+      });
+    });
+
+    controls.forEach((control) => {
+      if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+        const previousReadOnly = control.readOnly;
+        const previousPointerEvents = control.style.pointerEvents;
+        if (readonly) {
+          control.readOnly = true;
+          control.style.pointerEvents = 'none';
+        }
+        cleanup.push(() => {
+          control.readOnly = previousReadOnly;
+          control.style.pointerEvents = previousPointerEvents;
+        });
+        return;
+      }
+
+      if (control instanceof HTMLSelectElement || control instanceof HTMLButtonElement) {
+        const previousPointerEvents = control.style.pointerEvents;
+        if (readonly) {
+          control.style.pointerEvents = 'none';
+        }
+        cleanup.push(() => {
+          control.style.pointerEvents = previousPointerEvents;
+        });
+        return;
+      }
+
+      const previousContentEditable = control.getAttribute('contenteditable');
+      const previousTabIndex = control.getAttribute('tabindex');
+      if (readonly) {
+        control.setAttribute('contenteditable', 'false');
+        control.setAttribute('tabindex', '-1');
+      }
+      cleanup.push(() => {
+        if (previousContentEditable === null) {
+          control.removeAttribute('contenteditable');
+        } else {
+          control.setAttribute('contenteditable', previousContentEditable);
+        }
+
+        if (previousTabIndex === null) {
+          control.removeAttribute('tabindex');
+        } else {
+          control.setAttribute('tabindex', previousTabIndex);
+        }
+      });
+    });
+
+    return () => {
+      cleanup.forEach((restore) => restore());
+    };
+  }, [readonly, nodes, edges]);
 
   // Handle viewport changes using ReactFlow's built-in onMove event
   const handleReactFlowMove = useCallback(
@@ -725,6 +805,8 @@ export default function Canvas(props: CanvasProps) {
             data: {
               ...n.data,
               previewMode: renderGuarded,
+              deployedView: readonly,
+              currentWorkflowId: workflowId,
               compactMode,
               onModeAnimationStart: handleModeAnimationStart,
               onModeAnimationEnd: handleModeAnimationEnd,
@@ -736,6 +818,8 @@ export default function Canvas(props: CanvasProps) {
           data: {
             ...n.data,
             previewMode: renderGuarded,
+            deployedView: readonly,
+            currentWorkflowId: workflowId,
             compactMode,
             onModeAnimationStart: handleModeAnimationStart,
             onModeAnimationEnd: handleModeAnimationEnd,
@@ -1141,6 +1225,8 @@ export default function Canvas(props: CanvasProps) {
     setShowMiniMap(true);
   }, []);
 
+  const effectiveRightPanelWidth = rightPanelWidth ?? detailsPanelWidth;
+
   const handleMouseLeave = useCallback(() => {
     setShowMiniMap(false);
   }, []);
@@ -1233,7 +1319,7 @@ export default function Canvas(props: CanvasProps) {
       const contentHeight = maxY - minY;
       const padding = 100; // Padding around content
       
-      const viewportWidth = window.innerWidth - detailsPanelWidth;
+      const viewportWidth = window.innerWidth - effectiveRightPanelWidth;
       const viewportHeight = window.innerHeight;
       
       const zoomX = (viewportWidth - padding * 2) / Math.max(contentWidth, 1);
@@ -1256,7 +1342,7 @@ export default function Canvas(props: CanvasProps) {
 
     // Reset programmatic flag after viewport settles
     setTimeout(() => setIsProgrammaticMove(false), 200);
-  }, [rfInstance, nodes, detailsPanelWidth, id]);
+  }, [rfInstance, nodes, effectiveRightPanelWidth, id]);
 
   // Handle MiniMap click (disabled)
   const handleMiniMapClick = useCallback((event: React.MouseEvent) => {
@@ -1605,17 +1691,21 @@ export default function Canvas(props: CanvasProps) {
   /* node changes — let React Flow apply selection updates for box multi-select */
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      if (changes.length > 0) {
+      const nextChanges = readonly
+        ? changes.filter((change) => change.type === 'select')
+        : changes;
+
+      if (nextChanges.length > 0) {
         setNodes((prev) => {
-          const next = applyNodeChanges(changes, prev);
+          const next = applyNodeChanges(nextChanges, prev);
           const selectedNodes = next.filter((node) => node.selected);
           setSelectedNode(selectedNodes.length === 1 ? selectedNodes[0] : null);
           return next;
         });
-        onNodesChange?.(changes);
+        onNodesChange?.(nextChanges);
       }
     },
-    [setNodes, onNodesChange]
+    [readonly, setNodes, onNodesChange]
   );
 
   /* drag-over */
@@ -1809,8 +1899,8 @@ export default function Canvas(props: CanvasProps) {
 
   /* ───────────────────────────  RENDER  ─────────────────────────── */
   const isDominofyCanvas = id === 'dominofy';
-  const canPanReadonly = allowReadonlyPanning ?? (readonly && id.includes('dashboard'));
-  const canPanReadonlyOnScroll = allowReadonlyPanOnScroll ?? false;
+  const canPanReadonly = allowReadonlyPanning ?? readonly;
+  const canPanReadonlyOnScroll = allowReadonlyPanOnScroll ?? readonly;
   const canvasClassName = `absolute inset-0 z-0 bg-dominofy-light-surface dark:bg-dominofy-dark-surface ${noteToolActive ? 'cursor-crosshair' : ''} select-none ${!isDominofyCanvas ? 'locked-canvas' : ''}`;
   const defaultEdgeStyle = useMemo(
     () => ({
@@ -1838,8 +1928,8 @@ export default function Canvas(props: CanvasProps) {
           edges={displayedEdges}
           nodeTypes={nodeTypes}
           onInit={setRfInstance}
-          onDrop={onDrop}
-          onDragOver={handleDragOver}
+          onDrop={!readonly ? onDrop : undefined}
+          onDragOver={!readonly ? handleDragOver : undefined}
           onConnectStart={onConnectStart}
           onConnect={!readonly && isSelectionMode ? onConnect : undefined}
           onEdgesChange={!readonly && isSelectionMode ? handleEdgesChange : undefined}
@@ -1876,7 +1966,7 @@ export default function Canvas(props: CanvasProps) {
           <Background />
           {!readonly && isDominofyCanvas && (
             <CanvasFloatingBar
-              offsetX={detailsPanelWidth / 2}
+              offsetX={effectiveRightPanelWidth / 2}
               mode={interactionMode}
               onModeChange={setInteractionMode}
               noteToolActive={noteToolActive}
@@ -1897,7 +1987,7 @@ export default function Canvas(props: CanvasProps) {
               style={{
                 position: 'absolute',
                 top: '2px',     // Top margin from canvas edge
-                right: `${detailsPanelWidth + 2}px`,  // Dynamic right margin based on details panel width + 20px buffer
+                right: `${effectiveRightPanelWidth + 2}px`,  // Dynamic right margin based on details panel width + 20px buffer
                 zIndex: 50,      // High z-index to stay above other elements
                 borderRadius: '8px',
               }}
@@ -1923,6 +2013,7 @@ export default function Canvas(props: CanvasProps) {
                   backgroundColor: 'rgba(255, 255, 255, 0.08)',
                   border: '1px solid #e2e8f09b',
                   borderRadius: '8px',
+                  clipPath: 'inset(0 round 8px)',
                   boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
                   pointerEvents: 'none', // Let parent handle clicks
                 }}

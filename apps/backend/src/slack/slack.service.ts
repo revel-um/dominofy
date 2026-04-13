@@ -273,19 +273,20 @@ export class SlackService {
 
     const workflows = await this.workflowService.findWorkflowsBySlackTrigger(teamId, channelId);
 
-    workflows.forEach((workflow) => {
-      const { nodes, edges } = workflow.visualJson;
+    workflows.forEach((target) => {
+      const { nodes, edges } = target.visualJson;
       const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
 
       const runId = uuidv4();
       const runner = this.runnerLauncherService.createRunner(
-        workflow.id,
+        target.workflowId,
         runId,
         pipeline,
         20,
-        workflow.visualJson
+        target.visualJson,
+        { deployedWorkflowId: target.deployedWorkflowId },
       );
-      return runner.run(runId, body.event, { workflowId: workflow.id });
+      return runner.run(runId, body.event, { workflowId: target.workflowId });
     });
   }
 

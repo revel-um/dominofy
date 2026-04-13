@@ -92,10 +92,10 @@ export function JsonInput({
         <button
           onClick={() => setMode('json')}
           className={classNames(
-            'px-3 py-1 rounded',
+            'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
             mode === 'json'
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-200 text-gray-700'
+              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
           )}
         >
           Raw JSON
@@ -103,10 +103,10 @@ export function JsonInput({
         <button
           onClick={() => setMode('kv')}
           className={classNames(
-            'px-3 py-1 rounded',
+            'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
             mode === 'kv'
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-200 text-gray-700'
+              ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
           )}
         >
           Key-Value
@@ -120,11 +120,12 @@ export function JsonInput({
           onChange={handleJsonChange}
           spellCheck={false}
           className={classNames(
-            'w-full rounded p-2 font-mono text-sm transition-all duration-150 text-black',
+            'h-64 w-full resize-none overflow-auto rounded-lg px-3 py-2 font-mono text-sm transition-all duration-150',
+            'bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100',
             'focus:outline-none focus:ring-2',
             isValid
-              ? 'border border-gray-300 focus:ring-blue-500'
-              : 'border border-red-500 focus:ring-red-500 bg-red-100'
+              ? 'border border-slate-300 focus:ring-slate-400 dark:border-slate-700 dark:focus:ring-slate-500'
+              : 'border border-red-500 bg-red-50 text-red-900 focus:ring-red-500 dark:bg-red-950/30 dark:text-red-100'
           )}
           rows={10}
         />
@@ -138,14 +139,14 @@ export function JsonInput({
                 placeholder="key"
                 value={ent.key}
                 onChange={(e) => handleEntryChange(idx, 'key', e.target.value)}
-                className="flex-1 rounded border border-gray-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-500"
               />
               <input
                 type="text"
                 placeholder="value"
                 value={ent.value}
                 onChange={(e) => handleEntryChange(idx, 'value', e.target.value)}
-                className="flex-1 rounded border border-gray-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-500"
               />
             </div>
           ))}

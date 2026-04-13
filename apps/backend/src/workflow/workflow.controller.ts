@@ -9,6 +9,7 @@ import {
   Patch,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -17,9 +18,10 @@ import { Workflow } from './workflow.entity';
 import { CreateWorkflowDto } from './workflow.dto';
 import { WorkflowService } from './workflow.service';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Request } from 'express';
+import { Request, Response as ExpressResponse } from 'express';
 import { SchedulerService } from 'src/scheduler/scheduler.service';
 import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
+import { plainToInstance } from 'class-transformer';
 
 @Controller('workflow')
 export class WorkflowController extends BaseController<
@@ -50,6 +52,15 @@ export class WorkflowController extends BaseController<
       project: { id: dto.projectId },
     };
     return mapped;
+  }
+
+  @Post()
+  async create(@Body() dto: CreateWorkflowDto, @Req() req: Request) {
+    const instance = plainToInstance(CreateWorkflowDto, dto);
+    const processed = (await this.beforeCreate(instance as any, req)) ?? instance;
+    const created = await this.workflowService.create(processed as unknown as CreateWorkflowDto);
+    await this.workflowService.syncDeployedSnapshot(created as Workflow);
+    return created;
   }
 
   @Get('count')
@@ -86,6 +97,12 @@ export class WorkflowController extends BaseController<
     return await this.workflowService.findOneAndVerify(id, userId);
   }
 
+  @Get(':id/deployed')
+  async getDeployedWorkflowById(@Param('id') id: string, @Req() req: Request) {
+    const userId = (req as any).user.id;
+    return await this.workflowService.getActiveDeploymentForUser(id, userId);
+  }
+
   @Post(':id')
   async saveWorkflow(
     @Param('id') id: string,
@@ -104,6 +121,7 @@ export class WorkflowController extends BaseController<
     
     workflow.visualJson = JSON.parse(visualJson);
     const updated = await this.workflowService.update(id, workflow);
+    await this.workflowService.syncDeployedSnapshot(updated);
     await this.schedulerService.syncWorkflowSchedules(updated);
     return updated;
   }
@@ -116,6 +134,7 @@ export class WorkflowController extends BaseController<
     @Param('functionName') functionName: string,
     @UploadedFile() file: Express.Multer.File,
     @Body() body: any,
+    @Res({ passthrough: true }) res: ExpressResponse,
   ) {
     // Combine body & file into unified input for the workflow
     const input: Record<string, any> = {};
@@ -139,6 +158,11 @@ export class WorkflowController extends BaseController<
     }
 
     const response = await this.workflowService.handleTrigger(workflowId, functionName, input);
+    if (response && typeof response === 'object' && '__httpStatus' in response) {
+      const { __httpStatus, ...payload } = response as Record<string, any>;
+      res.status(Number(__httpStatus) || 500);
+      return payload;
+    }
     return response ?? {
       success: true,
       message: 'Workflow execution request accepted',
@@ -174,13 +198,30 @@ export class WorkflowController extends BaseController<
     return await this.workflowService.renameWorkflow(id, name, userId);
   }
 
+  @Post(':id/deploy')
+  async deployWorkflow(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).user.id;
+    const workflow = await this.workflowService.deployWorkflow(id, userId);
+    await this.schedulerService.syncWorkflowSchedules(workflow);
+    return workflow;
+  }
+
   @Get(':workflowId/trigger/:functionName')
   @HttpCode(201)
   async triggerWorkflowWithoutBodyOrFile(
     @Param('workflowId') workflowId: string,
     @Param('functionName') functionName: string,
+    @Res({ passthrough: true }) res: ExpressResponse,
   ) {
     const response = await this.workflowService.handleTrigger(workflowId, functionName);
+    if (response && typeof response === 'object' && '__httpStatus' in response) {
+      const { __httpStatus, ...payload } = response as Record<string, any>;
+      res.status(Number(__httpStatus) || 500);
+      return payload;
+    }
     return response ?? {
       success: true,
       message: 'Workflow execution request accepted',

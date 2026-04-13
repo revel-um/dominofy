@@ -66,17 +66,7 @@ export class DatabaseDomino implements DominoExecutable {
       output: {
         ok: true,
         action: result.action,
-        collectionId: result.collectionId,
-        document: {
-          id: result.document.id,
-          workspaceId: result.document.workspaceId,
-          collectionId: result.document.collectionId,
-          documentKey: result.document.documentKey ?? null,
-          status: result.document.status ?? null,
-          data: result.document.dataJsonb,
-          createdAt: result.document.createdAt,
-          updatedAt: result.document.updatedAt,
-        },
+        data: result.document.dataJsonb,
       },
       startedAt,
       finishedAt: Date.now(),
@@ -92,6 +82,7 @@ export class DatabaseRetrievalDomino implements DominoExecutable {
   private literalOperation: string;
   private literalDocumentKey: string;
   private literalLimit: string;
+  private literalOffset: string;
 
   constructor(node: PipelineStep) {
     this.id = node.id;
@@ -99,6 +90,7 @@ export class DatabaseRetrievalDomino implements DominoExecutable {
     this.literalOperation = node.data?.Operation?.value ?? 'document';
     this.literalDocumentKey = node.data?.['Document Key']?.value ?? '';
     this.literalLimit = node.data?.Limit?.value ?? '25';
+    this.literalOffset = node.data?.Offset?.value ?? '0';
   }
 
   async execute(ctx: ExecuteContext): Promise<DominoResult> {
@@ -135,34 +127,37 @@ export class DatabaseRetrievalDomino implements DominoExecutable {
       input.limit ??
       this.literalLimit;
 
+    const offset =
+      input.Offset ??
+      input.offset ??
+      this.literalOffset;
+
     const result = await StorageRuntimeService.instance.readForWorkflow({
       workflowId,
       collectionRef: String(collectionRef ?? ''),
       operation: operation == null ? undefined : String(operation),
       documentKey: documentKey == null ? null : String(documentKey),
       limit,
+      offset,
     });
 
-    const documents = result.documents.map((document) => ({
-      id: document.id,
-      workspaceId: document.workspaceId,
-      collectionId: document.collectionId,
-      documentKey: document.documentKey ?? null,
-      status: document.status ?? null,
-      data: document.dataJsonb,
-      createdAt: document.createdAt,
-      updatedAt: document.updatedAt,
-    }));
+    const normalizedOffset = Math.max(0, Math.floor(Number(offset ?? 0) || 0));
+    const normalizedLimit = Math.max(1, Math.floor(Number(limit ?? 25) || 25));
+    const page = result.action === 'list'
+      ? Math.floor(normalizedOffset / normalizedLimit) + 1
+      : 1;
+    const data =
+      result.action === 'list'
+        ? result.documents.map((document) => document.dataJsonb)
+        : (result.documents[0]?.dataJsonb ?? null);
 
     return {
       id: this.id,
       output: {
-        ok: true,
-        action: result.action,
-        collectionId: result.collectionId,
         count: result.count,
-        document: documents[0] ?? null,
-        documents,
+        page,
+        offset: normalizedOffset,
+        data,
       },
       startedAt,
       finishedAt: Date.now(),

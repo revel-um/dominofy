@@ -16,7 +16,7 @@ type ApiTriggerNodeRecord = {
   data: {
     details?: DominoNodeData;
     exportFields?: string[];
-    workflowId?: string;
+    currentWorkflowId?: string;
     setFieldValue?: (heading: string, newValue: unknown) => void;
   };
 };
@@ -26,11 +26,12 @@ const apiTriggerAccentColor = apiTriggerMeta?.badgeStyle?.background
   ? String(apiTriggerMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
   : '#0f766e';
 
-const FIELD_HEADINGS = ['Api Url', 'Function', 'Require File Upload', 'Require Body'] as const;
+const FIELD_HEADINGS = ['Function', 'Require File Upload', 'Require Body'] as const;
 
 export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const isDeployedView = Boolean((data as any).deployedView);
   const updateNodeInternals = useUpdateNodeInternals();
   const { getEdges, setEdges } = useReactFlow();
   const bootstrappedRef = useRef(false);
@@ -60,9 +61,9 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
   const requireBody = Boolean(getField('Require Body')?.value);
   const showValueOutPin = requireFileUpload || requireBody;
   const apiUrl = useMemo(() => {
-    const workflowId = typeof data.workflowId === 'string' ? data.workflowId : '';
+    const workflowId = typeof (data as any).currentWorkflowId === 'string' ? (data as any).currentWorkflowId : '';
     return `${config.backendBaseUrl}/workflow/${workflowId}/trigger/${fnName}`;
-  }, [data.workflowId, fnName]);
+  }, [data, fnName]);
   const apiUrlDisplay = useMemo(() => {
     const maxLength = 44;
     if (apiUrl.length <= maxLength) return apiUrl;
@@ -133,14 +134,6 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         nodes.map((node) => {
           if (node.id !== id) return node;
 
-          const nextFunctionValue =
-            heading === 'Function'
-              ? String(newValue ?? '')
-              : String(
-                node.data.details?.fields?.find((field) => field.heading === 'Function')?.value ?? ''
-              );
-          const nextApiUrl = `${config.backendBaseUrl}/workflow/${node.data.workflowId}/trigger/${nextFunctionValue}`;
-
           return {
             ...node,
             data: {
@@ -148,11 +141,7 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
               details: {
                 ...node.data.details,
                 fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
-                  field.heading === heading
-                    ? { ...field, value: newValue }
-                    : field.heading === 'Api Url'
-                      ? { ...field, value: nextApiUrl }
-                      : field
+                  field.heading === heading ? { ...field, value: newValue } : field
                 ),
               },
             },
@@ -170,16 +159,8 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         const currentFunction = String(
           currentFields.find((field) => field.heading === 'Function')?.value ?? fnName
         );
-        const currentApiUrl = `${config.backendBaseUrl}/workflow/${node.data.workflowId}/trigger/${currentFunction}`;
 
         const initialFields: DominoField[] = [
-          {
-            type: 'copy',
-            heading: 'Api Url',
-            value: currentApiUrl,
-            required: true,
-            shouldRender: false,
-          },
           {
             type: 'textInput',
             heading: 'Function',
@@ -210,7 +191,7 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
             ? {
               ...initialField,
               ...existingField,
-              value: initialField.heading === 'Api Url' ? currentApiUrl : existingField.value,
+              value: existingField.value,
             }
             : initialField;
         });
@@ -259,12 +240,7 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
                       fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
                         field.heading === 'Function'
                           ? { ...field, value: sanitized }
-                          : field.heading === 'Api Url'
-                            ? {
-                              ...field,
-                              value: `${config.backendBaseUrl}/workflow/${node.data.workflowId}/trigger/${sanitized}`,
-                            }
-                            : field
+                          : field
                       ),
                     },
                   },
@@ -355,36 +331,48 @@ export default function ApiTriggerDomino({ data, id, selected }: NodeProps) {
         <div className="space-y-3">
           <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
             <Link2 className="h-3.5 w-3.5" />
-            Endpoint
+            {isDeployedView ? 'Endpoint' : 'Deploy'}
           </div>
 
           <div className="rounded-xl border border-black/5 bg-black/[0.02] p-3 dark:border-white/10 dark:bg-white/[0.03]">
-            <div className="flex items-start justify-between gap-3">
+            {isDeployedView ? (
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                    API URL
+                  </div>
+                  <div
+                    className="mt-1 overflow-hidden text-sm font-medium text-foreground/80 dark:text-slate-300"
+                    title={apiUrl}
+                  >
+                    {apiUrlDisplay}
+                  </div>
+                  <div className="mt-1 text-xs text-foreground/55 dark:text-slate-400">
+                    Call this endpoint to start the workflow.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyApiUrl}
+                  data-allow-readonly-interaction="true"
+                  className="shrink-0 rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </span>
+                </button>
+              </div>
+            ) : (
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-                  API URL
-                </div>
-                <div
-                  className="mt-1 overflow-hidden text-sm font-medium text-foreground/80 dark:text-slate-300"
-                  title={apiUrl}
-                >
-                  {apiUrlDisplay}
+                  Find url in deployed version
                 </div>
                 <div className="mt-1 text-xs text-foreground/55 dark:text-slate-400">
-                  Call this endpoint to start the workflow.
+                  Switch to deployed version after deploy to view and copy the endpoint.
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={copyApiUrl}
-                className="shrink-0 rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copied ? 'Copied' : 'Copy'}
-                </span>
-              </button>
-            </div>
+            )}
           </div>
         </div>
 

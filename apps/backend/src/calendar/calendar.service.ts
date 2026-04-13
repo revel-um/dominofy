@@ -365,20 +365,21 @@ export class CalendarService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async dispatchTriggerWorkflow(
-    workflow: any,
+    target: any,
     payload: any,
   ) {
-    const { nodes, edges } = workflow.visualJson;
+    const { nodes, edges } = target.visualJson;
     const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
     const runId = uuidv4();
     const runner = this.runnerLauncherService.createRunner(
-      workflow.id,
+      target.workflowId,
       runId,
       pipeline,
       20,
-      workflow.visualJson,
+      target.visualJson,
+      { deployedWorkflowId: target.deployedWorkflowId },
     );
-    await runner.run(runId, payload, { workflowId: workflow.id });
+    await runner.run(runId, payload, { workflowId: target.workflowId });
     await this.workflowLogger.flushNow();
   }
 

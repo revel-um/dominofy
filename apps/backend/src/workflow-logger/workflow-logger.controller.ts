@@ -45,17 +45,16 @@ export class WorkflowLoggerController extends BaseController<
         @Query('minutes') minutes = '0',
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
-    ): Promise<{ count: number; logs: WorkflowLog[] }> {
-        // 1. Verify workflow ownership
+    ): Promise<{ count: number; logs: Array<WorkflowLog | any> }> {
         const userId = (req as any).user.id;
-        await this.workflowService.findOneAndVerify(workflowId, userId);
+        const target = await this.workflowService.resolveLogAccessTarget(workflowId, userId);
 
         // 2. Normalize numeric params
         const limitNum = Number(limit);
         const offsetNum = Number(offset);
         const minutesNum = Number(minutes);
 
-        let logsResult: [WorkflowLog[], number];
+        let logsResult: [Array<WorkflowLog | any>, number];
 
         // 3. Branch: date‐range vs minutes
         if (startDate && endDate) {
@@ -63,7 +62,7 @@ export class WorkflowLoggerController extends BaseController<
             const start = new Date(startDate);
             const end = new Date(endDate);
             logsResult = await this.loggerService.findAllByDateRange(
-                workflowId,
+                target,
                 runId,
                 limitNum,
                 offsetNum,
@@ -73,7 +72,7 @@ export class WorkflowLoggerController extends BaseController<
             );
         } else {
             logsResult = await this.loggerService.findAll(
-                workflowId,
+                target,
                 runId,
                 limitNum,
                 offsetNum,
@@ -93,8 +92,8 @@ export class WorkflowLoggerController extends BaseController<
         @Query('runId') runId?: string,
     ) {
         const userId = (req as any).user.id;
-        return from(this.workflowService.findOneAndVerify(workflowId, userId)).pipe(
-            mergeMap(() => this.loggerService.streamLogs(workflowId, runId)),
+        return from(this.workflowService.resolveLogAccessTarget(workflowId, userId)).pipe(
+            mergeMap((target) => this.loggerService.streamLogs(target, runId)),
         );
     }
 

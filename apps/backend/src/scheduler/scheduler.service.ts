@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { DateTime } from 'luxon';
 import { Schedule } from './scheduler.entity';
 import { Workflow } from 'src/workflow/workflow.entity';
+import { DeployedWorkflow } from 'src/workflow/deployed-workflow.entity';
 import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
 import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
@@ -33,6 +34,8 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
+    @InjectRepository(DeployedWorkflow)
+    private readonly deployedWorkflowRepository: Repository<DeployedWorkflow>,
     private readonly config: ConfigService,
     private readonly runnerLauncher: RunnerLauncherService,
     private readonly workflowLogger: WorkflowLoggerService,
@@ -155,10 +158,26 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    const deployedWorkflow = await this.deployedWorkflowRepository.findOne({
+      where: {
+        workflow: { id: workflowId },
+        isDeployed: true,
+        isActive: true,
+      },
+      order: {
+        version: 'DESC',
+        createdAt: 'DESC',
+      },
+    });
+    if (!deployedWorkflow) {
+      this.logger.warn(`Skipping schedule ${scheduleId} because workflow ${workflowId} has no deployed snapshot`);
+      return;
+    }
+
     schedule.lastRunAt = new Date();
     await this.scheduleRepository.save(schedule);
 
-    const { nodes = [], edges = [] } = (workflow.visualJson as any) ?? {};
+    const { nodes = [], edges = [] } = (deployedWorkflow.visualJson as any) ?? {};
     const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
 
     const runId = uuidv4();
@@ -167,7 +186,8 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       runId,
       pipeline,
       20,
-      workflow.visualJson
+      deployedWorkflow.visualJson,
+      { deployedWorkflowId: deployedWorkflow.id },
     );
 
     await runner.run(runId, {}, { workflowId: workflow.id });

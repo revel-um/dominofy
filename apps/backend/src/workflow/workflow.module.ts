@@ -3,6 +3,7 @@ import { WorkflowController } from './workflow.controller';
 import { WorkflowService } from './workflow.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Workflow } from './workflow.entity';
+import { DeployedWorkflow } from './deployed-workflow.entity';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
 import { UserModule } from 'src/user/user.module';
 import { RunnerLauncherModule } from 'src/runner-launcher/runner-launcher.module';
@@ -12,7 +13,7 @@ import { WorkspaceModule } from 'src/workspace/workspace.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Workflow, Project]),
+    TypeOrmModule.forFeature([Workflow, DeployedWorkflow, Project]),
     forwardRef(() => UserModule),
     forwardRef(() => RunnerLauncherModule),
     SchedulerModule,

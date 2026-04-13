@@ -24,8 +24,9 @@ const DEFAULT_FIELDS: DominoField[] = [
     type: 'textInput',
     heading: 'Collection',
     value: '',
+    inPinId: 'value_in_collection',
     required: true,
-    placeholder: 'customers or collection UUID',
+    placeholder: 'Collection name',
   },
   {
     type: 'dropdown',
@@ -261,13 +262,16 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
       </div>
 
       <div className="relative space-y-4 pb-4 pt-4">
-        <div className="space-y-3 px-4">
-          <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
-            <Database className="h-3 w-3" />
-            Collection
-          </div>
-
-          <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+        {renderPinnedControl({
+          pinId: 'value_in_collection',
+          label: 'Collection',
+          status: isConnected('value_in_collection') ? 'Live input' : 'Static input',
+          icon: Database,
+          children: isConnected('value_in_collection') ? (
+            <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+              Collection connected
+            </div>
+          ) : (
             <input
               type="text"
               value={collection}
@@ -275,11 +279,11 @@ export default function DatabaseDomino({ data, id, selected }: NodeProps) {
                 setCollection(event.target.value);
                 updateField('Collection', event.target.value);
               }}
-              placeholder="customers or collection UUID"
+              placeholder="Collection name"
               className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
             />
-          </div>
-        </div>
+          ),
+        })}
 
         <div className="space-y-3 px-4">
           {renderSectionLabel(ArrowDownUp, 'Operation')}

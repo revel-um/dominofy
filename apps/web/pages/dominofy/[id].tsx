@@ -70,6 +70,17 @@ interface Props {
   };
 }
 
+interface DeployedWorkflowSnapshot {
+  id: string;
+  workflow?: { id: string };
+  visualJson: {
+    nodes: any[];
+    edges: any[];
+  };
+  version: number;
+  isDeployed: boolean;
+}
+
 const getSafeWorkflowGraph = (graph: any): { nodes: Node[]; edges: Edge[] } => {
   if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
     return { nodes: [], edges: [] };
@@ -85,6 +96,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const defaultLogsHeight = '200px';
 
   const [workflow, setWorkflow] = useState(currWorkflow);
+  const [viewMode, setViewMode] = useState<'dev' | 'deployed'>('dev');
+  const [deployedSnapshot, setDeployedSnapshot] = useState<DeployedWorkflowSnapshot | null>(null);
   const [project, setProject] = useState<any>(null);
   const [projectWorkflows, setProjectWorkflows] = useState<any[]>([]);
   const [nodes, _setNodes, _onNodesChange] = useNodesState<Node>([]);
@@ -182,6 +195,18 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   useEffect(() => {
     setWorkflowProblems([]);
   }, [workflowId]);
+
+  useEffect(() => {
+    setViewMode('dev');
+    setDeployedSnapshot(null);
+    setPanelWidth(0);
+  }, [workflow?.id]);
+
+  useEffect(() => {
+    if (viewMode === 'deployed') {
+      setPanelWidth(0);
+    }
+  }, [viewMode]);
 
   const getStoredCanvasMode = useCallback((id?: string | null) => {
     if (typeof window === 'undefined' || !id) return true;
@@ -401,6 +426,23 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
     return null;
   }, [router, project?.id, workflow?.project?.id]);
+
+  const fetchDeployedSnapshot = useCallback(async (id: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/auth');
+        return null;
+      }
+
+      const response = await WorkflowsApi.getDeployedWorkflowById(id, token, router);
+      if (!response?.ok) return null;
+      return (await response.json()) as DeployedWorkflowSnapshot;
+    } catch (err) {
+      console.error('Error fetching deployed workflow snapshot:', err);
+      return null;
+    }
+  }, [router]);
 
   // ──────────────────────────────
   // Parent-managed UNDO/REDO
@@ -1115,12 +1157,16 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     const hydrateContent = async () => {
       if (workflow) {
         updateCanvasMode(getStoredCanvasMode(workflow.id), workflow.id);
-        const serverGraph = getSafeWorkflowGraph(workflow.visualJson);
+        const serverGraph = getSafeWorkflowGraph(
+          viewMode === 'deployed' && deployedSnapshot
+            ? deployedSnapshot.visualJson
+            : workflow.visualJson
+        );
         // First check if there's a cached version of this workflow
         const cachedWorkflowData = sessionStorage.getItem(`workflow-${workflow.id}`);
         let cacheDirty = false;
-        
-        if (cachedWorkflowData) {
+
+        if (viewMode === 'dev' && cachedWorkflowData) {
           try {
             const cached = JSON.parse(cachedWorkflowData);
             if (cached?.nodes && cached?.edges) {
@@ -1141,7 +1187,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
           loadWorkflowGraph(serverGraph, workflow.id);
         }
 
-        setHasUnsavedChanges(cacheDirty);
+        setHasUnsavedChanges(viewMode === 'deployed' ? false : cacheDirty);
         setComments((workflow as any).comments || []);
         setProjectWorkflows(prev =>
           prev.map(w => (w.id === workflow.id ? { ...w, isCached: cacheDirty } : w))
@@ -1193,7 +1239,35 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     };
     hydrateContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflow]);
+  }, [workflow, viewMode, deployedSnapshot]);
+
+  const handleToggleVersionView = useCallback(async () => {
+    if (!workflow?.id || !workflow.isPublished) return;
+
+    if (viewMode === 'deployed') {
+      setCanvasLoading(true);
+      setViewMode('dev');
+      return;
+    }
+
+    autoSaveWorkflow(undefined, undefined, hasUnsavedChanges);
+    setCanvasLoading(true);
+
+    let snapshot = deployedSnapshot;
+    if (!snapshot) {
+      snapshot = await fetchDeployedSnapshot(workflow.id);
+      if (!snapshot) {
+        setCanvasLoading(false);
+        return;
+      }
+      setDeployedSnapshot(snapshot);
+    }
+
+    _setNodes((prev) => prev.map((node) => ({ ...node, selected: false })));
+    _setEdges((prev) => prev.map((edge) => ({ ...edge, selected: false })));
+    setPanelWidth(0);
+    setViewMode('deployed');
+  }, [workflow, viewMode, deployedSnapshot, fetchDeployedSnapshot, autoSaveWorkflow, hasUnsavedChanges, _setNodes, _setEdges]);
 
   const handleCommentsChange = useCallback(async (newComments: CanvasComment[]) => {
     setComments(newComments);
@@ -1249,6 +1323,9 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               openLogsPanel={openLogsPanel}
               onProblemsChange={setWorkflowProblems}
               onWorkflowSaved={(latestNodes, latestEdges) => markWorkflowClean(latestNodes, latestEdges, workflow?.id)}
+              onWorkflowDeployed={() => setDeployedSnapshot(null)}
+              viewMode={viewMode}
+              onToggleVersionView={handleToggleVersionView}
             />
           )}
 
@@ -1322,7 +1399,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                           edges={edges}
                           setEdges={setEdges}                 // wrapped setter (records history)
                           onEdgesChange={onEdgesChange}       // wrapped handler (records history)
-                          workflowId={workflowId!}
+                          workflowId={viewMode === 'deployed' ? deployedSnapshot?.id ?? workflowId : workflowId}
+                          readonly={viewMode === 'deployed'}
                           onUndo={undo}
                           onRedo={redo}
                           canUndo={canUndo}
@@ -1334,6 +1412,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                           onCommentsChange={handleCommentsChange}
                           isExpandedMode={isCanvasExpanded}
                           onToggleExpandedMode={() => updateCanvasMode(!isCanvasExpanded, workflowId)}
+                          rightPanelWidth={panelWidth}
                         />
                       </div>
                     </>
@@ -1357,7 +1436,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                 </div>
 
                 {/* details drawer now starts below toolbar */}
-                {!showCreateWorkflowEmptyState && (
+                {!showCreateWorkflowEmptyState && viewMode === 'dev' && (
                   <DetailsPanel
                     selectedNode={selectedNode}
                     getNodes={() => nodes}
@@ -1374,8 +1453,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               {/* Logs panel … */}
               {!showCreateWorkflowEmptyState && workflowId && (
                 <LogsPanel
-                  workflowId={workflowId!}
-                  openWorkflowIds={openWorkflowIds}
+                  workflowId={viewMode === 'deployed' ? deployedSnapshot?.id ?? workflowId! : workflowId!}
+                  openWorkflowIds={viewMode === 'deployed' ? (deployedSnapshot?.id ? [deployedSnapshot.id] : []) : openWorkflowIds}
                   problems={combinedProblems}
                   className="absolute bottom-0 left-0 right-0 z-10 border-t border-gray-200 dark:border-gray-700"
                   collapsedHeight={collapsedHeight}

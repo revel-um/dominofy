@@ -1075,8 +1075,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       vault.workspace.id,
     );
 
-    const matches = candidates.filter(workflow => {
-      const triggerNode = workflow.visualJson?.nodes?.find(
+    const matches = candidates.filter((target) => {
+      const triggerNode = target.visualJson?.nodes?.find(
         (node: any) => node?.type === 'emailtrigger',
       );
       const data = triggerNode?.data || {};
@@ -1092,20 +1092,21 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       return true;
     });
 
-    for (const workflow of matches) {
-      const { nodes, edges } = workflow.visualJson;
+    for (const target of matches) {
+      const { nodes, edges } = target.visualJson;
       const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
 
       const runId = uuidv4();
       const runner = this.runnerLauncherService.createRunner(
-        workflow.id,
+        target.workflowId,
         runId,
         pipeline,
         20,
-        workflow.visualJson,
+        target.visualJson,
+        { deployedWorkflowId: target.deployedWorkflowId },
       );
 
-      await runner.run(runId, payload, { workflowId: workflow.id });
+      await runner.run(runId, payload, { workflowId: target.workflowId });
       await this.workflowLogger.flushNow();
     }
 

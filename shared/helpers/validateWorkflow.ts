@@ -52,8 +52,8 @@ export function getWorkflowValidationError(
       e.sourceHandle?.startsWith('exec') ||
       e.targetHandle?.startsWith('exec')
     ) {
-      adjacency[e.source].push(e.target);
-      adjacency[e.target].push(e.source);
+      adjacency[e.source]?.push(e.target);
+      adjacency[e.target]?.push(e.source);
     }
   });
 

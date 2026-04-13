@@ -61,6 +61,19 @@ export class WorkflowsApi {
     }
   }
 
+  static async getDeployedWorkflowById(id: string, token: string, router: NextRouter) {
+    try {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/${id}/deployed`, {
+        method: "GET",
+        token,
+      }, router);
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
   static async saveWorkflow(id: string, visualJson: string, token: string, router: NextRouter) {
     try {
       const response = await authFetch(`${config.backendBaseUrl}/workflow/${id}`, {
@@ -69,6 +82,19 @@ export class WorkflowsApi {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ visualJson }),
+        token,
+      }, router);
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
+  static async deployWorkflow(id: string, token: string, router: NextRouter) {
+    try {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/${id}/deploy`, {
+        method: "POST",
         token,
       }, router);
 

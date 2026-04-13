@@ -698,12 +698,18 @@
   }
 
   .dark ::-webkit-scrollbar-track {
-    background-color: transparent;
+    background-color: hsla(var(--foreground) / 0.06);
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    border: none;
+    background-color: hsla(var(--foreground) / 0.22);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: hsla(var(--foreground) / 0.34);
   }
 
 

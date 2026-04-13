@@ -81,10 +81,9 @@ export class Runner extends EventEmitter {
     await this.queue.onIdle();
 
     if (this.executionErrorNodeId && this.executionErrorMessage) {
-      const nodeId = this.executionErrorNodeId;
-      const message = this.executionErrorMessage;
+      this.emit("terminate", results);
       this.cleanup();
-      throw new Error(`Domino ${nodeId} failed: ${message}`);
+      return results;
     }
 
     if (unresolved.size) {

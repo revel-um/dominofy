@@ -21,6 +21,17 @@ export class IteratorDomino implements DominoExecutable {
     end: number,
     isMax: boolean,
   ): any[] {
+    if (typeof src === "number" && Number.isFinite(src)) {
+      const upperBound = Math.max(0, Math.floor(src));
+      const range = Array.from({ length: upperBound }, (_, index) => index);
+      if (isMax) {
+        return range;
+      }
+      const from = Math.max(0, start);
+      const to = Math.min(end, range.length);
+      return range.slice(from, to);
+    }
+
     if (Array.isArray(src)) {
       if (isMax) {
         return src;
@@ -42,7 +53,7 @@ export class IteratorDomino implements DominoExecutable {
     }
 
     throw new Error(
-      `IteratorDomino "${this.id}" expects Input to be an array or object (received ${typeof src})`,
+      `IteratorDomino "${this.id}" expects Input to be an array, object, or number (received ${typeof src})`,
     );
   }
 

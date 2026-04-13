@@ -29,6 +29,7 @@ interface ReadForWorkflowInput {
   operation?: string;
   documentKey?: string | null;
   limit?: number | string | null;
+  offset?: number | string | null;
 }
 
 @Injectable()
@@ -135,7 +136,7 @@ export class StorageRuntimeService implements OnModuleInit {
 
     const collection = await this.findCollection(workspaceId, collectionRef);
     if (!collection) {
-      throw new BadRequestException('Storage collection not found');
+      throw new BadRequestException(`Storage collection not found: ${collectionRef}`);
     }
 
     const operation = this.normalizeReadOperation(input.operation);
@@ -170,6 +171,7 @@ export class StorageRuntimeService implements OnModuleInit {
     }
 
     const limit = this.normalizeLimit(input.limit);
+    const offset = this.normalizeOffset(input.offset);
     const documents = await this.documentRepository.find({
       where: {
         workspaceId,
@@ -178,6 +180,7 @@ export class StorageRuntimeService implements OnModuleInit {
       order: {
         createdAt: 'DESC',
       },
+      skip: offset,
       take: limit,
     });
 
@@ -239,6 +242,19 @@ export class StorageRuntimeService implements OnModuleInit {
     }
 
     return Math.min(Math.floor(parsed), 1000);
+  }
+
+  private normalizeOffset(value?: number | string | null) {
+    if (value == null || value === '') {
+      return 0;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new BadRequestException('Storage retrieval offset must be zero or a positive number');
+    }
+
+    return Math.floor(parsed);
   }
 
   private isUuid(value: string) {

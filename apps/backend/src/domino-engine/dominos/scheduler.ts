@@ -8,6 +8,7 @@ import { DominoExecutable, DominoResult, ExecuteContext } from "../domino-engine
 export class SchedulerDomino implements DominoExecutable {
   id: string;
   type = "SchedulerDomino";
+  isTrigger = true;
 
   constructor(node: PipelineStep) {
     this.id = node.id;

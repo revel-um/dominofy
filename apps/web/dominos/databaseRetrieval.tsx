@@ -14,8 +14,9 @@ const DEFAULT_FIELDS: DominoField[] = [
     type: 'textInput',
     heading: 'Collection',
     value: '',
+    inPinId: 'value_in_collection',
     required: true,
-    placeholder: 'customers or collection UUID',
+    placeholder: 'Collection name',
   },
   {
     type: 'dropdown',
@@ -38,7 +39,15 @@ const DEFAULT_FIELDS: DominoField[] = [
     type: 'textInput',
     heading: 'Limit',
     value: '25',
+    inPinId: 'value_in_limit',
     placeholder: '25',
+  },
+  {
+    type: 'textInput',
+    heading: 'Offset',
+    value: '0',
+    inPinId: 'value_in_offset',
+    placeholder: '0',
   },
 ];
 
@@ -50,7 +59,7 @@ type DatabaseRetrievalNodeRecord = {
   };
 };
 
-const exportFields = ['Collection', 'Operation', 'Document Key', 'Limit'];
+const exportFields = ['Collection', 'Operation', 'Document Key', 'Limit', 'Offset'];
 
 const databaseRetrievalMeta = dominoCatalog.find((entry) => entry.id === 'storageRetrieve');
 const databaseRetrievalAccentColor = databaseRetrievalMeta?.badgeStyle?.background
@@ -72,6 +81,7 @@ export default function DatabaseRetrievalDomino({
   const [operation, setOperation] = useState('document');
   const [documentKey, setDocumentKey] = useState('');
   const [limit, setLimit] = useState('25');
+  const [offset, setOffset] = useState('0');
 
   useEffect(() => {
     setNodesRef.current = data.setNodes;
@@ -90,6 +100,7 @@ export default function DatabaseRetrievalDomino({
     setOperation(String(getField('Operation')?.value ?? 'document'));
     setDocumentKey(String(getField('Document Key')?.value ?? ''));
     setLimit(String(getField('Limit')?.value ?? '25'));
+    setOffset(String(getField('Offset')?.value ?? '0'));
   }, [getField]);
 
   const updateField = useCallback(
@@ -184,6 +195,16 @@ export default function DatabaseRetrievalDomino({
     if (!Number.isFinite(parsed)) return limit;
 
     return String(Math.min(1000, Math.max(1, Math.floor(parsed))));
+  };
+
+  const normalizeOffset = (rawValue: string) => {
+    if (!rawValue) return '0';
+    if (rawValue.includes('-')) return '0';
+
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) return offset;
+
+    return String(Math.max(0, Math.floor(parsed)));
   };
 
   const renderSectionLabel = (
@@ -291,25 +312,28 @@ export default function DatabaseRetrievalDomino({
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            {renderSectionLabel(Database, 'Collection')}
-            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
-              Target source
-            </span>
-          </div>
-
-          <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
-            <input
-              type="text"
-              value={collection}
-              onChange={(event) => {
-                setCollection(event.target.value);
-                updateField('Collection', event.target.value);
-              }}
-              placeholder="customers or collection UUID"
-              className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
-            />
-          </div>
+          {renderPinnedControl({
+            pinId: 'value_in_collection',
+            label: 'Collection',
+            status: isConnected('value_in_collection') ? 'Connected' : 'Target source',
+            icon: Database,
+            children: isConnected('value_in_collection') ? (
+              <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                Collection connected
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={collection}
+                onChange={(event) => {
+                  setCollection(event.target.value);
+                  updateField('Collection', event.target.value);
+                }}
+                placeholder="Collection name"
+                className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+              />
+            ),
+          })}
         </div>
 
         <div className="space-y-3">
@@ -359,37 +383,98 @@ export default function DatabaseRetrievalDomino({
         ) : (
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              {renderSectionLabel(AlignLeft, 'Limit')}
+              {renderSectionLabel(AlignLeft, 'Pagination')}
               <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
-                1 to 1000
+                Skip and take
               </span>
             </div>
 
-            <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={limit}
-                onKeyDown={(event) => {
-                  if (
-                    event.key === '-' ||
-                    event.key === '+' ||
-                    event.key === 'e' ||
-                    event.key === 'E' ||
-                    event.key === '.'
-                  ) {
-                    event.preventDefault();
-                  }
-                }}
-                onChange={(event) => {
-                  const nextValue = normalizeLimit(event.target.value);
-                  setLimit(nextValue);
-                  updateField('Limit', nextValue);
-                }}
-                placeholder="25"
-                className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
-              />
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                  Limit
+                </div>
+                <div className="relative">
+                  <div className="flex items-center gap-2">
+                    <DominoPin id="value_in_limit" pinType={PinType.VALUE_IN} inline offset={-16} />
+                    <div className="min-h-12 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                      {isConnected('value_in_limit') ? (
+                        <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                          Limit connected
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={limit}
+                          onKeyDown={(event) => {
+                            if (
+                              event.key === '-' ||
+                              event.key === '+' ||
+                              event.key === 'e' ||
+                              event.key === 'E' ||
+                              event.key === '.'
+                            ) {
+                              event.preventDefault();
+                            }
+                          }}
+                          onChange={(event) => {
+                            const nextValue = normalizeLimit(event.target.value);
+                            setLimit(nextValue);
+                            updateField('Limit', nextValue);
+                          }}
+                          placeholder="25"
+                          className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                  Offset
+                </div>
+                <div className="relative">
+                  <div className="flex items-center gap-2">
+                    <DominoPin id="value_in_offset" pinType={PinType.VALUE_IN} inline offset={-16} />
+                    <div className="min-h-12 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                      {isConnected('value_in_offset') ? (
+                        <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                          Offset connected
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={offset}
+                          onKeyDown={(event) => {
+                            if (
+                              event.key === '-' ||
+                              event.key === '+' ||
+                              event.key === 'e' ||
+                              event.key === 'E' ||
+                              event.key === '.'
+                            ) {
+                              event.preventDefault();
+                            }
+                          }}
+                          onChange={(event) => {
+                            const nextValue = normalizeOffset(event.target.value);
+                            setOffset(nextValue);
+                            updateField('Offset', nextValue);
+                          }}
+                          placeholder="0"
+                          className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

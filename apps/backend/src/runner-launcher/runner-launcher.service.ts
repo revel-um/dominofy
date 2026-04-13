@@ -18,7 +18,8 @@ export class RunnerLauncherService {
     runId: string,
     pipeline: PipelineStep[],
     maxConc = 20,
-    visualJson: any
+    visualJson: any,
+    options?: { deployedWorkflowId?: string },
   ): Runner {
     const runner = new Runner(pipeline, maxConc, visualJson);
 
@@ -31,6 +32,7 @@ export class RunnerLauncherService {
       if (type === 'print' || type === 'response') {
         this.logger.logLine({
           workflowId,
+          deployedWorkflowId: options?.deployedWorkflowId,
           type,
           runId,
           dominoId: res.id,
@@ -46,6 +48,7 @@ export class RunnerLauncherService {
       const type = nodeId.split('-')[0];
       this.logger.logLine({
         workflowId,
+        deployedWorkflowId: options?.deployedWorkflowId,
         type,
         runId,
         dominoId: nodeId,

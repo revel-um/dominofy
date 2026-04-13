@@ -48,6 +48,7 @@ interface LogsPanelProps {
 }
 
 const refreshOptions = [0, 5, 10, 30, 60];
+const ARRAY_PAGE_SIZE = 20;
 const timeOptions: { value: number; label: string }[] = [
   { value: 5, label: '5m' },
   { value: 10, label: '10m' },
@@ -95,6 +96,88 @@ function normalizePrintSeqEntries(output: unknown): PrintSeqEntry[] {
   }
 
   return [];
+}
+
+function tryGetPrettyPrintedArraySegment(message: string): {
+  before: string;
+  opening: string;
+  items: string[];
+  closing: string;
+  after: string;
+} | null {
+  const lines = message.split('\n');
+  if (lines.length < 3) return null;
+
+  const openingIndex = lines.findIndex((line) => line.includes('['));
+  const closingIndex = (() => {
+    for (let i = lines.length - 1; i >= 0; i -= 1) {
+      if (lines[i].includes(']')) return i;
+    }
+    return -1;
+  })();
+
+  if (openingIndex === -1 || closingIndex === -1 || openingIndex >= closingIndex) return null;
+
+  const openingLine = lines[openingIndex];
+  const closingLine = lines[closingIndex];
+  const openingBracketIndex = openingLine.indexOf('[');
+  const closingBracketIndex = closingLine.lastIndexOf(']');
+
+  const before = [...lines.slice(0, openingIndex), openingLine.slice(0, openingBracketIndex)]
+    .filter((line) => line !== '')
+    .join('\n');
+  const opening = openingLine.slice(openingBracketIndex);
+  const items = lines.slice(openingIndex + 1, closingIndex).filter((line) => line.trim() !== '');
+  const closing = closingLine.slice(0, closingBracketIndex + 1);
+  const after = [closingLine.slice(closingBracketIndex + 1), ...lines.slice(closingIndex + 1)]
+    .filter((line) => line !== '')
+    .join('\n');
+
+  if (!opening.trim().startsWith('[') || !closing.trim().endsWith(']')) return null;
+
+  return { before, opening, items, closing, after };
+}
+
+function ArrayLogMessage({ message }: { message: string }) {
+  const [visibleCount, setVisibleCount] = useState(ARRAY_PAGE_SIZE);
+  const rawArraySegment = tryGetPrettyPrintedArraySegment(message);
+  if (!rawArraySegment) return <>{message}</>;
+
+  const hasMore = rawArraySegment.items.length > ARRAY_PAGE_SIZE;
+  if (!hasMore) return <>{message}</>;
+
+  const visibleItems = rawArraySegment.items.slice(0, visibleCount);
+  const hiddenItems = rawArraySegment.items.slice(visibleCount);
+
+  return (
+    <>
+      {rawArraySegment.before ? `${rawArraySegment.before}\n` : ''}
+      {rawArraySegment.opening}
+      {'\n'}
+      {visibleItems.map((item, index) => (
+        <React.Fragment key={`raw-array-${index}`}>
+          {item}
+          {index < visibleItems.length - 1 ? '\n' : ''}
+        </React.Fragment>
+      ))}
+      {visibleItems.length > 0 ? '\n' : ''}
+      <span
+        data-log-ellipsis="true"
+        data-log-hidden-content={hiddenItems.join('\n')}
+      >
+        {'  '}
+        <button
+          type="button"
+          onClick={() => setVisibleCount((current) => current + ARRAY_PAGE_SIZE)}
+          className="cursor-pointer text-blue-600 underline underline-offset-2 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+        >
+          ...
+        </button>
+      </span>
+      {`\n${rawArraySegment.closing}`}
+      {rawArraySegment.after ? `\n${rawArraySegment.after}` : ''}
+    </>
+  );
 }
 
 function upsertRunAggregate(
@@ -304,6 +387,31 @@ export const LogsPanel = React.memo(function LogsPanel({
     setAutoScroll(atBottom);
   }, []);
 
+  const handleLogsCopy = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    const selectedEllipses = containerRef.current
+      ? Array.from(containerRef.current.querySelectorAll<HTMLElement>('[data-log-ellipsis="true"]'))
+          .filter((ellipsis) => range.intersectsNode(ellipsis))
+      : [];
+
+    if (selectedEllipses.length === 0) return;
+
+    const fragment = range.cloneContents();
+    const temp = document.createElement('div');
+    temp.appendChild(fragment);
+
+    temp.querySelectorAll<HTMLElement>('[data-log-ellipsis="true"]').forEach((ellipsis) => {
+      const hiddenContent = ellipsis.dataset.logHiddenContent ?? '';
+      ellipsis.replaceWith(document.createTextNode(hiddenContent));
+    });
+
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', temp.textContent ?? '');
+  }, []);
+
   // fetch + poll, grouping by runId
   const fetchLogs = useCallback(async () => {
     const token = localStorage.getItem('token') || '';
@@ -422,13 +530,81 @@ export const LogsPanel = React.memo(function LogsPanel({
         continue;
       }
 
+      const eventTimestamp = new Date(
+        (event as any)?.updatedAt ||
+        (event as any)?.finishedAt ||
+        (event as any)?.createdAt ||
+        Date.now()
+      );
+
+      if (typeof (event as any)?.id === 'string') {
+        const dominoId = String((event as any).id);
+        if (shouldRenderLogEntry({ dominoId, status: 'success' })) {
+          upsertRunAggregate(
+            grouped,
+            event.runId,
+            {
+              output: (event as any).output,
+              status: 'success',
+              createdAt: eventTimestamp.toISOString(),
+              updatedAt: eventTimestamp.toISOString(),
+            },
+            eventTimestamp,
+          );
+          liveLogsRef.current[activeWorkflowId] = grouped;
+          pendingRuns.delete(event.runId);
+          didChange = true;
+          continue;
+        }
+      }
+
+      if (event.type === 'RUN_ERROR') {
+        upsertRunAggregate(
+          grouped,
+          event.runId,
+          {
+            error: { message: (event as any)?.error?.message || 'Run failed' },
+            status: 'failure',
+            createdAt: eventTimestamp.toISOString(),
+            updatedAt: eventTimestamp.toISOString(),
+          },
+          eventTimestamp,
+        );
+        liveLogsRef.current[activeWorkflowId] = grouped;
+        pendingRuns.delete(event.runId);
+        didChange = true;
+        continue;
+      }
+
+      if (typeof (event as any)?.nodeId === 'string' && (event as any)?.error?.message) {
+        upsertRunAggregate(
+          grouped,
+          event.runId,
+          {
+            error: { message: (event as any).error.message },
+            status: 'failure',
+            createdAt: eventTimestamp.toISOString(),
+            updatedAt: eventTimestamp.toISOString(),
+          },
+          eventTimestamp,
+        );
+        liveLogsRef.current[activeWorkflowId] = grouped;
+        pendingRuns.delete(event.runId);
+        didChange = true;
+        continue;
+      }
+
       if (pendingRuns.delete(event.runId)) {
         if (!grouped[event.runId]) {
+          const errorMessage =
+            event.type === 'RUN_ERROR' && typeof (event as any)?.error?.message === 'string'
+              ? (event as any).error.message
+              : null;
           grouped[event.runId] = {
             seqMap: new Map<number, string>(),
-            fallbackMessages: ['null'],
+            fallbackMessages: errorMessage ? [errorMessage] : [],
             timestamp: new Date(),
-            type: 'log',
+            type: errorMessage ? 'error' : 'log',
           };
           liveLogsRef.current[activeWorkflowId] = grouped;
         }
@@ -573,6 +749,7 @@ export const LogsPanel = React.memo(function LogsPanel({
   return (
     <div
       ref={panelRef}
+      data-allow-copy="true"
       className={cn(
         'fixed bottom-0 left-0 right-0 z-50 flex flex-col',
         'bg-white dark:bg-gray-900 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95',
@@ -765,8 +942,13 @@ export const LogsPanel = React.memo(function LogsPanel({
         <div
           ref={containerRef}
           onScroll={onScroll}
+          onCopy={handleLogsCopy}
           className="flex-grow w-full overflow-y-scroll bg-white dark:bg-gray-900 relative z-0 border-l border-gray-200 dark:border-gray-700"
-          style={{ maxHeight: 'calc(100vh - 56px)' }}
+          style={{
+            maxHeight: 'calc(100vh - 56px)',
+            userSelect: 'text',
+            WebkitUserSelect: 'text',
+          }}
         >
           {activeTab === 'problems' ? (
             problems.length === 0 ? (
@@ -813,6 +995,7 @@ export const LogsPanel = React.memo(function LogsPanel({
               {logs.map((log) => (
                 <div
                   key={log.id}
+                  data-log-entry-id={log.id}
                   className={cn(
                     'px-4 py-2 text-sm font-mono border-l-4 border-solid hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors',
                   )}
@@ -837,7 +1020,7 @@ export const LogsPanel = React.memo(function LogsPanel({
                                   : 'text-gray-700 dark:text-gray-200'
                           )}
                         >
-                          {log.message}
+                          <ArrayLogMessage message={log.message} />
                         </span>
                       )}
                     </div>

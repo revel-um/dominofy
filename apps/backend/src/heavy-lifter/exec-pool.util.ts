@@ -15,6 +15,7 @@ export interface HeavyTaskInput {
   runId: string;
   visualJson: PipelineStep[];
   workflowId: string;
+  mockInput?: Record<string, any>;
 }
 
 export interface HeavyTaskProgress {
