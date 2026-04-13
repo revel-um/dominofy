@@ -19,6 +19,11 @@ import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.servi
 import { WorkspaceService } from 'src/workspace/workspace.service';
 import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 import { Project } from 'src/projects/projects.entity';
+import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
+import {
+  DeployedExecutionMetricStatus,
+} from './deployed-execution-metric.entity';
+import { DeployedExecutionMetricsService } from './deployed-execution-metrics.service';
 
 export interface WorkflowExecutionTarget {
   workflow: Workflow;
@@ -49,6 +54,9 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     private readonly runnerLauncherService: RunnerLauncherService,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
+    @Inject(forwardRef(() => WorkflowLoggerService))
+    private readonly workflowLoggerService: WorkflowLoggerService,
+    private readonly deployedExecutionMetricsService: DeployedExecutionMetricsService,
   ) {
     super(workflowRepository);
   }
@@ -169,11 +177,18 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
   }
 
 
-  async getRecentWorkflows(userId: string, query?: string) {
+  async getRecentWorkflows(userId: string, query?: string, workspaceId?: string) {
     const user = await this.userService.findOne(userId);
     if (!user) return;
 
-    const workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    let workspaceIds: string[];
+    if (workspaceId) {
+      await this.workspaceService.assertWorkspaceAccess(userId, workspaceId);
+      workspaceIds = [workspaceId];
+    } else {
+      workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    }
+
     if (workspaceIds.length === 0) {
       return { workflows: [], count: 0, user };
     }
@@ -202,11 +217,18 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     return { workflows, count, user };
   }
 
-  async getAllUserWorkflows(userId: string, limit?: number, offset?: number) {
+  async getAllUserWorkflows(userId: string, limit?: number, offset?: number, workspaceId?: string) {
     const user = await this.userService.findOne(userId);
     if (!user) return;
 
-    const workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    let workspaceIds: string[];
+    if (workspaceId) {
+      await this.workspaceService.assertWorkspaceAccess(userId, workspaceId);
+      workspaceIds = [workspaceId];
+    } else {
+      workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    }
+
     if (workspaceIds.length === 0) {
       return { workflows: [], count: 0, user };
     }
@@ -316,32 +338,16 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
       throw new BadRequestException('Request body required');
     }
 
-    const { nodes, edges } = target.visualJson;
-    const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
-
-    const runId = uuidv4();
-    const runner = this.runnerLauncherService.createRunner(
-      canonicalWorkflowId,
-      runId,
-      pipeline,
-      20,
-      target.visualJson,
-      { deployedWorkflowId: target.deployedWorkflowId },
+    const { results, executionError } = await this.executeDeployedWorkflowTarget(
+      target,
+      input,
     );
-    let executionError: { nodeId?: string; message: string } | null = null;
-    runner.on('error', ({ nodeId, error }) => {
-      if (executionError) return;
-      executionError = {
-        nodeId,
-        message: error instanceof Error ? error.message : String(error),
-      };
-    });
-
-    const results = await runner.run(runId, input, { workflowId: canonicalWorkflowId });
     if (!results) {
       return undefined;
     }
 
+    const { nodes, edges } = target.visualJson;
+    const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
     const responseNodeIds = pipeline
       .filter((step) => step.type === 'response')
       .map((step) => step.id);
@@ -361,6 +367,94 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     }
 
     return undefined;
+  }
+
+  async executeDeployedWorkflowTarget(
+    target: WorkflowExecutionTarget,
+    input: Record<string, any> = {},
+  ) {
+    if (!target.deployedWorkflowId) {
+      throw new BadRequestException('Workflow is not deployed');
+    }
+
+    const { nodes = [], edges = [] } = target.visualJson ?? { nodes: [], edges: [] };
+    const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
+    const runId = uuidv4();
+    const executedAt = new Date();
+
+    await this.deployedExecutionMetricsService.markStarted({
+      workflowId: target.workflowId,
+      deployedWorkflowId: target.deployedWorkflowId,
+      runId,
+      executedAt,
+    });
+
+    const runner = this.runnerLauncherService.createRunner(
+      target.workflowId,
+      runId,
+      pipeline,
+      20,
+      target.visualJson,
+      { deployedWorkflowId: target.deployedWorkflowId },
+    );
+
+    let executionErrorNodeId: string | undefined;
+    let executionErrorMessage: string | null = null;
+    runner.on('error', ({ nodeId, error }) => {
+      if (executionErrorMessage) return;
+      executionErrorNodeId = nodeId;
+      executionErrorMessage = error instanceof Error ? error.message : String(error);
+    });
+
+    let results: Record<string, any> | undefined;
+    let thrownError: unknown;
+
+    try {
+      results = await runner.run(runId, input, { workflowId: target.workflowId });
+    } catch (error) {
+      thrownError = error;
+    }
+
+    const failureReason = executionErrorMessage
+      ? executionErrorMessage
+      : thrownError instanceof Error
+        ? thrownError.message
+        : thrownError
+          ? String(thrownError)
+          : null;
+    const status = failureReason
+      ? DeployedExecutionMetricStatus.FAILURE
+      : DeployedExecutionMetricStatus.SUCCESS;
+
+    await this.deployedExecutionMetricsService.markCompleted({
+      workflowId: target.workflowId,
+      deployedWorkflowId: target.deployedWorkflowId,
+      runId,
+      executedAt,
+      status,
+      failureReason,
+    });
+
+    try {
+      await this.workflowLoggerService.flushNow();
+    } catch {
+      // Metrics persistence must not be lost because log flushing fails.
+    }
+
+    if (thrownError) {
+      throw thrownError;
+    }
+
+    return {
+      runId,
+      results,
+      executionError: executionErrorMessage
+        ? {
+            nodeId: executionErrorNodeId,
+            message: executionErrorMessage,
+          }
+        : null,
+    };
   }
 
   async syncDeployedSnapshot(workflow: Workflow): Promise<DeployedWorkflow | null> {

@@ -5,14 +5,40 @@ import { config } from "../config/config";
 import { authFetch } from "../utils/authFetch";
 
 export class WorkflowsApi {
+  static async getExecutionMetrics(
+    workflowId: string,
+    token: string,
+    router: NextRouter,
+    limit?: number,
+    offset?: number,
+  ) {
+    try {
+      const params = new URLSearchParams();
+      if (typeof limit === "number") params.set("limit", String(limit));
+      if (typeof offset === "number") params.set("offset", String(offset));
+
+      const suffix = params.toString() ? `?${params.toString()}` : "";
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/${workflowId}/metrics${suffix}`, {
+        method: "GET",
+        token,
+      }, router);
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
   static async getRecentWorkflowsAndCount(
     token: string,
     router: NextRouter,
     query?: string,
+    workspaceId?: string,
   ) {
     try {
       const params = new URLSearchParams();
       if (query && query.trim().length > 0) params.set('query', query.trim());
+      if (workspaceId) params.set('workspaceId', workspaceId);
       const suffix = params.toString() ? `?${params.toString()}` : '';
       const response = await authFetch(`${config.backendBaseUrl}/workflow/recent${suffix}`, {
         method: "GET",
@@ -25,11 +51,12 @@ export class WorkflowsApi {
     }
   }
 
-  static async getAllUserWorkflows(token: string, router: NextRouter, limit?: number, offset?: number) {
+  static async getAllUserWorkflows(token: string, router: NextRouter, limit?: number, offset?: number, workspaceId?: string) {
     try {
       const params = new URLSearchParams();
       if (limit) params.append('limit', limit.toString());
       if (offset) params.append('offset', offset.toString());
+      if (workspaceId) params.append('workspaceId', workspaceId);
 
       const url = `${config.backendBaseUrl}/workflow/user/all${params.toString() ? '?' + params.toString() : ''}`;
 

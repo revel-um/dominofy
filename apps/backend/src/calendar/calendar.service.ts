@@ -20,10 +20,6 @@ import { VaultService } from 'src/vault/vault.service';
 import { VaultType } from 'src/vault/vault.entity';
 import { UserService } from 'src/user/user.service';
 import { WorkflowService } from 'src/workflow/workflow.service';
-import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
-import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
-import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
-import { PipelineStep } from '../../../../shared/types/pipelineStepType';
 
 type CalendarOAuthState = { userId: string; workspaceId?: string };
 
@@ -60,9 +56,6 @@ export class CalendarService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     @Inject(forwardRef(() => WorkflowService))
     private readonly workflowService: WorkflowService,
-    @Inject(forwardRef(() => RunnerLauncherService))
-    private readonly runnerLauncherService: RunnerLauncherService,
-    private readonly workflowLogger: WorkflowLoggerService,
   ) {
     this.pollIntervalMs = Number(
       this.config.get<string>('GOOGLE_CALENDAR_POLL_INTERVAL_MS') ?? 60_000,
@@ -368,19 +361,7 @@ export class CalendarService implements OnModuleInit, OnModuleDestroy {
     target: any,
     payload: any,
   ) {
-    const { nodes, edges } = target.visualJson;
-    const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
-    const runId = uuidv4();
-    const runner = this.runnerLauncherService.createRunner(
-      target.workflowId,
-      runId,
-      pipeline,
-      20,
-      target.visualJson,
-      { deployedWorkflowId: target.deployedWorkflowId },
-    );
-    await runner.run(runId, payload, { workflowId: target.workflowId });
-    await this.workflowLogger.flushNow();
+    await this.workflowService.executeDeployedWorkflowTarget(target, payload);
   }
 
   private async syncTriggerCalendar(

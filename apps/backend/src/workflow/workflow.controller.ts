@@ -22,6 +22,7 @@ import { Request, Response as ExpressResponse } from 'express';
 import { SchedulerService } from 'src/scheduler/scheduler.service';
 import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 import { plainToInstance } from 'class-transformer';
+import { DeployedExecutionMetricsService } from './deployed-execution-metrics.service';
 
 @Controller('workflow')
 export class WorkflowController extends BaseController<
@@ -34,6 +35,7 @@ export class WorkflowController extends BaseController<
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly schedulerService: SchedulerService,
+    private readonly deployedExecutionMetricsService: DeployedExecutionMetricsService,
   ) {
     super(workflowService, CreateWorkflowDto);
   }
@@ -74,21 +76,23 @@ export class WorkflowController extends BaseController<
   async getRecentWorkflows(
     @Req() req: Request,
     @Query('query') query?: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     const id = (req as any).user.id;
-    return this.workflowService.getRecentWorkflows(id, query);
+    return this.workflowService.getRecentWorkflows(id, query, workspaceId);
   }
 
   @Get('user/all')
   async getAllUserWorkflows(
     @Req() req: Request,
     @Query('limit') limit?: string,
-    @Query('offset') offset?: string
+    @Query('offset') offset?: string,
+    @Query('workspaceId') workspaceId?: string,
   ) {
     const id = (req as any).user.id;
     const limitNum = limit ? parseInt(limit) : undefined;
     const offsetNum = offset ? parseInt(offset) : undefined;
-    return this.workflowService.getAllUserWorkflows(id, limitNum, offsetNum);
+    return this.workflowService.getAllUserWorkflows(id, limitNum, offsetNum, workspaceId);
   }
 
   @Get(':id')
@@ -101,6 +105,25 @@ export class WorkflowController extends BaseController<
   async getDeployedWorkflowById(@Param('id') id: string, @Req() req: Request) {
     const userId = (req as any).user.id;
     return await this.workflowService.getActiveDeploymentForUser(id, userId);
+  }
+
+  @Get(':id/metrics')
+  async getExecutionMetrics(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('limit') limit = '50',
+    @Query('offset') offset = '0',
+  ) {
+    const userId = (req as any).user.id;
+    const target = await this.workflowService.resolveLogAccessTarget(id, userId);
+    const [metrics, count] = await this.deployedExecutionMetricsService.findForWorkflow(
+      target.workflowId,
+      Number(limit),
+      Number(offset),
+      target.deployedWorkflowId,
+    );
+
+    return { count, metrics };
   }
 
   @Post(':id')

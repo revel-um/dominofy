@@ -20,11 +20,7 @@ import { VaultService } from 'src/vault/vault.service';
 import { VaultType } from 'src/vault/vault.entity';
 import { UserService } from 'src/user/user.service';
 import { WorkflowService } from 'src/workflow/workflow.service';
-import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
-import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import { CreateEmailConnectionDto } from './email.dto';
-import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
-import { PipelineStep } from '../types/pipelineStepType';
 import {
   EmailConnection,
   GmailConnection,
@@ -70,9 +66,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     @Inject(forwardRef(() => WorkflowService))
     private readonly workflowService: WorkflowService,
-    @Inject(forwardRef(() => RunnerLauncherService))
-    private readonly runnerLauncherService: RunnerLauncherService,
-    private readonly workflowLogger: WorkflowLoggerService,
   ) {
     this.providerFactory = new EmailProviderFactory({
       refreshAccessToken: this.refreshAccessToken.bind(this),
@@ -1093,21 +1086,7 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     });
 
     for (const target of matches) {
-      const { nodes, edges } = target.visualJson;
-      const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
-
-      const runId = uuidv4();
-      const runner = this.runnerLauncherService.createRunner(
-        target.workflowId,
-        runId,
-        pipeline,
-        20,
-        target.visualJson,
-        { deployedWorkflowId: target.deployedWorkflowId },
-      );
-
-      await runner.run(runId, payload, { workflowId: target.workflowId });
-      await this.workflowLogger.flushNow();
+      await this.workflowService.executeDeployedWorkflowTarget(target, payload);
     }
 
     if (!matches.length) {

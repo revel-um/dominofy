@@ -10,18 +10,23 @@ import { RunnerLauncherModule } from 'src/runner-launcher/runner-launcher.module
 import { SchedulerModule } from 'src/scheduler/scheduler.module';
 import { Project } from 'src/projects/projects.entity';
 import { WorkspaceModule } from 'src/workspace/workspace.module';
+import { WorkflowLoggerModule } from 'src/workflow-logger/workflow-logger.module';
+import { DeployedExecutionMetric } from './deployed-execution-metric.entity';
+import { DeployedExecutionMetricsService } from './deployed-execution-metrics.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Workflow, DeployedWorkflow, Project]),
+    TypeOrmModule.forFeature([DeployedExecutionMetric]),
     forwardRef(() => UserModule),
     forwardRef(() => RunnerLauncherModule),
-    SchedulerModule,
+    forwardRef(() => SchedulerModule),
     forwardRef(() => WorkspaceModule),
+    forwardRef(() => WorkflowLoggerModule),
   ],
   controllers: [WorkflowController],
-  providers: [WorkflowService],
-  exports: [WorkflowService],
+  providers: [WorkflowService, DeployedExecutionMetricsService],
+  exports: [WorkflowService, DeployedExecutionMetricsService],
 })
 export class WorkflowModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

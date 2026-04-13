@@ -7,11 +7,7 @@ import { DateTime } from 'luxon';
 import { Schedule } from './scheduler.entity';
 import { Workflow } from 'src/workflow/workflow.entity';
 import { DeployedWorkflow } from 'src/workflow/deployed-workflow.entity';
-import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
-import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
-import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
-import { PipelineStep } from '../../../../shared/types/pipelineStepType';
-import { v4 as uuidv4 } from 'uuid';
+import { WorkflowService } from 'src/workflow/workflow.service';
 
 interface SchedulerNodeConfig {
   nodeId: string;
@@ -37,8 +33,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(DeployedWorkflow)
     private readonly deployedWorkflowRepository: Repository<DeployedWorkflow>,
     private readonly config: ConfigService,
-    private readonly runnerLauncher: RunnerLauncherService,
-    private readonly workflowLogger: WorkflowLoggerService,
+    private readonly workflowService: WorkflowService,
   ) {}
 
   /* ───────────────────────── lifecycle ───────────────────────── */
@@ -177,21 +172,16 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     schedule.lastRunAt = new Date();
     await this.scheduleRepository.save(schedule);
 
-    const { nodes = [], edges = [] } = (deployedWorkflow.visualJson as any) ?? {};
-    const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
-
-    const runId = uuidv4();
-    const runner = this.runnerLauncher.createRunner(
-      workflow.id,
-      runId,
-      pipeline,
-      20,
-      deployedWorkflow.visualJson,
-      { deployedWorkflowId: deployedWorkflow.id },
+    await this.workflowService.executeDeployedWorkflowTarget(
+      {
+        workflow,
+        workflowId: workflow.id,
+        visualJson: deployedWorkflow.visualJson,
+        source: 'deployed',
+        deployedWorkflowId: deployedWorkflow.id,
+      },
+      {},
     );
-
-    await runner.run(runId, {}, { workflowId: workflow.id });
-    await this.workflowLogger.flushNow();
 
     if (this.isOnceSchedule(schedule)) {
       schedule.enabled = false;

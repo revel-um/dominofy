@@ -346,6 +346,7 @@ export const LogsPanel = React.memo(function LogsPanel({
 
   const liveLogsRef = useRef<Record<string, Record<string, RunLogAggregate>>>({});
   const pendingRunsRef = useRef<Record<string, Map<string, Date>>>({});
+  const runSeqRef = useRef<Record<string, Map<string, number>>>({});
   const sseRefs = useRef<Map<string, EventSource>>(new Map());
   const processedEventCountRef = useRef(0);
   const openWorkflowIdsSignature = openWorkflowIds.join('|');
@@ -355,6 +356,14 @@ export const LogsPanel = React.memo(function LogsPanel({
     if (current) return current;
     const next = new Map<string, Date>();
     pendingRunsRef.current[wfId] = next;
+    return next;
+  }, []);
+
+  const getRunSeqMap = useCallback((wfId: string) => {
+    const current = runSeqRef.current[wfId];
+    if (current) return current;
+    const next = new Map<string, number>();
+    runSeqRef.current[wfId] = next;
     return next;
   }, []);
 
@@ -516,6 +525,7 @@ export const LogsPanel = React.memo(function LogsPanel({
     if (nextEvents.length === 0) return;
 
     const pendingRuns = getPendingRuns(activeWorkflowId);
+    const runSeqMap = getRunSeqMap(activeWorkflowId);
     const grouped = liveLogsRef.current[activeWorkflowId] ?? {};
     let didChange = false;
 
@@ -540,11 +550,13 @@ export const LogsPanel = React.memo(function LogsPanel({
       if (typeof (event as any)?.id === 'string') {
         const dominoId = String((event as any).id);
         if (shouldRenderLogEntry({ dominoId, status: 'success' })) {
+          const seq = runSeqMap.get(event.runId) ?? 0;
+          runSeqMap.set(event.runId, seq + 1);
           upsertRunAggregate(
             grouped,
             event.runId,
             {
-              output: (event as any).output,
+              output: { seq, output: (event as any).output },
               status: 'success',
               createdAt: eventTimestamp.toISOString(),
               updatedAt: eventTimestamp.toISOString(),
@@ -615,7 +627,7 @@ export const LogsPanel = React.memo(function LogsPanel({
     if (didChange) {
       syncLogsForWorkflow(activeWorkflowId);
     }
-  }, [events, activeWorkflowId, workflowId, getPendingRuns, syncLogsForWorkflow]);
+  }, [events, activeWorkflowId, workflowId, getPendingRuns, getRunSeqMap, syncLogsForWorkflow]);
 
   // when active tab changes, show buffered live logs for that tab
   useEffect(() => {

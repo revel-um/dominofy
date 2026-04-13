@@ -57,6 +57,7 @@ export interface OverviewWorkspace {
   createdByName: string | null;
   createdByEmail: string | null;
   isOwnedByUser: boolean;
+  isCurrentWorkspace?: boolean;
 }
 
 function getPaginationRange(
@@ -405,9 +406,16 @@ export function OverviewDirectoryTable({
                       <FiUsers className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-slate-900 transition-colors group-hover:text-cyan-700 dark:text-slate-100 dark:group-hover:text-cyan-200">
-                        {(item as OverviewWorkspace).name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-slate-900 transition-colors group-hover:text-cyan-700 dark:text-slate-100 dark:group-hover:text-cyan-200">
+                          {(item as OverviewWorkspace).name}
+                        </p>
+                        {(item as OverviewWorkspace).isCurrentWorkspace ? (
+                          <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-200">
+                            Current
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         Workspace {startIndex + index + 1}
                       </p>
