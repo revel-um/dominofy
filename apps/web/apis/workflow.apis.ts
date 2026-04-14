@@ -11,11 +11,13 @@ export class WorkflowsApi {
     router: NextRouter,
     limit?: number,
     offset?: number,
+    version?: number,
   ) {
     try {
       const params = new URLSearchParams();
       if (typeof limit === "number") params.set("limit", String(limit));
       if (typeof offset === "number") params.set("offset", String(offset));
+      if (typeof version === "number") params.set("version", String(version));
 
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const response = await authFetch(`${config.backendBaseUrl}/workflow/${workflowId}/metrics${suffix}`, {

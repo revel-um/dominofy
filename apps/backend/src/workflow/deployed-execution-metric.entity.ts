@@ -41,6 +41,9 @@ export class DeployedExecutionMetric extends BaseEntity {
   @Column({ type: 'timestamp' })
   executedAt: Date;
 
+  @Column({ type: 'int', default: 1 })
+  deployedWorkflowVersion: number;
+
   @Column({
     type: 'enum',
     enum: DeployedExecutionMetricStatus,

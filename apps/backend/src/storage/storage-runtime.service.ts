@@ -28,6 +28,7 @@ interface ReadForWorkflowInput {
   collectionRef: string;
   operation?: string;
   documentKey?: string | null;
+  documentId?: string | null;
   limit?: number | string | null;
   offset?: number | string | null;
 }
@@ -141,22 +142,47 @@ export class StorageRuntimeService implements OnModuleInit {
 
     const operation = this.normalizeReadOperation(input.operation);
     const documentKey = input.documentKey?.trim() || null;
+    const documentId = input.documentId?.trim() || null;
 
     if (operation === 'document') {
-      if (!documentKey) {
-        throw new BadRequestException('Storage retrieval requires a document key');
+      const documentRef = documentId || documentKey;
+      if (!documentRef) {
+        throw new BadRequestException(
+          'Storage retrieval requires a document id or document key',
+        );
       }
 
-      const document = await this.documentRepository.findOne({
-        where: {
-          workspaceId,
-          collectionId: collection.id,
-          documentKey,
-        },
-        order: {
-          createdAt: 'DESC',
-        },
-      });
+      const document = documentId
+        ? await this.documentRepository.findOne({
+            where: {
+              workspaceId,
+              collectionId: collection.id,
+              id: documentId,
+            },
+          })
+        : await this.documentRepository
+            .createQueryBuilder('document')
+            .where('document.workspace_id = :workspaceId', { workspaceId })
+            .andWhere('document.collection_id = :collectionId', {
+              collectionId: collection.id,
+            })
+            .andWhere(
+              '(document.document_key = :documentRef OR document.id = :documentRef)',
+              { documentRef },
+            )
+            .orderBy(
+              `
+                CASE
+                  WHEN document.id = :documentRef THEN 0
+                  WHEN document.document_key = :documentRef THEN 1
+                  ELSE 2
+                END
+              `,
+              'ASC',
+            )
+            .addOrderBy('document.created_at', 'DESC')
+            .setParameter('documentRef', documentRef)
+            .getOne();
 
       if (!document) {
         throw new BadRequestException('Storage document not found');

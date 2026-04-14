@@ -113,14 +113,21 @@ export class WorkflowController extends BaseController<
     @Req() req: Request,
     @Query('limit') limit = '50',
     @Query('offset') offset = '0',
+    @Query('version') version?: string,
   ) {
     const userId = (req as any).user.id;
     const target = await this.workflowService.resolveLogAccessTarget(id, userId);
+    const parsedVersion =
+      version == null || version === '' ? undefined : Number(version);
+    const requestedVersion = Number.isFinite(parsedVersion)
+      ? parsedVersion
+      : target.deployedWorkflowVersion;
     const [metrics, count] = await this.deployedExecutionMetricsService.findForWorkflow(
       target.workflowId,
       Number(limit),
       Number(offset),
       target.deployedWorkflowId,
+      requestedVersion,
     );
 
     return { count, metrics };

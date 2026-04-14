@@ -33,7 +33,7 @@ const DEFAULT_FIELDS: DominoField[] = [
     heading: 'Document Key',
     value: '',
     inPinId: 'value_in',
-    placeholder: 'customer-123',
+    placeholder: 'document key or document id',
   },
   {
     type: 'textInput',
@@ -168,7 +168,7 @@ export default function DatabaseRetrievalDomino({
                   details: {
                     type: 'Database Retrieval',
                     description:
-                      'Reads one document by key or lists recent documents from a workspace collection in Dominofy’s shared database.',
+                      'Reads one document by key or document id, or lists recent documents from a workspace collection in Dominofy’s shared database.',
                     ...(node.data.details ?? {}),
                     fields: normalizedFields,
                   } as DominoNodeData,
@@ -360,12 +360,12 @@ export default function DatabaseRetrievalDomino({
         {isDocumentMode ? (
           renderPinnedControl({
             pinId: 'value_in',
-            label: 'Document Key',
+            label: 'Document Key / ID',
             status: isConnected('value_in') ? 'Connected' : 'Manual input',
             icon: AlignLeft,
             children: isConnected('value_in') ? (
               <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
-                Document key connected
+                Document key or id connected
               </div>
             ) : (
               <input
@@ -375,7 +375,7 @@ export default function DatabaseRetrievalDomino({
                   setDocumentKey(event.target.value);
                   updateField('Document Key', event.target.value);
                 }}
-                placeholder="Document key"
+                placeholder="Document key or document id"
                 className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
               />
             ),

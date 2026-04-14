@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { FiX, FiFile, FiLoader } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import { LogsApi } from '@/apis/logs.apis';
+import { WorkflowsApi } from '@/apis/workflow.apis';
 import { EventSourcePolyfill } from 'event-source-polyfill';
 import { config } from '@/config/config';
 import { useSSE } from '@/contexts/sseContext';
@@ -38,6 +39,8 @@ interface LogsPanelProps {
   workflowId: string;
   openWorkflowIds?: string[];
   problems?: WorkflowProblem[];
+  isDeployedView?: boolean;
+  deployedWorkflowVersion?: number;
   className?: string;
   maxHeight?: string;
   defaultHeight?: string;
@@ -45,6 +48,15 @@ interface LogsPanelProps {
   collapsedHeight?: string;
   isMinimized?: boolean;
   setIsMinimized?: (v: boolean) => void;
+}
+
+interface ExecutionMetricError {
+  id: string;
+  runId: string;
+  executedAt: string;
+  deployedWorkflowVersion?: number;
+  status: 'running' | 'success' | 'failure';
+  failureReason?: string | null;
 }
 
 const refreshOptions = [0, 5, 10, 30, 60];
@@ -275,6 +287,8 @@ export const LogsPanel = React.memo(function LogsPanel({
   workflowId,
   openWorkflowIds = [],
   problems = [],
+  isDeployedView = false,
+  deployedWorkflowVersion,
   className,
   maxHeight = '100vh',
   defaultHeight = '60px',
@@ -297,7 +311,8 @@ export const LogsPanel = React.memo(function LogsPanel({
   const isMinimized = typeof controlledMinimized === 'boolean' ? controlledMinimized : internalMinimized;
   const setIsMinimized = controlledSetMinimized || setInternalMinimized;
   const [isDragging, setIsDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState<'logs' | 'problems'>('logs');
+  const [activeTab, setActiveTab] = useState<'logs' | 'problems' | 'errors'>('logs');
+  const [executionErrors, setExecutionErrors] = useState<ExecutionMetricError[]>([]);
   const previousProblemsCountRef = useRef(0);
 
   // filters & polling
@@ -343,6 +358,38 @@ export const LogsPanel = React.memo(function LogsPanel({
 
     previousProblemsCountRef.current = problems.length;
   }, [problems.length, activeTab]);
+
+  const fetchExecutionErrors = useCallback(async () => {
+    if (!isDeployedView || !workflowId) {
+      setExecutionErrors([]);
+      return;
+    }
+
+    const token = localStorage.getItem('token') || '';
+    const response = await WorkflowsApi.getExecutionMetrics(
+      workflowId,
+      token,
+      router,
+      200,
+      0,
+      deployedWorkflowVersion,
+    );
+    if (!response?.ok) {
+      setExecutionErrors([]);
+      return;
+    }
+
+    const payload = await response.json() as { count: number; metrics: ExecutionMetricError[] };
+    const failedMetrics = (payload.metrics ?? [])
+      .filter((metric) => metric.status === 'failure')
+      .sort((left, right) => {
+        const leftTs = new Date(left.executedAt).getTime();
+        const rightTs = new Date(right.executedAt).getTime();
+        return rightTs - leftTs;
+      });
+
+    setExecutionErrors(failedMetrics);
+  }, [deployedWorkflowVersion, isDeployedView, workflowId, router]);
 
   const liveLogsRef = useRef<Record<string, Record<string, RunLogAggregate>>>({});
   const pendingRunsRef = useRef<Record<string, Map<string, Date>>>({});
@@ -642,6 +689,11 @@ export const LogsPanel = React.memo(function LogsPanel({
     fetchLogs();
   }, [isLive, isMinimized, fetchLogs]);
 
+  useEffect(() => {
+    if (!isDeployedView || isMinimized) return;
+    fetchExecutionErrors();
+  }, [isDeployedView, isMinimized, fetchExecutionErrors]);
+
   // auto-scroll on logs update or panel open
   useEffect(() => {
     const c = containerRef.current;
@@ -821,6 +873,21 @@ export const LogsPanel = React.memo(function LogsPanel({
               Problems
               {problems.length > 0 ? ` (${problems.length})` : ''}
             </button>
+            {isDeployedView ? (
+              <button
+                type="button"
+                onClick={() => setActiveTab('errors')}
+                className={cn(
+                  'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
+                  activeTab === 'errors'
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+                )}
+              >
+                Errors
+                {executionErrors.length > 0 ? ` (${executionErrors.length})` : ''}
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -962,7 +1029,45 @@ export const LogsPanel = React.memo(function LogsPanel({
             WebkitUserSelect: 'text',
           }}
         >
-          {activeTab === 'problems' ? (
+          {activeTab === 'errors' ? (
+            executionErrors.length === 0 ? (
+              <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 shrink-0">
+                  <FiFile className="h-6 w-6 text-red-400" />
+                </div>
+                <h4 className="mb-1 text-gray-700 dark:text-gray-200 font-medium">No execution errors</h4>
+                <p className="max-w-md text-sm text-gray-500 dark:text-gray-400">
+                  Failed deployed executions for the deployed version on this canvas will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {executionErrors.map((metric) => {
+                  const timestamp = new Date(metric.executedAt);
+                  return (
+                    <div
+                      key={metric.id}
+                      className="border-l-4 border-red-500 px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-red-600 dark:text-red-300">
+                            Run {metric.runId}
+                          </div>
+                          <div className="whitespace-pre-wrap break-words text-red-700 dark:text-red-300">
+                            {metric.failureReason || 'Execution failed'}
+                          </div>
+                        </div>
+                        <span className="mt-0.5 min-w-[72px] text-right text-xs font-medium text-gray-400 dark:text-gray-500">
+                          {formatTime(timestamp)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : activeTab === 'problems' ? (
             problems.length === 0 ? (
               <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 shrink-0">

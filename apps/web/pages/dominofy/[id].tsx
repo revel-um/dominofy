@@ -1456,6 +1456,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                   workflowId={viewMode === 'deployed' ? deployedSnapshot?.id ?? workflowId! : workflowId!}
                   openWorkflowIds={viewMode === 'deployed' ? (deployedSnapshot?.id ? [deployedSnapshot.id] : []) : openWorkflowIds}
                   problems={combinedProblems}
+                  isDeployedView={viewMode === 'deployed'}
+                  deployedWorkflowVersion={viewMode === 'deployed' ? deployedSnapshot?.version : undefined}
                   className="absolute bottom-0 left-0 right-0 z-10 border-t border-gray-200 dark:border-gray-700"
                   collapsedHeight={collapsedHeight}
                   defaultHeight={defaultLogsHeight}

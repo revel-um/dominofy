@@ -31,12 +31,14 @@ export interface WorkflowExecutionTarget {
   visualJson: { nodes: any[]; edges: any[] };
   source: 'dev' | 'deployed';
   deployedWorkflowId?: string;
+  deployedWorkflowVersion?: number;
 }
 
 export interface WorkflowLogAccessTarget {
   workflowId: string;
   source: 'dev' | 'deployed';
   deployedWorkflowId?: string;
+  deployedWorkflowVersion?: number;
 }
 
 @Injectable()
@@ -385,6 +387,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     await this.deployedExecutionMetricsService.markStarted({
       workflowId: target.workflowId,
       deployedWorkflowId: target.deployedWorkflowId,
+      deployedWorkflowVersion: target.deployedWorkflowVersion ?? 1,
       runId,
       executedAt,
     });
@@ -429,6 +432,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     await this.deployedExecutionMetricsService.markCompleted({
       workflowId: target.workflowId,
       deployedWorkflowId: target.deployedWorkflowId,
+      deployedWorkflowVersion: target.deployedWorkflowVersion ?? 1,
       runId,
       executedAt,
       status,
@@ -457,7 +461,10 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     };
   }
 
-  async syncDeployedSnapshot(workflow: Workflow): Promise<DeployedWorkflow | null> {
+  async syncDeployedSnapshot(
+    workflow: Workflow,
+    options?: { incrementVersion?: boolean },
+  ): Promise<DeployedWorkflow | null> {
     const existingActive = await this.getActiveDeployedWorkflow(workflow.id);
     const existingSnapshot =
       existingActive ??
@@ -482,18 +489,24 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     }
 
     if (existingSnapshot) {
-      if (
-        existingSnapshot.isDeployed &&
-        this.areVisualJsonEqual(existingSnapshot.visualJson, workflow.visualJson)
-      ) {
-        return existingSnapshot;
+      if (options?.incrementVersion) {
+        existingSnapshot.workflow = existingSnapshot.workflow ?? ({ id: workflow.id } as Workflow);
+        existingSnapshot.visualJson = workflow.visualJson;
+        existingSnapshot.version = Math.max(existingSnapshot.version ?? 0, 0) + 1;
+        existingSnapshot.isDeployed = true;
+        return this.deployedWorkflowRepository.save(existingSnapshot);
       }
 
-      existingSnapshot.workflow = existingSnapshot.workflow ?? ({ id: workflow.id } as Workflow);
-      existingSnapshot.visualJson = workflow.visualJson;
-      existingSnapshot.version = 1;
-      existingSnapshot.isDeployed = true;
-      return this.deployedWorkflowRepository.save(existingSnapshot);
+      if (!existingSnapshot.isDeployed) {
+        existingSnapshot.isDeployed = true;
+        existingSnapshot.version = Math.max(existingSnapshot.version ?? 0, 1);
+        if (!existingSnapshot.visualJson) {
+          existingSnapshot.visualJson = workflow.visualJson;
+        }
+        return this.deployedWorkflowRepository.save(existingSnapshot);
+      }
+
+      return existingSnapshot;
     }
 
     const deployment = this.deployedWorkflowRepository.create({
@@ -592,6 +605,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
         workflowId: deployment.workflow.id,
         source: 'deployed',
         deployedWorkflowId: deployment.id,
+        deployedWorkflowVersion: deployment.version,
       };
     }
 
@@ -623,6 +637,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
       visualJson,
       source: deployment ? 'deployed' : 'dev',
       deployedWorkflowId: deployment?.id,
+      deployedWorkflowVersion: deployment?.version,
     };
   }
 
@@ -653,7 +668,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
 
     workflow.isPublished = true;
     const updated = await this.workflowRepository.save(workflow);
-    await this.syncDeployedSnapshot(updated);
+    await this.syncDeployedSnapshot(updated, { incrementVersion: true });
     return updated;
   }
 

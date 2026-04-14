@@ -81,6 +81,7 @@ export class DatabaseRetrievalDomino implements DominoExecutable {
   private literalCollection: string;
   private literalOperation: string;
   private literalDocumentKey: string;
+  private literalDocumentId: string;
   private literalLimit: string;
   private literalOffset: string;
 
@@ -89,6 +90,7 @@ export class DatabaseRetrievalDomino implements DominoExecutable {
     this.literalCollection = node.data?.Collection?.value ?? '';
     this.literalOperation = node.data?.Operation?.value ?? 'document';
     this.literalDocumentKey = node.data?.['Document Key']?.value ?? '';
+    this.literalDocumentId = node.data?.['Document ID']?.value ?? '';
     this.literalLimit = node.data?.Limit?.value ?? '25';
     this.literalOffset = node.data?.Offset?.value ?? '0';
   }
@@ -122,6 +124,12 @@ export class DatabaseRetrievalDomino implements DominoExecutable {
       input.key ??
       this.literalDocumentKey;
 
+    const documentId =
+      input['Document ID'] ??
+      input.documentId ??
+      input.id ??
+      this.literalDocumentId;
+
     const limit =
       input.Limit ??
       input.limit ??
@@ -137,6 +145,7 @@ export class DatabaseRetrievalDomino implements DominoExecutable {
       collectionRef: String(collectionRef ?? ''),
       operation: operation == null ? undefined : String(operation),
       documentKey: documentKey == null ? null : String(documentKey),
+      documentId: documentId == null ? null : String(documentId),
       limit,
       offset,
     });
@@ -146,10 +155,17 @@ export class DatabaseRetrievalDomino implements DominoExecutable {
     const page = result.action === 'list'
       ? Math.floor(normalizedOffset / normalizedLimit) + 1
       : 1;
+    const documentsWithIds = result.documents.map((document) => ({
+      ...(document.dataJsonb && typeof document.dataJsonb === 'object'
+        ? document.dataJsonb
+        : { value: document.dataJsonb }),
+      documentId: document.id,
+    }));
+    const firstDocument = documentsWithIds[0] ?? null;
     const data =
       result.action === 'list'
-        ? result.documents.map((document) => document.dataJsonb)
-        : (result.documents[0]?.dataJsonb ?? null);
+        ? documentsWithIds
+        : firstDocument;
 
     return {
       id: this.id,
