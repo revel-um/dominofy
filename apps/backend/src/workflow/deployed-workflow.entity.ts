@@ -2,7 +2,7 @@ import { Entity, Column, ManyToOne, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from 'src/common/base.entity';
 import { Workflow } from './workflow.entity';
 import { DeployedWorkflowLog } from 'src/workflow-logger/deployed-workflow-log.entity';
-import { DeployedExecutionMetric } from './deployed-execution-metric.entity';
+import { Execution } from './execution.entity';
 
 /**
  * Snapshot of a workflow at deploy time.
@@ -19,8 +19,8 @@ export class DeployedWorkflow extends BaseEntity {
   @OneToMany(() => DeployedWorkflowLog, (log) => log.deployedWorkflow)
   logs: DeployedWorkflowLog[];
 
-  @OneToMany(() => DeployedExecutionMetric, (metric) => metric.deployedWorkflow)
-  executionMetrics: DeployedExecutionMetric[];
+  @OneToMany(() => Execution, (execution) => execution.deployedWorkflow)
+  executions: Execution[];
 
   /** Snapshot of visualJson captured at deploy time */
   @Column({ type: 'jsonb' })

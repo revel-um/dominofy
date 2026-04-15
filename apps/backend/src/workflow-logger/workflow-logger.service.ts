@@ -11,15 +11,18 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, MoreThanOrEqual, LessThanOrEqual, Between } from 'typeorm';
 
 import { BaseService } from 'src/common/base.service';
-import { WorkflowLog, WorkflowLogStatus } from './workflow-logger.entity';
+import { WorkflowLog } from './workflow-logger.entity';
 import { DeployedWorkflowLog } from './deployed-workflow-log.entity';
 import type { WorkflowLogAccessTarget } from 'src/workflow/workflow.service';
+import { Execution } from 'src/workflow/execution.entity';
+import { WorkflowLogStatus } from './workflow-log-status.enum';
 
 /* -------------------------------------------------------------------------- */
 /*                               Public DTO type                              */
 /* -------------------------------------------------------------------------- */
 
 export interface WorkflowLogDto {
+  executionId: string;
   workflowId: string;                 // FK → Workflow.id
   deployedWorkflowId?: string;        // FK → DeployedWorkflow.id for deployed executions
   type: string;                       // e.g. 'print', 'email', …
@@ -93,9 +96,9 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
     }
 
     // Safety guard: do not queue logs missing the NOT‑NULL column.
-    if (!dto.dominoId) {
+    if (!dto.dominoId || !dto.executionId) {
       this.log.warn(
-        `Dropped log without dominoId (workflow=${dto.workflowId}, run=${dto.runId})`,
+        `Dropped log without execution context (workflow=${dto.workflowId}, run=${dto.runId})`,
       );
       return;
     }
@@ -205,6 +208,22 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
     });
   }
 
+  async findAllByExecution(
+    executionId: string,
+    isDeployed: boolean,
+    limit = 200,
+    offset = 0,
+  ): Promise<[Array<WorkflowLog | DeployedWorkflowLog>, number]> {
+    const repo = isDeployed ? this.deployedLogsRepo : this.logsRepo;
+
+    return repo.findAndCount({
+      where: { execution: { id: executionId } } as any,
+      order: { createdAt: 'ASC' },
+      take: limit,
+      skip: offset,
+    });
+  }
+
   /* ------------------------------------------------------------------------ */
   /*                                Flushing                                  */
   /* ------------------------------------------------------------------------ */
@@ -224,6 +243,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
     interface Group {
       workflowId: string;
       deployedWorkflowId?: string;
+      executionId: string;
       runId: string;
       dominoId: string;
       status: WorkflowLogStatus;
@@ -241,6 +261,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
         g = {
           workflowId: d.workflowId,
           deployedWorkflowId: d.deployedWorkflowId,
+          executionId: d.executionId,
           runId: d.runId,
           dominoId: d.dominoId,
           status: d.status,
@@ -253,6 +274,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
       // merge status and error (last one wins)
       g.status = d.status;
       g.deployedWorkflowId = d.deployedWorkflowId ?? g.deployedWorkflowId;
+      g.executionId = d.executionId ?? g.executionId;
       if (d.error) g.error = d.error;
       g.ts = d.ts ?? g.ts;
 
@@ -358,6 +380,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
           this.deployedLogsRepo.create({
             id: existing?.id,
             deployedWorkflow: { id: g.deployedWorkflowId } as any,
+            execution: { id: g.executionId } as Execution,
             runId: g.runId,
             dominoId: g.dominoId,
             status: g.status,
@@ -376,6 +399,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
         this.logsRepo.create({
           id: existing?.id,
           workflow: { id: g.workflowId },
+          execution: { id: g.executionId } as Execution,
           runId: g.runId,
           dominoId: g.dominoId,
           status: g.status,
@@ -404,6 +428,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
           runId: log.runId,
           log: {
             id: log.id,
+            executionId: (log.execution as any)?.id ?? (log as any).executionId,
             runId: log.runId,
             dominoId: log.dominoId,
             status: log.status,
@@ -422,6 +447,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
           runId: log.runId,
           log: {
             id: log.id,
+            executionId: (log.execution as any)?.id ?? (log as any).executionId,
             runId: log.runId,
             dominoId: log.dominoId,
             status: log.status,

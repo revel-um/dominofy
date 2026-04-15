@@ -1,7 +1,7 @@
 // src/workflow/services/runner-launcher.service.ts
 import { Injectable } from '@nestjs/common';
 import { PipelineStep } from '../types/pipelineStepType';
-import { WorkflowLogStatus } from 'src/workflow-logger/workflow-logger.entity';
+import { WorkflowLogStatus } from 'src/workflow-logger/workflow-log-status.enum';
 import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import { Runner } from '../domino-engine/runner';
 
@@ -19,7 +19,7 @@ export class RunnerLauncherService {
     pipeline: PipelineStep[],
     maxConc = 20,
     visualJson: any,
-    options?: { deployedWorkflowId?: string },
+    options: { executionId: string; deployedWorkflowId?: string },
   ): Runner {
     const runner = new Runner(pipeline, maxConc, visualJson);
 
@@ -31,8 +31,9 @@ export class RunnerLauncherService {
       const type = res.id.split('-')[0];                 // e.g. 'print'
       if (type === 'print' || type === 'response') {
         this.logger.logLine({
+          executionId: options.executionId,
           workflowId,
-          deployedWorkflowId: options?.deployedWorkflowId,
+          deployedWorkflowId: options.deployedWorkflowId,
           type,
           runId,
           dominoId: res.id,
@@ -47,8 +48,9 @@ export class RunnerLauncherService {
     runner.on('error', ({ nodeId, error }) => {
       const type = nodeId.split('-')[0];
       this.logger.logLine({
+        executionId: options.executionId,
         workflowId,
-        deployedWorkflowId: options?.deployedWorkflowId,
+        deployedWorkflowId: options.deployedWorkflowId,
         type,
         runId,
         dominoId: nodeId,

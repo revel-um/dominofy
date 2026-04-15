@@ -6,9 +6,10 @@ import { DeployedWorkflowLog } from './deployed-workflow-log.entity';
 import { WorkflowLoggerController } from './workflow-logger.controller';
 import { WorkflowModule } from 'src/workflow/workflow.module';
 import { VerifyTokenMiddleware } from 'src/middlewares/auth.middleware';
+import { Execution } from 'src/workflow/execution.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([WorkflowLog, DeployedWorkflowLog]), forwardRef(() => WorkflowModule)],
+  imports: [TypeOrmModule.forFeature([WorkflowLog, DeployedWorkflowLog, Execution]), forwardRef(() => WorkflowModule)],
   providers: [WorkflowLoggerService],
   exports: [WorkflowLoggerService],
   controllers: [WorkflowLoggerController],

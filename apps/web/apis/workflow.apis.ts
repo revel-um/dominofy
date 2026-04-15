@@ -5,6 +5,23 @@ import { config } from "../config/config";
 import { authFetch } from "../utils/authFetch";
 
 export class WorkflowsApi {
+  static async getExecutionById(
+    executionId: string,
+    token: string,
+    router: NextRouter,
+  ) {
+    try {
+      const response = await authFetch(`${config.backendBaseUrl}/workflow/execution/${executionId}`, {
+        method: "GET",
+        token,
+      }, router);
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
   static async getExecutionMetrics(
     workflowId: string,
     token: string,
@@ -12,12 +29,22 @@ export class WorkflowsApi {
     limit?: number,
     offset?: number,
     version?: number,
+    options?: {
+      allVersions?: boolean;
+      status?: "running" | "success" | "failure";
+      startDate?: string;
+      endDate?: string;
+    },
   ) {
     try {
       const params = new URLSearchParams();
       if (typeof limit === "number") params.set("limit", String(limit));
       if (typeof offset === "number") params.set("offset", String(offset));
       if (typeof version === "number") params.set("version", String(version));
+      if (options?.allVersions) params.set("allVersions", "true");
+      if (options?.status) params.set("status", options.status);
+      if (options?.startDate) params.set("startDate", options.startDate);
+      if (options?.endDate) params.set("endDate", options.endDate);
 
       const suffix = params.toString() ? `?${params.toString()}` : "";
       const response = await authFetch(`${config.backendBaseUrl}/workflow/${workflowId}/metrics${suffix}`, {

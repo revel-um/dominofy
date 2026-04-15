@@ -22,7 +22,8 @@ import { Request, Response as ExpressResponse } from 'express';
 import { SchedulerService } from 'src/scheduler/scheduler.service';
 import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 import { plainToInstance } from 'class-transformer';
-import { DeployedExecutionMetricsService } from './deployed-execution-metrics.service';
+import { ExecutionService } from './execution.service';
+import { ExecutionStatus } from './execution.entity';
 
 @Controller('workflow')
 export class WorkflowController extends BaseController<
@@ -35,7 +36,7 @@ export class WorkflowController extends BaseController<
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly schedulerService: SchedulerService,
-    private readonly deployedExecutionMetricsService: DeployedExecutionMetricsService,
+    private readonly executionService: ExecutionService,
   ) {
     super(workflowService, CreateWorkflowDto);
   }
@@ -114,23 +115,48 @@ export class WorkflowController extends BaseController<
     @Query('limit') limit = '50',
     @Query('offset') offset = '0',
     @Query('version') version?: string,
+    @Query('allVersions') allVersions?: string,
+    @Query('status') status?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
     const userId = (req as any).user.id;
     const target = await this.workflowService.resolveLogAccessTarget(id, userId);
+    const shouldIncludeAllVersions = allVersions === 'true' || allVersions === '1';
     const parsedVersion =
       version == null || version === '' ? undefined : Number(version);
-    const requestedVersion = Number.isFinite(parsedVersion)
-      ? parsedVersion
-      : target.deployedWorkflowVersion;
-    const [metrics, count] = await this.deployedExecutionMetricsService.findForWorkflow(
+    const requestedVersion = shouldIncludeAllVersions
+      ? undefined
+      : Number.isFinite(parsedVersion)
+        ? parsedVersion
+        : target.deployedWorkflowVersion;
+    const requestedStatus =
+      status === ExecutionStatus.SUCCESS ||
+      status === ExecutionStatus.FAILURE ||
+      status === ExecutionStatus.RUNNING
+        ? status
+        : undefined;
+    const [metrics, count] = await this.executionService.findForDeployedWorkflow(
       target.workflowId,
       Number(limit),
       Number(offset),
       target.deployedWorkflowId,
       requestedVersion,
+      requestedStatus,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
     );
 
     return { count, metrics };
+  }
+
+  @Get('execution/:executionId')
+  async getExecutionById(
+    @Param('executionId') executionId: string,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).user.id;
+    return this.executionService.findOneForUser(executionId, userId);
   }
 
   @Post(':id')

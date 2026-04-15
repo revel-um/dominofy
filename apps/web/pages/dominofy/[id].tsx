@@ -113,9 +113,11 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [loading, setLoading] = useState(true);
   const [canvasLoading, setCanvasLoading] = useState(false);
   const [logsMinimized, setLogsMinimized] = useState(true);
+  const [initialLogsTab, setInitialLogsTab] = useState<'logs' | 'problems' | 'errors'>('logs');
   const openLogsPanel = () => setLogsMinimized(false);
   const [workflowProblems, setWorkflowProblems] = useState<WorkflowProblem[]>([]);
   const [isSubmittingWorkflowCreate, setIsSubmittingWorkflowCreate] = useState(false);
+  const didConsumeInitialViewRef = useRef(false);
 
   // @ts-ignore - TODO: Implement logging functionality
   const addLog = useCallback((message: string, type: 'log' | 'info' | 'warn' | 'error' | 'success' = 'log', source?: string) => {
@@ -165,6 +167,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   const router = useRouter();
   const requestedWorkflowId = router?.query?.workflowId as string | undefined;
+  const requestedView = router?.query?.view as string | undefined;
+  const requestedLogsTab = router?.query?.tab as string | undefined;
   const currentProjectId = useMemo(() => {
     const queryProjectId = router?.query?.projectId as string | undefined;
     return queryProjectId || project?.id || workflow?.project?.id || "global";
@@ -200,6 +204,10 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     setViewMode('dev');
     setDeployedSnapshot(null);
     setPanelWidth(0);
+    setInitialLogsTab(
+      requestedLogsTab === 'errors' ? 'errors' : requestedLogsTab === 'problems' ? 'problems' : 'logs'
+    );
+    didConsumeInitialViewRef.current = false;
   }, [workflow?.id]);
 
   useEffect(() => {
@@ -1269,6 +1277,29 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     setViewMode('deployed');
   }, [workflow, viewMode, deployedSnapshot, fetchDeployedSnapshot, autoSaveWorkflow, hasUnsavedChanges, _setNodes, _setEdges]);
 
+  useEffect(() => {
+    if (!router.isReady || !workflow?.id) return;
+    if (didConsumeInitialViewRef.current) return;
+    if (requestedView !== 'deployed') return;
+    if (!workflow.isPublished) return;
+    if (viewMode === 'deployed') {
+      if (requestedLogsTab === 'errors') {
+        setLogsMinimized(false);
+      }
+      didConsumeInitialViewRef.current = true;
+      return;
+    }
+
+    didConsumeInitialViewRef.current = true;
+    void handleToggleVersionView();
+  }, [router.isReady, workflow, requestedView, requestedLogsTab, viewMode, handleToggleVersionView]);
+
+  useEffect(() => {
+    if (requestedLogsTab === 'errors') {
+      setLogsMinimized(false);
+    }
+  }, [requestedLogsTab]);
+
   const handleCommentsChange = useCallback(async (newComments: CanvasComment[]) => {
     setComments(newComments);
     const token = localStorage.getItem('token');
@@ -1291,7 +1322,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         <div className="w-screen h-screen flex flex-col pt-14 bg-dominofy-light-background dark:bg-dominofy-dark-background text-dominofy-light-text dark:text-dominofy-dark-text">
 
           {/* Global toolbar */}
-          {showCreateWorkflowEmptyState ? (
+          {showCreateWorkflowEmptyState || !workflow ? (
             <header
               className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between whitespace-nowrap px-6 py-3 bg-dominofy-light-panel dark:bg-dominofy-dark-panel border-b border-[#b0b3b8] dark:border-[#44474a]"
               style={{ height: TOOLBAR_HEIGHT }}
@@ -1458,6 +1489,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                   problems={combinedProblems}
                   isDeployedView={viewMode === 'deployed'}
                   deployedWorkflowVersion={viewMode === 'deployed' ? deployedSnapshot?.version : undefined}
+                  initialTab={initialLogsTab}
                   className="absolute bottom-0 left-0 right-0 z-10 border-t border-gray-200 dark:border-gray-700"
                   collapsedHeight={collapsedHeight}
                   defaultHeight={defaultLogsHeight}

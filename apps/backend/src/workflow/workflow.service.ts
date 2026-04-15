@@ -21,9 +21,9 @@ import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 import { Project } from 'src/projects/projects.entity';
 import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import {
-  DeployedExecutionMetricStatus,
-} from './deployed-execution-metric.entity';
-import { DeployedExecutionMetricsService } from './deployed-execution-metrics.service';
+  ExecutionStatus,
+} from './execution.entity';
+import { ExecutionService } from './execution.service';
 
 export interface WorkflowExecutionTarget {
   workflow: Workflow;
@@ -58,7 +58,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     private readonly workspaceService: WorkspaceService,
     @Inject(forwardRef(() => WorkflowLoggerService))
     private readonly workflowLoggerService: WorkflowLoggerService,
-    private readonly deployedExecutionMetricsService: DeployedExecutionMetricsService,
+    private readonly executionService: ExecutionService,
   ) {
     super(workflowRepository);
   }
@@ -384,8 +384,9 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     const runId = uuidv4();
     const executedAt = new Date();
 
-    await this.deployedExecutionMetricsService.markStarted({
+    const execution = await this.executionService.markStarted({
       workflowId: target.workflowId,
+      isDeployed: true,
       deployedWorkflowId: target.deployedWorkflowId,
       deployedWorkflowVersion: target.deployedWorkflowVersion ?? 1,
       runId,
@@ -398,7 +399,10 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
       pipeline,
       20,
       target.visualJson,
-      { deployedWorkflowId: target.deployedWorkflowId },
+      {
+        executionId: execution.id,
+        deployedWorkflowId: target.deployedWorkflowId,
+      },
     );
 
     let executionErrorNodeId: string | undefined;
@@ -426,11 +430,12 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
           ? String(thrownError)
           : null;
     const status = failureReason
-      ? DeployedExecutionMetricStatus.FAILURE
-      : DeployedExecutionMetricStatus.SUCCESS;
+      ? ExecutionStatus.FAILURE
+      : ExecutionStatus.SUCCESS;
 
-    await this.deployedExecutionMetricsService.markCompleted({
+    await this.executionService.markCompleted({
       workflowId: target.workflowId,
+      isDeployed: true,
       deployedWorkflowId: target.deployedWorkflowId,
       deployedWorkflowVersion: target.deployedWorkflowVersion ?? 1,
       runId,

@@ -828,7 +828,17 @@ export default function DominofyDashboard() {
                                             </p>
                                             <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">Permissions inside this workspace</p>
                                         </div>
-                                        <div className="rounded-[24px] border border-white/70 bg-white/80 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                router.push(
+                                                    workspaceSummary?.id
+                                                        ? `/performance?workspaceId=${workspaceSummary.id}`
+                                                        : "/performance"
+                                                )
+                                            }
+                                            className="rounded-[24px] border border-white/70 bg-white/80 p-3 text-left backdrop-blur-sm transition hover:border-rose-200 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:border-rose-900/40 dark:hover:bg-white/[0.07] sm:p-4"
+                                        >
                                             <div className="flex min-w-0 items-start gap-3 text-slate-500 dark:text-slate-300">
                                                 <FiX className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
                                                 <span className="min-w-0 break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.06em] sm:text-[10px] sm:leading-4 sm:tracking-[0.1em]">Errors last 7d</span>
@@ -837,7 +847,7 @@ export default function DominofyDashboard() {
                                                 {dashboardMetrics.last7DayErrors}
                                             </p>
                                             <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">Failed executions in the last 7 days</p>
-                                        </div>
+                                        </button>
                                     </div>
 
                                     <div className="flex flex-wrap items-center gap-3">

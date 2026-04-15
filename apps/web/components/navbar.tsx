@@ -8,6 +8,7 @@ import {
   FiX,
   FiShield,
   FiUsers,
+  FiActivity,
 } from "react-icons/fi";
 import { useRouter } from "next/router";
 import { ReactElement, useState, useEffect } from "react";
@@ -24,6 +25,7 @@ interface NavItemProps {
 const navItems: NavItemProps[] = [
   { label: "Dashboard", icon: <FiHome />, href: "/dashboard" },
   { label: "Overview", icon: <FiGrid />, href: "/overview" },
+  { label: "Performance", icon: <FiActivity />, href: "/performance" },
   { label: "Support", icon: <FiHeadphones />, href: "/support" },
   { label: "Vault", icon: <FiShield />, href: "/vault" },
   { label: "Workspaces", icon: <FiUsers />, href: "/workspaces" },

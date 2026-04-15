@@ -8,12 +8,8 @@ import {
 } from 'typeorm';
 import { BaseEntity } from 'src/common/base.entity';
 import { Workflow } from 'src/workflow/workflow.entity';
-
-/** Allowed execution outcomes for a single domino. */
-export enum WorkflowLogStatus {
-    SUCCESS = 'success',
-    FAILURE = 'failure',
-}
+import { Execution } from 'src/workflow/execution.entity';
+import { WorkflowLogStatus } from './workflow-log-status.enum';
 
 @Entity('workflow_logs')
 /**
@@ -25,6 +21,12 @@ export enum WorkflowLogStatus {
 })
 export class WorkflowLog extends BaseEntity {
     /* ─────────── Relations ─────────── */
+
+    @ManyToOne(() => Execution, (execution) => execution.workflowLogs, {
+        onDelete: 'CASCADE',
+        nullable: true,
+    })
+    execution?: Execution | null;
 
     @ManyToOne(() => Workflow, (workflow) => workflow.logs, {
         onDelete: 'CASCADE',

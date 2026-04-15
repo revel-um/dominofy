@@ -14,6 +14,31 @@ export interface GetLogsParams {
 }
 
 export class LogsApi {
+  static async getExecutionLogs(
+    executionId: string,
+    token: string,
+    router: NextRouter,
+    params: { offset?: number; limit?: number } = {},
+  ) {
+    const { offset = 0, limit = 200 } = params;
+
+    try {
+      const query = new URLSearchParams();
+      query.set("offset", String(offset));
+      query.set("limit", String(limit));
+
+      const url = `${config.backendBaseUrl}/workflows/placeholder/logs/by-execution/${executionId}?${query.toString()}`;
+      const response = await authFetch(url, {
+        method: "GET",
+        token,
+      }, router);
+
+      return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
   /**
    * Fetch paginated logs for a given workflow, filtered either by
    * last-N-minutes or by explicit date range.

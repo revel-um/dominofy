@@ -41,6 +41,7 @@ interface LogsPanelProps {
   problems?: WorkflowProblem[];
   isDeployedView?: boolean;
   deployedWorkflowVersion?: number;
+  initialTab?: 'logs' | 'problems' | 'errors';
   className?: string;
   maxHeight?: string;
   defaultHeight?: string;
@@ -289,6 +290,7 @@ export const LogsPanel = React.memo(function LogsPanel({
   problems = [],
   isDeployedView = false,
   deployedWorkflowVersion,
+  initialTab = 'logs',
   className,
   maxHeight = '100vh',
   defaultHeight = '60px',
@@ -311,7 +313,7 @@ export const LogsPanel = React.memo(function LogsPanel({
   const isMinimized = typeof controlledMinimized === 'boolean' ? controlledMinimized : internalMinimized;
   const setIsMinimized = controlledSetMinimized || setInternalMinimized;
   const [isDragging, setIsDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState<'logs' | 'problems' | 'errors'>('logs');
+  const [activeTab, setActiveTab] = useState<'logs' | 'problems' | 'errors'>(initialTab);
   const [executionErrors, setExecutionErrors] = useState<ExecutionMetricError[]>([]);
   const previousProblemsCountRef = useRef(0);
 
@@ -358,6 +360,14 @@ export const LogsPanel = React.memo(function LogsPanel({
 
     previousProblemsCountRef.current = problems.length;
   }, [problems.length, activeTab]);
+
+  useEffect(() => {
+    if (initialTab === 'errors' && !isDeployedView) {
+      setActiveTab('logs');
+      return;
+    }
+    setActiveTab(initialTab);
+  }, [initialTab, isDeployedView]);
 
   const fetchExecutionErrors = useCallback(async () => {
     if (!isDeployedView || !workflowId) {

@@ -13,6 +13,7 @@ import { WorkflowService } from '../workflow/workflow.service';
 import { WorkflowLog } from './workflow-logger.entity';
 import { CreateWorkflowLogDto } from './workflow-logger.dto';
 import { BaseController } from 'src/common/base.controller';
+import { ExecutionService } from 'src/workflow/execution.service';
 
 @Controller('workflows/:workflowId/logs')
 export class WorkflowLoggerController extends BaseController<
@@ -25,6 +26,7 @@ export class WorkflowLoggerController extends BaseController<
     constructor(
         private readonly loggerService: WorkflowLoggerService,
         private readonly workflowService: WorkflowService,
+        private readonly executionService: ExecutionService,
     ) {
         super(loggerService, CreateWorkflowLogDto);
     }
@@ -95,6 +97,25 @@ export class WorkflowLoggerController extends BaseController<
         return from(this.workflowService.resolveLogAccessTarget(workflowId, userId)).pipe(
             mergeMap((target) => this.loggerService.streamLogs(target, runId)),
         );
+    }
+
+    @Get('/by-execution/:executionId')
+    async fetchExecutionLogs(
+        @Param('executionId') executionId: string,
+        @Req() req: Request,
+        @Query('limit') limit = '200',
+        @Query('offset') offset = '0',
+    ): Promise<{ count: number; logs: Array<WorkflowLog | any>; execution: any }> {
+        const userId = (req as any).user.id;
+        const execution = await this.executionService.findOneForUser(executionId, userId);
+        const [logs, count] = await this.loggerService.findAllByExecution(
+            execution.id,
+            execution.isDeployed,
+            Number(limit),
+            Number(offset),
+        );
+
+        return { count, logs, execution };
     }
 
 }

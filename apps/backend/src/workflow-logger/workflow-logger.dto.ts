@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsEnum, IsOptional, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
-import { WorkflowLogStatus } from './workflow-logger.entity';
+import { WorkflowLogStatus } from './workflow-log-status.enum';
 
 export class WorkflowLogOutputDto {
   @IsNotEmpty()
