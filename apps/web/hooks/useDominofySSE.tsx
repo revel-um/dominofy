@@ -2,6 +2,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { EventSourcePolyfill } from 'event-source-polyfill';
 
+export type RunMockInput = Record<string, any>;
+
 interface UseDominofySSEResult {
   /** Array of JSON‐parsed SSE messages */
   events: unknown[];
@@ -10,7 +12,7 @@ interface UseDominofySSEResult {
   /** Any error string, or null */
   error: string | null;
   /** Call this to kick off POST + open SSE, now providing an `id` */
-  start: (id: string, token: string) => void;
+  start: (id: string, token: string, mockInput?: RunMockInput) => Promise<void>;
   /** (Optional) Close the current SSE stream */
   stop: () => void;
   activeWorkflowId: string | null;
@@ -41,7 +43,7 @@ export function useDominofySSE(
    *   3) Wire up onopen, onmessage, onerror
    */
   const start = useCallback(
-    (id: string, token: string) => {
+    async (id: string, token: string, mockInput: RunMockInput = {}) => {
       closedDeliberatelyRef.current = false; // reset when starting
 
       if (!id) {
@@ -61,10 +63,34 @@ export function useDominofySSE(
       setConnected(false);
       setActiveWorkflowId(id);
 
+      let runToken = '';
+      try {
+        const response = await fetch(`${backendUrl}/dominofy/run/${encodeURIComponent(id)}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ mockInput }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to create run session (${response.status})`);
+        }
+
+        const payload = await response.json();
+        runToken = typeof payload?.runToken === 'string' ? payload.runToken : '';
+      } catch (err) {
+        console.error('Failed to create run session:', err);
+        setError('Could not start run session.');
+        setActiveWorkflowId(null);
+        return;
+      }
+
       // Small delay to ensure cleanup before starting new connection
       setTimeout(() => {
         const es = new EventSourcePolyfill(
-          `${backendUrl}/dominofy/event/${encodeURIComponent(id)}`,
+          `${backendUrl}/dominofy/event/${encodeURIComponent(id)}?runToken=${encodeURIComponent(runToken)}`,
           {
             headers: { Authorization: `Bearer ${token}` }
           }

@@ -28,7 +28,9 @@ interface ReadForWorkflowInput {
   collectionRef: string;
   operation?: string;
   documentKey?: string | null;
+  documentId?: string | null;
   limit?: number | string | null;
+  offset?: number | string | null;
 }
 
 @Injectable()
@@ -135,27 +137,52 @@ export class StorageRuntimeService implements OnModuleInit {
 
     const collection = await this.findCollection(workspaceId, collectionRef);
     if (!collection) {
-      throw new BadRequestException('Storage collection not found');
+      throw new BadRequestException(`Storage collection not found: ${collectionRef}`);
     }
 
     const operation = this.normalizeReadOperation(input.operation);
     const documentKey = input.documentKey?.trim() || null;
+    const documentId = input.documentId?.trim() || null;
 
     if (operation === 'document') {
-      if (!documentKey) {
-        throw new BadRequestException('Storage retrieval requires a document key');
+      const documentRef = documentId || documentKey;
+      if (!documentRef) {
+        throw new BadRequestException(
+          'Storage retrieval requires a document id or document key',
+        );
       }
 
-      const document = await this.documentRepository.findOne({
-        where: {
-          workspaceId,
-          collectionId: collection.id,
-          documentKey,
-        },
-        order: {
-          createdAt: 'DESC',
-        },
-      });
+      const document = documentId
+        ? await this.documentRepository.findOne({
+            where: {
+              workspaceId,
+              collectionId: collection.id,
+              id: documentId,
+            },
+          })
+        : await this.documentRepository
+            .createQueryBuilder('document')
+            .where('document.workspace_id = :workspaceId', { workspaceId })
+            .andWhere('document.collection_id = :collectionId', {
+              collectionId: collection.id,
+            })
+            .andWhere(
+              '(document.document_key = :documentRef OR document.id = :documentRef)',
+              { documentRef },
+            )
+            .orderBy(
+              `
+                CASE
+                  WHEN document.id = :documentRef THEN 0
+                  WHEN document.document_key = :documentRef THEN 1
+                  ELSE 2
+                END
+              `,
+              'ASC',
+            )
+            .addOrderBy('document.created_at', 'DESC')
+            .setParameter('documentRef', documentRef)
+            .getOne();
 
       if (!document) {
         throw new BadRequestException('Storage document not found');
@@ -170,6 +197,7 @@ export class StorageRuntimeService implements OnModuleInit {
     }
 
     const limit = this.normalizeLimit(input.limit);
+    const offset = this.normalizeOffset(input.offset);
     const documents = await this.documentRepository.find({
       where: {
         workspaceId,
@@ -178,6 +206,7 @@ export class StorageRuntimeService implements OnModuleInit {
       order: {
         createdAt: 'DESC',
       },
+      skip: offset,
       take: limit,
     });
 
@@ -239,6 +268,19 @@ export class StorageRuntimeService implements OnModuleInit {
     }
 
     return Math.min(Math.floor(parsed), 1000);
+  }
+
+  private normalizeOffset(value?: number | string | null) {
+    if (value == null || value === '') {
+      return 0;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      throw new BadRequestException('Storage retrieval offset must be zero or a positive number');
+    }
+
+    return Math.floor(parsed);
   }
 
   private isUuid(value: string) {

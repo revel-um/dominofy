@@ -131,7 +131,7 @@ export default function DetailsPanel({
     if (isDetailsOpen || isAIOpen) {
       onWidthChange?.(width + BAR_WIDTH);
     } else {
-      onWidthChange?.(0);
+      onWidthChange?.(BAR_WIDTH);
     }
   }, [isDetailsOpen, isAIOpen, onWidthChange, width]);
 

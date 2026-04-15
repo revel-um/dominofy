@@ -12,6 +12,8 @@ import { Repository, ILike, MoreThanOrEqual, LessThanOrEqual, Between } from 'ty
 
 import { BaseService } from 'src/common/base.service';
 import { WorkflowLog, WorkflowLogStatus } from './workflow-logger.entity';
+import { DeployedWorkflowLog } from './deployed-workflow-log.entity';
+import type { WorkflowLogAccessTarget } from 'src/workflow/workflow.service';
 
 /* -------------------------------------------------------------------------- */
 /*                               Public DTO type                              */
@@ -19,6 +21,7 @@ import { WorkflowLog, WorkflowLogStatus } from './workflow-logger.entity';
 
 export interface WorkflowLogDto {
   workflowId: string;                 // FK → Workflow.id
+  deployedWorkflowId?: string;        // FK → DeployedWorkflow.id for deployed executions
   type: string;                       // e.g. 'print', 'email', …
   runId: string;                      // execution instance
   dominoId: string;                   // node that produced this log (NOT NULL!)
@@ -49,6 +52,8 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
   constructor(
     @InjectRepository(WorkflowLog)
     private readonly logsRepo: Repository<WorkflowLog>,
+    @InjectRepository(DeployedWorkflowLog)
+    private readonly deployedLogsRepo: Repository<DeployedWorkflowLog>,
   ) {
     super(logsRepo);
     this.streamEmitter.setMaxListeners(0);
@@ -77,7 +82,13 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
 
   /** Push a single log DTO into the in‑memory buffer. */
   async logLine(dto: WorkflowLogDto) {
-    if (dto.type !== 'print') {
+    const shouldPersist =
+      dto.status === WorkflowLogStatus.FAILURE ||
+      dto.type === 'print' ||
+      dto.type === 'response' ||
+      dto.dominoId === '__workflow__';
+
+    if (!shouldPersist) {
       return;
     }
 
@@ -97,14 +108,18 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
   }
 
   /** Live stream for newly persisted log rows. */
-  streamLogs(workflowId: string, runId?: string) {
+  streamLogs(target: WorkflowLogAccessTarget, runId?: string) {
     return new Observable<string>((subscriber) => {
       const handler = (payload: {
         workflowId: string;
         runId: string;
         log: Record<string, unknown>;
       }) => {
-        if (payload.workflowId !== workflowId) return;
+        const streamId =
+          target.source === 'deployed'
+            ? target.deployedWorkflowId
+            : target.workflowId;
+        if (payload.workflowId !== streamId) return;
         if (runId && payload.runId !== runId) return;
         subscriber.next(JSON.stringify(payload));
       };
@@ -122,14 +137,18 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
   /* ------------------------------ Query helper ----------------------------- */
 
   async findAll(
-    workflowId: string,
+    target: WorkflowLogAccessTarget,
     runId?: string,
     limit = 50,
     offset = 0,
     search?: string,
     minutes = 0,
-  ): Promise<[WorkflowLog[], number]> {
-    const where: any = { workflow: { id: workflowId } };
+  ): Promise<[Array<WorkflowLog | DeployedWorkflowLog>, number]> {
+    const isDeployed = target.source === 'deployed';
+    const repo = isDeployed ? this.deployedLogsRepo : this.logsRepo;
+    const where: any = isDeployed
+      ? { deployedWorkflow: { id: target.deployedWorkflowId } }
+      : { workflow: { id: target.workflowId } };
 
     if (runId) {
       where.runId = runId;
@@ -142,7 +161,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
       where.createdAt = MoreThanOrEqual(since);
     }
 
-    return this.logsRepo.findAndCount({
+    return repo.findAndCount({
       where,
       order: { createdAt: 'ASC' },
       take: limit,
@@ -154,15 +173,19 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
    * Fetch logs between an explicit date range [startDate, endDate].
    */
   async findAllByDateRange(
-    workflowId: string,
+    target: WorkflowLogAccessTarget,
     runId: string | undefined,
     limit = 50,
     offset = 0,
     search: string | undefined,
     startDate: Date,
     endDate: Date,
-  ): Promise<[WorkflowLog[], number]> {
-    const where: any = { workflow: { id: workflowId } };
+  ): Promise<[Array<WorkflowLog | DeployedWorkflowLog>, number]> {
+    const isDeployed = target.source === 'deployed';
+    const repo = isDeployed ? this.deployedLogsRepo : this.logsRepo;
+    const where: any = isDeployed
+      ? { deployedWorkflow: { id: target.deployedWorkflowId } }
+      : { workflow: { id: target.workflowId } };
 
     if (runId) {
       where.runId = runId;
@@ -174,7 +197,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
     // Filter logs whose createdAt is between startDate and endDate (inclusive)
     where.createdAt = Between(startDate, endDate);
 
-    return this.logsRepo.findAndCount({
+    return repo.findAndCount({
       where,
       order: { createdAt: 'ASC' },
       take: limit,
@@ -200,6 +223,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
 
     interface Group {
       workflowId: string;
+      deployedWorkflowId?: string;
       runId: string;
       dominoId: string;
       status: WorkflowLogStatus;
@@ -216,6 +240,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
       if (!g) {
         g = {
           workflowId: d.workflowId,
+          deployedWorkflowId: d.deployedWorkflowId,
           runId: d.runId,
           dominoId: d.dominoId,
           status: d.status,
@@ -227,6 +252,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
 
       // merge status and error (last one wins)
       g.status = d.status;
+      g.deployedWorkflowId = d.deployedWorkflowId ?? g.deployedWorkflowId;
       if (d.error) g.error = d.error;
       g.ts = d.ts ?? g.ts;
 
@@ -235,7 +261,7 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
        *  Normalize all successful domino outputs into sequenced entries.
        */
       const normalizedOutputs = (() => {
-        if (d.type !== 'print') {
+        if (d.type !== 'print' && d.type !== 'response') {
           return [];
         }
 
@@ -265,33 +291,59 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
 
     /* ---------------------------- Fetch existing rows --------------------------- */
 
-    const compositeKeys = Array.from(groups.values()).map((g) => ({
+    const devGroups = Array.from(groups.values()).filter((g) => !g.deployedWorkflowId);
+    const deployedGroups = Array.from(groups.values()).filter((g) => Boolean(g.deployedWorkflowId));
+
+    const compositeKeys = devGroups.map((g) => ({
       runId: g.runId,
       dominoId: g.dominoId,
     }));
 
-    const existingLogs = await this.logsRepo.find({
+    const existingLogs = compositeKeys.length
+      ? await this.logsRepo.find({
       where: compositeKeys.map((k) => ({ runId: k.runId, dominoId: k.dominoId })),
       relations: ['workflow'],
-    });
+    })
+      : [];
+
+    const deployedCompositeKeys = deployedGroups.map((g) => ({
+      runId: g.runId,
+      dominoId: g.dominoId,
+    }));
+
+    const existingDeployedLogs = deployedCompositeKeys.length
+      ? await this.deployedLogsRepo.find({
+      where: deployedCompositeKeys.map((k) => ({ runId: k.runId, dominoId: k.dominoId })),
+      relations: ['deployedWorkflow', 'deployedWorkflow.workflow'],
+    })
+      : [];
 
     const existingMap = new Map<string, WorkflowLog>();
     for (const log of existingLogs) {
       existingMap.set(`${log.workflow.id}::${log.runId}::${log.dominoId}`, log);
     }
 
+    const existingDeployedMap = new Map<string, DeployedWorkflowLog>();
+    for (const log of existingDeployedLogs) {
+      existingDeployedMap.set(
+        `${log.deployedWorkflow.id}::${log.runId}::${log.dominoId}`,
+        log,
+      );
+    }
+
     /* ------------------------------ Build entities ----------------------------- */
 
     const toSave: WorkflowLog[] = [];
+    const deployedToSave: DeployedWorkflowLog[] = [];
 
     for (const g of groups.values()) {
-      const key = `${g.workflowId}::${g.runId}::${g.dominoId}`;
-      const existing = existingMap.get(key);
-
       const mergedOutputs = (() => {
         const set = new Map<number, any>();
-        if (existing?.output?.length)
-          for (const o of existing.output)
+        const existingOutputSource = g.deployedWorkflowId
+          ? existingDeployedMap.get(`${g.deployedWorkflowId}::${g.runId}::${g.dominoId}`)?.output
+          : existingMap.get(`${g.workflowId}::${g.runId}::${g.dominoId}`)?.output;
+        if (existingOutputSource?.length)
+          for (const o of existingOutputSource)
             if (typeof o.seq === 'number') set.set(o.seq, o.output);
         for (const o of g.outputs) set.set(o.seq, o.output);
         return [...set.entries()]
@@ -299,6 +351,27 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
           .map(([seq, output]) => ({ seq, output }));
       })();
 
+      if (g.deployedWorkflowId) {
+        const key = `${g.deployedWorkflowId}::${g.runId}::${g.dominoId}`;
+        const existing = existingDeployedMap.get(key);
+        deployedToSave.push(
+          this.deployedLogsRepo.create({
+            id: existing?.id,
+            deployedWorkflow: { id: g.deployedWorkflowId } as any,
+            runId: g.runId,
+            dominoId: g.dominoId,
+            status: g.status,
+            output: mergedOutputs.length ? mergedOutputs : undefined,
+            error: g.error,
+            createdAt: existing?.createdAt ?? g.ts,
+            updatedAt: g.ts,
+          }),
+        );
+        continue;
+      }
+
+      const key = `${g.workflowId}::${g.runId}::${g.dominoId}`;
+      const existing = existingMap.get(key);
       toSave.push(
         this.logsRepo.create({
           id: existing?.id,
@@ -317,10 +390,14 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
     /* ----------------------------- Persist (upsert) ----------------------------- */
 
     try {
-      const savedLogs = await this.logsRepo.save(toSave, { chunk: 100 });
+      const savedLogs = toSave.length
+        ? await this.logsRepo.save(toSave, { chunk: 100 })
+        : [];
+      const savedDeployedLogs = deployedToSave.length
+        ? await this.deployedLogsRepo.save(deployedToSave, { chunk: 100 })
+        : [];
       for (const log of savedLogs) {
-        const workflowId =
-          (log.workflow as any)?.id ?? (log as any).workflowId;
+        const workflowId = (log.workflow as any)?.id ?? (log as any).workflowId;
         if (!workflowId) continue;
         this.streamEmitter.emit(this.streamEvent, {
           workflowId,
@@ -337,7 +414,25 @@ export class WorkflowLoggerService extends BaseService<WorkflowLog> implements O
           },
         });
       }
-      this.log.debug(`Flushed ${toSave.length} workflow logs`);
+      for (const log of savedDeployedLogs) {
+        const workflowId = (log.deployedWorkflow as any)?.id;
+        if (!workflowId) continue;
+        this.streamEmitter.emit(this.streamEvent, {
+          workflowId,
+          runId: log.runId,
+          log: {
+            id: log.id,
+            runId: log.runId,
+            dominoId: log.dominoId,
+            status: log.status,
+            output: log.output,
+            error: log.error,
+            createdAt: log.createdAt,
+            updatedAt: log.updatedAt,
+          },
+        });
+      }
+      this.log.debug(`Flushed ${toSave.length} workflow logs and ${deployedToSave.length} deployed workflow logs`);
     } catch (err) {
       // Re‑queue so nothing is lost (no FS spill anymore)
       this.buffer.unshift(...slice);

@@ -1,339 +1,460 @@
 'use client';
 
- import { NodeProps, useEdges } from 'reactflow';
- import React, { useEffect, useMemo, useRef, useState } from 'react';
- import { toast } from 'react-toastify';
- import DominoPin from '../components/shared/dominoPin';
- import { PinType } from '../types/pinTypes';
- import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
- import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
- import { useRouter } from 'next/router';
- import { FiAlertCircle } from 'react-icons/fi';
- import SearchableSelect from '@/components/searchableDropdown';
- import { DriveApi, DriveConnection } from '@/apis/drive.apis';
+import { NodeProps, useEdges } from 'reactflow';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FolderInput, FolderSync } from 'lucide-react';
+import { useRouter } from 'next/router';
 
- function mergeFieldPreservingConnections(newF: any, oldF?: any) {
-   if (!oldF) return newF;
-   const {
-     value,
-     shouldRender,
-     inPinId,
-     type,
-     heading,
-     options,
-     required,
-     placeholder,
-   } = newF;
-   return {
-     ...oldF,
-     type,
-     heading,
-     options,
-     required,
-     shouldRender,
-     inPinId,
-     value,
-     placeholder,
-   };
- }
+import DominoPin from '../components/shared/dominoPin';
+import { PinType } from '../types/pinTypes';
+import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
+import { useDomino } from '../contexts/dominoContext';
+import SearchableSelect from '@/components/searchableDropdown';
+import { DriveApi, DriveConnection } from '@/apis/drive.apis';
+import dominoCatalog from './dominos';
 
- export default function GoogleDriveDownloadDomino({ data, id, selected }: NodeProps) {
-   const router = useRouter();
-   const { erroredNodes, clearValidationForDominoId } = useDomino();
-   const hasError = erroredNodes.includes(id);
-   const isPreviewMode = Boolean((data as any).previewMode);
-   const edges = useEdges();
-   const setNodesRef = useRef(data.setNodes);
-   const didInitRef = useRef(false);
-   const token =
-     typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
+type GoogleDriveDownloadNodeData = DominoNodeData & {
+  previewMode?: boolean;
+  vaultId?: string;
+  connect?: string;
+  fullPath?: string;
+  setFieldValue?: (heading: string, value: unknown) => void;
+};
 
-   useEffect(() => {
-     setNodesRef.current = data.setNodes;
-   }, [data.setNodes]);
+type GoogleDriveDownloadNodeRecord = {
+  id: string;
+  data: GoogleDriveDownloadNodeData;
+};
 
-   const findField = (heading: string) =>
-     data?.details?.fields?.find((f: DominoField) => f.heading === heading);
+const googleDriveDownloadMeta = dominoCatalog.find(
+  (entry) => entry.id === 'googleDriveDownload'
+);
+const googleDriveDownloadAccentColor = googleDriveDownloadMeta?.badgeStyle?.background
+  ? String(googleDriveDownloadMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+  : undefined;
 
-   const getInitialText = (heading: string, fallbackKey: string) => {
-     const field = findField(heading);
-     if (typeof field?.value === 'string') return field.value;
-     const fallback = (data as any)?.[fallbackKey];
-     return typeof fallback === 'string' ? fallback : '';
-   };
+function mergeFieldPreservingConnections(newField: DominoField, oldField?: DominoField) {
+  if (!oldField) return newField;
+  const { value, shouldRender, inPinId, type, heading, options, required, placeholder } = newField;
+  return {
+    ...oldField,
+    type,
+    heading,
+    options,
+    required,
+    shouldRender,
+    inPinId,
+    value,
+    placeholder,
+  };
+}
 
-   const initialVaultId = (data as any)?.vaultId as string | undefined;
-   const [connectValue, setConnectValue] = useState(
-     initialVaultId || getInitialText('Connect', 'connect')
-   );
-   const [fullPath, setFullPath] = useState(getInitialText('Full Path', 'fullPath'));
-   const [connections, setConnections] = useState<DriveConnection[]>([]);
-   const [loadingConns, setLoadingConns] = useState(true);
+export default function GoogleDriveDownloadDomino({ data, id, selected }: NodeProps) {
+  const router = useRouter();
+  const { erroredNodes, clearValidationForDominoId } = useDomino();
+  const hasError = erroredNodes.includes(id);
+  const nodeData = data as GoogleDriveDownloadNodeData;
+  const isPreviewMode = Boolean(nodeData.previewMode);
+  const edges = useEdges();
+  const setNodesRef = useRef(data.setNodes);
+  const didInitRef = useRef(false);
+  const bootstrappedRef = useRef(false);
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
 
-   const selectedConn = useMemo(
-     () => connections.find(c => c.id === connectValue),
-     [connections, connectValue],
-   );
+  useEffect(() => {
+    setNodesRef.current = data.setNodes;
+  }, [data.setNodes]);
 
-   const isConnected = useMemo(
-     () => (pinId: string) =>
-       edges.some((edge) => edge.target === id && edge.targetHandle === pinId),
-     [edges, id]
-   );
+  const findField = (heading: string) =>
+    data?.details?.fields?.find((field: DominoField) => field.heading === heading);
 
-   const connectConnected = isConnected('value_connect');
-   const pathConnected = isConnected('value_full_path');
+  const getInitialText = (heading: string, fallbackKey: string) => {
+    const field = findField(heading);
+    if (typeof field?.value === 'string') return field.value;
+    const fallback = nodeData[fallbackKey];
+    return typeof fallback === 'string' ? fallback : '';
+  };
 
-   useEffect(() => {
-     if (didInitRef.current) return;
-     const connect = initialVaultId || getInitialText('Connect', 'connect');
-     const path = getInitialText('Full Path', 'fullPath');
-     if (connect) setConnectValue(connect);
-     if (path) setFullPath(path);
-     didInitRef.current = true;
-     // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [data?.details?.fields]);
+  const [connectValue, setConnectValue] = useState(
+    nodeData.vaultId || getInitialText('Connect', 'connect')
+  );
+  const [fullPath, setFullPath] = useState(getInitialText('Full Path', 'fullPath'));
+  const [connections, setConnections] = useState<DriveConnection[]>([]);
+  const [loadingConns, setLoadingConns] = useState(true);
 
-   useEffect(() => {
-     if (isPreviewMode) {
-       setLoadingConns(false);
-       setConnections([]);
-       return;
-     }
-     let mounted = true;
-     (async () => {
-       setLoadingConns(true);
-       try {
-         const list = await DriveApi.getConnections(token, router);
-         if (mounted) setConnections(list ?? []);
-       } catch (err) {
-         console.error('Error fetching Google Drive connections', err);
-       } finally {
-         if (mounted) setLoadingConns(false);
-       }
-     })();
-     return () => void (mounted = false);
-   }, [isPreviewMode, token, router]);
+  const selectedConn = useMemo(
+    () => connections.find((connection) => connection.id === connectValue),
+    [connections, connectValue]
+  );
 
-   useEffect(() => {
-     if (!data.setNodes) return;
-     if (data.setFieldValue && data.details) return;
+  const isConnected = useMemo(
+    () => (pinId: string) =>
+      edges.some((edge) => edge.target === id && edge.targetHandle === pinId),
+    [edges, id]
+  );
 
-     const setFieldValue = (heading: string, value: any) => {
-       if (heading === 'Connect') setConnectValue(value);
-       if (heading === 'Full Path') setFullPath(value);
+  const connectConnected = isConnected('value_connect');
+  const pathConnected = isConnected('value_full_path');
 
-       data.setNodes?.((nodes: any[]) =>
-         nodes.map((n: any) =>
-           n.id !== id
-             ? n
-             : {
-                 ...n,
-                 data: {
-                   ...n.data,
-                   vaultId: heading === 'Connect' ? value : n.data?.vaultId,
-                   details: {
-                     ...n.data.details,
-                     fields: (n.data.details?.fields ?? []).map((f: DominoField) =>
-                       f.heading === heading ? { ...f, value } : f
-                     ),
-                   },
-                 },
-               }
-         )
-       );
-     };
+  useEffect(() => {
+    if (didInitRef.current) return;
+    const connect = nodeData.vaultId || getInitialText('Connect', 'connect');
+    const path = getInitialText('Full Path', 'fullPath');
+    if (connect) setConnectValue(connect);
+    if (path) setFullPath(path);
+    didInitRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.details?.fields]);
 
-     data.setNodes((prev: any[]) =>
-       prev.map((n: any) =>
-         n.id !== id
-           ? n
-           : {
-               ...n,
-               data: {
-                 ...n.data,
-                 setFieldValue,
-                 exportFields: ['Connect', 'Full Path'],
-                 details:
-                   n.data.details ??
-                   ({
-                     type: 'Google Drive Download',
-                     description: 'Download a file from Google Drive to the workflow.',
-                     fields: [],
-                   } as DominoNodeData),
-               },
-             }
-       )
-     );
-   }, [data, id]);
+  useEffect(() => {
+    if (isPreviewMode) {
+      setLoadingConns(false);
+      setConnections([]);
+      return;
+    }
 
-   useEffect(() => {
-     const setNodes = setNodesRef.current;
-     if (!setNodes) return;
+    let mounted = true;
+    (async () => {
+      setLoadingConns(true);
+      try {
+        const list = await DriveApi.getConnections(token, router);
+        if (mounted) setConnections(list ?? []);
+      } catch (error) {
+        console.error('Error fetching Google Drive connections', error);
+      } finally {
+        if (mounted) setLoadingConns(false);
+      }
+    })();
 
-     const freshFields: DominoField[] = [
-       {
-         type: 'textInput',
-         heading: 'Connect',
-         value: connectConnected ? '' : connectValue,
-         inPinId: 'value_connect',
-         required: true,
-         shouldRender: true,
-         placeholder: connectConnected ? 'Connected' : 'Connection name',
-       },
-       {
-         type: 'textInput',
-         heading: 'Full Path',
-         value: pathConnected ? '' : fullPath,
-         inPinId: 'value_full_path',
-         required: true,
-         shouldRender: true,
-         placeholder: pathConnected ? 'Connected' : '/My Drive/folder/file.ext',
-       },
-     ];
+    return () => {
+      mounted = false;
+    };
+  }, [isPreviewMode, token, router]);
 
-     const nextExport = ['Connect', 'Full Path'];
+  useEffect(() => {
+    if (!data.setNodes || bootstrappedRef.current) return;
+    if (data.setFieldValue && data.details) {
+      bootstrappedRef.current = true;
+      return;
+    }
 
-     setNodes((nodes: any[]) =>
-       nodes.map((n: any) => {
-         if (n.id !== id) return n;
-         const existing = n.data.details?.fields ?? [];
-         const existingMap = new Map<string, DominoField>();
-         existing.forEach((f: DominoField) => {
-           if (f?.heading) existingMap.set(f.heading, f);
-         });
-         const nextFields = freshFields.map((f) =>
-           mergeFieldPreservingConnections(f, existingMap.get(f.heading as string))
-         );
-         const sameFields =
-           existing.length === nextFields.length &&
-           existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(nextFields[idx]));
-         const sameExport =
-           Array.isArray(n.data.exportFields) &&
-           n.data.exportFields.length === nextExport.length &&
-           n.data.exportFields.every((h: string, i: number) => h === nextExport[i]);
-         if (sameFields && sameExport) return n;
-         return {
-           ...n,
-           data: {
-             ...n.data,
-             vaultId: connectConnected ? n.data?.vaultId : connectValue,
-             details: {
-               type: 'Google Drive Download',
-               description: 'Download a file from Google Drive to the workflow.',
-               fields: nextFields,
-             } as DominoNodeData,
-             exportFields: nextExport,
-           },
-         };
-       })
-     );
-   }, [connectConnected, connectValue, fullPath, id, pathConnected]);
+    const setFieldValue = (heading: string, value: unknown) => {
+      const stringValue = typeof value === 'string' ? value : '';
+      if (heading === 'Connect') setConnectValue(stringValue);
+      if (heading === 'Full Path') setFullPath(stringValue);
 
-   const startOAuth = async () => {
-     const url = await DriveApi.getInstallUrl(token, router);
-     if (url) window.location.href = url;
-   };
+      data.setNodes?.((nodes: GoogleDriveDownloadNodeRecord[]) =>
+        nodes.map((node: GoogleDriveDownloadNodeRecord) =>
+          node.id !== id
+            ? node
+            : {
+                ...node,
+                data: {
+                  ...node.data,
+                  vaultId: heading === 'Connect' ? stringValue : node.data.vaultId,
+                  details: {
+                    ...node.data.details,
+                    fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
+                      field.heading === heading ? { ...field, value } : field
+                    ),
+                  },
+                },
+              }
+        )
+      );
+    };
 
-   const updateVaultId = (newVaultId: string) => {
-     clearValidationForDominoId(id);
-     setConnectValue(newVaultId);
-     data.setNodes?.((nodes: any[]) =>
-       nodes.map((n: any) =>
-         n.id === id ? { ...n, data: { ...n.data, vaultId: newVaultId } } : n
-       ),
-     );
-   };
+    data.setNodes((prev: GoogleDriveDownloadNodeRecord[]) =>
+      prev.map((node: GoogleDriveDownloadNodeRecord) =>
+        node.id !== id
+          ? node
+          : {
+              ...node,
+              data: {
+                ...node.data,
+                setFieldValue,
+                exportFields: ['Connect', 'Full Path'],
+                details:
+                  node.data.details ??
+                  ({
+                    type: 'Google Drive Download',
+                    description: 'Download a file from Google Drive to the workflow.',
+                    fields: [],
+                  } as DominoNodeData),
+              },
+            }
+      )
+    );
 
-   return (
-     <div
-       className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
-         ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
-         bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-       style={{ minWidth: '13rem' }}
-     >
-       <div
-         className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-         style={getExpandedDominoHeaderStyle('googleDriveDownload')}
-       >
-         <div className="flex items-center gap-1">
-           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-           <span className="truncate">Google Drive Download</span>
-         </div>
-         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+    bootstrappedRef.current = true;
+  }, [data, id]);
 
-         {hasError && (
-           <FiAlertCircle
-             className="absolute right-2 top-2 w-4 h-4 text-red-300"
-             title="Missing required input"
-           />
-         )}
-       </div>
+  useEffect(() => {
+    const setNodes = setNodesRef.current;
+    if (!setNodes) return;
 
-       <div className="flex flex-col gap-2 py-2">
-         <div className="px-3">
-           <button
-             type="button"
-             className="w-full px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
-             onClick={startOAuth}
-           >
-             {connections.length === 0 ? 'Connect Google Drive' : 'Add Drive connection'}
-           </button>
-         </div>
+    const freshFields: DominoField[] = [
+      {
+        type: 'textInput',
+        heading: 'Connect',
+        value: connectConnected ? '' : connectValue,
+        inPinId: 'value_connect',
+        required: true,
+        shouldRender: true,
+        placeholder: connectConnected ? 'Connected' : 'Connection name',
+      },
+      {
+        type: 'textInput',
+        heading: 'Full Path',
+        value: pathConnected ? '' : fullPath,
+        inPinId: 'value_full_path',
+        required: true,
+        shouldRender: true,
+        placeholder: pathConnected ? 'Connected' : '/My Drive/folder/file.ext',
+      },
+    ];
 
-         <div className="flex items-center gap-2 px-3 relative">
-           <div className="flex-1">
-             <div className="text-xs font-medium mb-1 text-dominofy-light-text dark:text-dominofy-dark-text">
-               Google Drive Account
-             </div>
-             {connectConnected ? (
-               <div className="px-2 py-1 text-sm italic text-gray-500">Connected</div>
-             ) : loadingConns ? (
-               <div className="px-2 py-1 text-sm text-gray-500">
-                 Loading Google Drive connections...
-               </div>
-             ) : connections.length > 0 ? (
-               <SearchableSelect
-                 value={connectValue}
-                 onChange={updateVaultId}
-                 placeholder={selectedConn?.email || 'Select account'}
-                 options={connections.map(c => ({
-                   label: c.email || c.name,
-                   value: c.id,
-                 }))}
-               />
-             ) : (
-               <div className="px-2 py-1 text-xs text-gray-500">
-                 Connect Google Drive to select an account.
-               </div>
-             )}
-           </div>
-         </div>
+    const nextExport = ['Connect', 'Full Path'];
 
-         <div className="flex items-center gap-2 relative px-3">
-           <DominoPin id="value_full_path" pinType={PinType.VALUE_IN} inline />
-           <input
-             type="text"
-             value={fullPath}
-             onChange={(e) => {
-               setFullPath(e.target.value);
-               clearValidationForDominoId(id);
-             }}
-             placeholder={pathConnected ? 'Connected' : '/My Drive/folder/file.ext'}
-             readOnly={pathConnected}
-             disabled={pathConnected}
-             className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-           />
-         </div>
+    setNodes((nodes: GoogleDriveDownloadNodeRecord[]) =>
+      nodes.map((node: GoogleDriveDownloadNodeRecord) => {
+        if (node.id !== id) return node;
+        const existing = node.data.details?.fields ?? [];
+        const existingMap = new Map<string, DominoField>();
+        existing.forEach((field: DominoField) => {
+          if (field.heading) existingMap.set(field.heading, field);
+        });
+        const nextFields = freshFields.map((field) =>
+          mergeFieldPreservingConnections(field, existingMap.get(field.heading as string))
+        );
+        const sameFields =
+          existing.length === nextFields.length &&
+          existing.every(
+            (field: DominoField, index: number) =>
+              JSON.stringify(field) === JSON.stringify(nextFields[index])
+          );
+        const sameExport =
+          Array.isArray(node.data.exportFields) &&
+          node.data.exportFields.length === nextExport.length &&
+          node.data.exportFields.every((heading: string, index: number) => heading === nextExport[index]);
+        if (sameFields && sameExport) return node;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            vaultId: connectConnected ? node.data.vaultId : connectValue,
+            details: {
+              type: 'Google Drive Download',
+              description: 'Download a file from Google Drive to the workflow.',
+              fields: nextFields,
+            } as DominoNodeData,
+            exportFields: nextExport,
+          },
+        };
+      })
+    );
+  }, [connectConnected, connectValue, fullPath, id, pathConnected]);
 
-         <div className="px-3 py-1 flex items-center justify-between relative">
-           <div />
-           <span className="text-xs text-gray-500">Output</span>
-           <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
-         </div>
-       </div>
+  const startOAuth = async () => {
+    const url = await DriveApi.getInstallUrl(token, router);
+    if (url) window.location.href = url;
+  };
 
-     </div>
-   );
- }
+  const updateVaultId = (newVaultId: string) => {
+    clearValidationForDominoId(id);
+    setConnectValue(newVaultId);
+    if (data.setFieldValue) {
+      data.setFieldValue('Connect', newVaultId);
+      return;
+    }
+    data.setNodes?.((nodes: GoogleDriveDownloadNodeRecord[]) =>
+      nodes.map((node: GoogleDriveDownloadNodeRecord) =>
+        node.id === id ? { ...node, data: { ...node.data, vaultId: newVaultId } } : node
+      )
+    );
+  };
+
+  const renderSectionLabel = (icon: React.ComponentType<{ className?: string }>, label: string) => {
+    const Icon = icon;
+    return (
+      <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+        <Icon className="h-3 w-3" />
+        {label}
+      </div>
+    );
+  };
+
+  const renderPinnedControl = ({
+    pinId,
+    label,
+    status,
+    icon,
+    children,
+  }: {
+    pinId: string;
+    label: string;
+    status: string;
+    icon: React.ComponentType<{ className?: string }>;
+    children: React.ReactNode;
+  }) => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 px-4">
+        {renderSectionLabel(icon, label)}
+        <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+          {status}
+        </span>
+      </div>
+
+      <div className="pb-3">
+        <div className="relative">
+          <div className="flex items-center gap-2 px-4">
+            <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline />
+            <div className="min-h-12 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+              {children}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
+        hasError
+          ? 'error-border'
+          : selected
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+            : 'unselected-border dark:border-gray-600'
+      } hover:shadow-lg`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+      <div className="relative flex items-start justify-between gap-3 rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
+        <div className="flex min-w-0 items-center gap-3 pr-3">
+          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+            style={googleDriveDownloadAccentColor ? { borderColor: googleDriveDownloadAccentColor, backgroundColor: `${googleDriveDownloadAccentColor}22` } : undefined}
+          >
+            {googleDriveDownloadMeta?.icon ? (
+              <googleDriveDownloadMeta.icon
+                className="h-4 w-4"
+                style={googleDriveDownloadAccentColor ? { color: googleDriveDownloadAccentColor } : googleDriveDownloadMeta.iconStyle}
+              />
+            ) : null}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold tracking-tight text-foreground">
+              Google Drive Download
+            </div>
+            <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+              Action
+            </div>
+          </div>
+        </div>
+        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+      </div>
+
+      <div className="relative space-y-4 pb-4 pt-4">
+        <div className="space-y-4 px-4">
+          <div className="flex items-center justify-between gap-2">
+            {renderSectionLabel(FolderSync, 'Account')}
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Google Drive
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="w-full rounded-lg border border-transparent bg-sky-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+            onClick={startOAuth}
+          >
+            {connections.length === 0 ? 'Connect Google Drive' : 'Add Drive connection'}
+          </button>
+
+          {loadingConns ? (
+            <div className="rounded-lg border border-dashed border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-sm text-foreground/60 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+              Loading Google Drive connections…
+            </div>
+          ) : connections.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-sm text-foreground/60 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+              Connect Google Drive to select an account.
+            </div>
+          ) : null}
+        </div>
+
+        {renderPinnedControl({
+          pinId: 'value_connect',
+          label: 'Connection',
+          status: connectConnected ? 'Live input' : 'Static input',
+          icon: FolderSync,
+          children: connectConnected ? (
+            <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+              Connected
+            </div>
+          ) : loadingConns ? (
+            <div className="flex min-h-12 items-center px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+              Loading Google Drive connections…
+            </div>
+          ) : connections.length > 0 ? (
+            <div className="rounded-lg px-1 py-1">
+              <SearchableSelect
+                value={connectValue}
+                onChange={updateVaultId}
+                placeholder={selectedConn?.email || 'Select account'}
+                options={connections.map((connection) => ({
+                  label: connection.email || connection.name,
+                  value: connection.id,
+                }))}
+              />
+            </div>
+          ) : (
+            <div className="flex min-h-12 items-center px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+              No connections available
+            </div>
+          ),
+        })}
+
+        {renderPinnedControl({
+          pinId: 'value_full_path',
+          label: 'Path',
+          status: pathConnected ? 'Live input' : 'Static input',
+          icon: FolderInput,
+          children: (
+            <input
+              type="text"
+              value={pathConnected ? '' : fullPath}
+              onChange={(event) => {
+                setFullPath(event.target.value);
+                clearValidationForDominoId(id);
+              }}
+              placeholder={pathConnected ? 'Connected' : '/My Drive/folder/file.ext'}
+              readOnly={pathConnected}
+              disabled={pathConnected}
+              className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit disabled:italic dark:text-dominofy-dark-text"
+            />
+          ),
+        })}
+
+        <div className="relative px-4 pt-1">
+          <div className="relative rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  Downloaded file payload
+                </div>
+              </div>
+            </div>
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline offset={-17} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -48,6 +48,7 @@ export class SwitchCaseDomino implements DominoExecutable {
             ? matchedIndices.map(i => `exec_out_${i + 1}`)
             : ["exec_out"];
 
+        console.log(`[SwitchCaseDomino] Input: "${inputValue}", Matched Cases: ${matchedIndices.length}, Next Chains: ${nextChainKeys.join(", ")}`);
         return {
             id: this.id,
             output: inputValue,

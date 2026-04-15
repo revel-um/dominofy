@@ -6,6 +6,10 @@ import {
   BrainCircuit,
   Braces,
   CalendarClock,
+  CalendarDays,
+  CalendarPlus2,
+  CalendarSync,
+  CalendarX2,
   CheckCheck,
   CloudDownload,
   Combine,
@@ -28,7 +32,7 @@ import {
 } from "lucide-react";
 
 import { FiFileText } from "react-icons/fi";
-import { SiGoogledrive, SiShopify, SiSlack } from "react-icons/si";
+import { SiGoogledrive, SiSlack } from "react-icons/si";
 
 export type DominoCatalogEntry = {
   id: string;
@@ -169,6 +173,61 @@ export default [
     categories: ["Action", "Storage"],
     badgeStyle: {
       background: "linear-gradient(135deg, #22d3ee 0%, #1d4ed8 100%)",
+    },
+    iconStyle: { color: "#ffffff" },
+  },
+  {
+    id: "googleCalendarCreate",
+    label: "Calendar Create Event",
+    description: "Create an event in Google Calendar",
+    icon: CalendarPlus2,
+    categories: ["Action", "Google Calendar"],
+    badgeStyle: {
+      background: "linear-gradient(135deg, #4285F4 0%, #34A853 100%)",
+    },
+    iconStyle: { color: "#ffffff" },
+  },
+  {
+    id: "googleCalendarUpdate",
+    label: "Calendar Update Event",
+    description: "Update an existing Google Calendar event",
+    icon: CalendarSync,
+    categories: ["Action", "Google Calendar"],
+    badgeStyle: {
+      background: "linear-gradient(135deg, #FBBC05 0%, #4285F4 100%)",
+    },
+    iconStyle: { color: "#ffffff" },
+  },
+  {
+    id: "googleCalendarDelete",
+    label: "Calendar Delete Event",
+    description: "Delete an event from Google Calendar",
+    icon: CalendarX2,
+    categories: ["Action", "Google Calendar"],
+    badgeStyle: {
+      background: "linear-gradient(135deg, #EA4335 0%, #FBBC05 100%)",
+    },
+    iconStyle: { color: "#ffffff" },
+  },
+  {
+    id: "googleCalendarEventCreated",
+    label: "Calendar Event Created",
+    description: "Trigger when a new Google Calendar event is created",
+    icon: CalendarPlus2,
+    categories: ["Trigger", "Google Calendar"],
+    badgeStyle: {
+      background: "linear-gradient(135deg, #34A853 0%, #4285F4 100%)",
+    },
+    iconStyle: { color: "#ffffff" },
+  },
+  {
+    id: "googleCalendarEventUpdated",
+    label: "Calendar Event Updated",
+    description: "Trigger when a Google Calendar event is updated",
+    icon: CalendarDays,
+    categories: ["Trigger", "Google Calendar"],
+    badgeStyle: {
+      background: "linear-gradient(135deg, #FBBC05 0%, #EA4335 100%)",
     },
     iconStyle: { color: "#ffffff" },
   },
@@ -365,26 +424,6 @@ export default [
       background: "linear-gradient(135deg, #bef264 0%, #15803d 100%)",
     },
     iconStyle: { color: "#020617" },
-  },
-  {
-    id: "shopify",
-    label: "Shopify",
-    description: "Interact with Shopify orders and products",
-    icon: SiShopify,
-    categories: ["Shopify"],
-    badgeStyle: { background: "#95BF47" },
-    iconStyle: { color: "#ffffff" },
-  },
-  {
-    id: "note",
-    label: "Note",
-    description: "Add a comment or annotation to the canvas",
-    icon: FiFileText,
-    categories: ["Utility"],
-    badgeStyle: {
-      background: "linear-gradient(135deg, #fef08a 0%, #fbbf24 100%)",
-    },
-    iconStyle: { color: "#78350f" },
   },
   // {
   //   id: 'webhook',

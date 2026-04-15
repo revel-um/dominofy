@@ -17,23 +17,64 @@ import {
 import { isWorkflowBlocking } from './heavy-lifter/block-checker';
 import { RunnerLauncherService } from './runner-launcher/runner-launcher.service';
 
+interface PendingRunSession {
+  workflowId: string;
+  userId: string;
+  mockInput: Record<string, any>;
+  createdAt: number;
+}
+
 @Injectable()
 export class AppService {
+  private readonly pendingRunSessions = new Map<string, PendingRunSession>();
+  private readonly pendingRunSessionTtlMs = 10 * 60 * 1000;
+
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly workflowLogger: WorkflowLoggerService,
     private readonly runnerLauncherService: RunnerLauncherService,
   ) { }
 
-  async dominofyEvent(workflowId: string, userId: string) {
+  async createRunSession(
+    workflowId: string,
+    userId: string,
+    mockInput: Record<string, any> = {},
+  ) {
+    await this.workflowService.findOneAndVerify(workflowId, userId);
+    this.prunePendingRunSessions();
+
+    const runToken = uuidv4();
+    this.pendingRunSessions.set(runToken, {
+      workflowId,
+      userId,
+      mockInput: this.normalizeMockInput(mockInput),
+      createdAt: Date.now(),
+    });
+
+    return { runToken };
+  }
+
+  async dominofyEvent(workflowId: string, userId: string, runToken?: string) {
     const wf = await this.workflowService.findOneAndVerify(workflowId, userId);
     if (!wf?.visualJson?.edges?.length) return;
+    const mockInput = this.consumeRunSession(workflowId, userId, runToken);
 
     const { nodes, edges } = wf.visualJson;
     const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
 
     return new Observable(subscriber => {
       const runId = uuidv4();
+      const logRunFailure = async (message: string, stack?: string) => {
+        await this.workflowLogger.logLine({
+          workflowId,
+          type: 'workflow',
+          runId,
+          dominoId: '__workflow__',
+          status: WorkflowLogStatus.FAILURE,
+          error: { message, stack },
+        });
+        await this.workflowLogger.flushNow();
+      };
 
       const isBlocking = isWorkflowBlocking(pipeline);
 
@@ -51,7 +92,12 @@ export class AppService {
         }
 
         
-        execPool.run({ workflowId, runId, visualJson: pipeline }).catch(err => subscriber.error(err));
+        execPool.run({ workflowId, runId, visualJson: pipeline, mockInput }).catch(async err => {
+          const message = err instanceof Error ? err.message : String(err);
+          await logRunFailure(message, err instanceof Error ? err.stack : undefined);
+          send({ type: 'RUN_ERROR', error: { message } });
+          subscriber.complete();
+        });
 
         const sub = fromEvent(progressEmitter, runId).subscribe((msg: any) => {
           switch (msg.type) {
@@ -76,17 +122,15 @@ export class AppService {
             case 'NODE_ERROR': {
               const { nodeId, message } = msg;
               const type = nodeId.split('-')[0];
-              if (type === 'print') {
-                this.workflowLogger.logLine({
-                  workflowId,
-                  type,
-                  runId,
-                  dominoId: nodeId,
-                  status: WorkflowLogStatus.FAILURE,
-                  error: { message },
-                  seq: seq++,
-                });
-              }
+              this.workflowLogger.logLine({
+                workflowId,
+                type,
+                runId,
+                dominoId: nodeId,
+                status: WorkflowLogStatus.FAILURE,
+                error: { message },
+                seq: seq++,
+              });
               send({ nodeId, error: { message } });
               break;
             }
@@ -126,7 +170,12 @@ export class AppService {
           .catch(err => subscriber.error(err))
           .finally(() => subscriber.complete());
       });
-      runner.run(runId, {}, { workflowId }).catch(err => subscriber.error(err));
+      runner.run(runId, mockInput, { workflowId }).catch(async err => {
+        const message = err instanceof Error ? err.message : String(err);
+        await logRunFailure(message, err instanceof Error ? err.stack : undefined);
+        send({ type: 'RUN_ERROR', error: { message } });
+        subscriber.complete();
+      });
 
       send({ type: 'ACCEPTED' });
       return () => runner.removeAllListeners();
@@ -135,5 +184,57 @@ export class AppService {
 
   dominofy(pipeline: PipelineStep[]) {
     return pipeline;
+  }
+
+  private consumeRunSession(
+    workflowId: string,
+    userId: string,
+    runToken?: string,
+  ): Record<string, any> {
+    this.prunePendingRunSessions();
+    if (!runToken) return {};
+
+    const session = this.pendingRunSessions.get(runToken);
+    if (!session) return {};
+    this.pendingRunSessions.delete(runToken);
+
+    if (session.workflowId !== workflowId || session.userId !== userId) {
+      return {};
+    }
+
+    return session.mockInput;
+  }
+
+  private prunePendingRunSessions() {
+    const now = Date.now();
+    for (const [token, session] of this.pendingRunSessions.entries()) {
+      if (now - session.createdAt > this.pendingRunSessionTtlMs) {
+        this.pendingRunSessions.delete(token);
+      }
+    }
+  }
+
+  private normalizeMockInput(value: any): any {
+    if (Array.isArray(value)) {
+      return value.map((entry) => this.normalizeMockInput(entry));
+    }
+
+    if (value && typeof value === 'object') {
+      if (typeof value.bufferBase64 === 'string') {
+        const { bufferBase64, ...rest } = value;
+        return {
+          ...Object.fromEntries(
+            Object.entries(rest).map(([key, entry]) => [key, this.normalizeMockInput(entry)]),
+          ),
+          buffer: Buffer.from(bufferBase64, 'base64'),
+        };
+      }
+
+      return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [key, this.normalizeMockInput(entry)]),
+      );
+    }
+
+    return value;
   }
 }

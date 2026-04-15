@@ -6,6 +6,8 @@ type ConstructorEntry = {
   value: unknown;
 };
 
+type ConstructorValueType = "string" | "number" | "boolean" | "json";
+
 export class ConstructorDomino implements DominoExecutable {
   id: string;
   type = "constructor" as const;
@@ -34,6 +36,42 @@ export class ConstructorDomino implements DominoExecutable {
     return (this.node.data as any)?.[key]?.value as T | undefined;
   }
 
+  private coerceLiteralValue(rawValue: unknown, valueType: ConstructorValueType): unknown {
+    if (rawValue === undefined || rawValue === null) return rawValue;
+    if (valueType === "string") return rawValue;
+
+    const normalized =
+      typeof rawValue === "string" ? rawValue.trim().toLowerCase() : rawValue;
+
+    if (valueType === "boolean") {
+      if (typeof normalized === "boolean") return normalized; 
+      if (normalized === "true") return true;
+      if (normalized === "false") return false;
+      return rawValue;
+    }
+
+    if (valueType === "number") {
+      if (typeof rawValue === "number") return rawValue;
+      if (typeof rawValue === "string" && rawValue.trim() === "") return rawValue;
+      const parsed = Number(rawValue);
+      return Number.isNaN(parsed) ? rawValue : parsed;
+    }
+
+    if (valueType === "json") {
+      if (typeof rawValue !== "string") return rawValue;
+      const trimmed = rawValue.trim();
+      if (trimmed === "") return rawValue;
+
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        return rawValue;
+      }
+    }
+
+    return rawValue;
+  }
+
   private collectEntries(ctx: ExecuteContext): ConstructorEntry[] {
     const keys = Object.keys(this.node.data)
       .filter(key => /^Key_\d+$/.test(key))
@@ -43,8 +81,14 @@ export class ConstructorDomino implements DominoExecutable {
       .map((keyField) => {
         const idx = keyField.split("_")[1];
         const valueField = `Value_${idx}`;
+        const valueTypeField = `ValueType_${idx}`;
         const key = String(ctx.input?.[keyField] ?? this.literal(keyField) ?? '').trim();
-        const value = ctx.input?.[valueField] ?? this.literal(valueField);
+        const literalValue = this.literal(valueField);
+        const valueType =
+          (this.literal<ConstructorValueType>(valueTypeField) ?? "string") as ConstructorValueType;
+        const rawValue =
+          ctx.input?.[valueField] !== undefined ? ctx.input[valueField] : literalValue;
+        const value = this.coerceLiteralValue(rawValue, valueType);
 
         return { key, value };
       })

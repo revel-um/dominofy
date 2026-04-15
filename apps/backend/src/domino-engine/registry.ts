@@ -29,6 +29,11 @@ import { CustomCodeDomino } from "./dominos/customCode";
 import { SchedulerDomino } from "./dominos/scheduler";
 import { GoogleDriveDomino } from "./dominos/googleDrive";
 import { GoogleDriveDownloadDomino } from "./dominos/googleDriveDownload";
+import { GoogleCalendarCreateDomino } from "./dominos/googleCalendarCreate";
+import { GoogleCalendarUpdateDomino } from "./dominos/googleCalendarUpdate";
+import { GoogleCalendarDeleteDomino } from "./dominos/googleCalendarDelete";
+import { GoogleCalendarEventCreatedDomino } from "./dominos/googleCalendarEventCreated";
+import { GoogleCalendarEventUpdatedDomino } from "./dominos/googleCalendarEventUpdated";
 import { LLMDomino } from "./dominos/llm";
 import { DatabaseDomino, DatabaseRetrievalDomino } from "./dominos/database";
 
@@ -67,6 +72,11 @@ class DominoRegistry {
     this.register("SchedulerDomino", SchedulerDomino);
     this.register("googleDrive", GoogleDriveDomino);
     this.register("googleDriveDownload", GoogleDriveDownloadDomino);
+    this.register("googleCalendarCreate", GoogleCalendarCreateDomino);
+    this.register("googleCalendarUpdate", GoogleCalendarUpdateDomino);
+    this.register("googleCalendarDelete", GoogleCalendarDeleteDomino);
+    this.register("googleCalendarEventCreated", GoogleCalendarEventCreatedDomino);
+    this.register("googleCalendarEventUpdated", GoogleCalendarEventUpdatedDomino);
     this.register("storage", DatabaseDomino);
     this.register("storageRetrieve", DatabaseRetrievalDomino);
   }

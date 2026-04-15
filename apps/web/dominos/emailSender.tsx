@@ -1,176 +1,333 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NodeProps, useReactFlow } from 'reactflow';
 import { useRouter, NextRouter } from 'next/router';
+import { Mail, Send, Sparkles, Text, Type } from 'lucide-react';
 
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { DominoNodeData } from '../types/dominoFieldTypes';
+import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
+import ExpandableTextarea from '@/components/shared/expandableTextarea';
 import SearchableSelect from '@/components/searchableDropdown';
 import { EmailApi, EmailConnection } from '@/apis/email.apis';
+import dominoCatalog from './dominos';
+
+type DominoNodeRecord = {
+  id: string;
+  data: {
+    details?: DominoNodeData;
+    exportFields?: string[];
+    setFieldValue?: (heading: string, newValue: unknown) => void;
+  };
+};
+
+const emailMeta = dominoCatalog.find((entry) => entry.id === 'emailsender');
+const emailAccentColor = emailMeta?.badgeStyle?.background
+  ? String(emailMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+  : undefined;
+
+const FIELD_CONFIG = [
+  {
+    heading: 'to',
+    label: 'Recipients',
+    placeholder: 'name@example.com, team@example.com',
+    pinId: 'value_in',
+    type: 'textInput' as const,
+    icon: Mail,
+  },
+  {
+    heading: 'subject',
+    label: 'Subject',
+    placeholder: 'Quarterly update',
+    pinId: 'value_in_1',
+    type: 'textInput' as const,
+    icon: Type,
+  },
+  {
+    heading: 'body',
+    label: 'Body',
+    placeholder: 'Write the message that should be sent…',
+    pinId: 'value_in_2',
+    type: 'textArea' as const,
+    icon: Text,
+  },
+  {
+    heading: 'html',
+    label: 'HTML',
+    placeholder: '<p>Optional HTML version…</p>',
+    pinId: 'value_in_3',
+    type: 'textArea' as const,
+    icon: Sparkles,
+  },
+  {
+    heading: 'from',
+    label: 'From Override',
+    placeholder: 'Optional sender name or email',
+    pinId: 'value_in_4',
+    type: 'textInput' as const,
+    icon: Send,
+  },
+];
 
 export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const isPreviewMode = Boolean((data as any).previewMode);
-
+  const isPreviewMode = Boolean((data as DominoNodeData & { previewMode?: boolean }).previewMode);
   const router: NextRouter = useRouter();
   const token =
     typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
   const { getEdges } = useReactFlow();
+  const bootstrappedRef = useRef(false);
 
   const getField = useCallback(
     (heading: string) =>
       (data.details as DominoNodeData | undefined)?.fields?.find(
-        f => f.heading === heading,
+        (field) => field.heading === heading
       ),
-    [data.details],
+    [data.details]
   );
-
-  const vaultId: string = getField('vaultId')?.value ?? '';
-  const toValue: string = getField('to')?.value ?? '';
-  const subjectValue: string = getField('subject')?.value ?? '';
-  const bodyValue: string = getField('body')?.value ?? '';
-  const htmlValue: string = getField('html')?.value ?? '';
-  const fromValue: string = getField('from')?.value ?? '';
 
   const [connections, setConnections] = useState<EmailConnection[]>([]);
   const [loadingConns, setLoadingConns] = useState(true);
-  const bootstrappedRef = useRef(false);
-  const safeConnections = Array.isArray(connections) ? connections : [];
 
-  /* Initialise node schema once */
+  const vaultId = String(getField('vaultId')?.value ?? '');
+  const selectedConn = useMemo(
+    () => connections.find((conn) => conn.id === vaultId),
+    [connections, vaultId]
+  );
+
   useEffect(() => {
     if (!data.setNodes || bootstrappedRef.current) return;
-    data.setNodes((prev: any[]) => {
-      let changed = false;
-      const next = prev.map(node => {
-        if (node.id !== id) return node;
-        const newData: any = { ...node.data };
-        const details: DominoNodeData | undefined = newData.details;
-        const exportFields = ['vaultId', 'to', 'subject', 'body', 'html', 'from'];
-        if (!details?.fields) {
-          newData.details = {
-            type: 'EmailAction',
-            description: 'Send an email using a connected Gmail account.',
-            isTrigger: false,
-            fields: [
-              { type: 'dropdown', heading: 'vaultId', value: '', options: [], required: true, shouldRender: false },
-              { type: 'textInput', heading: 'to', value: '', inPinId: 'value_in', required: true, shouldRender: false },
-              { type: 'textInput', heading: 'subject', value: '', inPinId: 'value_in_1', required: true, shouldRender: false },
-              { type: 'textArea', heading: 'body', value: '', inPinId: 'value_in_2', required: true, shouldRender: false },
-              { type: 'textArea', heading: 'html', value: '', inPinId: 'value_in_3', required: false, shouldRender: false },
-              { type: 'textInput', heading: 'from', value: '', inPinId: 'value_in_4', required: false, shouldRender: false },
-            ],
-          } as DominoNodeData;
-          newData.exportFields = exportFields;
-          changed = true;
-        } else if (!newData.exportFields) {
-          newData.exportFields = exportFields;
-          changed = true;
-        }
-        return changed ? { ...node, data: newData } : node;
-      });
-      bootstrappedRef.current = true;
-      return changed ? next : prev;
-    });
-  }, [data.setNodes, id]);
 
-  /* Helper to set a field inside details.fields */
-  const setFieldValue = useCallback(
-    (heading: string, val: string) => {
-      clearValidationForDominoId?.(id);
-      data.setNodes?.((nodes: any[]) =>
-        nodes.map((n: { id: string; data: any }) =>
-          n.id === id
+    const setFieldValue = (heading: string, newValue: unknown) => {
+      data.setNodes?.((nodes: DominoNodeRecord[]) =>
+        nodes.map((node: DominoNodeRecord) =>
+          node.id === id
             ? {
-                ...n,
+                ...node,
                 data: {
-                  ...n.data,
+                  ...node.data,
                   details: {
-                    ...(n.data.details as DominoNodeData),
-                    fields: (n.data.details as DominoNodeData).fields.map(f =>
-                      f.heading === heading ? { ...f, value: val } : f,
+                    ...node.data.details,
+                    fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
+                      field.heading === heading ? { ...field, value: newValue } : field
                     ),
                   },
                 },
               }
-            : n,
-        ),
+            : node
+        )
       );
-    },
-    [data.setNodes, id, clearValidationForDominoId],
-  );
+    };
 
-  const isConnected = useCallback(
-    (pinId: string) =>
-      getEdges().some(e => e.target === id && e.targetHandle === pinId),
-    [getEdges, id],
-  );
+    const initialFields: DominoField[] = [
+      {
+        type: 'dropdown',
+        heading: 'vaultId',
+        value: '',
+        options: [],
+        required: true,
+        shouldRender: false,
+      },
+      {
+        type: 'textInput',
+        heading: 'to',
+        value: '',
+        inPinId: 'value_in',
+        required: true,
+        shouldRender: false,
+      },
+      {
+        type: 'textInput',
+        heading: 'subject',
+        value: '',
+        inPinId: 'value_in_1',
+        required: false,
+        shouldRender: false,
+      },
+      {
+        type: 'textArea',
+        heading: 'body',
+        value: '',
+        inPinId: 'value_in_2',
+        required: false,
+        shouldRender: false,
+      },
+      {
+        type: 'textArea',
+        heading: 'html',
+        value: '',
+        inPinId: 'value_in_3',
+        required: false,
+        shouldRender: false,
+      },
+      {
+        type: 'textInput',
+        heading: 'from',
+        value: '',
+        inPinId: 'value_in_4',
+        required: false,
+        shouldRender: false,
+      },
+    ];
 
-  /* Load Gmail connections */
+    data.setNodes((prev: DominoNodeRecord[]) =>
+      prev.map((node: DominoNodeRecord) => {
+        if (node.id !== id) return node;
+
+        const details = node.data.details as DominoNodeData | undefined;
+        const fields = details?.fields ?? [];
+        const mergedFields = initialFields.map((initialField) => {
+          const existingField = fields.find((field) => field.heading === initialField.heading);
+          return existingField ? { ...initialField, ...existingField } : initialField;
+        });
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            details: {
+              type: 'EmailAction',
+              description: 'Send an email to one or more recipients.',
+              isTrigger: false,
+              ...(details ?? {}),
+              fields: mergedFields,
+            } as DominoNodeData,
+            exportFields:
+              node.data.exportFields ?? ['vaultId', 'to', 'subject', 'body', 'html', 'from'],
+            setFieldValue: node.data.setFieldValue ?? setFieldValue,
+          },
+        };
+      })
+    );
+
+    bootstrappedRef.current = true;
+  }, [data, id]);
+
   useEffect(() => {
     if (isPreviewMode) {
       setLoadingConns(false);
       setConnections([]);
       return;
     }
+
     let mounted = true;
     (async () => {
       setLoadingConns(true);
       try {
         const list = await EmailApi.getConnections(token, router);
         if (mounted) setConnections(Array.isArray(list) ? list : []);
-      } catch (err) {
-        console.error('Error fetching email connections', err);
+      } catch (error) {
+        console.error('Error fetching email connections', error);
       } finally {
         if (mounted) setLoadingConns(false);
       }
     })();
-    return () => void (mounted = false);
+
+    return () => {
+      mounted = false;
+    };
   }, [isPreviewMode, token, router]);
+
+  const setFieldValue = useCallback(
+    (heading: string, value: string) => {
+      clearValidationForDominoId(id);
+      data.setFieldValue?.(heading, value);
+      if (!data.setFieldValue && data.setNodes) {
+        data.setNodes((nodes: DominoNodeRecord[]) =>
+          nodes.map((node: DominoNodeRecord) =>
+            node.id === id
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    details: {
+                      ...node.data.details,
+                      fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
+                        field.heading === heading ? { ...field, value } : field
+                      ),
+                    },
+                  },
+                }
+              : node
+          )
+        );
+      }
+    },
+    [clearValidationForDominoId, data, id]
+  );
 
   const startOAuth = async () => {
     const url = await EmailApi.getInstallUrl(token, router);
     if (url) window.location.href = url;
   };
 
-  const renderTextField = (
-    label: string,
-    value: string,
-    pinId: string,
-    onChange: (val: string) => void,
-    placeholder: string,
-    isTextArea: boolean = false,
-  ) => {
-    const connected = isConnected(pinId);
+  const isHandleConnected = (handleId: string) =>
+    getEdges().some((edge) => edge.target === id && edge.targetHandle === handleId);
+
+  const renderTextField = ({
+    heading,
+    label,
+    placeholder,
+    pinId,
+    type,
+    icon: Icon,
+  }: (typeof FIELD_CONFIG)[number]) => {
+    const field = getField(heading);
+    const value = String(field?.value ?? '');
+    const connected = isHandleConnected(pinId);
+    const isTextArea = type === 'textArea';
+
     return (
-      <div className="flex items-start gap-2 relative px-3">
-        <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline />
-        <div className="flex-1">
-          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+      <div key={heading} className="space-y-3">
+        <div className="flex items-center justify-between gap-3 px-4">
+          <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+            <Icon className="h-3 w-3" />
             {label}
-          </label>
-          {connected ? (
-            <div className="px-2 py-1 italic text-gray-500 text-sm">Connected</div>
-          ) : isTextArea ? (
-            <textarea
-              value={value}
-              onChange={e => onChange(e.target.value)}
-              placeholder={placeholder}
-              rows={3}
-              className="mt-1 w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-            />
-          ) : (
-            <input
-              type="text"
-              value={value}
-              onChange={e => onChange(e.target.value)}
-              placeholder={placeholder}
-              className="mt-1 w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-            />
-          )}
+          </div>
+          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+            {connected ? 'Live input' : 'Static input'}
+          </span>
+        </div>
+
+        <div className="pb-4">
+          <div className="relative">
+            <div className="flex items-start gap-2 px-4">
+              <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline />
+              <div
+                className={`min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10 ${
+                  isTextArea ? 'min-h-24' : 'min-h-12'
+                }`}
+              >
+                {connected ? (
+                  <div
+                    className={`flex h-full items-center px-4 text-sm font-medium italic text-slate-500 dark:text-slate-400 ${
+                      isTextArea ? 'min-h-24 py-3' : 'min-h-12 py-3'
+                    }`}
+                  >
+                    Connected
+                  </div>
+                ) : isTextArea ? (
+                  <ExpandableTextarea
+                    value={value}
+                    onChange={(nextValue) => setFieldValue(heading, nextValue)}
+                    placeholder={placeholder}
+                    rows={3}
+                    modalTitle={label}
+                    className="min-h-24"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={value}
+                    onChange={(event) => setFieldValue(heading, event.target.value)}
+                    placeholder={placeholder}
+                    className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none transition placeholder:text-inherit dark:text-dominofy-dark-text"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -178,69 +335,114 @@ export default function EmailSenderDomino({ data, id, selected }: NodeProps) {
 
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
-        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{ minWidth: '13rem' }}
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
+        hasError
+          ? 'error-border'
+          : selected
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+            : 'unselected-border dark:border-gray-600'
+      } hover:shadow-lg`}
     >
-      <div
-        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('emailsender')}
-      >
-        <div className="flex items-center gap-1">
+      <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+      <div className="relative flex items-start justify-between gap-3 rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
+        <div className="flex min-w-0 items-center gap-3 pr-3">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <span>Email Action</span>
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+            style={emailAccentColor ? { borderColor: emailAccentColor, backgroundColor: `${emailAccentColor}22` } : undefined}
+          >
+            <Mail
+              className="h-4 w-4"
+              style={emailAccentColor ? { color: emailAccentColor } : emailMeta?.iconStyle}
+            />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold tracking-tight text-foreground">
+              Email Action
+            </div>
+            <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+              Action
+            </div>
+          </div>
         </div>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      <div className="flex flex-col gap-3 py-2 text-dominofy-light-text dark:text-dominofy-dark-text">
-        {/* Connect Gmail */}
-        <div className="px-3">
+      <div className="relative space-y-5 pb-5 pt-5">
+        <div className="space-y-4 px-4 pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Mail className="h-3 w-3" />
+              Account
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Gmail
+            </span>
+          </div>
+
           <button
             type="button"
-            className="w-full px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
+            className="w-full rounded-lg border border-transparent bg-sky-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
             onClick={startOAuth}
           >
-            {safeConnections.length === 0 ? 'Connect Gmail' : 'Add Gmail connection'}
+            {connections.length === 0 ? 'Connect Gmail' : 'Add Gmail connection'}
           </button>
+
+          {loadingConns ? (
+            <div className="rounded-lg border border-dashed border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-sm text-foreground/60 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+              Loading Gmail connections…
+            </div>
+          ) : connections.length > 0 ? (
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <Mail className="h-3 w-3" />
+                Sending Account
+              </div>
+              <div className="rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-1 py-1 dark:border-slate-600 dark:bg-dominofy-dark-surface">
+                <SearchableSelect
+                  value={vaultId}
+                  onChange={(newVaultId) => setFieldValue('vaultId', newVaultId)}
+                  placeholder="Select account"
+                  options={connections.map((connection) => ({
+                    label: connection.email || connection.name,
+                    value: connection.id,
+                  }))}
+                />
+              </div>
+              {selectedConn && (
+                <div className="text-xs text-foreground/55 dark:text-slate-400">
+                  Sending as {selectedConn.email || selectedConn.name}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-sm text-foreground/60 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+              Connect Gmail to send messages from this workflow.
+            </div>
+          )}
         </div>
 
-        {/* Select connection */}
-        {loadingConns ? (
-          <p className="text-sm px-3">Loading Gmail connections…</p>
-        ) : safeConnections.length > 0 ? (
-          <div className="flex flex-col gap-1 px-3">
-            <label className="text-xs font-medium">Gmail Account</label>
-            <SearchableSelect
-              value={vaultId}
-              onChange={val => setFieldValue('vaultId', val)}
-              placeholder="Select account"
-              options={safeConnections.map(c => ({
-                label: c.email || c.name,
-                value: c.id,
-              }))}
-            />
+        <div className="space-y-2">
+          {FIELD_CONFIG.map(renderTextField)}
+        </div>
+
+        <div className="relative px-4 pb-4 pt-1">
+          <div className="relative rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  Sent email payload
+                </div>
+              </div>
+            </div>
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline offset={-17} />
           </div>
-        ) : (
-          <p className="text-sm px-3 text-gray-600">
-            Connect Gmail to send emails.
-          </p>
-        )}
-
-        {renderTextField('To', toValue, 'value_in', val => setFieldValue('to', val), 'user@example.com')}
-        {renderTextField('Subject', subjectValue, 'value_in_1', val => setFieldValue('subject', val), 'Hello from Dominofy')}
-        {renderTextField('Body', bodyValue, 'value_in_2', val => setFieldValue('body', val), 'Plain text body', true)}
-        {renderTextField('HTML (optional)', htmlValue, 'value_in_3', val => setFieldValue('html', val), '<p>Rich email body</p>', true)}
-        {renderTextField('From override (optional)', fromValue, 'value_in_4', val => setFieldValue('from', val), 'you@gmail.com')}
-
-        <div className="px-3 flex items-center justify-between relative">
-          <div></div>
-          <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">Output</span>
-          <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
         </div>
       </div>
-
     </div>
   );
 }

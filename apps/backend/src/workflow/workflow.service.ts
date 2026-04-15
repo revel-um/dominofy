@@ -4,9 +4,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { BaseService } from 'src/common/base.service';
 import { Workflow } from './workflow.entity';
+import { DeployedWorkflow } from './deployed-workflow.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { UserService } from 'src/user/user.service';
@@ -17,12 +19,35 @@ import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.servi
 import { WorkspaceService } from 'src/workspace/workspace.service';
 import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 import { Project } from 'src/projects/projects.entity';
+import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
+import {
+  DeployedExecutionMetricStatus,
+} from './deployed-execution-metric.entity';
+import { DeployedExecutionMetricsService } from './deployed-execution-metrics.service';
+
+export interface WorkflowExecutionTarget {
+  workflow: Workflow;
+  workflowId: string;
+  visualJson: { nodes: any[]; edges: any[] };
+  source: 'dev' | 'deployed';
+  deployedWorkflowId?: string;
+  deployedWorkflowVersion?: number;
+}
+
+export interface WorkflowLogAccessTarget {
+  workflowId: string;
+  source: 'dev' | 'deployed';
+  deployedWorkflowId?: string;
+  deployedWorkflowVersion?: number;
+}
 
 @Injectable()
-export class WorkflowService extends BaseService<Workflow> {
+export class WorkflowService extends BaseService<Workflow> implements OnModuleInit {
   constructor(
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
+    @InjectRepository(DeployedWorkflow)
+    private readonly deployedWorkflowRepository: Repository<DeployedWorkflow>,
     @InjectRepository(Project)
     private readonly projectRepository: Repository<Project>,
     @Inject(forwardRef(() => UserService))
@@ -31,8 +56,15 @@ export class WorkflowService extends BaseService<Workflow> {
     private readonly runnerLauncherService: RunnerLauncherService,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
+    @Inject(forwardRef(() => WorkflowLoggerService))
+    private readonly workflowLoggerService: WorkflowLoggerService,
+    private readonly deployedExecutionMetricsService: DeployedExecutionMetricsService,
   ) {
     super(workflowRepository);
+  }
+
+  async onModuleInit() {
+    await this.backfillPublishedDeployments();
   }
 
   async countAllWorkflows(userId: string) {
@@ -52,7 +84,7 @@ export class WorkflowService extends BaseService<Workflow> {
   async findWorkflowsBySlackTrigger(
     slackTeamId: string,
     slackChannelId: string
-  ): Promise<Workflow[]> {
+  ): Promise<WorkflowExecutionTarget[]> {
     // Build the JSON fragment Postgres will look for.
     const matchFragment = {
       nodes: [
@@ -66,13 +98,18 @@ export class WorkflowService extends BaseService<Workflow> {
       ],
     };
 
-    const qb = this.workflowRepository
-      .createQueryBuilder('workflow')
-      .where('workflow.visualJson @> :match', {
+    const qb = this.deployedWorkflowRepository
+      .createQueryBuilder('deployment')
+      .innerJoinAndSelect('deployment.workflow', 'workflow')
+      .where('deployment.isDeployed = true')
+      .andWhere('deployment.visualJson @> :match', {
         match: JSON.stringify(matchFragment),
       });
 
-    return qb.getMany();
+    const deployments = await qb.getMany();
+    return deployments.map((deployment) =>
+      this.toExecutionTarget(deployment.workflow, deployment.visualJson, deployment),
+    );
   }
 
   async findWorkflowsByEmailTrigger(
@@ -80,7 +117,7 @@ export class WorkflowService extends BaseService<Workflow> {
     workspaceId: string,
     inboxAddress?: string,
     senderAddress?: string
-  ): Promise<Workflow[]> {
+  ): Promise<WorkflowExecutionTarget[]> {
     const data: any = { vaultId };
     if (inboxAddress) {
       data.inboxAddress = inboxAddress;
@@ -98,24 +135,62 @@ export class WorkflowService extends BaseService<Workflow> {
       ],
     };
 
-    const qb = this.workflowRepository
-      .createQueryBuilder('workflow')
+    const qb = this.deployedWorkflowRepository
+      .createQueryBuilder('deployment')
+      .innerJoinAndSelect('deployment.workflow', 'workflow')
       .innerJoin('workflow.project', 'project')
       .innerJoin('project.workspace', 'workspace')
-      .where('workflow.visualJson @> :match', {
+      .where('deployment.isDeployed = true')
+      .andWhere('deployment.visualJson @> :match', {
         match: JSON.stringify(matchFragment),
       })
       .andWhere('workspace.id = :workspaceId', { workspaceId });
 
-    return qb.getMany();
+    const deployments = await qb.getMany();
+    return deployments.map((deployment) =>
+      this.toExecutionTarget(deployment.workflow, deployment.visualJson, deployment),
+    );
+  }
+
+  async findWorkflowsByGoogleCalendarTrigger(vaultId: string): Promise<WorkflowExecutionTarget[]> {
+    const createdMatch = JSON.stringify({
+      nodes: [{ type: 'googleCalendarEventCreated', data: { vaultId } }],
+    });
+    const updatedMatch = JSON.stringify({
+      nodes: [{ type: 'googleCalendarEventUpdated', data: { vaultId } }],
+    });
+
+    const deployments = await this.deployedWorkflowRepository
+      .createQueryBuilder('deployment')
+      .innerJoinAndSelect('deployment.workflow', 'workflow')
+      .where(
+        new Brackets(qb =>
+          qb
+            .where('deployment.visualJson @> :createdMatch', { createdMatch })
+            .orWhere('deployment.visualJson @> :updatedMatch', { updatedMatch }),
+        ),
+      )
+      .andWhere('deployment.isDeployed = true')
+      .getMany();
+
+    return deployments.map((deployment) =>
+      this.toExecutionTarget(deployment.workflow, deployment.visualJson, deployment),
+    );
   }
 
 
-  async getRecentWorkflows(userId: string, query?: string) {
+  async getRecentWorkflows(userId: string, query?: string, workspaceId?: string) {
     const user = await this.userService.findOne(userId);
     if (!user) return;
 
-    const workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    let workspaceIds: string[];
+    if (workspaceId) {
+      await this.workspaceService.assertWorkspaceAccess(userId, workspaceId);
+      workspaceIds = [workspaceId];
+    } else {
+      workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    }
+
     if (workspaceIds.length === 0) {
       return { workflows: [], count: 0, user };
     }
@@ -144,11 +219,18 @@ export class WorkflowService extends BaseService<Workflow> {
     return { workflows, count, user };
   }
 
-  async getAllUserWorkflows(userId: string, limit?: number, offset?: number) {
+  async getAllUserWorkflows(userId: string, limit?: number, offset?: number, workspaceId?: string) {
     const user = await this.userService.findOne(userId);
     if (!user) return;
 
-    const workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    let workspaceIds: string[];
+    if (workspaceId) {
+      await this.workspaceService.assertWorkspaceAccess(userId, workspaceId);
+      workspaceIds = [workspaceId];
+    } else {
+      workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    }
+
     if (workspaceIds.length === 0) {
       return { workflows: [], count: 0, user };
     }
@@ -226,10 +308,11 @@ export class WorkflowService extends BaseService<Workflow> {
     functionName: string,
     input: Record<string, any> = {}
   ) {
-    const workflow = await this.findOne(workflowId);
-    if (!workflow) throw new NotFoundException('Workflow not found');
+    const target = await this.getDeployedExecutionTargetOrThrow(workflowId);
+    const workflow = target.workflow;
+    const canonicalWorkflowId = target.workflowId;
 
-    const triggerNode = workflow.visualJson?.nodes?.find((node) => {
+    const triggerNode = target.visualJson?.nodes?.find((node) => {
       return (
         node?.type === 'apitrigger' &&
         node?.data?.details?.type === 'ApiTrigger' &&
@@ -257,24 +340,16 @@ export class WorkflowService extends BaseService<Workflow> {
       throw new BadRequestException('Request body required');
     }
 
-    // Build pipeline and run
-    const { nodes, edges } = workflow.visualJson;
-    const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
-
-    const runId = uuidv4();
-    const runner = this.runnerLauncherService.createRunner(
-      workflowId,
-      runId,
-      pipeline,
-      20,
-      workflow.visualJson
+    const { results, executionError } = await this.executeDeployedWorkflowTarget(
+      target,
+      input,
     );
-
-    const results = await runner.run(runId, input, { workflowId });
     if (!results) {
       return undefined;
     }
 
+    const { nodes, edges } = target.visualJson;
+    const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
     const responseNodeIds = pipeline
       .filter((step) => step.type === 'response')
       .map((step) => step.id);
@@ -285,7 +360,292 @@ export class WorkflowService extends BaseService<Workflow> {
       }
     }
 
+    if (responseNodeIds.length > 0 && executionError) {
+      return {
+        __httpStatus: 500,
+        success: false,
+        error: executionError,
+      };
+    }
+
     return undefined;
+  }
+
+  async executeDeployedWorkflowTarget(
+    target: WorkflowExecutionTarget,
+    input: Record<string, any> = {},
+  ) {
+    if (!target.deployedWorkflowId) {
+      throw new BadRequestException('Workflow is not deployed');
+    }
+
+    const { nodes = [], edges = [] } = target.visualJson ?? { nodes: [], edges: [] };
+    const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
+    const runId = uuidv4();
+    const executedAt = new Date();
+
+    await this.deployedExecutionMetricsService.markStarted({
+      workflowId: target.workflowId,
+      deployedWorkflowId: target.deployedWorkflowId,
+      deployedWorkflowVersion: target.deployedWorkflowVersion ?? 1,
+      runId,
+      executedAt,
+    });
+
+    const runner = this.runnerLauncherService.createRunner(
+      target.workflowId,
+      runId,
+      pipeline,
+      20,
+      target.visualJson,
+      { deployedWorkflowId: target.deployedWorkflowId },
+    );
+
+    let executionErrorNodeId: string | undefined;
+    let executionErrorMessage: string | null = null;
+    runner.on('error', ({ nodeId, error }) => {
+      if (executionErrorMessage) return;
+      executionErrorNodeId = nodeId;
+      executionErrorMessage = error instanceof Error ? error.message : String(error);
+    });
+
+    let results: Record<string, any> | undefined;
+    let thrownError: unknown;
+
+    try {
+      results = await runner.run(runId, input, { workflowId: target.workflowId });
+    } catch (error) {
+      thrownError = error;
+    }
+
+    const failureReason = executionErrorMessage
+      ? executionErrorMessage
+      : thrownError instanceof Error
+        ? thrownError.message
+        : thrownError
+          ? String(thrownError)
+          : null;
+    const status = failureReason
+      ? DeployedExecutionMetricStatus.FAILURE
+      : DeployedExecutionMetricStatus.SUCCESS;
+
+    await this.deployedExecutionMetricsService.markCompleted({
+      workflowId: target.workflowId,
+      deployedWorkflowId: target.deployedWorkflowId,
+      deployedWorkflowVersion: target.deployedWorkflowVersion ?? 1,
+      runId,
+      executedAt,
+      status,
+      failureReason,
+    });
+
+    try {
+      await this.workflowLoggerService.flushNow();
+    } catch {
+      // Metrics persistence must not be lost because log flushing fails.
+    }
+
+    if (thrownError) {
+      throw thrownError;
+    }
+
+    return {
+      runId,
+      results,
+      executionError: executionErrorMessage
+        ? {
+            nodeId: executionErrorNodeId,
+            message: executionErrorMessage,
+          }
+        : null,
+    };
+  }
+
+  async syncDeployedSnapshot(
+    workflow: Workflow,
+    options?: { incrementVersion?: boolean },
+  ): Promise<DeployedWorkflow | null> {
+    const existingActive = await this.getActiveDeployedWorkflow(workflow.id);
+    const existingSnapshot =
+      existingActive ??
+      (await this.deployedWorkflowRepository.findOne({
+        where: {
+          workflow: { id: workflow.id },
+          isActive: true,
+        },
+        relations: ['workflow'],
+        order: {
+          updatedAt: 'DESC',
+          createdAt: 'DESC',
+        },
+      }));
+
+    if (!workflow.isPublished) {
+      if (existingSnapshot) {
+        existingSnapshot.isDeployed = false;
+        await this.deployedWorkflowRepository.save(existingSnapshot);
+      }
+      return null;
+    }
+
+    if (existingSnapshot) {
+      if (options?.incrementVersion) {
+        existingSnapshot.workflow = existingSnapshot.workflow ?? ({ id: workflow.id } as Workflow);
+        existingSnapshot.visualJson = workflow.visualJson;
+        existingSnapshot.version = Math.max(existingSnapshot.version ?? 0, 0) + 1;
+        existingSnapshot.isDeployed = true;
+        return this.deployedWorkflowRepository.save(existingSnapshot);
+      }
+
+      if (!existingSnapshot.isDeployed) {
+        existingSnapshot.isDeployed = true;
+        existingSnapshot.version = Math.max(existingSnapshot.version ?? 0, 1);
+        if (!existingSnapshot.visualJson) {
+          existingSnapshot.visualJson = workflow.visualJson;
+        }
+        return this.deployedWorkflowRepository.save(existingSnapshot);
+      }
+
+      return existingSnapshot;
+    }
+
+    const deployment = this.deployedWorkflowRepository.create({
+      workflow: { id: workflow.id } as Workflow,
+      visualJson: workflow.visualJson,
+      version: 1,
+      isDeployed: true,
+    });
+
+    return this.deployedWorkflowRepository.save(deployment);
+  }
+
+  async getActiveDeployedWorkflow(workflowId: string): Promise<DeployedWorkflow | null> {
+    return this.deployedWorkflowRepository.findOne({
+      where: {
+        workflow: { id: workflowId },
+        isDeployed: true,
+        isActive: true,
+      },
+      relations: ['workflow', 'workflow.project'],
+      order: {
+        version: 'DESC',
+        createdAt: 'DESC',
+      },
+    });
+  }
+
+  async getDeployedExecutionTarget(identifier: string): Promise<WorkflowExecutionTarget | null> {
+    const deploymentById = await this.deployedWorkflowRepository.findOne({
+      where: {
+        id: identifier,
+        isDeployed: true,
+        isActive: true,
+      },
+      relations: ['workflow', 'workflow.project', 'workflow.user'],
+    });
+
+    if (deploymentById?.workflow) {
+      return this.toExecutionTarget(
+        deploymentById.workflow,
+        deploymentById.visualJson,
+        deploymentById,
+      );
+    }
+
+    const workflow = await this.workflowRepository.findOne({
+      where: { id: identifier },
+      relations: ['project', 'user'],
+    });
+
+    if (!workflow) return null;
+
+    let deployment = await this.getActiveDeployedWorkflow(workflow.id);
+    if (!deployment && workflow.isPublished) {
+      deployment = await this.syncDeployedSnapshot(workflow);
+    }
+
+    if (!deployment) return null;
+
+    return this.toExecutionTarget(workflow, deployment.visualJson, deployment);
+  }
+
+  async getDeployedExecutionTargetOrThrow(identifier: string): Promise<WorkflowExecutionTarget> {
+    const target = await this.getDeployedExecutionTarget(identifier);
+    if (!target) {
+      throw new BadRequestException('Workflow is not deployed');
+    }
+    return target;
+  }
+
+  async getActiveDeploymentForUser(workflowId: string, userId: string) {
+    await this.findOneAndVerify(workflowId, userId);
+    const deployment = await this.getActiveDeployedWorkflow(workflowId);
+    if (!deployment) {
+      throw new NotFoundException('No deployed workflow found');
+    }
+
+    return {
+      ...deployment,
+      projectId: deployment.workflow?.project?.id ?? null,
+    };
+  }
+
+  async resolveLogAccessTarget(identifier: string, userId: string): Promise<WorkflowLogAccessTarget> {
+    const deployment = await this.deployedWorkflowRepository.findOne({
+      where: {
+        id: identifier,
+        isActive: true,
+      },
+      relations: ['workflow'],
+    });
+
+    if (deployment?.workflow?.id) {
+      await this.findOneAndVerify(deployment.workflow.id, userId);
+      return {
+        workflowId: deployment.workflow.id,
+        source: 'deployed',
+        deployedWorkflowId: deployment.id,
+        deployedWorkflowVersion: deployment.version,
+      };
+    }
+
+    const workflow = await this.findOneAndVerify(identifier, userId);
+    return {
+      workflowId: workflow.id,
+      source: 'dev',
+    };
+  }
+
+  private async backfillPublishedDeployments() {
+    const publishedWorkflows = await this.workflowRepository.find({
+      where: { isPublished: true, isActive: true },
+    });
+
+    for (const workflow of publishedWorkflows) {
+      await this.syncDeployedSnapshot(workflow);
+    }
+  }
+
+  private toExecutionTarget(
+    workflow: Workflow,
+    visualJson: { nodes: any[]; edges: any[] },
+    deployment?: DeployedWorkflow,
+  ): WorkflowExecutionTarget {
+    return {
+      workflow,
+      workflowId: workflow.id,
+      visualJson,
+      source: deployment ? 'deployed' : 'dev',
+      deployedWorkflowId: deployment?.id,
+      deployedWorkflowVersion: deployment?.version,
+    };
+  }
+
+  private areVisualJsonEqual(
+    left: { nodes: any[]; edges: any[] },
+    right: { nodes: any[]; edges: any[] },
+  ) {
+    return JSON.stringify(left ?? { nodes: [], edges: [] }) === JSON.stringify(right ?? { nodes: [], edges: [] });
   }
 
   async renameWorkflow(id: string, name: string, userId: string) {
@@ -297,6 +657,19 @@ export class WorkflowService extends BaseService<Workflow> {
 
     workflow.name = name;
     return await this.workflowRepository.save(workflow);
+  }
+
+  async deployWorkflow(id: string, userId: string) {
+    const workflow = await this.findOneAndVerify(id, userId, [
+      WorkspaceRole.OWNER,
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.MEMBER,
+    ]);
+
+    workflow.isPublished = true;
+    const updated = await this.workflowRepository.save(workflow);
+    await this.syncDeployedSnapshot(updated, { incrementVersion: true });
+    return updated;
   }
 
   async getEntryWorkflow(projectId: string, userId: string) {

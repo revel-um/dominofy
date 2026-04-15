@@ -12,30 +12,28 @@ export class SlackTriggerDomino implements DominoExecutable {
 
     async execute(ctx: ExecuteContext): Promise<DominoResult> {
         const startedAt = Date.now();
+        const source =
+            ctx.input && typeof ctx.input === "object" && ctx.input.text && typeof ctx.input.text === "object"
+                ? ctx.input.text
+                : ctx.input;
+        const rawEvent =
+            source?.event && typeof source.event === "object"
+                ? source.event
+                : source;
+        const cleaned: Record<string, any> = {};
 
-        /** Step 1: strip config-only keys that upstream pins injected */
-        const cleaned: Record<string, any> = ctx.input.text;
-
-        /** Step 2: unwrap Slack’s event wrapper (if runner passed raw payload) */
-        if (
-            cleaned.event &&
-            typeof cleaned.event === "object" &&
-            cleaned.event.type === "message"
-        ) {
-            // Promote useful bits one level up
-            const { text, user, ts, thread_ts, files, blocks, attachments } =
-                cleaned.event;
-            cleaned.text = text;
-            cleaned.user = user;
-            cleaned.ts = ts;
-            if (thread_ts) cleaned.thread_ts = thread_ts;
-            if (files) cleaned.files = files;
-            if (blocks) cleaned.blocks = blocks;
-            if (attachments) cleaned.attachments = attachments;
-
-            // Keep the original for reference but mark as _raw to discourage pin-by-pin wiring
-            cleaned._rawEvent = cleaned.event;
-            delete cleaned.event;
+        if (rawEvent && typeof rawEvent === "object") {
+            const { text, user, channel, ts, thread_ts, files, blocks, attachments } =
+                rawEvent as Record<string, any>;
+            if (text !== undefined) cleaned.text = text;
+            if (user !== undefined) cleaned.user = user;
+            if (channel !== undefined) cleaned.channel = channel;
+            if (ts !== undefined) cleaned.ts = ts;
+            if (thread_ts !== undefined) cleaned.thread_ts = thread_ts;
+            if (files !== undefined) cleaned.files = files;
+            if (blocks !== undefined) cleaned.blocks = blocks;
+            if (attachments !== undefined) cleaned.attachments = attachments;
+            cleaned._rawEvent = rawEvent;
         }
 
         return {

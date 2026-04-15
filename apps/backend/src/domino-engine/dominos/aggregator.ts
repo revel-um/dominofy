@@ -51,7 +51,8 @@ export class AggregatorDomino implements DominoExecutable {
         // 1. explicit pin mapping value_in / value_in_1 (plus some legacy cases)
         // 2. 'value' (if you wired iterator.value_out → aggregator.value)
         // 3. raw payload itself (iterator sends primitive or {key,value})
-        let valIn: any = ctx.input.value_in ?? ctx.input.value_in_1;
+        let valIn: any = ctx.input.value_in;
+        if (valIn === undefined && op !== "object") valIn = ctx.input.value_in_1;
         if (valIn === undefined) valIn = ctx.input.value;
         if (valIn === undefined) valIn = ctx.input.Input;
         if (valIn === undefined) valIn = ctx.input; // raw pass-through
@@ -64,7 +65,7 @@ export class AggregatorDomino implements DominoExecutable {
         ) {
             valIn = (valIn as any).Input;
         }
-        const keyIn = ctx.input.key_in ?? (valIn && valIn.key); // object key
+        const keyIn = ctx.input.value_in_1 ?? (valIn && valIn.key); // object key
 
         /* If iterator passes {key, value}, unwrap for object op ----------- */
         if (op === "object" && valIn && typeof valIn === "object") {

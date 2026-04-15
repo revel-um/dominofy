@@ -1,12 +1,15 @@
 // src/dominos/csvWriter.tsx
 import { NodeProps, useEdges } from 'reactflow';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Database, FileSpreadsheet, ShieldCheck, Type } from 'lucide-react';
 import DominoPin from '../components/shared/dominoPin';
+import DominoDropdown from '../components/shared/dominoDropdown';
+import ExpandableTextarea from '@/components/shared/expandableTextarea';
 import { PinType } from '../types/pinTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
-import { FiFileText, FiX } from 'react-icons/fi';
+import { FiFileText } from 'react-icons/fi';
 import { DominoField } from '../types/dominoFieldTypes';
+import dominoCatalog from './dominos';
 
 type InputType = 'json' | 'text';
 
@@ -42,6 +45,10 @@ function mergeFieldPreservingConnections(newF: any, oldF?: any) {
 export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
+  const csvWriterMeta = dominoCatalog.find((entry) => entry.id === 'csvwriter');
+  const csvWriterAccentColor = csvWriterMeta?.badgeStyle?.background
+    ? String(csvWriterMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+    : '#22c55e';
 
   const [config, setConfig] = useState<CSVWriterConfig>({
     name: 'CSV Writer',
@@ -57,7 +64,6 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
 
   const didInitRef = useRef(false);
   const lastFieldsHashRef = useRef<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
 
   // 👉 subscribe to React Flow edges so this re-renders when connections change
   const edges = useEdges();
@@ -279,200 +285,260 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
 
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm ${
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 shadow-sm backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
         hasError
           ? 'error-border'
           : selected
-            ? 'selected-border border-4'
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
             : 'unselected-border dark:border-gray-600'
-      } bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{ minWidth: '13rem' }} // parent: no extra padding/margins besides radius/border
+      } hover:shadow-lg`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
-      {/* Header (child carries its own padding) */}
-      <div
-        className="relative flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md"
-        style={getExpandedDominoHeaderStyle('csvwriter')}
-      >
-        <div className="flex items-center gap-1">
-          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <FiFileText className="w-4 h-4" />
-          <span>{config.name?.trim() || 'CSV Writer'}</span>
-        </div>
-        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
-      </div>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
 
-      {/* File Name row with VALUE_IN pin (row carries its own padding) */}
-      <div className="flex items-center gap-2 relative px-3 py-2">
-        <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline />
-        {!isFileNameConnected ? (
-          <input
-            type="text"
-            value={config.fileName}
-            onChange={(e) => handleFieldChange('fileName', e.target.value)}
-            placeholder="File Name"
-            className="flex-1 px-2 py-1 text-sm border rounded
-                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                       text-dominofy-light-text dark:text-dominofy-dark-text
-                       border-gray-300 dark:border-gray-600"
-            title="File name (without extension)"
-          />
-        ) : (
-          <span className="px-3 flex-1 text-xs italic text-gray-500 truncate">
-            Connected
-          </span>
-        )}
-      </div>
-
-      {/* Input Type (child-padding) */}
-      <div className="px-3 py-2">
-        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-          Input Type
-        </label>
-        <select
-          value={config.inputType}
-          onChange={(e) => handleFieldChange('inputType', e.target.value as InputType)}
-          className="mt-1 w-full px-2 py-1 text-sm border rounded select-none
-                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                     text-dominofy-light-text dark:text-dominofy-dark-text
-                     border-gray-300 dark:border-gray-600"
-        >
-          <option value="json">JSON (array of objects)</option>
-          <option value="text">Text (rows/columns)</option>
-        </select>
-      </div>
-
-      {/* Include Header (JSON only) */}
-      {config.inputType === 'json' && (
-        <div className="flex items-center gap-2 px-3 py-2">
-          <input
-            type="checkbox"
-            id="includeHeader"
-            checked={config.includeHeader}
-            onChange={(e) => handleFieldChange('includeHeader', e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-          />
-          <label htmlFor="includeHeader" className="text-xs text-gray-700 dark:text-gray-300">
-            Include Header Row
-          </label>
-        </div>
-      )}
-
-      {/* Delimiter (Text only) */}
-      {config.inputType === 'text' && (
-        <div className="px-3 py-2">
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            Delimiter
-          </label>
-          <select
-            value={config.delimiter === '\t' ? '\\t' : config.delimiter}
-            onChange={(e) => handleFieldChange('delimiter', e.target.value)}
-            className="mt-1 w-full px-2 py-1 text-sm border rounded select-none
-                       bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                       text-dominofy-light-text dark:text-dominofy-dark-text
-                       border-gray-300 dark:border-gray-600"
-          >
-            <option value=",">Comma (,)</option>
-            <option value="\\t">Tab (\t)</option>
-            <option value=";">Semicolon (;)</option>
-            <option value="|">Pipe (|)</option>
-          </select>
-        </div>
-      )}
-
-      {/* Consider First Line As Header (Text only) */}
-      {config.inputType === 'text' && (
-        <div className="flex items-center gap-2 px-3 py-2">
-          <input
-            type="checkbox"
-            id="considerFirstLineAsHeader"
-            checked={config.considerFirstLineAsHeader}
-            onChange={(e) => handleFieldChange('considerFirstLineAsHeader', e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-          />
-          <label htmlFor="considerFirstLineAsHeader" className="text-xs text-gray-700 dark:text-gray-300">
-            Consider First Line As Header
-          </label>
-        </div>
-      )}
-
-      {/* Input Box label (child-padding) */}
-      <div className="px-3 pt-1">
-        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-          Input Box
-        </label>
-      </div>
-
-      {/* Input Box row with VALUE_IN_5 pin (row carries its own padding) */}
-      <div className="flex items-center gap-2 relative px-3 py-2">
-        <DominoPin id="value_in_5" pinType={PinType.VALUE_IN} inline />
-        {!isInputBoxConnected ? (
-          <div
-            onClick={() => setIsEditing(true)}
-            className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text cursor-pointer h-20 overflow-hidden text-ellipsis font-mono text-xs"
-          >
-            {config.textInput || <span className="text-gray-400">Click to edit input...</span>}
+      <div className="relative rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3 pr-10">
+            <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+              style={{
+                borderColor: csvWriterAccentColor,
+                backgroundColor: `${csvWriterAccentColor}22`,
+              }}
+            >
+              <FiFileText className="h-4 w-4" style={{ color: csvWriterAccentColor }} />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold tracking-tight text-foreground">
+                {config.name?.trim() || 'CSV Writer'}
+              </div>
+              <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                Output
+              </div>
+            </div>
           </div>
-        ) : (
-          <span className="px-3 flex-1 text-xs italic text-gray-500 truncate">
-            Connected
-          </span>
-        )}
+          <div className="absolute inset-y-0 right-0 flex w-24 items-center justify-end pr-3">
+            <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+          </div>
+        </div>
       </div>
 
-      {/* Preview (only when non-empty) */}
-      {hasPreview && (
-        <div className="px-3 py-2">
-          <div className="p-2 bg-gray-50 dark:bg-gray-800/30 rounded border border-gray-200 dark:border-gray-700">
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              {previewMeta}
+      <div className="relative space-y-4 px-4 py-4">
+        <div className="rounded-xl border border-black/5 bg-black/[0.02] p-3 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                Export Summary
+              </div>
+              <div className="mt-1 text-sm font-medium text-foreground/80 dark:text-slate-200">
+                {config.inputType === 'json'
+                  ? 'Write JSON rows into a downloadable CSV file'
+                  : 'Transform text rows and columns into CSV output'}
+              </div>
+            </div>
+            <span className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white/70 px-2.5 py-1 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground/60 dark:border-white/10 dark:bg-white/10 dark:text-slate-300">
+              {config.inputType.toUpperCase()}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Destination
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {isFileNameConnected ? 'Live input' : 'Static file name'}
+            </span>
+          </div>
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <DominoPin id="value_in_1" pinType={PinType.VALUE_IN} inline offset={-16} />
+              <div className="min-h-12 min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                {!isFileNameConnected ? (
+                  <input
+                    type="text"
+                    value={config.fileName}
+                    onChange={(e) => handleFieldChange('fileName', e.target.value)}
+                    placeholder="File name"
+                    className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+                    title="File name (without extension)"
+                  />
+                ) : (
+                  <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                    Connected
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Input Editor Modal */}
-      {isEditing && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[600px] h-[400px] flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Input Text</h3>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-              >
-                <FiX className="w-5 h-5 text-gray-500" />
-              </button>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Type className="h-3.5 w-3.5" />
+              Input Type
             </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {config.inputType === 'json' ? 'Structured rows' : 'Delimited text'}
+            </span>
+          </div>
+          <DominoDropdown
+            value={config.inputType}
+            onChange={(nextValue) => handleFieldChange('inputType', nextValue as InputType)}
+            options={[
+              { label: 'JSON (array of objects)', value: 'json' },
+              { label: 'Text (rows/columns)', value: 'text' },
+            ]}
+          />
+        </div>
 
-            {/* Modal Body */}
-            <div className="flex-1 p-4">
-              <textarea
-                value={config.textInput}
-                onChange={(e) => handleFieldChange('textInput', e.target.value)}
-                placeholder="Enter your text data here..."
-                className="w-full h-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+        {config.inputType === 'json' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Header Row
+              </div>
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                {config.includeHeader ? 'Included' : 'Skipped'}
+              </span>
+            </div>
+            <label className="flex items-center justify-between rounded-xl border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 dark:border-slate-600 dark:bg-dominofy-dark-surface">
+              <div>
+                <div className="text-sm font-medium text-foreground dark:text-slate-200">
+                  Include Header Row
+                </div>
+                <div className="mt-0.5 text-xs text-foreground/55 dark:text-slate-400">
+                  Use object keys as the first CSV row
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                id="includeHeader"
+                checked={config.includeHeader}
+                onChange={(e) => handleFieldChange('includeHeader', e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600"
               />
-            </div>
+            </label>
+          </div>
+        )}
 
-            {/* Modal Footer */}
-            <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded transition-colors"
-              >
-                Save
-              </button>
+        {config.inputType === 'text' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <Type className="h-3.5 w-3.5" />
+                Text Parsing
+              </div>
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                Delimiter setup
+              </span>
+            </div>
+            <DominoDropdown
+              value={config.delimiter === '\t' ? '\\t' : config.delimiter}
+              onChange={(nextValue) => handleFieldChange('delimiter', nextValue)}
+              options={[
+                { label: 'Comma (,)', value: ',' },
+                { label: 'Tab (\\t)', value: '\\t' },
+                { label: 'Semicolon (;)', value: ';' },
+                { label: 'Pipe (|)', value: '|' },
+              ]}
+            />
+            <label className="flex items-center justify-between rounded-xl border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 dark:border-slate-600 dark:bg-dominofy-dark-surface">
+              <div>
+                <div className="text-sm font-medium text-foreground dark:text-slate-200">
+                  Consider First Line As Header
+                </div>
+                <div className="mt-0.5 text-xs text-foreground/55 dark:text-slate-400">
+                  Treat the first text row as column names
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                id="considerFirstLineAsHeader"
+                checked={config.considerFirstLineAsHeader}
+                onChange={(e) => handleFieldChange('considerFirstLineAsHeader', e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600"
+              />
+            </label>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Database className="h-3.5 w-3.5" />
+              Input Box
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {isInputBoxConnected ? 'Live input' : 'Manual input'}
+            </span>
+          </div>
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <DominoPin id="value_in_5" pinType={PinType.VALUE_IN} inline offset={-16} />
+              {!isInputBoxConnected ? (
+                <div className="min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                  <ExpandableTextarea
+                    value={config.textInput}
+                    onChange={(nextValue) => handleFieldChange('textInput', nextValue)}
+                    placeholder="Enter your text data here..."
+                    rows={4}
+                    modalTitle="Input Box"
+                    validateJson={config.inputType === 'json'}
+                    className="min-h-24 font-mono text-xs"
+                  />
+                </div>
+              ) : (
+                <div className="flex min-h-24 min-w-0 flex-1 items-center rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm font-medium italic text-slate-500 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:text-slate-400">
+                  Connected
+                </div>
+              )}
             </div>
           </div>
         </div>
-      )}
+
+        {hasPreview && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Preview
+              </div>
+            </div>
+            <div className="rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="text-sm font-medium text-foreground/75 dark:text-slate-300">
+                {previewMeta}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Output
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              CSV export
+            </span>
+          </div>
+          <div className="rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+              Output
+            </div>
+            <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+              Generates a CSV file from the selected input source
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }

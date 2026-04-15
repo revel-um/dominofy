@@ -17,6 +17,7 @@ import {
     FiChevronRight,
     FiPlus,
     FiExternalLink,
+    FiX,
 } from "react-icons/fi";
 import TemplatesCanvas from "../components/templateCarousel";
 import { useNodesState, useEdgesState, type Node, type Edge } from "reactflow";
@@ -70,6 +71,24 @@ interface TemplatePreview {
     edges: Edge[];
 }
 
+interface ExecutionMetric {
+    id: string;
+    runId: string;
+    executedAt: string;
+    status: "running" | "success" | "failure";
+    failureReason?: string | null;
+}
+
+interface DashboardMetricsSummary {
+    totalExecutions: number;
+    successfulExecutions: number;
+    failedExecutions: number;
+    runningExecutions: number;
+    recentExecutions: number;
+    last7DayErrors: number;
+    deployedWorkflowCount: number;
+}
+
 export default function DominofyDashboard() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [page, setPage] = useState(1);
@@ -81,6 +100,15 @@ export default function DominofyDashboard() {
     const [recentWorkflow, setRecentWorkflow] = useState<WorkflowWithCache>();
     const [projectCount, setProjectCount] = useState(0);
     const [workflowCount, setWorkflowCount] = useState(0);
+    const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetricsSummary>({
+        totalExecutions: 0,
+        successfulExecutions: 0,
+        failedExecutions: 0,
+        runningExecutions: 0,
+        recentExecutions: 0,
+        last7DayErrors: 0,
+        deployedWorkflowCount: 0,
+    });
     const [user, setUser] = useState<User>({ name: "", email: "" });
     const [templates, setTemplates] = useState<TemplatePreview[]>([]);
     const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary | null>(null);
@@ -253,7 +281,6 @@ export default function DominofyDashboard() {
 
             if (pageCache[cacheKey]) {
                 setProjects(pageCache[cacheKey]);
-                return;
             }
 
             setTemplates([
@@ -495,32 +522,36 @@ export default function DominofyDashboard() {
                 },
                 resumeScoringTemplate
             ])
-            const response = await ProjectsApi.getProjects(
-                currentToken ?? "",
-                router,
-                limit,
-                offset,
-                query,
-                requestedWorkspaceId,
-            );
-            if (!response?.ok) return;
+            if (!pageCache[cacheKey]) {
+                const response = await ProjectsApi.getProjects(
+                    currentToken ?? "",
+                    router,
+                    limit,
+                    offset,
+                    query,
+                    requestedWorkspaceId,
+                );
+                if (!response?.ok) return;
 
-            const { data, count } = await response.json() as { data: ProjectListItem[]; count: number };
-            const formatted = data.map((p) => ({
-                id: p.id,
-                name: p.name,
-                lastEdited: formatDate(p.updatedAt),
-                description: p.description,
-            }));
+                const { data, count } = await response.json() as { data: ProjectListItem[]; count: number };
+                const formatted = data.map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    lastEdited: formatDate(p.updatedAt),
+                    description: p.description,
+                }));
 
-            setProjects(formatted);
-            setProjectCount(count);
-            setPageCache((prev) => ({ ...prev, [cacheKey]: formatted }));
-            setTotalPages(Math.max(1, Math.ceil(count / limit)));
+                setProjects(formatted);
+                setProjectCount(count);
+                setPageCache((prev) => ({ ...prev, [cacheKey]: formatted }));
+                setTotalPages(Math.max(1, Math.ceil(count / limit)));
+            }
 
             const workflowResponse = await WorkflowsApi.getRecentWorkflowsAndCount(
                 currentToken ?? "",
                 router,
+                undefined,
+                requestedWorkspaceId,
             );
             if (!workflowResponse?.ok) return;
 
@@ -531,6 +562,87 @@ export default function DominofyDashboard() {
             };
             setUser({ name: user.name, email: user.email });
             setWorkflowCount(wfCount);
+
+            const allWorkflowResponse = await WorkflowsApi.getAllUserWorkflows(
+                currentToken ?? "",
+                router,
+                Math.max(wfCount, 1),
+                0,
+                requestedWorkspaceId,
+            );
+
+            if (allWorkflowResponse?.ok) {
+                const { workflows: allWorkflows } = await allWorkflowResponse.json() as {
+                    workflows: Workflow[];
+                    count: number;
+                    user: User;
+                };
+
+                const deployedWorkflows = allWorkflows.filter((workflow) => workflow.isPublished);
+                const recentCutoff = Date.now() - (24 * 60 * 60 * 1000);
+                const last7DaysCutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+                const metricResponses = await Promise.allSettled(
+                    deployedWorkflows.map(async (workflow) => {
+                        const metricsResponse = await WorkflowsApi.getExecutionMetrics(
+                            workflow.id,
+                            currentToken ?? "",
+                            router,
+                            200,
+                            0,
+                        );
+
+                        if (!metricsResponse?.ok) {
+                            return [] as ExecutionMetric[];
+                        }
+
+                        const payload = await metricsResponse.json() as {
+                            count: number;
+                            metrics: ExecutionMetric[];
+                        };
+
+                        return payload.metrics ?? [];
+                    }),
+                );
+
+                const allMetrics = metricResponses.flatMap((result) =>
+                    result.status === "fulfilled" ? result.value : [],
+                );
+
+                const successfulExecutions = allMetrics.filter((metric) => metric.status === "success").length;
+                const failedExecutions = allMetrics.filter((metric) => metric.status === "failure").length;
+                const runningExecutions = allMetrics.filter((metric) => metric.status === "running").length;
+                const recentExecutions = allMetrics.filter((metric) => {
+                    const executedAt = new Date(metric.executedAt).getTime();
+                    return Number.isFinite(executedAt) && executedAt >= recentCutoff;
+                }).length;
+                const last7DayErrors = allMetrics.filter((metric) => {
+                    if (metric.status !== "failure") return false;
+                    const executedAt = new Date(metric.executedAt).getTime();
+                    return Number.isFinite(executedAt) && executedAt >= last7DaysCutoff;
+                }).length;
+
+                setDashboardMetrics({
+                    totalExecutions: allMetrics.length,
+                    successfulExecutions,
+                    failedExecutions,
+                    runningExecutions,
+                    recentExecutions,
+                    last7DayErrors,
+                    deployedWorkflowCount: deployedWorkflows.length,
+                });
+            } else {
+                setDashboardMetrics({
+                    totalExecutions: 0,
+                    successfulExecutions: 0,
+                    failedExecutions: 0,
+                    runningExecutions: 0,
+                    recentExecutions: 0,
+                    last7DayErrors: 0,
+                    deployedWorkflowCount: 0,
+                });
+            }
+
             if (wfCount > 0) {
                 const preferred = workflows.find((w) => w.id === lastActiveWorkflowId) || workflows[0];
                 const recentWorkflowWithCache = mergeCachedWorkflow(preferred);
@@ -542,6 +654,12 @@ export default function DominofyDashboard() {
             console.error("Error fetching projects:", err);
         }
     };
+
+    useEffect(() => {
+        setPageCache({});
+        setPage(1);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [router.query.workspaceId]);
 
     useEffect(() => {
         if (booting || session === undefined) return;
@@ -582,6 +700,10 @@ export default function DominofyDashboard() {
             }
             setPageCache({});
             setPage(1);
+
+            if (created?.id) {
+                router.push(`/dominofy?projectId=${created.id}`);
+            }
         } else {
             console.error("Error creating project:", response);
         }
@@ -627,10 +749,11 @@ export default function DominofyDashboard() {
         : "Pick a project to jump into your latest automation";
     const workspaceName = workspaceSummary?.name || "Workspace";
     const workspaceRole = workspaceSummary?.role ?? "member";
-    const successRate = workflowCount > 0
-        ? `${Math.min(99, 84 + Math.round((projectCount / Math.max(workflowCount, 1)) * 12))}%`
-        : "84%";
-    const draftCount = Math.max(0, workflowCount - Math.max(0, Math.floor(workflowCount * 0.38)));
+    const successRateValue = dashboardMetrics.totalExecutions > 0
+        ? (dashboardMetrics.successfulExecutions / dashboardMetrics.totalExecutions) * 100
+        : 0;
+    const successRate = `${Math.max(0, Math.min(100, Math.round(successRateValue)))}%`;
+    const draftCount = Math.max(0, workflowCount - dashboardMetrics.deployedWorkflowCount);
     const activeCollaborators = workspaceSummary?.memberCount ?? 0;
 
     const showBlockingLoader = booting || status === "loading" || isExchanging;
@@ -674,7 +797,7 @@ export default function DominofyDashboard() {
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-3 xl:grid-cols-2 min-[1850px]:grid-cols-3">
+                                    <div className="grid gap-3 xl:grid-cols-2 min-[1850px]:grid-cols-4">
                                         <div className="rounded-[24px] border border-white/70 bg-white/80 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
                                             <div className="flex min-w-0 items-start gap-3 text-slate-500 dark:text-slate-300">
                                                 <FiUsers className="mt-0.5 h-4 w-4 shrink-0" />
@@ -691,7 +814,9 @@ export default function DominofyDashboard() {
                                                 <span className="min-w-0 break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.06em] sm:text-[10px] sm:leading-4 sm:tracking-[0.1em]">Success rate</span>
                                             </div>
                                             <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white sm:mt-3 sm:text-2xl">{successRate}</p>
-                                            <p className="mt-1 break-words text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">Estimated from current workflow mix</p>
+                                            <p className="mt-1 break-words text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">
+                                                {dashboardMetrics.totalExecutions} tracked execution{dashboardMetrics.totalExecutions === 1 ? "" : "s"}
+                                            </p>
                                         </div>
                                         <div className="rounded-[24px] border border-white/70 bg-white/80 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
                                             <div className="flex min-w-0 items-start gap-3 text-slate-500 dark:text-slate-300">
@@ -702,6 +827,16 @@ export default function DominofyDashboard() {
                                                 {workspaceRole}
                                             </p>
                                             <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">Permissions inside this workspace</p>
+                                        </div>
+                                        <div className="rounded-[24px] border border-white/70 bg-white/80 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
+                                            <div className="flex min-w-0 items-start gap-3 text-slate-500 dark:text-slate-300">
+                                                <FiX className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                                                <span className="min-w-0 break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.06em] sm:text-[10px] sm:leading-4 sm:tracking-[0.1em]">Errors last 7d</span>
+                                            </div>
+                                            <p className="mt-2 text-xl font-semibold text-slate-950 dark:text-white sm:mt-3 sm:text-2xl">
+                                                {dashboardMetrics.last7DayErrors}
+                                            </p>
+                                            <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">Failed executions in the last 7 days</p>
                                         </div>
                                     </div>
 
@@ -720,42 +855,63 @@ export default function DominofyDashboard() {
 
                             <div className="grid items-start gap-4 xl:h-full xl:grid-rows-[65fr_35fr]">
                                 <div className="relative h-[260px] overflow-hidden rounded-[32px] border border-white/70 bg-white/70 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/55 sm:h-[280px] xl:h-full xl:min-h-0">
-                                    <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 px-5 py-5">
-                                        <div className="max-w-[70%] rounded-[22px] border border-white/60 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/55">
-                                            <div className="flex items-center gap-2 text-sky-700 dark:text-sky-300">
-                                                <FiClock className="h-4 w-4" />
-                                                <p className="text-xs font-semibold uppercase tracking-[0.24em]">
-                                                    {(recentWorkflow?.isDefault && recentWorkflow.createdAt === recentWorkflow.updatedAt) ? "Default flow" : "Recent workflow"}
+                                    {recentWorkflow?.id ? (
+                                        <>
+                                            <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 px-5 py-5">
+                                                <div className="max-w-[70%] rounded-[22px] border border-white/60 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/55">
+                                                    <div className="flex items-center gap-2 text-sky-700 dark:text-sky-300">
+                                                        <FiClock className="h-4 w-4" />
+                                                        <p className="text-xs font-semibold uppercase tracking-[0.24em]">
+                                                            {(recentWorkflow.isDefault && recentWorkflow.createdAt === recentWorkflow.updatedAt) ? "Default flow" : "Recent workflow"}
+                                                        </p>
+                                                    </div>
+                                                    <p className="mt-2 truncate text-base font-semibold text-slate-950 dark:text-white">
+                                                        {recentWorkflowLabel}
+                                                    </p>
+                                                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                                                        {recentWorkflowMeta}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    onClick={handleRedirect}
+                                                    className="rounded-full border border-white/60 bg-white/75 p-3 text-slate-900 shadow-sm backdrop-blur-md transition hover:bg-white dark:border-white/10 dark:bg-slate-950/55 dark:text-white dark:hover:bg-slate-900"
+                                                    title="Open full view"
+                                                >
+                                                    <FiExternalLink className="h-5 w-5" />
+                                                </button>
+                                            </div>
+
+                                            <div className="h-full">
+                                                <Canvas
+                                                    nodes={recentWorkflow.visualJson?.nodes ?? []}
+                                                    edges={recentWorkflow.visualJson?.edges ?? []}
+                                                    setNodes={setNodes}
+                                                    setEdges={setEdges}
+                                                    id='dashboard-recent'
+                                                    readonly={true}
+                                                    isExpandedMode={recentWorkflowExpanded}
+                                                />
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsModalOpen(true)}
+                                            className="group flex h-full w-full items-center justify-center p-6 text-center transition"
+                                        >
+                                            <div className="flex w-full max-w-md flex-col items-center justify-center px-8 py-10">
+                                                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-100 text-sky-700 transition group-hover:bg-sky-200 dark:bg-sky-500/15 dark:text-sky-200 dark:group-hover:bg-sky-500/20">
+                                                    <FiPlus className="h-6 w-6" />
+                                                </div>
+                                                <p className="mt-5 text-lg font-semibold text-slate-950 dark:text-white">
+                                                    Create a new project
+                                                </p>
+                                                <p className="mt-2 max-w-sm text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    This workspace does not have a recent workflow yet. Start by creating a project, and the default workflow will appear here automatically.
                                                 </p>
                                             </div>
-                                            <p className="mt-2 truncate text-base font-semibold text-slate-950 dark:text-white">
-                                                {recentWorkflowLabel}
-                                            </p>
-                                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                                                {recentWorkflowMeta}
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={handleRedirect}
-                                            disabled={!recentWorkflow?.id}
-                                            className="rounded-full border border-white/60 bg-white/75 p-3 text-slate-900 shadow-sm backdrop-blur-md transition hover:bg-white dark:border-white/10 dark:bg-slate-950/55 dark:text-white dark:hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-                                            title="Open full view"
-                                        >
-                                            <FiExternalLink className="h-5 w-5" />
                                         </button>
-                                    </div>
-
-                                    <div className="h-full">
-                                        <Canvas
-                                            nodes={recentWorkflow?.visualJson?.nodes ?? []}
-                                            edges={recentWorkflow?.visualJson?.edges ?? []}
-                                            setNodes={setNodes}
-                                            setEdges={setEdges}
-                                            id='dashboard-recent'
-                                            readonly={true}
-                                            isExpandedMode={recentWorkflowExpanded}
-                                        />
-                                    </div>
+                                    )}
                                 </div>
 
                                 <div className="rounded-[32px] border border-white/70 bg-[linear-gradient(155deg,_rgba(14,165,233,0.18),_rgba(59,130,246,0.1)_45%,_rgba(255,255,255,0.92)_100%)] p-4 shadow-[0_24px_60px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-[linear-gradient(155deg,_rgba(14,165,233,0.24),_rgba(59,130,246,0.16)_45%,_rgba(15,23,42,0.92)_100%)] xl:h-full">
@@ -810,6 +966,12 @@ export default function DominofyDashboard() {
                                 <DashboardInsightsPanel
                                     projectCount={projectCount}
                                     workflowCount={workflowCount}
+                                    deployedCount={dashboardMetrics.deployedWorkflowCount}
+                                    totalExecutions={dashboardMetrics.totalExecutions}
+                                    recentExecutions={dashboardMetrics.recentExecutions}
+                                    failedExecutions={dashboardMetrics.failedExecutions}
+                                    runningExecutions={dashboardMetrics.runningExecutions}
+                                    successRate={successRateValue}
                                 />
                             </div>
                         </section>

@@ -7,6 +7,7 @@ import {
   FiCheck,
   FiX,
   FiLoader,
+  FiArrowLeft,
 } from 'react-icons/fi';
 import { Node, Edge } from 'reactflow';
 import { exportWorkflow } from '../helpers/workflowManager';
@@ -20,6 +21,58 @@ import { ProjectsApi } from '../apis/projects.apis';
 import { useRouter } from 'next/router';
 import { useSSE } from '@/contexts/sseContext';
 import type { WorkflowProblem } from './logs';
+import TriggerMockModal, { TriggerType } from './modals/TriggerMockModal';
+
+type TriggerNode = Node & {
+  type: TriggerType;
+  data: Record<string, any>;
+};
+
+type PendingRunState = {
+  nodesSnapshot: Node[];
+  edgesSnapshot: Edge[];
+  exported: string;
+  trigger: TriggerNode;
+  triggerType: TriggerType;
+};
+
+const MOCKABLE_TRIGGER_TYPES: TriggerType[] = [
+  'apitrigger',
+  'emailtrigger',
+  'slacktrigger',
+  'SchedulerDomino',
+  'googleCalendarEventCreated',
+  'googleCalendarEventUpdated',
+];
+
+const resolveTriggerType = (node: Node): TriggerType | null => {
+  const explicitType = typeof node.type === 'string' ? node.type : '';
+  if (MOCKABLE_TRIGGER_TYPES.includes(explicitType as TriggerType)) {
+    return explicitType as TriggerType;
+  }
+
+  const detailType = (node.data as any)?.details?.type;
+  if (detailType === 'Calendar Event Created') return 'googleCalendarEventCreated';
+  if (detailType === 'Calendar Event Updated') return 'googleCalendarEventUpdated';
+
+  const idPrefix = typeof node.id === 'string' ? node.id.replace(/-\d+$/, '') : '';
+  if (MOCKABLE_TRIGGER_TYPES.includes(idPrefix as TriggerType)) {
+    return idPrefix as TriggerType;
+  }
+
+  return null;
+};
+
+const apiTriggerNeedsMockInput = (node: Node) => {
+  const fields = (node.data as any)?.details?.fields ?? [];
+  const getFlag = (heading: string) =>
+    Boolean(fields.find((field: { heading?: string; value?: unknown }) => field.heading === heading)?.value);
+
+  return getFlag('Require Body') || getFlag('Require File Upload');
+};
+
+const hasTriggerNode = (nodes: Node[]) =>
+  nodes.some((node) => Boolean((node.data as any)?.details?.isTrigger));
 
 /* ───────────────────────── Types */
 interface WorkflowToolbarProps {
@@ -49,6 +102,9 @@ interface WorkflowToolbarProps {
   openLogsPanel?: () => void;
   onWorkflowSaved?: (nodes: Node[], edges: Edge[]) => void;
   onProblemsChange?: (problems: WorkflowProblem[]) => void;
+  onWorkflowDeployed?: () => void;
+  viewMode?: 'dev' | 'deployed';
+  onToggleVersionView?: () => void;
 }
 
 const TOOLBAR_HEIGHT = 56;
@@ -63,6 +119,9 @@ export default function WorkflowToolbar({
   openLogsPanel,
   onWorkflowSaved,
   onProblemsChange,
+  onWorkflowDeployed,
+  viewMode = 'dev',
+  onToggleVersionView,
 }: WorkflowToolbarProps) {
   const router = useRouter();
   const { setConnectionErrors, setValidationErrors } = useDomino();
@@ -71,9 +130,11 @@ export default function WorkflowToolbar({
   /* UI state */
   type SaveState = 'idle' | 'loading' | 'success' | 'error';
   const [saveStatus, setSaveStatus] = useState<SaveState>('idle');
+  const [deployStatus, setDeployStatus] = useState<SaveState>('idle');
   const [justRan, setJustRan] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [pendingRunState, setPendingRunState] = useState<PendingRunState | null>(null);
 
   /* keep original name to restore on cancel */
   const originalNameRef = useRef<string | null>(null);
@@ -166,6 +227,44 @@ export default function WorkflowToolbar({
     return true;
   }, [getNodes, getEdges, buildNodeLabelMap, setConnectionErrors, setValidationErrors, onProblemsChange]);
 
+  const getMockableTrigger = useCallback((nodes: Node[]) => {
+    return (
+      nodes.find((node): node is TriggerNode =>
+        (() => {
+          const triggerType = resolveTriggerType(node);
+          return Boolean(
+            triggerType &&
+            (triggerType !== 'apitrigger' || apiTriggerNeedsMockInput(node))
+          );
+        })()
+      ) ?? null
+    );
+  }, []);
+
+  const executeRun = useCallback(async (
+    exported: string,
+    nodesSnapshot: Node[],
+    edgesSnapshot: Edge[],
+    mockInput: Record<string, any> = {},
+  ) => {
+    if (openLogsPanel) openLogsPanel();
+    const token = localStorage.getItem('token') || '';
+    try {
+      const resp = await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
+      if (!resp?.ok) {
+        return false;
+      }
+      onProblemsChange?.([]);
+      onWorkflowSaved?.(nodesSnapshot, edgesSnapshot);
+      await startSSE(workflow.id, token, mockInput);
+      setJustRan(true);
+      setTimeout(() => setJustRan(false), 1000);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [openLogsPanel, workflow.id, router, onProblemsChange, onWorkflowSaved, startSSE]);
+
   /* ───────── actions ───────── */
   const onSave = useCallback(async () => {
     if (!workflow.id) {
@@ -194,31 +293,93 @@ export default function WorkflowToolbar({
   }, [workflow.id, getNodes, getEdges, router, onWorkflowSaved]);
 
   const onRun = useCallback(async () => {
-    if (openLogsPanel) openLogsPanel();
     if (!isWorkflowValid() || !workflow.id) return false;
+
     const nodesSnapshot = getNodes();
     const edgesSnapshot = getEdges();
     const exported = exportWorkflow(nodesSnapshot, edgesSnapshot, workflow.id);
-    const token = localStorage.getItem('token') || '';
-    try {
-      const resp = await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
-      if (!resp?.ok) {
-        return false;
-      }
-      onProblemsChange?.([]);
-      onWorkflowSaved?.(nodesSnapshot, edgesSnapshot);
-      startSSE(workflow.id, token);
-      setJustRan(true);
-      setTimeout(() => setJustRan(false), 1000);
+
+    const trigger = getMockableTrigger(nodesSnapshot);
+    if (trigger) {
+      const triggerType = resolveTriggerType(trigger);
+      if (!triggerType) return false;
+      setPendingRunState({
+        nodesSnapshot,
+        edgesSnapshot,
+        exported,
+        trigger,
+        triggerType,
+      });
       return true;
-    } catch {
+    }
+
+    return executeRun(exported, nodesSnapshot, edgesSnapshot);
+  }, [isWorkflowValid, workflow.id, getNodes, getEdges, getMockableTrigger, executeRun]);
+
+  const runWithMockInput = useCallback(async (mockInput: Record<string, any>) => {
+    if (!pendingRunState) return;
+    const didRun = await executeRun(
+      pendingRunState.exported,
+      pendingRunState.nodesSnapshot,
+      pendingRunState.edgesSnapshot,
+      mockInput,
+    );
+
+    if (didRun) {
+      setPendingRunState(null);
+    }
+  }, [pendingRunState, executeRun]);
+
+  const onDeploy = useCallback(async () => {
+    if (!isWorkflowValid() || !workflow.id) return false;
+
+    const nodesSnapshot = getNodes();
+    const edgesSnapshot = getEdges();
+
+    if (!hasTriggerNode(nodesSnapshot)) {
+      openLogsPanel?.();
+      onProblemsChange?.([
+        {
+          id: 'workflow-missing-trigger',
+          message: 'Deploy requires at least one trigger domino at the front of the workflow. Add a trigger and try again.',
+        },
+      ]);
+      setDeployStatus('error');
+      setTimeout(() => setDeployStatus('idle'), 1200);
       return false;
     }
-  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, startSSE, openLogsPanel, onWorkflowSaved, onProblemsChange]);
 
-  const onDeploy = useCallback(() => {
-    if (isWorkflowValid()) alert('Deploying...');
-  }, [isWorkflowValid]);
+    setDeployStatus('loading');
+    const exported = exportWorkflow(nodesSnapshot, edgesSnapshot, workflow.id);
+    const token = localStorage.getItem('token') || '';
+
+    try {
+      const saveResp = await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
+      if (!saveResp?.ok) {
+        setDeployStatus('error');
+        return false;
+      }
+
+      const deployResp = await WorkflowsApi.deployWorkflow(workflow.id, token, router);
+      if (!deployResp?.ok) {
+        setDeployStatus('error');
+        return false;
+      }
+
+      const deployedWorkflow = await deployResp.json();
+      setWorkflow(() => deployedWorkflow);
+      onWorkflowSaved?.(nodesSnapshot, edgesSnapshot);
+      onWorkflowDeployed?.();
+      onProblemsChange?.([]);
+      setDeployStatus('success');
+      return true;
+    } catch {
+      setDeployStatus('error');
+      return false;
+    } finally {
+      setTimeout(() => setDeployStatus('idle'), 1200);
+    }
+  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, setWorkflow, onWorkflowSaved, onProblemsChange, openLogsPanel, onWorkflowDeployed]);
 
   /* ────── name editing ────── */
   const openNameModal = () => {
@@ -283,11 +444,18 @@ export default function WorkflowToolbar({
                    border-b border-[#b0b3b8] dark:border-[#44474a]"
         style={{ height: TOOLBAR_HEIGHT }}
       >
-        {/* Brand */}
+        {/* Brand + Back */}
         <div className="flex items-center gap-3">
-          <img 
-            src="/dominofy.png" 
-            alt="Dominofy" 
+          <button
+            onClick={() => router.back()}
+            className="p-1.5 rounded-md hover:bg-[var(--secondary-hover)] text-[var(--text-secondary)] hover:text-white transition-colors"
+            title="Go back"
+          >
+            <FiArrowLeft className="w-4 h-4" />
+          </button>
+          <img
+            src="/dominofy.png"
+            alt="Dominofy"
             className="w-6 h-6"
           />
           <h1 className="text-xl font-bold">Dominofy</h1>
@@ -310,50 +478,69 @@ export default function WorkflowToolbar({
 
         {/* Right group */}
         <div className="flex items-center gap-2 pr-4">
-          {/* SAVE */}
-          <button
-            onClick={onSave}
-            disabled={saveStatus === 'loading'}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium`}
-            title="Save workflow"
-          >
-            {saveStatus === 'loading' && <FiLoader className="w-4 h-4 animate-spin" />}
-            {saveStatus === 'success' && <FiCheck className="w-4 h-4" />}
-            {saveStatus === 'error' && <FiX className="w-4 h-4" />}
-            {saveStatus === 'idle' ? 'Save' : ''}
-          </button>
+          {viewMode !== 'deployed' && (
+            <button
+              onClick={onSave}
+              disabled={saveStatus === 'loading'}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium`}
+              title="Save workflow"
+            >
+              {saveStatus === 'loading' && <FiLoader className="w-4 h-4 animate-spin" />}
+              {saveStatus === 'success' && <FiCheck className="w-4 h-4" />}
+              {saveStatus === 'error' && <FiX className="w-4 h-4" />}
+              {saveStatus === 'idle' ? 'Save' : ''}
+            </button>
+          )}
 
-          {/* DEPLOY */}
-          <button
-            onClick={onDeploy}
-            className="px-4 py-1.5 rounded text-sm font-medium text-white
-                       bg-dominofy-light-accent dark:bg-dominofy-dark-accent hover:opacity-90"
-            title="Deploy workflow"
-          >
-            Deploy
-          </button>
+          {workflow.isPublished && onToggleVersionView && (
+            <button
+              onClick={onToggleVersionView}
+              className="px-4 py-1.5 rounded text-sm font-medium text-white bg-slate-600 hover:bg-slate-700"
+              title={viewMode === 'deployed' ? 'Show dev version' : 'Show deployed version'}
+            >
+              {viewMode === 'deployed' ? 'Show dev version' : 'Show deployed version'}
+            </button>
+          )}
 
-          {/* Divider */}
-          <div
-            className="h-6 w-px mx-2"
-            style={{
-              backgroundColor:
-                typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-                  ? 'var(--border-dark, #333)'
-                  : 'var(--border, #e5e7eb)',
-            }}
-          />
+          {viewMode !== 'deployed' && (
+            <>
+              {/* DEPLOY */}
+              <button
+                onClick={onDeploy}
+                disabled={deployStatus === 'loading'}
+                className="px-4 py-1.5 rounded text-sm font-medium text-white
+                           bg-dominofy-light-accent dark:bg-dominofy-dark-accent hover:opacity-90"
+                title="Deploy workflow"
+              >
+                {deployStatus === 'loading' && <FiLoader className="w-4 h-4 animate-spin inline mr-2" />}
+                {deployStatus === 'success' && <FiCheck className="w-4 h-4 inline mr-2" />}
+                {deployStatus === 'error' && <FiX className="w-4 h-4 inline mr-2" />}
+                {workflow.isPublished ? 'Redeploy' : 'Deploy'}
+              </button>
 
-          {/* RUN */}
-          <button
-            onClick={onRun}
-            className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium text-white
-                       bg-green-500 hover:bg-green-600 transition-colors"
-            title="Run workflow"
-          >
-            {justRan ? <FiCheck className="w-4 h-4" /> : <FiPlay className="w-4 h-4" />}
-            Run
-          </button>
+              {/* Divider */}
+              <div
+                className="h-6 w-px mx-2"
+                style={{
+                  backgroundColor:
+                    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+                      ? 'var(--border-dark, #333)'
+                      : 'var(--border, #e5e7eb)',
+                }}
+              />
+
+              {/* RUN */}
+              <button
+                onClick={onRun}
+                className="flex items-center gap-2 px-4 py-1.5 rounded text-sm font-medium text-white
+                           bg-green-500 hover:bg-green-600 transition-colors"
+                title="Run workflow"
+              >
+                {justRan ? <FiCheck className="w-4 h-4" /> : <FiPlay className="w-4 h-4" />}
+                Run
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -393,6 +580,18 @@ export default function WorkflowToolbar({
             </div>
           </div>
         </div>
+      )}
+
+      {pendingRunState && (
+        <TriggerMockModal
+          trigger={{
+            id: pendingRunState.trigger.id,
+            type: pendingRunState.triggerType,
+            data: pendingRunState.trigger.data,
+          }}
+          onRun={runWithMockInput}
+          onClose={() => setPendingRunState(null)}
+        />
       )}
     </>
   );

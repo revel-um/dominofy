@@ -1,32 +1,50 @@
 import { NodeProps } from 'reactflow';
+import {
+  ChangeEvent,
+  ClipboardEvent,
+  FormEvent,
+  KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+  WheelEvent,
+} from 'react';
+import { FiClock } from 'react-icons/fi';
+
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { ChangeEvent, useEffect, useRef, useState, ClipboardEvent, KeyboardEvent, FormEvent } from 'react';
 import { DominoField } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
-import { FiClock } from 'react-icons/fi';
+import dominoCatalog from './dominos';
+
+const MAX_DELAY_MS = 24 * 60 * 60 * 1000;
 
 export default function DelayDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const setNodesRef = useRef(data.setNodes);
+
   useEffect(() => {
     setNodesRef.current = data.setNodes;
   }, [data.setNodes]);
 
+  const delayMeta = dominoCatalog.find((entry) => entry.id === 'delay');
+  const delayAccentColor = delayMeta?.badgeStyle?.background
+    ? String(delayMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+    : '#f59e0b';
+
   const [delayMs, setDelayMs] = useState<number>(1000);
 
-  // Load from saved node data once
   useEffect(() => {
     const fields = data.details?.fields ?? [];
     const delayField = fields.find((f: { heading: string }) => f.heading === 'Delay');
-    const candidate = typeof delayField?.value === 'number' ? delayField!.value : Number(delayField?.value);
-    if (Number.isFinite(candidate)) setDelayMs(Math.max(0, Math.floor(candidate)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const candidate =
+      typeof delayField?.value === 'number' ? delayField.value : Number(delayField?.value);
+    if (Number.isFinite(candidate)) {
+      setDelayMs(Math.min(MAX_DELAY_MS, Math.max(0, Math.floor(candidate))));
+    }
+  }, [data.details?.fields]);
 
-  // Sync to node data
   useEffect(() => {
     const setNodes = setNodesRef.current;
     if (!setNodes) return;
@@ -39,7 +57,6 @@ export default function DelayDomino({ data, id, selected }: NodeProps) {
     ): DominoField => ({ ...getOld(base.heading), ...base } as DominoField);
 
     const newFields: DominoField[] = [
-      // Delay configuration (store as number)
       makeField({
         type: 'text',
         heading: 'Delay',
@@ -52,147 +69,221 @@ export default function DelayDomino({ data, id, selected }: NodeProps) {
     const nextExport = ['Delay'];
 
     setNodes((nodes: any[]) =>
-      nodes.map((n: { id: string; data: { details: any; exportFields?: string[] } }) => {
-        if (n.id !== id) return n;
-        const existing = n.data.details?.fields ?? [];
+      nodes.map((node: { id: string; data: { details: any; exportFields?: string[] } }) => {
+        if (node.id !== id) return node;
+        const existing = node.data.details?.fields ?? [];
         const sameFields =
           existing.length === newFields.length &&
-          existing.every((f: any, idx: number) => JSON.stringify(f) === JSON.stringify(newFields[idx]));
+          existing.every((field: any, index: number) =>
+            JSON.stringify(field) === JSON.stringify(newFields[index])
+          );
         const sameExport =
-          Array.isArray(n.data.exportFields) &&
-          n.data.exportFields.length === nextExport.length &&
-          n.data.exportFields.every((h: string, i: number) => h === nextExport[i]);
-        if (sameFields && sameExport) return n;
+          Array.isArray(node.data.exportFields) &&
+          node.data.exportFields.length === nextExport.length &&
+          node.data.exportFields.every((heading: string, index: number) => heading === nextExport[index]);
+
+        if (sameFields && sameExport) return node;
 
         return {
-          ...n,
+          ...node,
           data: {
-            ...n.data,
-            details: { ...n.data.details, fields: newFields },
+            ...node.data,
+            details: {
+              ...node.data.details,
+              type: node.data.details?.type ?? 'Delay',
+              description: node.data.details?.description ?? 'Pauses execution before continuing.',
+              fields: newFields,
+            },
             exportFields: nextExport,
           },
         };
       })
     );
-  }, [delayMs, id]);
+  }, [data.details?.fields, delayMs, id]);
 
-  // --- Strict numeric-only helpers ---
   const sanitizeToMs = (raw: string | number): number => {
-    if (typeof raw === 'number') return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 0;
-    // keep only digits
+    if (typeof raw === 'number') {
+      return Number.isFinite(raw) ? Math.min(MAX_DELAY_MS, Math.max(0, Math.floor(raw))) : 0;
+    }
     const digits = raw.replace(/[^\d]/g, '');
     if (!digits) return 0;
-    // Avoid leading zeros shenanigans—Number handles fine
-    const n = Number(digits);
-    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+    const value = Number(digits);
+    return Number.isFinite(value)
+      ? Math.min(MAX_DELAY_MS, Math.max(0, Math.floor(value)))
+      : 0;
   };
 
-  const handleDelayChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleDelayChange = (event: ChangeEvent<HTMLInputElement>) => {
     clearValidationForDominoId(id);
-    const value = sanitizeToMs(e.target.value);
-    setDelayMs(value);
+    setDelayMs(sanitizeToMs(event.target.value));
   };
 
-  const handleBeforeInput = (e: FormEvent<HTMLInputElement> & { data?: string }) => {
-    // Blocks insertion of anything that isn't a digit
-    const incoming = e.data ?? '';
+  const handleBeforeInput = (event: FormEvent<HTMLInputElement> & { data?: string }) => {
+    const incoming = event.data ?? '';
     if (incoming && /[^\d]/.test(incoming)) {
-      e.preventDefault();
+      event.preventDefault();
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    // Allow navigation / edit keys
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     const allowedKeys = [
-      'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End'
+      'Backspace',
+      'Delete',
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowUp',
+      'ArrowDown',
+      'Tab',
+      'Home',
+      'End',
     ];
-    if (allowedKeys.includes(e.key)) return;
-
-    // Block anything that isn't 0-9 when pressed as a key
-    if (!/^\d$/.test(e.key)) {
-      e.preventDefault();
+    if (allowedKeys.includes(event.key)) return;
+    if (!/^\d$/.test(event.key)) {
+      event.preventDefault();
     }
   };
 
-  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
-    const text = e.clipboardData.getData('text');
+  const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const text = event.clipboardData.getData('text');
     if (/[^\d]/.test(text)) {
-      e.preventDefault();
-      const cleaned = text.replace(/[^\d]/g, '');
-      // Manually update state with sanitized value appended/merged
-      // Easiest: replace fully (since input is controlled)
-      setDelayMs(sanitizeToMs(cleaned));
+      event.preventDefault();
+      setDelayMs(sanitizeToMs(text));
     }
   };
 
-  const handleWheel = (e: any) => {
-    // Prevent accidental wheel-based increment/decrement changing the value
-    (e.target as HTMLInputElement).blur();
+  const handleWheel = (event: WheelEvent<HTMLInputElement>) => {
+    event.currentTarget.blur();
   };
 
   const formatDelayDisplay = (ms: number): string => {
-    if (ms < 1000) return `${ms}ms`;
-    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-    if (ms < 3600000) return `${(ms / 60000).toFixed(1)}m`;
-    return `${(ms / 3600000).toFixed(1)}h`;
+    if (ms < 1000) return `${ms} ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)} s`;
+    if (ms < 3600000) return `${(ms / 60000).toFixed(1)} min`;
+    return `${(ms / 3600000).toFixed(1)} hr`;
   };
+
+  const delayHint =
+    delayMs === 0
+      ? 'Runs immediately without waiting'
+      : delayMs === MAX_DELAY_MS
+        ? `Capped at the maximum delay of ${formatDelayDisplay(MAX_DELAY_MS)}`
+        : `Execution resumes after ${formatDelayDisplay(delayMs)}`;
 
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm ${
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 shadow-sm backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
         hasError
           ? 'error-border'
           : selected
-            ? 'selected-border border-4'
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
             : 'unselected-border dark:border-gray-600'
-      } bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      } hover:shadow-lg`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
-      {/* Header with exec pins */}
-      <div
-        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('delay')}
-      >
-        <div className="flex items-center gap-1">
-          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-        <FiClock className="w-4 h-4" />
-          <span>Delay</span>
-        </div>
-        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
-      </div>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
 
-      {/* Delay configuration */}
-      <div className="px-3 py-2 space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
-            Delay (ms)
-          </span>
-        </div>
-        
-        <input
-          type="text"                 /* keep full control over allowed chars */
-          inputMode="numeric"         /* mobile numeric keypad */
-          pattern="\d*"               /* hint for soft keyboards */
-          value={String(delayMs)}     /* controlled as string for strict gating */
-          onChange={handleDelayChange}
-          onBeforeInput={handleBeforeInput}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          onWheel={handleWheel}
-          placeholder="Delay in milliseconds"
-          aria-label="Delay in milliseconds"
-          className="w-full px-2 py-1 text-sm border rounded
-                     bg-dominofy-light-surface dark:bg-dominofy-dark-surface
-                     text-dominofy-light-text dark:text-dominofy-dark-text
-                     border-gray-300 dark:border-gray-600"
-        />
-        
-        {/* Display formatted delay */}
-        <div className="text-xs text-gray-500 dark:text-gray-400">
-          Delay: {formatDelayDisplay(delayMs)}
+      <div className="relative rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3 pr-10">
+            <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+              style={{
+                borderColor: delayAccentColor,
+                backgroundColor: `${delayAccentColor}22`,
+              }}
+            >
+              <FiClock className="h-4 w-4" style={{ color: delayAccentColor }} />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold tracking-tight text-foreground">
+                Delay
+              </div>
+              <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                Flow Control
+              </div>
+            </div>
+          </div>
+
+          <div className="absolute inset-y-0 right-0 flex w-24 items-center justify-end pr-3">
+            <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+          </div>
         </div>
       </div>
 
+      <div className="relative space-y-4 px-4 py-4">
+        <div className="rounded-xl border border-black/5 bg-black/[0.02] p-3 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                Wait Time
+              </div>
+              <div className="mt-1 text-sm font-medium text-foreground/80 dark:text-slate-200">
+                Pause execution for {formatDelayDisplay(delayMs)}
+              </div>
+            </div>
+            <span className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white/70 px-2.5 py-1 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground/60 dark:border-white/10 dark:bg-white/10 dark:text-slate-300">
+              {formatDelayDisplay(delayMs)}
+            </span>
+          </div>
+        </div>
 
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <FiClock className="h-3.5 w-3.5" />
+              Duration
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Milliseconds
+            </span>
+          </div>
+
+          <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="\d*"
+              value={String(delayMs)}
+              onChange={handleDelayChange}
+              onBeforeInput={handleBeforeInput}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onWheel={handleWheel}
+              placeholder={`Delay in milliseconds (max ${MAX_DELAY_MS})`}
+              aria-label="Delay in milliseconds"
+              className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+            />
+          </div>
+
+          <div className="text-xs text-foreground/55 dark:text-slate-400">{delayHint}</div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <FiClock className="h-3.5 w-3.5" />
+              Output
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Execution gate
+            </span>
+          </div>
+
+          <div className="relative rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  Resumes the flow after the configured wait
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

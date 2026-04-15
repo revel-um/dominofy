@@ -1,10 +1,12 @@
 import { NodeProps } from 'reactflow';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FiClock } from 'react-icons/fi';
+import { CalendarClock, Clock3, Globe2, ShieldCheck } from 'lucide-react';
 import DominoPin from '../components/shared/dominoPin';
+import DominoDropdown from '../components/shared/dominoDropdown';
 import { PinType } from '../types/pinTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
+import dominoCatalog from './dominos';
 
 type Frequency = 'once' | 'minute' | 'hour' | 'day' | 'week' | 'month';
 
@@ -64,6 +66,11 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
   useEffect(() => {
     setRawDataRef.current = incomingSetRawData;
   }, [incomingSetRawData]);
+
+  const schedulerMeta = dominoCatalog.find((entry) => entry.id === 'SchedulerDomino');
+  const schedulerAccentColor = schedulerMeta?.badgeStyle?.background
+    ? String(schedulerMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+    : '#0ea5e9';
 
   const [schedule, setSchedule] = useState<ScheduleConfig>(() => ({
     ...DEFAULT_SCHEDULE,
@@ -385,8 +392,7 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     clearValidationForDominoId(id);
   };
 
-  const handleFrequencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newFrequency = e.target.value as Frequency;
+  const handleFrequencyChange = (newFrequency: Frequency) => {
     const updatedSchedule = {
       ...schedule,
       frequency: newFrequency,
@@ -462,116 +468,199 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
     }
   };
 
+  const showsTimeInput =
+    schedule.frequency === 'once' ||
+    schedule.frequency === 'day' ||
+    schedule.frequency === 'week' ||
+    schedule.frequency === 'month';
+
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-64 overflow-visible shadow-sm ${
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 shadow-sm backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
         hasError
           ? 'error-border'
           : selected
-            ? 'selected-border border-4'
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
             : 'unselected-border dark:border-gray-600'
-      } bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+      } hover:shadow-lg`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('SchedulerDomino')}
-      >
-        <div className="flex items-center gap-1">
-          <FiClock className="w-4 h-4 !text-white" style={{ color: '#fff' }} />
-          <span className="truncate">Scheduler</span>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+      <div className="relative rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3 pr-10">
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+              style={{
+                borderColor: schedulerAccentColor,
+                backgroundColor: `${schedulerAccentColor}22`,
+              }}
+            >
+              <FiClock className="h-4 w-4" style={{ color: schedulerAccentColor }} />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold tracking-tight text-foreground">
+                Scheduler
+              </div>
+              <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+                Trigger
+              </div>
+            </div>
+          </div>
+          <div className="absolute inset-y-0 right-0 flex w-24 items-center justify-end pr-3">
+            <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+          </div>
         </div>
-        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      {/* Form fields */}
-      <div className="space-y-3 p-3">
-        {/* Active toggle */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Active</span>
-          <label className="inline-flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={schedule.isActive}
-              onChange={handleActiveChange}
-              className="w-4 h-4"
-            />
-            <span className="text-xs text-gray-600 dark:text-gray-300">{schedule.isActive ? 'On' : 'Off'}</span>
+      <div className="relative space-y-4 px-4 py-4">
+        <div className="rounded-xl border border-black/5 bg-black/[0.02] p-3 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                Schedule Summary
+              </div>
+              <div className="mt-1 text-sm font-medium text-foreground/80 dark:text-slate-200">
+                {getScheduleDescription()}
+              </div>
+            </div>
+            <span className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white/70 px-2.5 py-1 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground/60 dark:border-white/10 dark:bg-white/10 dark:text-slate-300">
+              {schedule.isActive ? 'Active' : 'Paused'}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Trigger State
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {schedule.isActive ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+
+          <label className="flex items-center justify-between rounded-xl border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 dark:border-slate-600 dark:bg-dominofy-dark-surface">
+            <div>
+              <div className="text-sm font-medium text-foreground dark:text-slate-200">Active</div>
+              <div className="mt-0.5 text-xs text-foreground/55 dark:text-slate-400">
+                Emit scheduled runs when enabled
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-foreground/60 dark:text-slate-300">
+                {schedule.isActive ? 'On' : 'Off'}
+              </span>
+              <input
+                type="checkbox"
+                checked={schedule.isActive}
+                onChange={handleActiveChange}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600"
+              />
+            </div>
           </label>
         </div>
 
-        {/* Schedule Preview */}
-        <div className="p-2 mb-2 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded">
-          {getScheduleDescription()}
-        </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <CalendarClock className="h-3.5 w-3.5" />
+              Cadence
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {frequencyOptions.find((option) => option.value === schedule.frequency)?.label ?? 'Days'}
+            </span>
+          </div>
 
-        {/* Frequency */}
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            Frequency
-          </label>
-          <select
+          <DominoDropdown
             value={schedule.frequency}
-            onChange={handleFrequencyChange}
-            className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-          >
-            <option value="once">Once</option>
-            <option value="minute">Every X Minutes</option>
-            <option value="hour">Every X Hours</option>
-            <option value="day">Daily</option>
-            <option value="week">Weekly</option>
-            <option value="month">Monthly</option>
-          </select>
+            onChange={(nextValue) => handleFrequencyChange(nextValue as Frequency)}
+            options={[
+              { label: 'Once', value: 'once' },
+              { label: 'Every X Minutes', value: 'minute' },
+              { label: 'Every X Hours', value: 'hour' },
+              { label: 'Daily', value: 'day' },
+              { label: 'Weekly', value: 'week' },
+              { label: 'Monthly', value: 'month' },
+            ]}
+          />
         </div>
 
-        {/* Interval (for minute/hour frequencies) */}
         {(schedule.frequency === 'minute' || schedule.frequency === 'hour') && (
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-              {schedule.frequency === 'minute' ? 'Minutes' : 'Hours'} between runs
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={schedule.interval}
-              onChange={handleIntervalChange}
-              className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-            />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <Clock3 className="h-3.5 w-3.5" />
+                Interval
+              </div>
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                {schedule.frequency === 'minute' ? 'Minutes' : 'Hours'}
+              </span>
+            </div>
+
+            <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={schedule.interval}
+                onChange={handleIntervalChange}
+                className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none dark:text-dominofy-dark-text"
+              />
+            </div>
+            <div className="text-xs text-foreground/55 dark:text-slate-400">
+              {schedule.frequency === 'minute'
+                ? 'Allowed range is 1 to 59 minutes'
+                : 'Allowed range is 1 to 23 hours'}
+            </div>
           </div>
         )}
 
-        {/* Time of day (for day/week/month frequencies) */}
-        {(schedule.frequency === 'day' || schedule.frequency === 'week' || schedule.frequency === 'month') && (
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-              Time
-            </label>
-            <input
-              type="time"
-              value={schedule.time}
-              onChange={handleTimeChange}
-              className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text dark:[color-scheme:dark]"
-            />
+        {showsTimeInput && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <Clock3 className="h-3.5 w-3.5" />
+                Time
+              </div>
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                {schedule.frequency === 'once' ? 'Execution time' : 'Local schedule time'}
+              </span>
+            </div>
+            <div className="min-h-12 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+              <input
+                type="time"
+                value={schedule.time}
+                onChange={handleTimeChange}
+                className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none dark:text-dominofy-dark-text dark:[color-scheme:dark]"
+              />
+            </div>
           </div>
         )}
 
-        {/* Days of week (for weekly frequency) */}
         {schedule.frequency === 'week' && (
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-              Days
-            </label>
-            <div className="grid grid-cols-4 gap-1">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <CalendarClock className="h-3.5 w-3.5" />
+                Days
+              </div>
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                Weekly selection
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
               {dayOptions.map((day) => (
                 <button
                   key={day.value}
                   type="button"
                   onClick={() => toggleDayOfWeek(day.value)}
-                  className={`py-1 text-xs text-center rounded ${
+                  className={`rounded-lg px-2 py-2 text-xs font-medium transition ${
                     schedule.daysOfWeek.includes(day.value)
-                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
-                      : 'bg-purple-600 text-white'
+                      ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100'
+                      : 'bg-dominofy-light-surface text-foreground/70 dark:bg-dominofy-dark-surface dark:text-slate-300'
                   }`}
                 >
                   {day.label.slice(0, 3)}
@@ -581,24 +670,48 @@ export default function SchedulerDomino({ data, id, selected }: NodeProps) {
           </div>
         )}
 
-        {/* Time Zone */}
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            Time Zone
-          </label>
-          <select
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Globe2 className="h-3.5 w-3.5" />
+              Time Zone
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {schedule.timeZone}
+            </span>
+          </div>
+          <DominoDropdown
             value={schedule.timeZone}
-            onChange={(e) => handleFieldChange('timeZone', e.target.value)}
-            className="w-full px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-          >
-            <option value="UTC">UTC</option>
-            <option value={BROWSER_TIME_ZONE}>Local Time ({BROWSER_TIME_ZONE})</option>
-            <option value="Asia/Kolkata">Asia/Kolkata</option>
-            <option value="America/New_York">America/New York</option>
-            <option value="Europe/London">Europe/London</option>
-          </select>
+            onChange={(nextValue) => handleFieldChange('timeZone', nextValue)}
+            options={[
+              { label: 'UTC', value: 'UTC' },
+              { label: `Local Time (${BROWSER_TIME_ZONE})`, value: BROWSER_TIME_ZONE },
+              { label: 'Asia/Kolkata', value: 'Asia/Kolkata' },
+              { label: 'America/New York', value: 'America/New_York' },
+              { label: 'Europe/London', value: 'Europe/London' },
+            ]}
+          />
         </div>
 
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Output
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Scheduled exec
+            </span>
+          </div>
+          <div className="rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+              Output
+            </div>
+            <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+              Emits an execution signal whenever the schedule fires
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

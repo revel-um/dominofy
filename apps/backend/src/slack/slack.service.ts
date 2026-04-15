@@ -15,10 +15,6 @@ import { CreateVaultDto } from 'src/vault/vault.dto';
 import { UserService } from 'src/user/user.service';
 import { Inject, forwardRef } from '@nestjs/common';
 import { WorkflowService } from 'src/workflow/workflow.service';
-import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
-import { PipelineStep } from '../types/pipelineStepType';
-import { v4 as uuidv4 } from 'uuid';
-import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
 import { ConflictException } from '@nestjs/common';
 import { Raw } from 'typeorm';
 
@@ -39,7 +35,6 @@ export class SlackService {
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     @Inject(forwardRef(() => WorkflowService)) private readonly workflowService: WorkflowService,
-    @Inject(forwardRef(() => RunnerLauncherService)) private readonly runnerLauncherService: RunnerLauncherService
   ) { }
 
   /** Singleton accessor for non-DI consumers (e.g., domino classes) */
@@ -273,19 +268,8 @@ export class SlackService {
 
     const workflows = await this.workflowService.findWorkflowsBySlackTrigger(teamId, channelId);
 
-    workflows.forEach((workflow) => {
-      const { nodes, edges } = workflow.visualJson;
-      const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
-
-      const runId = uuidv4();
-      const runner = this.runnerLauncherService.createRunner(
-        workflow.id,
-        runId,
-        pipeline,
-        20,
-        workflow.visualJson
-      );
-      return runner.run(runId, body.event, { workflowId: workflow.id });
+    workflows.forEach((target) => {
+      return this.workflowService.executeDeployedWorkflowTarget(target, body.event);
     });
   }
 

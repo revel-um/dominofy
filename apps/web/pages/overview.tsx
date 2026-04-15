@@ -18,7 +18,7 @@ import { ProjectsApi } from "../apis/projects.apis";
 import { WorkspaceApi, WorkspaceListItem } from "../apis/workspace.apis";
 import { WorkflowsApi } from "../apis/workflow.apis";
 import { TokenManager } from "../utils/auth";
-import { getActiveWorkspaceIdFromStorage } from "../utils/workspace";
+import { getActiveWorkspaceIdFromStorage, setActiveWorkspaceIdInStorage } from "../utils/workspace";
 import {
   OverviewDirectoryTable,
   OverviewProject,
@@ -28,6 +28,7 @@ import {
   OverviewWorkspace,
   OverviewWorkflowVisualJson,
 } from "../components/overviewDirectoryTable";
+import SelectedWorkspacePanel from "../components/selectedWorkspacePanel";
 
 interface ProjectApiItem {
     id: string;
@@ -100,6 +101,8 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
   const [workspaceInventory, setWorkspaceInventory] = useState<WorkspaceListItem[]>([]);
   const [workspaceInventoryLoading, setWorkspaceInventoryLoading] = useState(true);
   const [workspaceListMode, setWorkspaceListMode] = useState<"owned" | "member">("owned");
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const itemsPerPage = 6;
   const previewItemsCount = 4;
   const workspaceItemsPerPage = 6;
@@ -307,6 +310,9 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
   );
 
   const filteredWorkflows = sortData(workflows);
+  const activeWorkspaceId =
+    (typeof router.query.workspaceId === 'string' ? router.query.workspaceId : null) ||
+    getActiveWorkspaceIdFromStorage();
   const normalizeWorkspaceItem = (workspace: WorkspaceListItem): OverviewWorkspace => ({
     id: workspace.id,
     name: workspace.name,
@@ -320,6 +326,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
     createdByName: workspace.createdByName,
     createdByEmail: workspace.createdByEmail,
     isOwnedByUser: workspace.isOwnedByUser,
+    isCurrentWorkspace: workspace.id === activeWorkspaceId,
   });
   const filteredOwnedWorkspaces: OverviewWorkspace[] = workspaceInventory
     .filter((workspace) => workspace.isOwnedByUser)
@@ -327,9 +334,6 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
   const filteredInvitedWorkspaces: OverviewWorkspace[] = workspaceInventory
     .filter((workspace) => !workspace.isOwnedByUser)
     .map(normalizeWorkspaceItem);
-  const activeWorkspaceId =
-    (typeof router.query.workspaceId === 'string' ? router.query.workspaceId : null) ||
-    getActiveWorkspaceIdFromStorage();
   const filteredWorkspaceInventory = sortData(
     workspaceListMode === 'owned' ? filteredOwnedWorkspaces : filteredInvitedWorkspaces
   );
@@ -392,6 +396,13 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
   const workspaceStatusLabel = workspaceInventoryLoading
     ? 'Loading workspaces...'
     : `${workspaceVisibleCount} visible on page ${currentPage} of ${workspaceTotalPages}`;
+  const selectedWorkspace = workspaceInventory.find((workspace) => workspace.id === selectedWorkspaceId) ?? null;
+  const handleSwitchWorkspace = (workspaceId: string) => {
+    setActiveWorkspaceIdInStorage(workspaceId);
+    setSelectedWorkspaceId(workspaceId);
+    setIsWorkspaceModalOpen(false);
+    router.push(`/dashboard?workspaceId=${workspaceId}`);
+  };
 
   return (
     <div className="relative flex h-screen max-h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.16),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_48%,_#ffffff_100%)] px-4 py-4 text-slate-900 dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.14),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#0f172a_52%,_#111827_100%)] sm:px-5 sm:py-5">
@@ -552,7 +563,10 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
             onSort={handleSort}
             onOpenProject={openProjectEntryWorkflow}
             onOpenWorkflow={openWorkflowEntry}
-            onOpenWorkspace={(workspace) => router.push(`/workspaces?workspaceId=${workspace.id}`)}
+            onOpenWorkspace={(workspace) => {
+              setSelectedWorkspaceId(workspace.id);
+              setIsWorkspaceModalOpen(true);
+            }}
             statusLabel={workspaceStatusLabel}
             title="Browse and sort your workspace inventory"
             subtitle="workspace directory"
@@ -698,6 +712,80 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
                       onPageChange={setCurrentPage}
                       startIndex={startIdx}
                     />
+                  </div>
+                </DialogPanel>
+              </TransitionChild>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
+      <Transition show={isWorkspaceModalOpen} as={Fragment}>
+        <Dialog
+          as="div"
+          className="relative z-50"
+          onClose={() => setIsWorkspaceModalOpen(false)}
+        >
+          <TransitionChild
+            as={Fragment}
+            enter="ease-out duration-150"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-100"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_28%),rgba(15,23,42,0.42)] backdrop-blur-sm dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_24%),rgba(2,6,23,0.72)]" />
+          </TransitionChild>
+
+          <div className="fixed inset-0 p-4 sm:p-6">
+            <div className="flex h-full items-center justify-center">
+              <TransitionChild
+                as={Fragment}
+                enter="ease-out duration-150"
+                enterFrom="opacity-0 translate-y-2 scale-95"
+                enterTo="opacity-100 translate-y-0 scale-100"
+                leave="ease-in duration-100"
+                leaveFrom="opacity-100 translate-y-0 scale-100"
+                leaveTo="opacity-0 translate-y-2 scale-95"
+              >
+                <DialogPanel className="flex h-[min(88vh,920px)] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-slate-200/80 bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(248,250,252,0.94)_100%)] shadow-[0_30px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-[linear-gradient(180deg,_rgba(15,23,42,0.94)_0%,_rgba(2,6,23,0.94)_100%)]">
+                  <div className="border-b border-slate-200/70 bg-slate-50/70 px-6 py-5 dark:border-white/10 dark:bg-white/[0.03]">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <DialogTitle className="text-xl font-semibold text-slate-950 dark:text-white">
+                          Selected Workspace
+                        </DialogTitle>
+                        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                          Review members, invite collaborators, and switch the active workspace from the same controls used in workspace management.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsWorkspaceModalOpen(false)}
+                        className="inline-flex min-h-[40px] items-center justify-center rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="min-h-0 flex-1 bg-white/60 p-5 dark:bg-transparent">
+                    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70">
+                      <SelectedWorkspacePanel
+                        selectedWorkspace={selectedWorkspace}
+                        currentWorkspaceId={activeWorkspaceId}
+                        onSwitchWorkspace={handleSwitchWorkspace}
+                        onWorkspaceUpdated={async () => {
+                          const token = await TokenManager.getValidAccessToken();
+                          if (!token) return;
+                          const response = await WorkspaceApi.listWorkspaces(token, router, searchQuery || undefined);
+                          if (!response?.ok) return;
+                          const data = await response.json() as WorkspaceListItem[];
+                          setWorkspaceInventory(data);
+                        }}
+                      />
+                    </div>
                   </div>
                 </DialogPanel>
               </TransitionChild>

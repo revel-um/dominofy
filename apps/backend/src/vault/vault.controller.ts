@@ -40,6 +40,7 @@ export class VaultController extends BaseController<
     const oauthInstallPaths: Partial<Record<VaultType, string>> = {
       [VaultType.EMAIL]: '/email/google/install-url',
       [VaultType.GOOGLE_DRIVE]: '/drive/google/install-url',
+      [VaultType.GOOGLE_CALENDAR]: '/calendar/google/install-url',
       [VaultType.SLACK]: '/slack/install-url',
     };
 

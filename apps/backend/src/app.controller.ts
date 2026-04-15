@@ -7,9 +7,19 @@ export class AppController {
   constructor(private readonly appService: AppService) { }
 
   @Sse('event/:id')
-  dominofyEvent(@Param('id') id: string, @Req() req: Request) {
+  dominofyEvent(@Param('id') id: string, @Req() req: Request, @Query('runToken') runToken?: string) {
     const userId = (req as any).user.id;
-    return this.appService.dominofyEvent(id, userId);
+    return this.appService.dominofyEvent(id, userId, runToken);
+  }
+
+  @Post('run/:id')
+  createRunSession(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body('mockInput') mockInput?: Record<string, any>,
+  ) {
+    const userId = (req as any).user.id;
+    return this.appService.createRunSession(id, userId, mockInput ?? {});
   }
 
   @Post()

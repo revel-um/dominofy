@@ -1,20 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NodeProps } from 'reactflow';
 import { useRouter, NextRouter } from 'next/router';
+import { Inbox, MailCheck, MailPlus, ShieldCheck, UserRoundSearch } from 'lucide-react';
 
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
 import { DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import SearchableSelect from '@/components/searchableDropdown';
 import { EmailApi, EmailConnection } from '@/apis/email.apis';
+import dominoCatalog from './dominos';
 
 interface EmailTriggerData extends DominoNodeData {
   vaultId?: string;
   inboxAddress?: string;
   senderAddress?: string;
 }
+
+const emailTriggerMeta = dominoCatalog.find((entry) => entry.id === 'emailtrigger');
+const emailTriggerAccentColor = emailTriggerMeta?.badgeStyle?.background
+  ? String(emailTriggerMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+  : '#38bdf8';
 
 export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
   const { erroredNodes, clearValidationForDominoId } = useDomino();
@@ -40,11 +46,10 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
   const [loadingConns, setLoadingConns] = useState(true);
   const safeConnections = Array.isArray(connections) ? connections : [];
   const selectedConn = useMemo(
-    () => safeConnections.find(c => c.id === vaultId),
-    [safeConnections, vaultId],
+    () => safeConnections.find((connection) => connection.id === vaultId),
+    [safeConnections, vaultId]
   );
 
-  /* Initialise node schema on first mount */
   useEffect(() => {
     if (!data.setNodes) return;
     if (
@@ -60,12 +65,12 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
       };
 
       data.setNodes((nodes: any[]) =>
-        nodes.map((n: { id: string; data: any }) =>
-          n.id === id
+        nodes.map((node: { id: string; data: any }) =>
+          node.id === id
             ? {
-                ...n,
+                ...node,
                 data: {
-                  ...n.data,
+                  ...node.data,
                   details: init,
                   exportFields: [],
                   vaultId: '',
@@ -73,32 +78,35 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
                   senderAddress: '',
                 },
               }
-            : n,
-        ),
+            : node
+        )
       );
     }
   }, [data, id]);
 
-  /* Load Gmail connections */
   useEffect(() => {
     if (isPreviewMode) {
       setLoadingConns(false);
       setConnections([]);
       return;
     }
+
     let mounted = true;
     (async () => {
       setLoadingConns(true);
       try {
         const list = await EmailApi.getConnections(token, router);
         if (mounted) setConnections(Array.isArray(list) ? list : []);
-      } catch (err) {
-        console.error('Error fetching email connections', err);
+      } catch (error) {
+        console.error('Error fetching email connections', error);
       } finally {
         if (mounted) setLoadingConns(false);
       }
     })();
-    return () => void (mounted = false);
+
+    return () => {
+      mounted = false;
+    };
   }, [isPreviewMode, token, router]);
 
   const startOAuth = async () => {
@@ -109,11 +117,11 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
   const updateVaultId = (newVaultId: string) => {
     clearValidationForDominoId?.(id);
     data.setNodes?.((nodes: any[]) =>
-      nodes.map((n: { id: string; data: any }) =>
-        n.id === id
-          ? { ...n, data: { ...n.data, vaultId: newVaultId } }
-          : n,
-      ),
+      nodes.map((node: { id: string; data: any }) =>
+        node.id === id
+          ? { ...node, data: { ...node.data, vaultId: newVaultId } }
+          : node
+      )
     );
   };
 
@@ -121,11 +129,11 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
     clearValidationForDominoId?.(id);
     const cleaned = addr.trim().toLowerCase();
     data.setNodes?.((nodes: any[]) =>
-      nodes.map((n: { id: string; data: any }) =>
-        n.id === id
-          ? { ...n, data: { ...n.data, inboxAddress: cleaned } }
-          : n,
-      ),
+      nodes.map((node: { id: string; data: any }) =>
+        node.id === id
+          ? { ...node, data: { ...node.data, inboxAddress: cleaned } }
+          : node
+      )
     );
   };
 
@@ -133,109 +141,201 @@ export default function EmailTriggerDomino({ data, id, selected }: NodeProps) {
     clearValidationForDominoId?.(id);
     const cleaned = addr.trim().toLowerCase();
     data.setNodes?.((nodes: any[]) =>
-      nodes.map((n: { id: string; data: any }) =>
-        n.id === id
-          ? { ...n, data: { ...n.data, senderAddress: cleaned } }
-          : n,
-      ),
+      nodes.map((node: { id: string; data: any }) =>
+        node.id === id
+          ? { ...node, data: { ...node.data, senderAddress: cleaned } }
+          : node
+      )
     );
   };
 
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
-        ${hasError
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 shadow-sm backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
+        hasError
           ? 'error-border'
           : selected
-            ? 'selected-border'
-            : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{ minWidth: '13rem' }}
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+            : 'unselected-border dark:border-gray-600'
+      } hover:shadow-lg`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
-      {/* header */}
-      <div
-        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('emailtrigger')}
-      >
-        <span>Email Trigger</span>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+      <div className="relative flex items-start justify-between gap-3 rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
+        <div className="flex min-w-0 items-center gap-3 pr-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+            style={{
+              borderColor: emailTriggerAccentColor,
+              backgroundColor: `${emailTriggerAccentColor}22`,
+            }}
+          >
+            <MailCheck className="h-4 w-4" style={{ color: emailTriggerAccentColor }} />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold tracking-tight text-foreground">
+              Email Trigger
+            </div>
+            <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+              Gmail Listener
+            </div>
+          </div>
+        </div>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      <div className="flex flex-col gap-3 py-2 text-dominofy-light-text dark:text-dominofy-dark-text">
-        {/* Connect Gmail */}
-        <div className="px-3">
+      <div className="relative space-y-4 px-4 py-4">
+        <div className="rounded-xl border border-black/5 bg-black/[0.02] p-3 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                Status
+              </div>
+              <div className="mt-1 text-sm font-medium text-foreground/80 dark:text-slate-200">
+                {loadingConns
+                  ? 'Loading Gmail connections'
+                  : selectedConn
+                    ? `Watching ${selectedConn.email || selectedConn.name}`
+                    : 'Connect Gmail to activate this trigger'}
+              </div>
+            </div>
+            <span className="rounded-full border border-black/10 bg-white/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground/60 dark:border-white/10 dark:bg-white/10 dark:text-slate-300">
+              {selectedConn ? 'Active config' : 'Setup needed'}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <MailPlus className="h-3.5 w-3.5" />
+              Connection
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {safeConnections.length} account{safeConnections.length === 1 ? '' : 's'}
+            </span>
+          </div>
+
           <button
             type="button"
-            className="w-full px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
+            className="w-full rounded-lg border border-sky-500/30 bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={startOAuth}
+            disabled={loadingConns}
           >
             {safeConnections.length === 0 ? 'Connect Gmail' : 'Add Gmail connection'}
           </button>
+
+          {loadingConns ? (
+            <div className="rounded-lg border border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm text-foreground/70 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:text-slate-300">
+              Loading Gmail connections...
+            </div>
+          ) : safeConnections.length > 0 ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                  <MailCheck className="h-3.5 w-3.5" />
+                  Gmail Account
+                </div>
+              </div>
+              <SearchableSelect
+                value={vaultId}
+                onChange={updateVaultId}
+                placeholder="Select account"
+                options={safeConnections.map((connection) => ({
+                  label: connection.email || connection.name,
+                  value: connection.id,
+                }))}
+              />
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-300/80 bg-dominofy-light-surface px-4 py-3 text-sm text-foreground/65 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:text-slate-400">
+              No Gmail connections found yet. Connect an inbox to start listening for mail.
+            </div>
+          )}
         </div>
 
-        {/* Connection selection */}
-        {loadingConns ? (
-          <p className="text-sm px-3">Loading Gmail connections…</p>
-        ) : safeConnections.length > 0 ? (
-          <div className="flex flex-col gap-1 px-3">
-            <label className="text-xs font-medium">Gmail Account</label>
-            <SearchableSelect
-              value={vaultId}
-              onChange={updateVaultId}
-              placeholder="Select account"
-              options={safeConnections.map(c => ({
-                label: c.email || c.name,
-                value: c.id,
-              }))}
-            />
-          </div>
-        ) : (
-          <p className="text-sm px-3 text-gray-600">
-            Connect Gmail to start listening for emails.
-          </p>
-        )}
-
-        {/* Inbox filter */}
         {vaultId && (
-          <div className="flex flex-col gap-1 px-3">
-            <label className="text-xs font-medium">Inbox Address (optional filter)</label>
-            <input
-              type="text"
-              placeholder={selectedConn?.email || 'you@gmail.com'}
-              value={inboxAddress}
-              onChange={e => updateInbox(e.target.value)}
-              className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-            />
-            <p className="text-[11px] text-gray-500">
-              Leave blank to trigger on any email for this Gmail connection.
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <Inbox className="h-3.5 w-3.5" />
+                Inbox Filter
+              </div>
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                Optional
+              </span>
+            </div>
+
+            <div className="min-h-11 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+              <input
+                type="text"
+                placeholder={selectedConn?.email || 'you@gmail.com'}
+                value={inboxAddress}
+                onChange={(event) => updateInbox(event.target.value)}
+                className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+              />
+            </div>
+
+            <p className="text-[11px] leading-relaxed text-foreground/55 dark:text-slate-400">
+              Leave blank to trigger on any email received by the selected Gmail account.
             </p>
           </div>
         )}
 
         {vaultId && (
-          <div className="flex flex-col gap-1 px-3">
-            <label className="text-xs font-medium">Sender Address (optional filter)</label>
-            <input
-              type="text"
-              placeholder="sender@example.com"
-              value={senderAddress}
-              onChange={e => updateSender(e.target.value)}
-              className="px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-            />
-            <p className="text-[11px] text-gray-500">
-              Leave blank to allow any sender.
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+                <UserRoundSearch className="h-3.5 w-3.5" />
+                Sender Filter
+              </div>
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+                Optional
+              </span>
+            </div>
+
+            <div className="min-h-11 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+              <input
+                type="text"
+                placeholder="sender@example.com"
+                value={senderAddress}
+                onChange={(event) => updateSender(event.target.value)}
+                className="nodrag h-full min-h-11 w-full rounded-lg bg-transparent px-4 py-2.5 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
+              />
+            </div>
+
+            <p className="text-[11px] leading-relaxed text-foreground/55 dark:text-slate-400">
+              Leave blank to allow messages from any sender. Use a full email address for a strict match.
             </p>
           </div>
         )}
 
-        <div className="px-3 flex items-center justify-between relative">
-          <div></div>
-          <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">
-            Output
-          </span>
-          <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
-        </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Trigger Output
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Email payload
+            </span>
+          </div>
 
+          <div className="relative rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  Incoming email details
+                </div>
+              </div>
+            </div>
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline offset={-17} />
+          </div>
+        </div>
       </div>
     </div>
   );

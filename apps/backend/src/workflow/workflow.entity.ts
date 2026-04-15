@@ -10,6 +10,8 @@ import { BaseEntity } from 'src/common/base.entity';
 import { Project } from 'src/projects/projects.entity';
 import { User } from 'src/user/user.entity';
 import { WorkflowLog } from 'src/workflow-logger/workflow-logger.entity';
+import { DeployedWorkflow } from './deployed-workflow.entity';
+import { DeployedExecutionMetric } from './deployed-execution-metric.entity';
 
 /* ----------------------------------------------- */
 /* b-tree indexes that TypeORM can declare itself  */
@@ -36,12 +38,27 @@ export class Workflow extends BaseEntity {
   @OneToMany(() => WorkflowLog, (log) => log.workflow)
   logs: WorkflowLog[];
 
+  @OneToMany(() => DeployedWorkflow, (deployment) => deployment.workflow)
+  deployments: DeployedWorkflow[];
+
+  @OneToMany(() => DeployedExecutionMetric, (metric) => metric.workflow)
+  executionMetrics: DeployedExecutionMetric[];
+
   /**
    * JSONB column that stores the visual graph.
    * A GIN index for SlackTrigger look-ups is added in a migration.
    */
   @Column({ type: 'jsonb', default: { nodes: [], edges: [] } })
   visualJson: { nodes: any[]; edges: any[] };
+
+  @Column({ type: 'jsonb', default: [] })
+  comments: {
+    id: string;
+    text: string;
+    x: number;
+    y: number;
+    createdAt: string;
+  }[];
 
   @Column({ default: false })
   isPublished: boolean;

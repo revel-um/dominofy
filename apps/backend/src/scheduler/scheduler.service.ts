@@ -4,13 +4,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Queue, Worker, Job } from 'bullmq';
 import { Socket } from 'net';
 import { Repository } from 'typeorm';
+import { DateTime } from 'luxon';
 import { Schedule } from './scheduler.entity';
 import { Workflow } from 'src/workflow/workflow.entity';
-import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
-import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
-import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
-import { PipelineStep } from '../../../../shared/types/pipelineStepType';
-import { v4 as uuidv4 } from 'uuid';
+import { DeployedWorkflow } from 'src/workflow/deployed-workflow.entity';
+import { WorkflowService } from 'src/workflow/workflow.service';
 
 interface SchedulerNodeConfig {
   nodeId: string;
@@ -34,9 +32,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
+    @InjectRepository(DeployedWorkflow)
+    private readonly deployedWorkflowRepository: Repository<DeployedWorkflow>,
     private readonly config: ConfigService,
-    private readonly runnerLauncher: RunnerLauncherService,
-    private readonly workflowLogger: WorkflowLoggerService,
+    private readonly workflowService: WorkflowService,
   ) {}
 
   /* ───────────────────────── lifecycle ───────────────────────── */
@@ -104,14 +103,20 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       const matching = existing.find((s) => s.nodeId === def.nodeId);
 
       if (matching) {
+        const previousRawConfig = matching.rawConfig ?? {};
+        const preserveCompletedOnce =
+          previousRawConfig?.frequency === 'once' &&
+          matching.lastRunAt &&
+          !this.hasOnceScheduleChanged(previousRawConfig, def.rawConfig);
+
         matching.cronExpression = def.cronExpression;
         matching.timezone = def.timezone;
-        matching.enabled = def.enabled;
+        matching.enabled = preserveCompletedOnce ? false : def.enabled;
         matching.rawConfig = def.rawConfig;
         matching.workflowId = workflow.id;
         matching.workflow = workflow;
         await this.scheduleRepository.save(matching);
-        await this.registerRepeatable(matching);
+        await this.registerSchedule(matching);
       } else {
         const created = this.scheduleRepository.create({
           workflowId: workflow.id,
@@ -123,7 +128,7 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
           rawConfig: def.rawConfig,
         });
         const saved = await this.scheduleRepository.save(created);
-        await this.registerRepeatable(saved);
+        await this.registerSchedule(saved);
       }
     }
 
@@ -132,9 +137,10 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     for (const schedule of toDisable) {
       if (schedule.enabled) {
         schedule.enabled = false;
+        schedule.nextRunAt = null;
         await this.scheduleRepository.save(schedule);
       }
-      await this.removeRepeatable(schedule);
+      await this.removeScheduledJob(schedule);
     }
   }
 
@@ -159,23 +165,42 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    const deployedWorkflow = await this.deployedWorkflowRepository.findOne({
+      where: {
+        workflow: { id: workflowId },
+        isDeployed: true,
+        isActive: true,
+      },
+      order: {
+        version: 'DESC',
+        createdAt: 'DESC',
+      },
+    });
+    if (!deployedWorkflow) {
+      this.logger.warn(`Skipping schedule ${scheduleId} because workflow ${workflowId} has no deployed snapshot`);
+      return;
+    }
+
     schedule.lastRunAt = new Date();
     await this.scheduleRepository.save(schedule);
 
-    const { nodes = [], edges = [] } = (workflow.visualJson as any) ?? {};
-    const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
-
-    const runId = uuidv4();
-    const runner = this.runnerLauncher.createRunner(
-      workflow.id,
-      runId,
-      pipeline,
-      20,
-      workflow.visualJson
+    await this.workflowService.executeDeployedWorkflowTarget(
+      {
+        workflow,
+        workflowId: workflow.id,
+        visualJson: deployedWorkflow.visualJson,
+        source: 'deployed',
+        deployedWorkflowId: deployedWorkflow.id,
+      },
+      {},
     );
 
-    await runner.run(runId, {}, { workflowId: workflow.id });
-    await this.workflowLogger.flushNow();
+    if (this.isOnceSchedule(schedule)) {
+      schedule.enabled = false;
+      schedule.nextRunAt = null;
+      await this.scheduleRepository.save(schedule);
+      await this.removeScheduledJob(schedule);
+    }
   }
 
   /* ───────────────────────── helpers ───────────────────────── */
@@ -235,15 +260,15 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildJobId(schedule: Schedule) {
-    return `schedule:${schedule.id}`;
+    return `schedule-${schedule.id}`;
   }
 
   private async restoreSchedulesFromDatabase() {
     const activeSchedules = await this.scheduleRepository.find({
       where: { enabled: true, isActive: true },
     });
-    await Promise.all(activeSchedules.map((s) => this.registerRepeatable(s)));
-    this.logger.log(`Scheduler restored ${activeSchedules.length} repeatable jobs from DB`);
+    await Promise.all(activeSchedules.map((s) => this.registerSchedule(s)));
+    this.logger.log(`Scheduler restored ${activeSchedules.length} jobs from DB`);
   }
 
   /**
@@ -262,11 +287,26 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async registerSchedule(schedule: Schedule) {
+    if (this.isOnceSchedule(schedule)) {
+      await this.registerOneTime(schedule);
+      return;
+    }
+
+    await this.registerRepeatable(schedule);
+  }
+
   private async registerRepeatable(schedule: Schedule) {
     if (!this.queue) return;
     if (!schedule.enabled || !schedule.isActive) {
-      await this.removeRepeatable(schedule);
+      await this.removeScheduledJob(schedule);
       return;
+    }
+
+    await this.removeOneTimeJob(schedule);
+    if (schedule.nextRunAt) {
+      schedule.nextRunAt = null;
+      await this.scheduleRepository.save(schedule);
     }
 
     try {
@@ -291,6 +331,47 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private async registerOneTime(schedule: Schedule) {
+    if (!this.queue) return;
+    if (!schedule.enabled || !schedule.isActive) {
+      await this.removeScheduledJob(schedule);
+      return;
+    }
+
+    await this.removeRepeatable(schedule);
+    await this.removeOneTimeJob(schedule);
+
+    const nextRunAt = this.computeNextOneTimeRunAt(schedule);
+    if (!nextRunAt) {
+      this.logger.warn(`Skipping one-time scheduler ${schedule.id} due to invalid time configuration`);
+      schedule.nextRunAt = null;
+      schedule.enabled = false;
+      await this.scheduleRepository.save(schedule);
+      return;
+    }
+
+    schedule.nextRunAt = nextRunAt;
+    await this.scheduleRepository.save(schedule);
+
+    const delay = Math.max(0, nextRunAt.getTime() - Date.now());
+
+    await this.queue.add(
+      this.jobName,
+      { scheduleId: schedule.id, workflowId: schedule.workflowId },
+      {
+        jobId: this.buildJobId(schedule),
+        delay,
+        removeOnComplete: 500,
+        removeOnFail: 500,
+      }
+    );
+  }
+
+  private async removeScheduledJob(schedule: Schedule) {
+    await this.removeRepeatable(schedule);
+    await this.removeOneTimeJob(schedule);
+  }
+
   private async removeRepeatable(schedule: Schedule) {
     if (!this.queue) return;
     try {
@@ -301,6 +382,19 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       });
     } catch (err) {
       // swallow - job may not exist yet
+    }
+  }
+
+  private async removeOneTimeJob(schedule: Schedule) {
+    if (!this.queue) return;
+
+    const existingJob = await this.queue.getJob(this.buildJobId(schedule));
+    if (!existingJob) return;
+
+    try {
+      await existingJob.remove();
+    } catch (err) {
+      // swallow - job may already be gone
     }
   }
 
@@ -408,5 +502,50 @@ export class SchedulerService implements OnModuleInit, OnModuleDestroy {
       default:
         return null;
     }
+  }
+
+  private isOnceSchedule(schedule: Schedule) {
+    return schedule.rawConfig?.frequency === 'once';
+  }
+
+  private hasOnceScheduleChanged(
+    previousRawConfig: Record<string, any>,
+    nextRawConfig: Record<string, any>,
+  ) {
+    return (
+      previousRawConfig?.time !== nextRawConfig?.time ||
+      previousRawConfig?.timezone !== nextRawConfig?.timezone ||
+      previousRawConfig?.enabled !== nextRawConfig?.enabled
+    );
+  }
+
+  private computeNextOneTimeRunAt(schedule: Schedule): Date | null {
+    const timezone = schedule.timezone || 'UTC';
+    const time = String(schedule.rawConfig?.time ?? '09:00');
+    const [hourStr, minuteStr] = time.split(':');
+    const hour = parseInt(hourStr ?? '', 10);
+    const minute = parseInt(minuteStr ?? '', 10);
+
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+      return null;
+    }
+
+    const now = DateTime.now().setZone(timezone);
+    if (!now.isValid) {
+      return null;
+    }
+
+    let next = now.set({
+      hour: Math.min(23, Math.max(0, hour)),
+      minute: Math.min(59, Math.max(0, minute)),
+      second: 0,
+      millisecond: 0,
+    });
+
+    if (next <= now) {
+      next = next.plus({ days: 1 });
+    }
+
+    return next.toUTC().toJSDate();
   }
 }

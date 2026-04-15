@@ -10,6 +10,12 @@ import {
 interface DashboardInsightsProps {
   projectCount: number;
   workflowCount: number;
+  deployedCount: number;
+  totalExecutions: number;
+  recentExecutions: number;
+  failedExecutions: number;
+  runningExecutions: number;
+  successRate: number;
 }
 
 function StatCard({
@@ -43,12 +49,15 @@ function StatCard({
 export function DashboardInsightsPanel({
   projectCount,
   workflowCount,
+  deployedCount,
+  totalExecutions,
+  recentExecutions,
+  failedExecutions,
+  runningExecutions,
+  successRate,
 }: DashboardInsightsProps) {
-  const completionRate = workflowCount > 0
-    ? `${Math.min(100, 72 + Math.round((projectCount / Math.max(workflowCount, 1)) * 18))}%`
-    : "72%";
-  const scheduledCount = Math.max(1, Math.ceil(workflowCount * 0.18));
-  const deployedCount = Math.max(0, Math.floor(workflowCount * 0.12));
+  const successRateLabel = `${Math.max(0, Math.min(100, Math.round(successRate)))}%`;
+  const remainingDeployments = Math.max(0, workflowCount - deployedCount);
 
   return (
     <div className="w-full">
@@ -82,8 +91,8 @@ export function DashboardInsightsPanel({
         <div className="grid grid-cols-2 gap-3">
           <StatCard
             icon={<FiCalendar className="h-5 w-5 text-emerald-700 dark:text-emerald-200" />}
-            label="Scheduled"
-            value={scheduledCount}
+            label="Executions"
+            value={totalExecutions}
             accentClassName="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100"
           />
           <StatCard
@@ -97,20 +106,20 @@ export function DashboardInsightsPanel({
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
-                Completion rhythm
+                Execution success
               </p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{completionRate}</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{successRateLabel}</p>
             </div>
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white dark:bg-white dark:text-slate-950">
               <FiActivity className="h-5 w-5" />
             </div>
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-            <div className="h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500" style={{ width: completionRate }} />
+            <div className="h-full rounded-full bg-gradient-to-r from-sky-500 via-cyan-500 to-emerald-500" style={{ width: successRateLabel }} />
           </div>
           <div className="mt-3 flex items-center justify-between text-sm text-slate-600 dark:text-slate-300">
-            <span>Healthy delivery pace</span>
-            <span>{Math.max(0, workflowCount - deployedCount)} remaining</span>
+            <span>{recentExecutions} recent run{recentExecutions === 1 ? "" : "s"}, {runningExecutions} running</span>
+            <span>{failedExecutions} failed, {remainingDeployments} not deployed</span>
           </div>
         </div>
       </div>

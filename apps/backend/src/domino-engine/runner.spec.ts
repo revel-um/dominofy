@@ -73,6 +73,46 @@ describe("Runner branch pruning", () => {
     ]);
   });
 
+  it("iterates numeric input from zero to input minus one", async () => {
+    const pipeline: PipelineStep[] = [
+      {
+        id: "iterator-1",
+        type: "iterator",
+        data: {
+          Input: { value: 4 },
+          Order: { value: "forward" },
+          "Range Start": { value: "0" },
+          "Range End": { value: "0" },
+          Max: { value: true },
+        },
+        next: { exec_out: ["aggregator-1"], exec_out_1: [] },
+      },
+      {
+        id: "aggregator-1",
+        type: "aggregator",
+        data: {
+          Operation: { value: "array" },
+          "Initial Value": { value: "" },
+          Input: { connectedValue: "iterator-1" },
+        },
+        next: {},
+      },
+    ];
+
+    const visualJson = {
+      nodes: pipeline.map(({ id }) => ({ id })),
+      edges: [
+        { id: "e1", source: "iterator-1", target: "aggregator-1", sourceHandle: "exec_out", targetHandle: "exec_in" },
+      ],
+    };
+
+    const runner = new Runner(pipeline, 20, visualJson);
+    const results = await runner.run("iterator-number-input-test");
+
+    expect(results).toBeDefined();
+    expect(results!["aggregator-1"]).toEqual([0, 1, 2, 3]);
+  });
+
   it("returns the connected value through a response domino", async () => {
     const pipeline: PipelineStep[] = [
       {

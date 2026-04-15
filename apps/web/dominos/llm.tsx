@@ -1,124 +1,123 @@
 import { NodeProps, useEdges } from 'reactflow';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { BrainCircuit, Sparkles } from 'lucide-react';
+
 import DominoPin from '../components/shared/dominoPin';
 import { PinType } from '../types/pinTypes';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
+import dominoCatalog from './dominos';
 
-type LLMField = {
-  type: string;
-  heading: string;
-  placeholder?: string;
-  value?: unknown;
-  required?: boolean;
-  inPinId?: string;
-};
-
-type LLMNode = {
+type LLMNodeRecord = {
   id: string;
   data: {
-    details?: {
-      description?: string;
-      fields?: LLMField[];
-    };
+    details?: DominoNodeData;
     exportFields?: string[];
-    [key: string]: unknown;
+    setFieldValue?: (heading: string, newValue: unknown) => void;
+    setNodes?: (
+      updater: (nodes: LLMNodeRecord[]) => LLMNodeRecord[]
+    ) => void;
   };
 };
 
+const llmMeta = dominoCatalog.find((entry) => entry.id === 'llm');
+const llmAccentColor = llmMeta?.badgeStyle?.background
+  ? String(llmMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+  : undefined;
+
 export default function LLMDomino({ data, id, selected }: NodeProps) {
-  const MIN_PROMPT_HEIGHT = 80;
-  const MAX_PROMPT_HEIGHT = 160;
+  const MIN_PROMPT_HEIGHT = 112;
+  const MAX_PROMPT_HEIGHT = 192;
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
   const edges = useEdges();
-  const isPromptConnected = edges.some(
-    (edge) => edge?.target === id && edge?.targetHandle === 'value_in'
-  );
-  const setNodesRef = useRef(data.setNodes);
-  const setFieldValueRef = useRef(data.setFieldValue);
+  const bootstrappedRef = useRef(false);
   const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  useEffect(() => {
-    setNodesRef.current = data.setNodes;
-  }, [data.setNodes]);
-  useEffect(() => {
-    setFieldValueRef.current = data.setFieldValue;
-  }, [data.setFieldValue]);
 
-  const [prompt, setPrompt] = useState("");
+  const getField = useCallback(
+    (heading: string) =>
+      (data.details as DominoNodeData | undefined)?.fields?.find(
+        (field) => field.heading === heading
+      ),
+    [data.details]
+  );
 
-  const syncPromptFieldValue = useCallback((nextPrompt: string) => {
-    const setNodes = setNodesRef.current;
-    if (!setNodes) return;
-    setNodes((nodes: LLMNode[]) =>
-      nodes.map((node: LLMNode) => {
-        if (node.id !== id) return node;
-        const fields = node.data.details?.fields ?? [];
-        const updatedFields = fields.map((field) =>
-          field.heading === "Prompt" ? { ...field, value: nextPrompt } : field
-        );
-        const changed = fields.some(
-          (field, index) =>
-            field.heading === "Prompt" && updatedFields[index]?.value !== field.value
-        );
-        if (!changed) return node;
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            details: {
-              ...node.data.details,
-              fields: updatedFields,
-            },
-          },
-        };
-      })
-    );
-  }, [id]);
+  const [prompt, setPrompt] = useState<string>(() => {
+    const value = getField('Prompt')?.value;
+    return typeof value === 'string' ? value : '';
+  });
+
+  const isPromptConnected = edges.some(
+    (edge) => edge.target === id && edge.targetHandle === 'value_in'
+  );
+
+  useEffect(() => {
+    const nextValue = getField('Prompt')?.value;
+    if (typeof nextValue === 'string' && nextValue !== prompt) {
+      setPrompt(nextValue);
+    }
+  }, [getField, prompt]);
 
   const autoSizePrompt = useCallback(() => {
     const textarea = promptTextareaRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    const nextHeight = Math.min(Math.max(textarea.scrollHeight, MIN_PROMPT_HEIGHT), MAX_PROMPT_HEIGHT);
+    const nextHeight = Math.min(
+      Math.max(textarea.scrollHeight, MIN_PROMPT_HEIGHT),
+      MAX_PROMPT_HEIGHT
+    );
     textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY = textarea.scrollHeight > MAX_PROMPT_HEIGHT ? 'auto' : 'hidden';
+    textarea.style.overflowY =
+      textarea.scrollHeight > MAX_PROMPT_HEIGHT ? 'auto' : 'hidden';
   }, []);
 
   useEffect(() => {
     autoSizePrompt();
   }, [autoSizePrompt, prompt, isPromptConnected]);
 
-  const normalizeNodeFields = useCallback((promptValue: string) => {
-    const setNodes = setNodesRef.current;
-    if (!setNodes) return;
+  useEffect(() => {
+    if (!data.setNodes || bootstrappedRef.current) return;
 
-    const nextFields = [
-      {
-        type: 'textInput',
-        heading: 'Prompt',
-        placeholder: 'Enter your prompt here...',
-        value: promptValue,
-        required: true,
-        inPinId: 'value_in',
-      },
-    ];
+    const setFieldValue = (heading: string, newValue: unknown) => {
+      if (heading === 'Prompt') setPrompt(String(newValue ?? ''));
+      data.setNodes?.((nodes: LLMNodeRecord[]) =>
+        nodes.map((node: LLMNodeRecord) =>
+          node.id === id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  details: {
+                    ...node.data.details,
+                    fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
+                      field.heading === heading ? { ...field, value: newValue } : field
+                    ),
+                  },
+                },
+              }
+            : node
+        )
+      );
+    };
 
-    const nextExport = ['Prompt'];
+    const initialField: DominoField = {
+      type: 'textInput',
+      heading: 'Prompt',
+      placeholder: 'Enter your prompt here...',
+      value: prompt,
+      required: true,
+      inPinId: 'value_in',
+      shouldRender: false,
+    };
 
-    setNodes((nodes: LLMNode[]) =>
-      nodes.map((node: LLMNode) => {
+    data.setNodes((prev: LLMNodeRecord[]) =>
+      prev.map((node: LLMNodeRecord) => {
         if (node.id !== id) return node;
-        const existingFields = node.data.details?.fields ?? [];
-        const sameFields =
-          existingFields.length === nextFields.length &&
-          existingFields.every((f: LLMField, idx: number) => JSON.stringify(f) === JSON.stringify(nextFields[idx]));
-        const sameExport =
-          Array.isArray(node.data.exportFields) &&
-          node.data.exportFields.length === nextExport.length &&
-          node.data.exportFields.every((h: string, i: number) => h === nextExport[i]);
-        const sameDescription = node.data.details?.description === 'Sends a prompt to AI and returns the response.';
-        if (sameFields && sameExport && sameDescription) return node;
+
+        const details = node.data.details as DominoNodeData | undefined;
+        const fields = details?.fields ?? [];
+        const existingField = fields.find((field) => field.heading === 'Prompt');
+        const mergedField = existingField ? { ...initialField, ...existingField } : initialField;
 
         return {
           ...node,
@@ -126,117 +125,152 @@ export default function LLMDomino({ data, id, selected }: NodeProps) {
             ...node.data,
             details: {
               type: 'LLM',
-              description: 'Sends a prompt to AI and returns the response.',
-              fields: nextFields,
-            },
-            exportFields: nextExport,
-            setFieldValue: (heading: string, value: unknown) => {
-              if (heading === 'Prompt') {
-                const nextPrompt = typeof value === 'string' ? value : String(value ?? '');
-                setPrompt(nextPrompt);
-                syncPromptFieldValue(nextPrompt);
-              }
-            },
+              description: 'Run a prompt through an AI language model.',
+              ...(details ?? {}),
+              fields: [mergedField],
+            } as DominoNodeData,
+            exportFields: node.data.exportFields ?? ['Prompt'],
+            setFieldValue: node.data.setFieldValue ?? setFieldValue,
           },
         };
       })
     );
-  }, [id, syncPromptFieldValue]);
 
-  useEffect(() => {
-    const fields = data.details?.fields ?? [];
-    const promptField = fields.find((f: LLMField) => f.heading === 'Prompt');
-    const promptValue = typeof promptField?.value === 'string' ? promptField.value : '';
-    setPrompt(promptValue);
+    bootstrappedRef.current = true;
+  }, [data, id, prompt]);
 
-    const hasOnlyPromptField =
-      fields.length === 1 &&
-      promptField &&
-      promptField.type === 'textInput' &&
-      promptField.inPinId === 'value_in';
-    const hasOnlyPromptExport =
-      Array.isArray(data.exportFields) &&
-      data.exportFields.length === 1 &&
-      data.exportFields[0] === 'Prompt';
-
-    if (!hasOnlyPromptField || !hasOnlyPromptExport) {
-      normalizeNodeFields(promptValue);
-    }
-  }, [data.details?.fields, data.exportFields, normalizeNodeFields]);
-
-  const handlePromptChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    setPrompt(newValue);
-    setFieldValueRef.current?.('Prompt', newValue);
-    syncPromptFieldValue(newValue);
-    clearValidationForDominoId(id);
-  }, [clearValidationForDominoId, id, syncPromptFieldValue]);
-
-  const handlePromptWheelCapture = useCallback((e: React.WheelEvent<HTMLTextAreaElement>) => {
-    e.stopPropagation();
-  }, []);
+  const setFieldValue = useCallback(
+    (heading: string, value: string) => {
+      clearValidationForDominoId(id);
+      if (heading === 'Prompt') setPrompt(value);
+      data.setFieldValue?.(heading, value);
+      if (!data.setFieldValue && data.setNodes) {
+        data.setNodes((nodes: LLMNodeRecord[]) =>
+          nodes.map((node: LLMNodeRecord) =>
+            node.id === id
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    details: {
+                      ...node.data.details,
+                      fields: (node.data.details?.fields ?? []).map((field: DominoField) =>
+                        field.heading === heading ? { ...field, value } : field
+                      ),
+                    },
+                  },
+                }
+              : node
+          )
+        );
+      }
+    },
+    [clearValidationForDominoId, data, id]
+  );
 
   return (
     <div
-      className={`transition-all duration-150 rounded-md w-96 overflow-visible shadow-sm
-        ${hasError
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
+        hasError
           ? 'error-border'
           : selected
-            ? 'selected-border border-4'
-            : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+            : 'unselected-border dark:border-gray-600'
+      } hover:shadow-lg`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
     >
-      {/* Header with exec pins */}
-      <div
-        className="flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('llm')}
-      >
-        <div className="flex items-center gap-1.5">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+      <div className="relative flex items-start justify-between gap-3 rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10">
+        <div className="flex min-w-0 items-center gap-3 pr-3">
           <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <span className="truncate">AI</span>
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+            style={
+              llmAccentColor
+                ? {
+                    borderColor: llmAccentColor,
+                    backgroundColor: `${llmAccentColor}22`,
+                  }
+                : undefined
+            }
+          >
+            <BrainCircuit
+              className="h-4 w-4"
+              style={
+                llmAccentColor ? { color: llmAccentColor } : llmMeta?.iconStyle
+              }
+            />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold tracking-tight text-foreground">
+              AI
+            </div>
+            <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+              Action
+            </div>
+          </div>
         </div>
         <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
       </div>
 
-      {/* Main content */}
-      <div className="pt-2 pb-1">
-        {/* Prompt input section */}
-        <div>
-          <label className="block px-3 text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Prompt
-          </label>
-          
-          <div className="relative px-3 flex items-start gap-2">
-            <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
-            <div className="relative flex-1">
-              <textarea
-                ref={promptTextareaRef}
-                value={prompt}
-                onChange={handlePromptChange}
-                onWheelCapture={handlePromptWheelCapture}
-                placeholder={isPromptConnected ? 'Connected' : 'Enter your prompt here...'}
-                readOnly={isPromptConnected}
-                disabled={isPromptConnected}
-                className={`nodrag nowheel w-full px-3 py-2 text-sm border rounded-md resize-none ${
-                  isPromptConnected
-                    ? 'cursor-not-allowed border-dashed border-purple-300 bg-purple-50 text-gray-500 dark:border-purple-700 dark:bg-purple-950/30 dark:text-gray-400'
-                    : 'bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text focus:ring-1 focus:ring-purple-500 focus:border-purple-500'
-                }`}
-                style={{ minHeight: `${MIN_PROMPT_HEIGHT}px`, maxHeight: `${MAX_PROMPT_HEIGHT}px` }}
-                rows={1}
-              />
+      <div className="relative space-y-4 pb-4 pt-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2 px-4">
+            <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <Sparkles className="h-3 w-3" />
+              Prompt
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {isPromptConnected ? 'Live input' : 'Static input'}
+            </span>
+          </div>
+
+          <div className="pb-4">
+            <div className="relative">
+              <div className="flex items-start gap-2 px-4">
+                <DominoPin id="value_in" pinType={PinType.VALUE_IN} inline />
+                <div className="nodrag min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10">
+                  {isPromptConnected ? (
+                    <div className="nodrag flex min-h-28 items-start px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                      Connected
+                    </div>
+                  ) : (
+                    <textarea
+                      ref={promptTextareaRef}
+                      value={prompt}
+                      onChange={(event) => setFieldValue('Prompt', event.target.value)}
+                      placeholder="Enter your prompt here..."
+                      rows={1}
+                      className="nodrag w-full resize-none rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none transition placeholder:text-inherit dark:text-dominofy-dark-text"
+                      style={{
+                        minHeight: `${MIN_PROMPT_HEIGHT}px`,
+                        maxHeight: `${MAX_PROMPT_HEIGHT}px`,
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Output */}
-      <div className="relative px-3 py-2 rounded-b-md flex items-center justify-between">
-        <div />
-        <span className="text-xs text-dominofy-light-text dark:text-dominofy-dark-text">Output</span>
-        <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+        <div className="relative px-4 pb-2 pt-1">
+          <div className="relative rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  Generated response payload
+                </div>
+              </div>
+            </div>
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline offset={-17} />
+          </div>
+        </div>
       </div>
-
     </div>
   );
 }

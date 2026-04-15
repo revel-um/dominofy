@@ -20,11 +20,7 @@ import { VaultService } from 'src/vault/vault.service';
 import { VaultType } from 'src/vault/vault.entity';
 import { UserService } from 'src/user/user.service';
 import { WorkflowService } from 'src/workflow/workflow.service';
-import { RunnerLauncherService } from 'src/runner-launcher/runner-launcher.service';
-import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import { CreateEmailConnectionDto } from './email.dto';
-import { buildPipeline } from '../../../../shared/helpers/buildPipeline';
-import { PipelineStep } from '../types/pipelineStepType';
 import {
   EmailConnection,
   GmailConnection,
@@ -70,9 +66,6 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     @Inject(forwardRef(() => WorkflowService))
     private readonly workflowService: WorkflowService,
-    @Inject(forwardRef(() => RunnerLauncherService))
-    private readonly runnerLauncherService: RunnerLauncherService,
-    private readonly workflowLogger: WorkflowLoggerService,
   ) {
     this.providerFactory = new EmailProviderFactory({
       refreshAccessToken: this.refreshAccessToken.bind(this),
@@ -1075,8 +1068,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       vault.workspace.id,
     );
 
-    const matches = candidates.filter(workflow => {
-      const triggerNode = workflow.visualJson?.nodes?.find(
+    const matches = candidates.filter((target) => {
+      const triggerNode = target.visualJson?.nodes?.find(
         (node: any) => node?.type === 'emailtrigger',
       );
       const data = triggerNode?.data || {};
@@ -1092,21 +1085,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
       return true;
     });
 
-    for (const workflow of matches) {
-      const { nodes, edges } = workflow.visualJson;
-      const pipeline: PipelineStep[] = buildPipeline(nodes, edges);
-
-      const runId = uuidv4();
-      const runner = this.runnerLauncherService.createRunner(
-        workflow.id,
-        runId,
-        pipeline,
-        20,
-        workflow.visualJson,
-      );
-
-      await runner.run(runId, payload, { workflowId: workflow.id });
-      await this.workflowLogger.flushNow();
+    for (const target of matches) {
+      await this.workflowService.executeDeployedWorkflowTarget(target, payload);
     }
 
     if (!matches.length) {

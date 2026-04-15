@@ -7,12 +7,14 @@ interface DominoPinProps {
   id: string;
   pinType: PinType;
   inline?: boolean;
+  offset?: number;
 }
 
 export default function DominoPin({
   id,
   pinType,
   inline = false,
+  offset = 0,
 }: DominoPinProps) {
   const isExecution =
     pinType === PinType.EXEC_IN || pinType === PinType.EXEC_OUT;
@@ -26,10 +28,19 @@ export default function DominoPin({
     ? 'bg-blue-500 dark:bg-blue-400'
     : 'bg-green-500 dark:bg-green-400';
 
-  // Inline positioning classes
-  const extraClasses = inline
-    ? `handle-inline-${isInput ? 'left' : 'right'}`
-    : '';
+  const inlineStyle = inline
+    ? isInput
+      ? {
+          left: offset,
+          top: '50%',
+          transform: 'translate(calc(-50% - 1px), -50%)',
+        }
+      : {
+          right: offset,
+          top: '50%',
+          transform: 'translate(calc(50% + 1px), -50%)',
+        }
+    : {};
 
   return (
     <Handle
@@ -38,11 +49,12 @@ export default function DominoPin({
       type={isInput ? 'target' : 'source'}
       position={position}
       isConnectable={true}
-      className={`react-flow__handle ${colorClass} ${extraClasses}`}
+      className={`react-flow__handle ${colorClass}`}
       style={{
         width: 8,
         height: 8,
         borderRadius: isExecution ? '50%' : '2px',
+        ...inlineStyle,
       }}
     />
   );

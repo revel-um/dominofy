@@ -26,16 +26,22 @@ export interface DominoEdge {
 export function validateWorkflow(
   visualJson: any
 ): boolean {
+  return getWorkflowValidationError(visualJson) === null;
+}
+
+export function getWorkflowValidationError(
+  visualJson: any
+): string | null {
   /* ---------- basic sanity ---------- */
-  if (!visualJson) return false;
+  if (!visualJson) return 'Workflow definition is missing.';
   const nodes: DominoNode[] = visualJson.nodes;
   const edges: DominoEdge[] = visualJson.edges;
 
   if (!nodes || !edges) {
-    return false;
+    return 'Workflow nodes or edges are missing.';
   }
   if (nodes.length < 2) {
-    return false;
+    return 'Workflow must contain at least two nodes.';
   }
 
   /* ---------- connectivity check via EXEC pins ---------- */
@@ -46,8 +52,8 @@ export function validateWorkflow(
       e.sourceHandle?.startsWith('exec') ||
       e.targetHandle?.startsWith('exec')
     ) {
-      adjacency[e.source].push(e.target);
-      adjacency[e.target].push(e.source);
+      adjacency[e.source]?.push(e.target);
+      adjacency[e.target]?.push(e.source);
     }
   });
 
@@ -70,9 +76,9 @@ export function validateWorkflow(
     const disconnected = nodes
       .filter((n) => !visited.has(n.id))
       .map((n) => n.id);
-    return false;
+    return `Workflow has disconnected nodes without exec-path connectivity: ${disconnected.join(', ')}.`;
   }
 
   /* ---------- pass ---------- */
-  return true;
+  return null;
 }

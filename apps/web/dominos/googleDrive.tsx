@@ -3,16 +3,18 @@
 import { NodeProps, useEdges } from 'reactflow';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
+import { FolderCog, FolderInput, FolderPen, FolderSync, HardDriveUpload, Shield, Tags } from 'lucide-react';
 import DominoPin from '../components/shared/dominoPin';
+import DominoDropdown from '../components/shared/dominoDropdown';
 import { PinType } from '../types/pinTypes';
 import { DominoField, DominoNodeData } from '../types/dominoFieldTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { getExpandedDominoHeaderStyle } from './dominoHeaderStyle';
 import { FilesApi } from '../apis/files.apis';
 import { useRouter } from 'next/router';
-import { FiAlertCircle, FiLoader, FiUpload, FiX } from 'react-icons/fi';
+import { FiLoader, FiUpload, FiX } from 'react-icons/fi';
 import SearchableSelect from '@/components/searchableDropdown';
 import { DriveApi, DriveConnection } from '@/apis/drive.apis';
+import dominoCatalog from './dominos';
 
 type FileValue = {
   key: string;
@@ -20,6 +22,30 @@ type FileValue = {
   size: number;
   name: string;
   mime?: string;
+};
+
+type GoogleDriveNodeData = DominoNodeData & {
+  previewMode?: boolean;
+  vaultId?: string;
+  connect?: string;
+  action?: string;
+  bulkAction?: string;
+  targets?: string;
+  tags?: string;
+  destinationPath?: string;
+  renameTemplate?: string;
+  accessRole?: string;
+  accessType?: string;
+  accessEmail?: string;
+  accessDomain?: string;
+  fullPath?: string;
+  workflowId?: string;
+  setFieldValue?: (heading: string, value: unknown) => void;
+};
+
+type GoogleDriveNodeRecord = {
+  id: string;
+  data: GoogleDriveNodeData;
 };
 
 const ACTION_OPTIONS = [
@@ -47,7 +73,12 @@ const ACCESS_TYPE_OPTIONS = [
   { label: 'Anyone', value: 'anyone' },
 ];
 
-function mergeFieldPreservingConnections(newF: any, oldF?: any) {
+const googleDriveMeta = dominoCatalog.find((entry) => entry.id === 'googleDrive');
+const googleDriveAccentColor = googleDriveMeta?.badgeStyle?.background
+  ? String(googleDriveMeta.badgeStyle.background).match(/#[0-9a-fA-F]{6}/)?.[0]
+  : undefined;
+
+function mergeFieldPreservingConnections(newF: DominoField, oldF?: DominoField) {
   if (!oldF) return newF;
   const {
     value,
@@ -78,7 +109,8 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
   const router = useRouter();
   const { erroredNodes, clearValidationForDominoId } = useDomino();
   const hasError = erroredNodes.includes(id);
-  const isPreviewMode = Boolean((data as any).previewMode);
+  const nodeData = data as GoogleDriveNodeData;
+  const isPreviewMode = Boolean(nodeData.previewMode);
   const edges = useEdges();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const setNodesRef = useRef(data.setNodes);
@@ -95,18 +127,18 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
   const getInitialText = (heading: string, fallbackKey: string) => {
     const field = findField(heading);
     if (typeof field?.value === 'string') return field.value;
-    const fallback = (data as any)?.[fallbackKey];
+    const fallback = nodeData[fallbackKey];
     return typeof fallback === 'string' ? fallback : '';
   };
 
   const getInitialFile = () => {
     const field = findField('File Upload');
-    const v = field?.value as any;
+    const v = field?.value;
     if (v && typeof v === 'object') return v as FileValue;
     return null;
   };
 
-  const initialVaultId = (data as any)?.vaultId as string | undefined;
+  const initialVaultId = nodeData.vaultId;
   const [connectValue, setConnectValue] = useState(
     initialVaultId || getInitialText('Connect', 'connect')
   );
@@ -237,26 +269,28 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
       return;
     }
 
-    const setFieldValue = (heading: string, value: any) => {
-      if (heading === 'Connect') setConnectValue(value);
-      if (heading === 'Action') setActionMode(value);
-      if (heading === 'Bulk Action') setBulkAction(value);
-      if (heading === 'Targets') setBulkTargets(value);
-      if (heading === 'Tags') setBulkTags(value);
-      if (heading === 'Destination Path') setBulkDestination(value);
-      if (heading === 'Rename Template') setRenameTemplate(value);
-      if (heading === 'Access Role') setAccessRole(value);
-      if (heading === 'Access Type') setAccessType(value);
-      if (heading === 'Access Email') setAccessEmail(value);
-      if (heading === 'Access Domain') setAccessDomain(value);
-      if (heading === 'Full Path') setFullPath(value);
+    const setFieldValue = (heading: string, value: unknown) => {
+      const stringValue = typeof value === 'string' ? value : '';
+      if (heading === 'Connect') setConnectValue(stringValue);
+      if (heading === 'Action') setActionMode(stringValue);
+      if (heading === 'Bulk Action') setBulkAction(stringValue);
+      if (heading === 'Targets') setBulkTargets(stringValue);
+      if (heading === 'Tags') setBulkTags(stringValue);
+      if (heading === 'Destination Path') setBulkDestination(stringValue);
+      if (heading === 'Rename Template') setRenameTemplate(stringValue);
+      if (heading === 'Access Role') setAccessRole(stringValue);
+      if (heading === 'Access Type') setAccessType(stringValue);
+      if (heading === 'Access Email') setAccessEmail(stringValue);
+      if (heading === 'Access Domain') setAccessDomain(stringValue);
+      if (heading === 'Full Path') setFullPath(stringValue);
       if (heading === 'File Upload') {
-        setFileValue(value);
-        setFileName(value?.name ?? '');
+        const file = value && typeof value === 'object' ? (value as FileValue) : null;
+        setFileValue(file);
+        setFileName(file?.name ?? '');
       }
 
-      data.setNodes?.((nodes: any[]) =>
-        nodes.map((n: any) =>
+      data.setNodes?.((nodes: GoogleDriveNodeRecord[]) =>
+        nodes.map((n: GoogleDriveNodeRecord) =>
           n.id !== id
             ? n
             : {
@@ -276,8 +310,8 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
       );
     };
 
-    data.setNodes((prev: any[]) =>
-      prev.map((n: any) =>
+    data.setNodes((prev: GoogleDriveNodeRecord[]) =>
+      prev.map((n: GoogleDriveNodeRecord) =>
         n.id !== id
           ? n
           : {
@@ -461,8 +495,8 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
       'Access Domain',
     ];
 
-    setNodes((nodes: any[]) => {
-      const idx = nodes.findIndex((n: any) => n.id === id);
+    setNodes((nodes: GoogleDriveNodeRecord[]) => {
+      const idx = nodes.findIndex((n: GoogleDriveNodeRecord) => n.id === id);
       if (idx < 0) return nodes;
 
       const node = nodes[idx];
@@ -476,7 +510,7 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
       );
       const sameFields =
         existing.length === nextFields.length &&
-        existing.every((f: any, i: number) => JSON.stringify(f) === JSON.stringify(nextFields[i]));
+        existing.every((f: DominoField, i: number) => JSON.stringify(f) === JSON.stringify(nextFields[i]));
       const sameExport =
         Array.isArray(node.data.exportFields) &&
         node.data.exportFields.length === nextExport.length &&
@@ -578,8 +612,8 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
       data.setFieldValue('Connect', newVaultId);
       return;
     }
-    data.setNodes?.((nodes: any[]) => {
-      const idx = nodes.findIndex((n: any) => n.id === id);
+    data.setNodes?.((nodes: GoogleDriveNodeRecord[]) => {
+      const idx = nodes.findIndex((n: GoogleDriveNodeRecord) => n.id === id);
       if (idx < 0) return nodes;
       const node = nodes[idx];
       const nextNode = { ...node, data: { ...node.data, vaultId: newVaultId } };
@@ -605,55 +639,138 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
     setFileName('');
   };
 
-  return (
-    <div
-      className={`transition-all duration-150 rounded-md w-56 overflow-visible shadow-sm
-        ${hasError ? 'error-border' : selected ? 'selected-border' : 'unselected-border dark:border-gray-600'}
-        bg-dominofy-light-panel dark:bg-dominofy-dark-panel`}
-      style={{ minWidth: '13rem' }}
-    >
-      <div
-        className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-white border-b rounded-t-md relative"
-        style={getExpandedDominoHeaderStyle('googleDrive')}
-      >
-        <div className="flex items-center gap-1">
-          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
-          <span className="truncate">Google Drive</span>
-        </div>
-        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+  const renderSectionLabel = (icon: React.ComponentType<{ className?: string }>, label: string) => {
+    const Icon = icon;
+    return (
+      <div className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+        <Icon className="h-3 w-3" />
+        {label}
+      </div>
+    );
+  };
 
-        {hasError && (
-          <FiAlertCircle
-            className="absolute right-2 top-2 w-4 h-4 text-red-300"
-            title="Missing required input"
-          />
-        )}
+  const renderPinnedControl = ({
+    pinId,
+    label,
+    status,
+    icon,
+    children,
+    textarea = false,
+  }: {
+    pinId: string;
+    label: string;
+    status: string;
+    icon: React.ComponentType<{ className?: string }>;
+    children: React.ReactNode;
+    textarea?: boolean;
+  }) => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 px-4">
+        {renderSectionLabel(icon, label)}
+        <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+          {status}
+        </span>
       </div>
 
-      <div className="flex flex-col gap-2 py-2">
-        <div className="px-3">
+      <div className="pb-3">
+        <div className="relative">
+          <div className={`flex gap-2 px-4 ${textarea ? 'items-start' : 'items-center'}`}>
+            <DominoPin id={pinId} pinType={PinType.VALUE_IN} inline />
+            <div
+              className={`min-w-0 flex-1 rounded-lg border border-slate-300/80 bg-dominofy-light-surface transition focus-within:border-slate-900/30 focus-within:ring-2 focus-within:ring-slate-900/10 dark:border-slate-600 dark:bg-dominofy-dark-surface dark:focus-within:border-slate-300/40 dark:focus-within:ring-slate-200/10 ${
+                textarea ? 'min-h-24' : 'min-h-12'
+              }`}
+            >
+              {children}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={`group/node relative w-[21rem] overflow-visible rounded-xl border bg-dominofy-light-panel/95 backdrop-blur transition-all duration-150 dark:bg-dominofy-dark-panel/95 ${
+        hasError
+          ? 'error-border'
+          : selected
+            ? 'selected-border border-4 shadow-xl ring-2 ring-primary/50'
+            : 'unselected-border dark:border-gray-600'
+      } hover:shadow-lg`}
+      style={{ minWidth: '21rem', maxWidth: '21rem' }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+
+      <div
+        className="relative flex items-start justify-between gap-3 rounded-t-xl border-b border-black/10 px-4 py-4 dark:border-white/10"
+      >
+        <div className="flex min-w-0 items-center gap-3 pr-3">
+          <DominoPin id="exec_in" pinType={PinType.EXEC_IN} inline />
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border backdrop-blur"
+            style={googleDriveAccentColor ? { borderColor: googleDriveAccentColor, backgroundColor: `${googleDriveAccentColor}22` } : undefined}
+          >
+            {googleDriveMeta?.icon ? (
+              <googleDriveMeta.icon
+                className="h-4 w-4"
+                style={googleDriveAccentColor ? { color: googleDriveAccentColor } : googleDriveMeta.iconStyle}
+              />
+            ) : null}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold tracking-tight text-foreground">Google Drive</div>
+            <div className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50">
+              Action
+            </div>
+          </div>
+        </div>
+        <DominoPin id="exec_out" pinType={PinType.EXEC_OUT} inline />
+      </div>
+
+      <div className="relative space-y-4 pb-4 pt-4">
+        <div className="space-y-4 px-4">
+          <div className="flex items-center justify-between gap-2">
+            {renderSectionLabel(FolderSync, 'Account')}
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Google Drive
+            </span>
+          </div>
+
           <button
             type="button"
-            className="w-full px-2 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
+            className="w-full rounded-lg border border-transparent bg-sky-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
             onClick={startOAuth}
           >
             {connections.length === 0 ? 'Connect Google Drive' : 'Add Drive connection'}
           </button>
+
+          {loadingConns ? (
+            <div className="rounded-lg border border-dashed border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-sm text-foreground/60 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+              Loading Google Drive connections…
+            </div>
+          ) : connections.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-foreground/15 bg-foreground/[0.03] px-3 py-2 text-sm text-foreground/60 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-400">
+              Connect Google Drive to select an account.
+            </div>
+          ) : null}
         </div>
 
-        <div className="flex items-center gap-2 px-3 relative">
-          {/* <DominoPin id="value_connect" pinType={PinType.VALUE_IN} inline /> */}
-          <div className="flex-1">
-            <div className="text-xs font-medium mb-1 text-dominofy-light-text dark:text-dominofy-dark-text">
-              Google Drive Account
+        {renderPinnedControl({
+          pinId: 'value_connect',
+          label: 'Connection',
+          status: connectConnected ? 'Live input' : 'Static input',
+          icon: FolderSync,
+          children: connectConnected ? (
+            <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+              Connected
             </div>
-            {connectConnected ? (
-              <div className="px-2 py-1 text-sm italic text-gray-500">Connected</div>
-            ) : loadingConns ? (
-              <div className="px-2 py-1 text-sm text-gray-500">
-                Loading Google Drive connections...
-              </div>
-            ) : connections.length > 0 ? (
+          ) : loadingConns ? (
+            <div className="flex min-h-12 items-center px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+              Loading Google Drive connections…
+            </div>
+          ) : connections.length > 0 ? (
+            <div className="rounded-lg px-1 py-1">
               <SearchableSelect
                 value={connectValue}
                 onChange={updateVaultId}
@@ -663,47 +780,50 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                   value: c.id,
                 }))}
               />
-            ) : (
-              <div className="px-2 py-1 text-xs text-gray-500">
-                Connect Google Drive to select an account.
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 relative px-3">
-          <DominoPin id="value_action" pinType={PinType.VALUE_IN} inline />
-          {actionConnected ? (
-            <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+            </div>
           ) : (
-            <select
+            <div className="flex min-h-12 items-center px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+              No connections available
+            </div>
+          ),
+        })}
+
+        {renderPinnedControl({
+          pinId: 'value_action',
+          label: 'Action',
+          status: actionConnected ? 'Live input' : 'Static input',
+          icon: FolderCog,
+          children: actionConnected ? (
+            <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+              Connected
+            </div>
+          ) : (
+            <DominoDropdown
               value={actionMode}
-              onChange={(e) => {
-                setActionMode(e.target.value);
+              options={ACTION_OPTIONS}
+              onChange={(nextValue) => {
+                setActionMode(nextValue);
                 clearValidationForDominoId(id);
               }}
-              className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-            >
-              {ACTION_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+            />
+          ),
+        })}
 
         {actionMode !== 'bulk' ? (
           <>
-            <div className="flex items-center gap-2 relative px-3">
-              <DominoPin id="value_file" pinType={PinType.VALUE_IN} inline />
-              {!fileConnected ? (
+            {renderPinnedControl({
+              pinId: 'value_file',
+              label: 'File',
+              status: fileConnected ? 'Live input' : fileName ? 'Ready' : isUploading ? 'Uploading' : 'Choose file',
+              icon: HardDriveUpload,
+              children: !fileConnected ? (
                 fileName ? (
-                  <div className="flex-1 flex items-center gap-2">
+                  <div className="flex min-h-12 items-center gap-2 px-4 py-3">
                     <span className="flex-1 truncate text-sm text-dominofy-light-text dark:text-dominofy-dark-text">
                       {fileName}
                     </span>
                     <button
+                      type="button"
                       onClick={handleRemove}
                       className="p-1.5 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={isUploading}
@@ -713,8 +833,9 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex-1 flex items-center gap-2">
+                  <div className="flex min-h-12 items-center gap-2 px-4 py-3">
                     <button
+                      type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded
                                  bg-dominofy-light-accent text-white hover:opacity-90 transition
@@ -746,54 +867,66 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                   </div>
                 )
               ) : (
-                <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
-              )}
-            </div>
+                <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                  Connected
+                </div>
+              ),
+            })}
 
-            <div className="flex items-center gap-2 relative px-3">
-              <DominoPin id="value_full_path" pinType={PinType.VALUE_IN} inline />
-              <input
-                type="text"
-                value={fullPath}
-                onChange={(e) => {
-                  setFullPath(e.target.value);
-                  clearValidationForDominoId(id);
-                }}
-                placeholder={pathConnected ? 'Connected' : '/My Drive/folder/file.ext'}
-                readOnly={pathConnected}
-                disabled={pathConnected}
-                className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-              />
-            </div>
+            {renderPinnedControl({
+              pinId: 'value_full_path',
+              label: 'Path',
+              status: pathConnected ? 'Live input' : 'Static input',
+              icon: FolderInput,
+              children: (
+                <input
+                  type="text"
+                  value={pathConnected ? '' : fullPath}
+                  onChange={(e) => {
+                    setFullPath(e.target.value);
+                    clearValidationForDominoId(id);
+                  }}
+                  placeholder={pathConnected ? 'Connected' : '/My Drive/folder/file.ext'}
+                  readOnly={pathConnected}
+                  disabled={pathConnected}
+                  className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit disabled:italic dark:text-dominofy-dark-text"
+                />
+              ),
+            })}
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2 relative px-3">
-              <DominoPin id="value_bulk_action" pinType={PinType.VALUE_IN} inline />
-              {bulkActionConnected ? (
-                <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+            {renderPinnedControl({
+              pinId: 'value_bulk_action',
+              label: 'Bulk Action',
+              status: bulkActionConnected ? 'Live input' : 'Static input',
+              icon: FolderCog,
+              children: bulkActionConnected ? (
+                <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                  Connected
+                </div>
               ) : (
-                <select
+                <DominoDropdown
                   value={bulkAction}
-                  onChange={(e) => {
-                    setBulkAction(e.target.value);
+                  options={BULK_ACTION_OPTIONS}
+                  onChange={(nextValue) => {
+                    setBulkAction(nextValue);
                     clearValidationForDominoId(id);
                   }}
-                  className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-                >
-                  {BULK_ACTION_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
+                />
+              ),
+            })}
 
-            <div className="flex items-start gap-2 relative px-3">
-              <DominoPin id="value_bulk_targets" pinType={PinType.VALUE_IN} inline />
-              {bulkTargetsConnected ? (
-                <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+            {renderPinnedControl({
+              pinId: 'value_bulk_targets',
+              label: 'Targets',
+              status: bulkTargetsConnected ? 'Live input' : 'Static input',
+              icon: FolderSync,
+              textarea: true,
+              children: bulkTargetsConnected ? (
+                <div className="flex min-h-24 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                  Connected
+                </div>
               ) : (
                 <textarea
                   value={bulkTargets}
@@ -803,16 +936,21 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                   }}
                   placeholder="One path per line. Prefix id: for file ids."
                   rows={3}
-                  className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+                  className="nodrag min-h-24 w-full resize-none rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
                 />
-              )}
-            </div>
+              ),
+            })}
 
             {bulkAction === 'tag' && (
-              <div className="flex items-center gap-2 relative px-3">
-                <DominoPin id="value_bulk_tags" pinType={PinType.VALUE_IN} inline />
-                {bulkTagsConnected ? (
-                  <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+              renderPinnedControl({
+                pinId: 'value_bulk_tags',
+                label: 'Tags',
+                status: bulkTagsConnected ? 'Live input' : 'Static input',
+                icon: Tags,
+                children: bulkTagsConnected ? (
+                  <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                    Connected
+                  </div>
                 ) : (
                   <input
                     type="text"
@@ -822,17 +960,22 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                       clearValidationForDominoId(id);
                     }}
                     placeholder="tag1, tag2"
-                    className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+                    className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
                   />
-                )}
-              </div>
+                ),
+              })
             )}
 
             {bulkAction === 'move' && (
-              <div className="flex items-center gap-2 relative px-3">
-                <DominoPin id="value_bulk_destination" pinType={PinType.VALUE_IN} inline />
-                {bulkDestinationConnected ? (
-                  <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+              renderPinnedControl({
+                pinId: 'value_bulk_destination',
+                label: 'Destination',
+                status: bulkDestinationConnected ? 'Live input' : 'Static input',
+                icon: FolderInput,
+                children: bulkDestinationConnected ? (
+                  <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                    Connected
+                  </div>
                 ) : (
                   <input
                     type="text"
@@ -842,17 +985,22 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                       clearValidationForDominoId(id);
                     }}
                     placeholder="/My Drive/folder/"
-                    className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+                    className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
                   />
-                )}
-              </div>
+                ),
+              })
             )}
 
             {bulkAction === 'rename' && (
-              <div className="flex items-center gap-2 relative px-3">
-                <DominoPin id="value_bulk_rename_template" pinType={PinType.VALUE_IN} inline />
-                {renameTemplateConnected ? (
-                  <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+              renderPinnedControl({
+                pinId: 'value_bulk_rename_template',
+                label: 'Rename Template',
+                status: renameTemplateConnected ? 'Live input' : 'Static input',
+                icon: FolderPen,
+                children: renameTemplateConnected ? (
+                  <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                    Connected
+                  </div>
                 ) : (
                   <input
                     type="text"
@@ -862,61 +1010,64 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                       clearValidationForDominoId(id);
                     }}
                     placeholder="{name}-archived"
-                    className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+                    className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
                   />
-                )}
-              </div>
+                ),
+              })
             )}
 
             {bulkAction === 'access' && (
               <>
-                <div className="flex items-center gap-2 relative px-3">
-                  <DominoPin id="value_bulk_access_role" pinType={PinType.VALUE_IN} inline />
-                  {accessRoleConnected ? (
-                    <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+                {renderPinnedControl({
+                  pinId: 'value_bulk_access_role',
+                  label: 'Access Role',
+                  status: accessRoleConnected ? 'Live input' : 'Static input',
+                  icon: Shield,
+                  children: accessRoleConnected ? (
+                    <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                      Connected
+                    </div>
                   ) : (
-                    <select
+                    <DominoDropdown
                       value={accessRole}
-                      onChange={(e) => {
-                        setAccessRole(e.target.value);
+                      options={ACCESS_ROLE_OPTIONS}
+                      onChange={(nextValue) => {
+                        setAccessRole(nextValue);
                         clearValidationForDominoId(id);
                       }}
-                      className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-                    >
-                      {ACCESS_ROLE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 relative px-3">
-                  <DominoPin id="value_bulk_access_type" pinType={PinType.VALUE_IN} inline />
-                  {accessTypeConnected ? (
-                    <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+                    />
+                  ),
+                })}
+                {renderPinnedControl({
+                  pinId: 'value_bulk_access_type',
+                  label: 'Access Type',
+                  status: accessTypeConnected ? 'Live input' : 'Static input',
+                  icon: Shield,
+                  children: accessTypeConnected ? (
+                    <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                      Connected
+                    </div>
                   ) : (
-                    <select
+                    <DominoDropdown
                       value={accessType}
-                      onChange={(e) => {
-                        setAccessType(e.target.value);
+                      options={ACCESS_TYPE_OPTIONS}
+                      onChange={(nextValue) => {
+                        setAccessType(nextValue);
                         clearValidationForDominoId(id);
                       }}
-                      className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
-                    >
-                      {ACCESS_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
+                    />
+                  ),
+                })}
                 {(accessType === 'user' || accessType === 'group') && (
-                  <div className="flex items-center gap-2 relative px-3">
-                    <DominoPin id="value_bulk_access_email" pinType={PinType.VALUE_IN} inline />
-                    {accessEmailConnected ? (
-                      <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+                  renderPinnedControl({
+                    pinId: 'value_bulk_access_email',
+                    label: 'Access Email',
+                    status: accessEmailConnected ? 'Live input' : 'Static input',
+                    icon: Shield,
+                    children: accessEmailConnected ? (
+                      <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                        Connected
+                      </div>
                     ) : (
                       <input
                         type="email"
@@ -926,16 +1077,21 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                           clearValidationForDominoId(id);
                         }}
                         placeholder="user@example.com"
-                        className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+                        className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
                       />
-                    )}
-                  </div>
+                    ),
+                  })
                 )}
                 {accessType === 'domain' && (
-                  <div className="flex items-center gap-2 relative px-3">
-                    <DominoPin id="value_bulk_access_domain" pinType={PinType.VALUE_IN} inline />
-                    {accessDomainConnected ? (
-                      <span className="px-2 flex-1 text-xs italic text-gray-500 truncate">Connected</span>
+                  renderPinnedControl({
+                    pinId: 'value_bulk_access_domain',
+                    label: 'Access Domain',
+                    status: accessDomainConnected ? 'Live input' : 'Static input',
+                    icon: Shield,
+                    children: accessDomainConnected ? (
+                      <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
+                        Connected
+                      </div>
                     ) : (
                       <input
                         type="text"
@@ -945,20 +1101,30 @@ export default function GoogleDriveDomino({ data, id, selected }: NodeProps) {
                           clearValidationForDominoId(id);
                         }}
                         placeholder="example.com"
-                        className="flex-1 px-2 py-1 text-sm border rounded bg-dominofy-light-surface dark:bg-dominofy-dark-surface text-dominofy-light-text dark:text-dominofy-dark-text"
+                        className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
                       />
-                    )}
-                  </div>
+                    ),
+                  })
                 )}
               </>
             )}
           </>
         )}
 
-        <div className="px-3 py-1 flex items-center justify-between relative">
-          <div />
-          <span className="text-xs text-gray-500">Output</span>
-          <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline />
+        <div className="relative px-4 pt-1">
+          <div className="relative rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  Drive file metadata
+                </div>
+              </div>
+            </div>
+            <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline offset={-17} />
+          </div>
         </div>
       </div>
 

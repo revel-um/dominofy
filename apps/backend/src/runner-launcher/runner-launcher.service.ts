@@ -18,7 +18,8 @@ export class RunnerLauncherService {
     runId: string,
     pipeline: PipelineStep[],
     maxConc = 20,
-    visualJson: any
+    visualJson: any,
+    options?: { deployedWorkflowId?: string },
   ): Runner {
     const runner = new Runner(pipeline, maxConc, visualJson);
 
@@ -28,9 +29,10 @@ export class RunnerLauncherService {
     /* SUCCESS listener */
     runner.on('done', (res: any) => {
       const type = res.id.split('-')[0];                 // e.g. 'print'
-      if (type === 'print') {
+      if (type === 'print' || type === 'response') {
         this.logger.logLine({
           workflowId,
+          deployedWorkflowId: options?.deployedWorkflowId,
           type,
           runId,
           dominoId: res.id,
@@ -44,17 +46,16 @@ export class RunnerLauncherService {
     /* FAILURE listener */
     runner.on('error', ({ nodeId, error }) => {
       const type = nodeId.split('-')[0];
-      if (type === 'print') {
-        this.logger.logLine({
-          workflowId,
-          type,
-          runId,
-          dominoId: nodeId,
-          status: WorkflowLogStatus.FAILURE,
-          error: { message: error?.message, stack: error?.stack },
-          seq: seq++,                                      // NEW
-        });
-      }
+      this.logger.logLine({
+        workflowId,
+        deployedWorkflowId: options?.deployedWorkflowId,
+        type,
+        runId,
+        dominoId: nodeId,
+        status: WorkflowLogStatus.FAILURE,
+        error: { message: error?.message, stack: error?.stack },
+        seq: seq++,                                      // NEW
+      });
     });
 
     return runner;
