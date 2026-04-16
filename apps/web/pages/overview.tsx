@@ -12,7 +12,6 @@ import {
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from "@headlessui/react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { ToastContainer } from "react-toastify";
 import { ProjectsApi } from "../apis/projects.apis";
 import { WorkspaceApi, WorkspaceListItem } from "../apis/workspace.apis";
 import { WorkflowsApi } from "../apis/workflow.apis";
@@ -398,7 +397,6 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
 
   return (
     <div className="relative flex h-screen max-h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.16),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_48%,_#ffffff_100%)] px-4 py-4 text-slate-900 dark:bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.14),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#0f172a_52%,_#111827_100%)] sm:px-5 sm:py-5">
-      <ToastContainer />
       <section className="relative overflow-hidden rounded-[28px] border border-white/70 bg-white/70 p-4 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-white/10 dark:bg-slate-900/65 sm:p-5">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,_rgba(56,189,248,0.18),_transparent_28%),radial-gradient(circle_at_85%_18%,_rgba(16,185,129,0.14),_transparent_24%)] dark:bg-[radial-gradient(circle_at_15%_20%,_rgba(56,189,248,0.16),_transparent_28%),radial-gradient(circle_at_85%_18%,_rgba(16,185,129,0.14),_transparent_24%)]" />
         <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -439,19 +437,19 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
                 <FiLayers className="h-4 w-4" />
                 Workflows
               </button>
-              <button
-                className={`inline-flex min-h-[44px] items-center gap-2 rounded-[14px] px-4 text-sm font-medium transition-all ${
-                  activeView === 'workspace'
-                    ? 'bg-slate-950 text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-950'
-                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
-                } disabled:cursor-not-allowed disabled:opacity-45`}
-                onClick={() => { router.replace('/overview?view=workspace'); setSearchQuery(''); setCurrentPage(1); setWorkspaceListMode('owned'); }}
-                disabled={workspaceInventoryLoading || workspaceInventory.length <= 1}
-                title={workspaceInventory.length <= 1 ? 'Workspace view is available when you have more than one workspace.' : undefined}
-              >
-                <FiPackage className="h-4 w-4" />
-                Workspaces
-              </button>
+              {workspaceInventory.length > 1 ? (
+                <button
+                  className={`inline-flex min-h-[44px] items-center gap-2 rounded-[14px] px-4 text-sm font-medium transition-all ${
+                    activeView === 'workspace'
+                      ? 'bg-slate-950 text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-950'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                  }`}
+                  onClick={() => { router.replace('/overview?view=workspace'); setSearchQuery(''); setCurrentPage(1); setWorkspaceListMode('owned'); }}
+                >
+                  <FiPackage className="h-4 w-4" />
+                  Workspaces
+                </button>
+              ) : null}
             </div>
 
             <label className="flex min-h-[44px] items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 shadow-sm focus-within:border-sky-400 focus-within:ring-4 focus-within:ring-sky-100 dark:border-white/10 dark:bg-slate-950/45 dark:focus-within:border-sky-400/60 dark:focus-within:ring-sky-400/10">

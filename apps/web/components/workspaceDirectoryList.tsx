@@ -63,7 +63,7 @@ export function WorkspaceDirectoryList({
       : 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200';
   const listBodyClassName =
     mode === 'preview'
-      ? 'mt-5 grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1 pb-2 scroll-smooth overscroll-contain'
+      ? 'mt-5 grid min-h-0 flex-1 auto-rows-max content-start gap-4 overflow-y-auto pr-1 pb-2 scroll-smooth overscroll-contain'
       : 'mt-5 grid gap-4';
 
   return (

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import { OAuthButtons } from '../components/auth/OAuthButtons';
-import { ToastContainer, toast } from 'react-toastify';
+import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { TokenManager } from '../utils/auth';
 
@@ -227,7 +227,6 @@ export default function AuthPage() {
           </div>
         </div>
       </div>
-      <ToastContainer position="top-right" autoClose={5000} hideProgressBar />
     </>
   );
 }

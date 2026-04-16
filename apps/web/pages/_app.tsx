@@ -24,31 +24,21 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   return (
     <SessionProvider session={pageProps.session}>
       <ResponsiveProvider>
-      {isExcluded ? (
-        <>
+        {isExcluded ? (
           <Component {...pageProps} />
-          <ToastContainer
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            pauseOnHover
-          />
-        </>
-      ) : (
-        <Layout>
-          <Component {...pageProps} />
-          <ToastContainer
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            pauseOnHover
-          />
-        </Layout>
-      )}
+        ) : (
+          <Layout>
+            <Component {...pageProps} />
+          </Layout>
+        )}
+        <ToastContainer
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          pauseOnHover
+        />
       </ResponsiveProvider>
     </SessionProvider>
   );

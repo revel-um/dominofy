@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Canvas from "../components/canvas";
 import { ProjectsApi } from "../apis/projects.apis";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import CreateProjectModal from "../components/modals/createProjectModal";
@@ -1076,9 +1076,6 @@ export default function DominofyDashboard() {
                     </aside>
                 </div>
             </div>
-
-            {/* Toast -----------------------------------------------------------*/}
-            <ToastContainer position="top-right" autoClose={5000} hideProgressBar />
 
             {/* Modal -----------------------------------------------------------*/}
             <CreateProjectModal
