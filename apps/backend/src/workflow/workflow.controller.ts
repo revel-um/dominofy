@@ -83,17 +83,40 @@ export class WorkflowController extends BaseController<
     return this.workflowService.getRecentWorkflows(id, query, workspaceId);
   }
 
+  @Get('executions/performance')
+  async getWorkspacePerformanceMetrics(
+    @Req() req: Request,
+    @Query('workspaceId') workspaceId?: string,
+    @Query('query') query?: string,
+    @Query('workflowLimit') workflowLimit?: string,
+    @Query('workflowOffset') workflowOffset?: string,
+    @Query('errorLimit') errorLimit?: string,
+    @Query('errorOffset') errorOffset?: string,
+  ) {
+    const id = (req as any).user.id;
+    return this.workflowService.getWorkspacePerformanceMetrics(
+      id,
+      workspaceId,
+      query,
+      workflowLimit ? parseInt(workflowLimit) : undefined,
+      workflowOffset ? parseInt(workflowOffset) : undefined,
+      errorLimit ? parseInt(errorLimit) : undefined,
+      errorOffset ? parseInt(errorOffset) : undefined,
+    );
+  }
+
   @Get('user/all')
   async getAllUserWorkflows(
     @Req() req: Request,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('workspaceId') workspaceId?: string,
+    @Query('query') query?: string,
   ) {
     const id = (req as any).user.id;
     const limitNum = limit ? parseInt(limit) : undefined;
     const offsetNum = offset ? parseInt(offset) : undefined;
-    return this.workflowService.getAllUserWorkflows(id, limitNum, offsetNum, workspaceId);
+    return this.workflowService.getAllUserWorkflows(id, limitNum, offsetNum, workspaceId, query);
   }
 
   @Get(':id')

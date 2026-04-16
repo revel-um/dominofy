@@ -79,12 +79,21 @@ function toIsoWithTime(date: Date, time: string, fallback: "start" | "end") {
 export default function PerformanceWorkflowExecutionsPage() {
   const router = useRouter();
   const workflowId = typeof router.query.workflowId === "string" ? router.query.workflowId : null;
+  const returnTo = typeof router.query.returnTo === "string" ? router.query.returnTo : null;
   const [workflow, setWorkflow] = useState<WorkflowDetail | null>(null);
   const [executions, setExecutions] = useState<ExecutionMetric[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [filterInitialized, setFilterInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!router.isReady || filterInitialized) return;
+    const s = router.query.status;
+    if (s === "success" || s === "failure") setStatusFilter(s);
+    setFilterInitialized(true);
+  }, [router.isReady, router.query.status, filterInitialized]);
   const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
   const [appliedCustomRange, setAppliedCustomRange] = useState<DateRange | undefined>(undefined);
   const [appliedCustomStartTime, setAppliedCustomStartTime] = useState("00:00");
@@ -226,7 +235,10 @@ export default function PerformanceWorkflowExecutionsPage() {
               <div className="space-y-3">
                 <button
                   type="button"
-                  onClick={() => router.back()}
+                  onClick={() => {
+                    if (returnTo) router.push(returnTo);
+                    else router.back();
+                  }}
                   className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-200 dark:hover:border-sky-700 dark:hover:text-sky-200"
                 >
                   <FiArrowLeft className="h-4 w-4" />
@@ -466,12 +478,12 @@ export default function PerformanceWorkflowExecutionsPage() {
                     role="button"
                     tabIndex={0}
                     onClick={() =>
-                      router.push(`/performance/${encodeURIComponent(execution.id)}`)
+                    router.push(`/performance/${encodeURIComponent(execution.id)}?returnTo=${encodeURIComponent(router.asPath)}`)
                     }
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        router.push(`/performance/${encodeURIComponent(execution.id)}`);
+                        router.push(`/performance/${encodeURIComponent(execution.id)}?returnTo=${encodeURIComponent(router.asPath)}`);
                       }
                     }}
                     className="flex cursor-pointer flex-col gap-3 px-5 py-4 transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03] sm:px-6"

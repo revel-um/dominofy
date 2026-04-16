@@ -7,7 +7,6 @@ import {
   FiLayers,
   FiPackage,
   FiSearch,
-  FiMaximize2,
   FiZap,
 } from "react-icons/fi";
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from "@headlessui/react";
@@ -97,14 +96,12 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<OverviewSortField>('name');
   const [sortDirection, setSortDirection] = useState<OverviewSortDirection>('asc');
-  const [isDirectoryModalOpen, setIsDirectoryModalOpen] = useState(false);
   const [workspaceInventory, setWorkspaceInventory] = useState<WorkspaceListItem[]>([]);
   const [workspaceInventoryLoading, setWorkspaceInventoryLoading] = useState(true);
   const [workspaceListMode, setWorkspaceListMode] = useState<"owned" | "member">("owned");
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const itemsPerPage = 6;
-  const previewItemsCount = 4;
   const workspaceItemsPerPage = 6;
   const router = useRouter();
   const { status } = useSession();
@@ -342,8 +339,6 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
   const totalPages = Math.max(1, Math.ceil((activeView === 'project' ? totalCount : data.length) / itemsPerPage));
   const startIdx = (currentPage - 1) * itemsPerPage;
   const pageData = activeView === 'project' ? data /* server-paged */ : data.slice(startIdx, startIdx + itemsPerPage);
-  const previewData = pageData.slice(0, previewItemsCount);
-  const previewVisibleCount = previewData.length;
   const visibleCount = pageData.length;
   const publishedCount = overviewCounts?.publishedCount ?? 0;
   const workflowCount = overviewCounts?.workflowCount ?? 0;
@@ -379,11 +374,8 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
   const emptyStateBody = searchQuery
     ? `No ${activeView}s match "${searchQuery}". Try a different keyword.`
     : `There are no ${activeView}s to display yet.`;
-  const previewStatusLabel = visibleCount === 0 && listLoading
-    ? "Loading items..."
-    : `${previewVisibleCount} shown here${visibleCount > previewVisibleCount ? ` of ${visibleCount} on this page` : ""}`;
   const fullStatusLabel = listLoading
-    ? "Refreshing data..."
+    ? "Loading items..."
     : `${visibleCount} visible on page ${currentPage} of ${totalPages}`;
 
   const openWorkflowEntry = (workflow: OverviewWorkflow) => {
@@ -612,7 +604,7 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
         ) : (
           <OverviewDirectoryTable
             activeView={nonWorkspaceView}
-            items={previewData}
+            items={pageData}
             emptyStateTitle={emptyStateTitle}
             emptyStateBody={emptyStateBody}
             sortField={sortField}
@@ -620,105 +612,18 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
             onSort={handleSort}
             onOpenProject={openProjectEntryWorkflow}
             onOpenWorkflow={openWorkflowEntry}
-            statusLabel={previewStatusLabel}
+            statusLabel={fullStatusLabel}
             title="Browse and sort your workspace inventory"
             subtitle={`${activeView} directory`}
             listLoading={listLoading}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
             startIndex={startIdx}
-            mode="preview"
-            headerAction={
-              pageData.length > previewItemsCount || totalPages > 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setIsDirectoryModalOpen(true)}
-                  className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-sky-200/80 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-200 dark:hover:border-sky-400/35 dark:hover:bg-sky-400/15"
-                >
-                  <FiMaximize2 className="h-4 w-4" />
-                  Show all
-                </button>
-              ) : null
-            }
+            mode="full"
           />
         )}
       </div>
-
-      <Transition show={isDirectoryModalOpen && activeView !== 'workspace'} as={Fragment}>
-        <Dialog
-          as="div"
-          className="relative z-50"
-          onClose={() => setIsDirectoryModalOpen(false)}
-        >
-          <TransitionChild
-            as={Fragment}
-            enter="ease-out duration-150"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="ease-in duration-100"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_28%),rgba(15,23,42,0.42)] backdrop-blur-sm dark:bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_24%),rgba(2,6,23,0.72)]" />
-          </TransitionChild>
-
-          <div className="fixed inset-0 p-4 sm:p-6">
-            <div className="flex h-full items-center justify-center">
-              <TransitionChild
-                as={Fragment}
-                enter="ease-out duration-150"
-                enterFrom="opacity-0 translate-y-2 scale-95"
-                enterTo="opacity-100 translate-y-0 scale-100"
-                leave="ease-in duration-100"
-                leaveFrom="opacity-100 translate-y-0 scale-100"
-                leaveTo="opacity-0 translate-y-2 scale-95"
-              >
-                <DialogPanel className="flex h-[min(88vh,920px)] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-slate-200/80 bg-[linear-gradient(180deg,_rgba(255,255,255,0.96)_0%,_rgba(248,250,252,0.94)_100%)] shadow-[0_30px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-[linear-gradient(180deg,_rgba(15,23,42,0.94)_0%,_rgba(2,6,23,0.94)_100%)]">
-                  <div className="border-b border-slate-200/70 bg-slate-50/70 px-6 py-5 dark:border-white/10 dark:bg-white/[0.03]">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <DialogTitle className="text-xl font-semibold text-slate-950 dark:text-white">
-                          {activeView === "project" ? "All projects" : "All workflows"}
-                        </DialogTitle>
-                        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                          Use search, sorting, and pagination to inspect the full directory without stretching the overview page.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsDirectoryModalOpen(false)}
-                        className="inline-flex min-h-[40px] items-center justify-center rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="min-h-0 flex-1 bg-white/60 p-5 dark:bg-transparent">
-                    <OverviewDirectoryTable
-                      activeView={nonWorkspaceView}
-                      items={pageData}
-                      emptyStateTitle={emptyStateTitle}
-                      emptyStateBody={emptyStateBody}
-                      sortField={sortField}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                      onOpenProject={openProjectEntryWorkflow}
-                      onOpenWorkflow={openWorkflowEntry}
-                      statusLabel={fullStatusLabel}
-                      title="Browse and sort your workspace inventory"
-                      subtitle={`${activeView} directory`}
-                      listLoading={listLoading}
-                      currentPage={currentPage}
-                      totalPages={totalPages}
-                      onPageChange={setCurrentPage}
-                      startIndex={startIdx}
-                    />
-                  </div>
-                </DialogPanel>
-              </TransitionChild>
-            </div>
-          </div>
-        </Dialog>
-      </Transition>
 
       <Transition show={isWorkspaceModalOpen} as={Fragment}>
         <Dialog
@@ -770,22 +675,20 @@ export default function OverviewPage({ view = "project" }: { view?: "project" | 
                     </div>
                   </div>
 
-                  <div className="min-h-0 flex-1 bg-white/60 p-5 dark:bg-transparent">
-                    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/70 bg-white/80 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70">
-                      <SelectedWorkspacePanel
-                        selectedWorkspace={selectedWorkspace}
-                        currentWorkspaceId={activeWorkspaceId}
-                        onSwitchWorkspace={handleSwitchWorkspace}
-                        onWorkspaceUpdated={async () => {
-                          const token = await TokenManager.getValidAccessToken();
-                          if (!token) return;
-                          const response = await WorkspaceApi.listWorkspaces(token, router, searchQuery || undefined);
-                          if (!response?.ok) return;
-                          const data = await response.json() as WorkspaceListItem[];
-                          setWorkspaceInventory(data);
-                        }}
-                      />
-                    </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                    <SelectedWorkspacePanel
+                      selectedWorkspace={selectedWorkspace}
+                      currentWorkspaceId={activeWorkspaceId}
+                      onSwitchWorkspace={handleSwitchWorkspace}
+                      onWorkspaceUpdated={async () => {
+                        const token = await TokenManager.getValidAccessToken();
+                        if (!token) return;
+                        const response = await WorkspaceApi.listWorkspaces(token, router, searchQuery || undefined);
+                        if (!response?.ok) return;
+                        const data = await response.json() as WorkspaceListItem[];
+                        setWorkspaceInventory(data);
+                      }}
+                    />
                   </div>
                 </DialogPanel>
               </TransitionChild>

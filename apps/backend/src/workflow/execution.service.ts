@@ -113,6 +113,44 @@ export class ExecutionService {
     });
   }
 
+  async findBulkByWorkflowIds(workflowIds: string[], limit = 200): Promise<(Execution & { workflowId: string })[]> {
+    if (workflowIds.length === 0) return [];
+    const results = await this.executionRepository
+      .createQueryBuilder('execution')
+      .select([
+        'execution.id',
+        'execution.runId',
+        'execution.executedAt',
+        'execution.status',
+        'execution.failureReason',
+        'execution.deployedWorkflowVersion',
+        'execution.workflowId',
+      ])
+      .where('execution.workflowId IN (:...workflowIds)', { workflowIds })
+      .andWhere('execution.isDeployed = true')
+      .orderBy('execution.executedAt', 'DESC')
+      .limit(limit)
+      .getRawMany<{
+        execution_id: string;
+        execution_runId: string;
+        execution_executedAt: string;
+        execution_status: string;
+        execution_failureReason: string | null;
+        execution_deployedWorkflowVersion: number | null;
+        execution_workflowId: string;
+      }>();
+
+    return results.map((r) => ({
+      id: r.execution_id,
+      runId: r.execution_runId,
+      executedAt: r.execution_executedAt as any,
+      status: r.execution_status as any,
+      failureReason: r.execution_failureReason,
+      deployedWorkflowVersion: r.execution_deployedWorkflowVersion,
+      workflowId: r.execution_workflowId,
+    } as Execution & { workflowId: string }));
+  }
+
   async findOneForUser(executionId: string, userId: string): Promise<Execution> {
     const execution = await this.executionRepository
       .createQueryBuilder('execution')

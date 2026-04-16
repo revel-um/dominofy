@@ -36,6 +36,8 @@ interface ExecutionLog {
 export default function PerformanceExecutionDetailPage() {
   const router = useRouter();
   const executionId = typeof router.query.executionId === "string" ? router.query.executionId : null;
+  const from = typeof router.query.from === "string" ? router.query.from : null;
+  const returnTo = typeof router.query.returnTo === "string" ? router.query.returnTo : null;
   const [execution, setExecution] = useState<ExecutionDetail | null>(null);
   const [logs, setLogs] = useState<ExecutionLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -120,7 +122,12 @@ export default function PerformanceExecutionDetailPage() {
               <div className="space-y-3">
                 <button
                   type="button"
-                  onClick={() => router.back()}
+                  onClick={() => {
+                    if (returnTo) router.push(returnTo);
+                    else if (from === "errors") router.push("/performance?tab=errors");
+                    else if (from === "execution") router.push("/performance?tab=execution");
+                    else router.back();
+                  }}
                   className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-200 dark:hover:border-sky-700 dark:hover:text-sky-200"
                 >
                   <FiArrowLeft className="h-4 w-4" />

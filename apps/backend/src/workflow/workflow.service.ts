@@ -21,6 +21,7 @@ import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 import { Project } from 'src/projects/projects.entity';
 import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
 import {
+  Execution,
   ExecutionStatus,
 } from './execution.entity';
 import { ExecutionService } from './execution.service';
@@ -219,7 +220,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     return { workflows, count, user };
   }
 
-  async getAllUserWorkflows(userId: string, limit?: number, offset?: number, workspaceId?: string) {
+  async getAllUserWorkflows(userId: string, limit?: number, offset?: number, workspaceId?: string, query?: string) {
     const user = await this.userService.findOne(userId);
     if (!user) return;
 
@@ -235,17 +236,437 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
       return { workflows: [], count: 0, user };
     }
 
-    const [workflows, count] = await this.workflowRepository
+    const qb = this.workflowRepository
       .createQueryBuilder('workflow')
       .leftJoinAndSelect('workflow.project', 'project')
       .leftJoin('project.workspace', 'workspace')
       .where('workspace.id IN (:...workspaceIds)', { workspaceIds })
       .orderBy('workflow.updatedAt', 'DESC')
       .take(limit || 50)
-      .skip(offset || 0)
-      .getManyAndCount();
+      .skip(offset || 0);
 
-    return { workflows, count, user };
+    if (query && query.trim().length > 0) {
+      const normalizedQuery = `%${query.trim()}%`;
+      qb.andWhere(
+        new Brackets((subQb) => {
+          subQb
+            .where('workflow.name ILIKE :query', { query: normalizedQuery })
+            .orWhere('project.name ILIKE :query', { query: normalizedQuery });
+        }),
+      );
+    }
+
+    const [workflows, count] = await qb.getManyAndCount();
+
+    const publishedIds = workflows.filter((w) => w.isPublished).map((w) => w.id);
+    const deployedVersionMap = new Map<string, number>();
+
+    if (publishedIds.length > 0) {
+      const rows = await this.deployedWorkflowRepository
+        .createQueryBuilder('dw')
+        .select('dw.workflowId', 'workflowId')
+        .addSelect('MAX(dw.version)', 'maxVersion')
+        .where('dw.workflowId IN (:...ids)', { ids: publishedIds })
+        .groupBy('dw.workflowId')
+        .getRawMany<{ workflowId: string; maxVersion: string }>();
+
+      for (const row of rows) {
+        deployedVersionMap.set(row.workflowId, Number(row.maxVersion));
+      }
+    }
+
+    return {
+      workflows: workflows.map((w) => ({
+        ...w,
+        currentDeployedVersion: deployedVersionMap.get(w.id) ?? null,
+      })),
+      count,
+      user,
+    };
+  }
+
+  async getWorkspacePerformanceMetrics(
+    userId: string,
+    workspaceId?: string,
+    query?: string,
+    workflowLimit = 12,
+    workflowOffset = 0,
+    errorLimit = 25,
+    errorOffset = 0,
+  ) {
+    const safeWorkflowLimit = Math.min(Math.max(workflowLimit || 12, 1), 100);
+    const safeWorkflowOffset = Math.max(workflowOffset || 0, 0);
+    const safeErrorLimit = Math.min(Math.max(errorLimit || 25, 1), 100);
+    const safeErrorOffset = Math.max(errorOffset || 0, 0);
+
+    let workspaceIds: string[];
+    if (workspaceId) {
+      await this.workspaceService.assertWorkspaceAccess(userId, workspaceId);
+      workspaceIds = [workspaceId];
+    } else {
+      workspaceIds = await this.workspaceService.getAccessibleWorkspaceIds(userId);
+    }
+
+    if (workspaceIds.length === 0) {
+      return {
+        summary: {
+          totalExecutions: 0,
+          successfulExecutions: 0,
+          failedExecutions: 0,
+          runningExecutions: 0,
+          recentExecutions: 0,
+          last7DayErrors: 0,
+          affectedWorkflowCount: 0,
+          latestExecutionAt: null,
+          totalWorkflows: 0,
+        },
+        workflows: {
+          items: [],
+          count: 0,
+          limit: safeWorkflowLimit,
+          offset: safeWorkflowOffset,
+          hasMore: false,
+        },
+        errors: {
+          items: [],
+          count: 0,
+          limit: safeErrorLimit,
+          offset: safeErrorOffset,
+          hasMore: false,
+        },
+      };
+    }
+
+    const normalizedQuery = query?.trim() ? `%${query.trim()}%` : null;
+    const executionRepository = this.workflowRepository.manager.getRepository(Execution);
+
+    const applyWorkflowFilters = (qb: any) => {
+      qb
+        .andWhere('workspace.id IN (:...workspaceIds)', { workspaceIds })
+        .andWhere('workflow.isPublished = true');
+
+      if (normalizedQuery) {
+        qb.andWhere(
+          new Brackets((sub) => {
+            sub
+              .where('workflow.name ILIKE :q', { q: normalizedQuery })
+              .orWhere('project.name ILIKE :q', { q: normalizedQuery });
+          }),
+        );
+      }
+
+      return qb;
+    };
+
+    const workflowBaseQb = applyWorkflowFilters(
+      this.workflowRepository
+        .createQueryBuilder('workflow')
+        .leftJoin('workflow.project', 'project')
+        .leftJoin('project.workspace', 'workspace')
+        .where('1 = 1'),
+    );
+
+    const totalWorkflowCount = await workflowBaseQb.clone().getCount();
+
+    if (totalWorkflowCount === 0) {
+      return {
+        summary: {
+          totalExecutions: 0,
+          successfulExecutions: 0,
+          failedExecutions: 0,
+          runningExecutions: 0,
+          recentExecutions: 0,
+          last7DayErrors: 0,
+          affectedWorkflowCount: 0,
+          latestExecutionAt: null,
+          totalWorkflows: 0,
+        },
+        workflows: {
+          items: [],
+          count: 0,
+          limit: safeWorkflowLimit,
+          offset: safeWorkflowOffset,
+          hasMore: false,
+        },
+        errors: {
+          items: [],
+          count: 0,
+          limit: safeErrorLimit,
+          offset: safeErrorOffset,
+          hasMore: false,
+        },
+      };
+    }
+
+    const summaryQb = executionRepository
+      .createQueryBuilder('execution')
+      .innerJoin('execution.workflow', 'workflow')
+      .innerJoin('workflow.project', 'project')
+      .innerJoin('project.workspace', 'workspace')
+      .where('execution.isDeployed = true');
+
+    applyWorkflowFilters(summaryQb);
+
+    const summaryRow = await summaryQb
+      .select('COUNT(execution.id)', 'totalExecutions')
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN execution.status = :successStatus THEN 1 ELSE 0 END), 0)`,
+        'successfulExecutions',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN execution.status = :failureStatus THEN 1 ELSE 0 END), 0)`,
+        'failedExecutions',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN execution.status = :runningStatus THEN 1 ELSE 0 END), 0)`,
+        'runningExecutions',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN execution.executedAt >= :recentCutoff THEN 1 ELSE 0 END), 0)`,
+        'recentExecutions',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN execution.status = :failureStatus AND execution.executedAt >= :last7DaysCutoff THEN 1 ELSE 0 END), 0)`,
+        'last7DayErrors',
+      )
+      .addSelect('COUNT(DISTINCT execution.workflowId)', 'affectedWorkflowCount')
+      .addSelect('MAX(execution.executedAt)', 'latestExecutionAt')
+      .setParameters({
+        successStatus: ExecutionStatus.SUCCESS,
+        failureStatus: ExecutionStatus.FAILURE,
+        runningStatus: ExecutionStatus.RUNNING,
+        recentCutoff: new Date(Date.now() - (24 * 60 * 60 * 1000)),
+        last7DaysCutoff: new Date(Date.now() - (7 * 24 * 60 * 60 * 1000)),
+      })
+      .getRawOne<{
+        totalExecutions: string;
+        successfulExecutions: string;
+        failedExecutions: string;
+        runningExecutions: string;
+        recentExecutions: string;
+        last7DayErrors: string;
+        affectedWorkflowCount: string;
+        latestExecutionAt: string | null;
+      }>();
+
+    const workflowAggregationSubQuery = executionRepository
+      .createQueryBuilder('execution')
+      .select('execution.workflowId', 'workflowId')
+      .addSelect('COUNT(execution.id)', 'totalExecutions')
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN execution.status = '${ExecutionStatus.SUCCESS}' THEN 1 ELSE 0 END), 0)`,
+        'successfulExecutions',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN execution.status = '${ExecutionStatus.FAILURE}' THEN 1 ELSE 0 END), 0)`,
+        'failedExecutions',
+      )
+      .addSelect('MAX(execution.executedAt)', 'latestExecutionAt')
+      .where('execution.isDeployed = true')
+      .groupBy('execution.workflowId');
+
+    const versionSubQuery = this.deployedWorkflowRepository
+      .createQueryBuilder('dw')
+      .select('dw.workflowId', 'workflowId')
+      .addSelect('MAX(dw.version)', 'currentDeployedVersion')
+      .groupBy('dw.workflowId');
+
+    const workflowRowsQb = applyWorkflowFilters(
+      this.workflowRepository
+        .createQueryBuilder('workflow')
+        .leftJoin('workflow.project', 'project')
+        .leftJoin('project.workspace', 'workspace')
+        .leftJoin(
+          `(${workflowAggregationSubQuery.getQuery()})`,
+          'executionAgg',
+          '"executionAgg"."workflowId" = workflow.id',
+        )
+        .leftJoin(
+          `(${versionSubQuery.getQuery()})`,
+          'versionAgg',
+          '"versionAgg"."workflowId" = workflow.id',
+        )
+        .where('1 = 1'),
+    )
+      .setParameters({
+        ...versionSubQuery.getParameters(),
+      })
+      .select('workflow.id', 'workflowId')
+      .addSelect('workflow.name', 'workflowName')
+      .addSelect('project.name', 'projectName')
+      .addSelect('"versionAgg"."currentDeployedVersion"', 'currentDeployedVersion')
+      .addSelect('COALESCE("executionAgg"."totalExecutions", 0)', 'totalExecutions')
+      .addSelect('COALESCE("executionAgg"."successfulExecutions", 0)', 'successfulExecutions')
+      .addSelect('COALESCE("executionAgg"."failedExecutions", 0)', 'failedExecutions')
+      .addSelect('"executionAgg"."latestExecutionAt"', 'latestExecutionAt')
+      .orderBy('"executionAgg"."latestExecutionAt"', 'DESC', 'NULLS LAST')
+      .addOrderBy('workflow.updatedAt', 'DESC')
+      .offset(safeWorkflowOffset)
+      .limit(safeWorkflowLimit);
+
+    const workflowRows = await workflowRowsQb.getRawMany() as Array<{
+      workflowId: string;
+      workflowName: string;
+      projectName: string | null;
+      currentDeployedVersion: string | null;
+      totalExecutions: string;
+      successfulExecutions: string;
+      failedExecutions: string;
+      latestExecutionAt: string | null;
+    }>;
+
+    const pagedWorkflowIds = workflowRows.map((row) => row.workflowId);
+
+    const recentExecutionRows = pagedWorkflowIds.length > 0
+      ? await this.workflowRepository.manager.query(
+          `
+            SELECT id, "runId", "executedAt", status, "workflowId"
+            FROM (
+              SELECT
+                e.id,
+                e."runId",
+                e."executedAt",
+                e.status,
+                e."workflowId",
+                ROW_NUMBER() OVER (
+                  PARTITION BY e."workflowId"
+                  ORDER BY e."executedAt" DESC
+                ) AS row_num
+              FROM executions e
+              WHERE e."isDeployed" = true
+                AND e."workflowId" = ANY($1::uuid[])
+            ) ranked
+            WHERE row_num <= 8
+            ORDER BY "workflowId" ASC, "executedAt" DESC
+          `,
+          [pagedWorkflowIds],
+        )
+      : [];
+
+    const recentExecutionsByWorkflow = new Map<string, Array<{
+      id: string;
+      runId: string;
+      executedAt: string;
+      status: ExecutionStatus;
+    }>>();
+
+    for (const row of recentExecutionRows as Array<{
+      id: string;
+      runId: string;
+      executedAt: string;
+      status: ExecutionStatus;
+      workflowId: string;
+    }>) {
+      const list = recentExecutionsByWorkflow.get(row.workflowId) ?? [];
+      list.push({
+        id: row.id,
+        runId: row.runId,
+        executedAt: row.executedAt,
+        status: row.status,
+      });
+      recentExecutionsByWorkflow.set(row.workflowId, list);
+    }
+
+    const workflowItems = workflowRows.map((row) => ({
+      workflowId: row.workflowId,
+      workflowName: row.workflowName,
+      projectName: row.projectName,
+      currentDeployedVersion:
+        row.currentDeployedVersion == null ? null : Number(row.currentDeployedVersion),
+      totalExecutions: Number(row.totalExecutions ?? 0),
+      successfulExecutions: Number(row.successfulExecutions ?? 0),
+      failedExecutions: Number(row.failedExecutions ?? 0),
+      latestExecutionAt: row.latestExecutionAt,
+      recentExecutions: (recentExecutionsByWorkflow.get(row.workflowId) ?? []).reverse(),
+    }));
+
+    const errorRowsQb = applyWorkflowFilters(
+      executionRepository
+        .createQueryBuilder('execution')
+        .innerJoin('execution.workflow', 'workflow')
+        .innerJoin('workflow.project', 'project')
+        .innerJoin('project.workspace', 'workspace')
+        .leftJoin(
+          `(${versionSubQuery.getQuery()})`,
+          'versionAgg',
+          '"versionAgg"."workflowId" = workflow.id',
+        )
+        .where('execution.isDeployed = true')
+        .andWhere('execution.status = :failureStatus', {
+          failureStatus: ExecutionStatus.FAILURE,
+        }),
+    )
+      .setParameters({
+        ...versionSubQuery.getParameters(),
+        failureStatus: ExecutionStatus.FAILURE,
+      })
+      .select('execution.id', 'id')
+      .addSelect('execution.runId', 'runId')
+      .addSelect('execution.executedAt', 'executedAt')
+      .addSelect('execution.status', 'status')
+      .addSelect('execution.failureReason', 'failureReason')
+      .addSelect('execution.deployedWorkflowVersion', 'deployedWorkflowVersion')
+      .addSelect('workflow.id', 'workflowId')
+      .addSelect('workflow.name', 'workflowName')
+      .addSelect('project.name', 'projectName')
+      .addSelect('"versionAgg"."currentDeployedVersion"', 'currentDeployedVersion')
+      .orderBy('execution.executedAt', 'DESC')
+      .offset(safeErrorOffset)
+      .limit(safeErrorLimit);
+
+    const errorRows = await errorRowsQb.getRawMany() as Array<{
+      id: string;
+      runId: string;
+      executedAt: string;
+      status: ExecutionStatus;
+      failureReason: string | null;
+      deployedWorkflowVersion: string | null;
+      workflowId: string;
+      workflowName: string;
+      projectName: string | null;
+      currentDeployedVersion: string | null;
+    }>;
+
+    return {
+      summary: {
+        totalExecutions: Number(summaryRow?.totalExecutions ?? 0),
+        successfulExecutions: Number(summaryRow?.successfulExecutions ?? 0),
+        failedExecutions: Number(summaryRow?.failedExecutions ?? 0),
+        runningExecutions: Number(summaryRow?.runningExecutions ?? 0),
+        recentExecutions: Number(summaryRow?.recentExecutions ?? 0),
+        last7DayErrors: Number(summaryRow?.last7DayErrors ?? 0),
+        affectedWorkflowCount: Number(summaryRow?.affectedWorkflowCount ?? 0),
+        latestExecutionAt: summaryRow?.latestExecutionAt ?? null,
+        totalWorkflows: totalWorkflowCount,
+      },
+      workflows: {
+        items: workflowItems,
+        count: totalWorkflowCount,
+        limit: safeWorkflowLimit,
+        offset: safeWorkflowOffset,
+        hasMore: safeWorkflowOffset + workflowItems.length < totalWorkflowCount,
+      },
+      errors: {
+        items: errorRows.map((row) => ({
+          id: row.id,
+          runId: row.runId,
+          executedAt: row.executedAt,
+          status: row.status,
+          failureReason: row.failureReason ?? null,
+          deployedWorkflowVersion:
+            row.deployedWorkflowVersion == null ? null : Number(row.deployedWorkflowVersion),
+          workflowId: row.workflowId,
+          workflowName: row.workflowName,
+          projectName: row.projectName,
+          currentDeployedVersion:
+            row.currentDeployedVersion == null ? null : Number(row.currentDeployedVersion),
+        })),
+        count: Number(summaryRow?.failedExecutions ?? 0),
+        limit: safeErrorLimit,
+        offset: safeErrorOffset,
+        hasMore: safeErrorOffset + errorRows.length < Number(summaryRow?.failedExecutions ?? 0),
+      },
+    };
   }
 
   async findOneAndVerify(

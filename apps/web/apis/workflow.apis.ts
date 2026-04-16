@@ -80,12 +80,13 @@ export class WorkflowsApi {
     }
   }
 
-  static async getAllUserWorkflows(token: string, router: NextRouter, limit?: number, offset?: number, workspaceId?: string) {
+  static async getAllUserWorkflows(token: string, router: NextRouter, limit?: number, offset?: number, workspaceId?: string, query?: string) {
     try {
       const params = new URLSearchParams();
       if (limit) params.append('limit', limit.toString());
       if (offset) params.append('offset', offset.toString());
       if (workspaceId) params.append('workspaceId', workspaceId);
+      if (query && query.trim().length > 0) params.append('query', query.trim());
 
       const url = `${config.backendBaseUrl}/workflow/user/all${params.toString() ? '?' + params.toString() : ''}`;
 
@@ -95,6 +96,35 @@ export class WorkflowsApi {
       }, router);
 
       return response;
+    } catch (err) {
+      handleServerError(router, err);
+    }
+  }
+
+  static async getWorkspacePerformanceMetrics(
+    token: string,
+    router: NextRouter,
+    options?: {
+      workspaceId?: string;
+      query?: string;
+      workflowLimit?: number;
+      workflowOffset?: number;
+      errorLimit?: number;
+      errorOffset?: number;
+    },
+  ) {
+    try {
+      const params = new URLSearchParams();
+      if (options?.workspaceId) params.append('workspaceId', options.workspaceId);
+      if (options?.query && options.query.trim().length > 0) params.append('query', options.query.trim());
+      if (typeof options?.workflowLimit === 'number') params.append('workflowLimit', options.workflowLimit.toString());
+      if (typeof options?.workflowOffset === 'number') params.append('workflowOffset', options.workflowOffset.toString());
+      if (typeof options?.errorLimit === 'number') params.append('errorLimit', options.errorLimit.toString());
+      if (typeof options?.errorOffset === 'number') params.append('errorOffset', options.errorOffset.toString());
+
+      const url = `${config.backendBaseUrl}/workflow/executions/performance${params.toString() ? '?' + params.toString() : ''}`;
+
+      return await authFetch(url, { method: 'GET', token }, router);
     } catch (err) {
       handleServerError(router, err);
     }

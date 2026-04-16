@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { FiArrowRight, FiCheckCircle, FiMail } from 'react-icons/fi';
 import { WorkspaceApi, WorkspaceListItem, WorkspaceMember } from '../apis/workspace.apis';
 import { TokenManager } from '../utils/auth';
+import DominoDropdown from './shared/dominoDropdown';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MEMBERS_PAGE_SIZE = 25;
@@ -260,15 +261,18 @@ export function SelectedWorkspacePanel({
               placeholder="name@example.com"
               className="min-h-[48px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-slate-950/40 dark:text-white"
             />
-            <select
+            <DominoDropdown
               value={inviteRole}
-              onChange={(event) => setInviteRole(event.target.value)}
-              className="min-h-[48px] w-full rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 dark:border-white/10 dark:bg-slate-950/40 dark:text-white"
-            >
-              <option value="admin">Admin</option>
-              <option value="member">Member</option>
-              <option value="viewer">Viewer</option>
-            </select>
+              onChange={setInviteRole}
+              options={[
+                { label: 'Admin', value: 'admin' },
+                { label: 'Member', value: 'member' },
+                { label: 'Viewer', value: 'viewer' },
+              ]}
+              placeholder="Role"
+              className="min-h-[48px] w-full rounded-[18px] border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 dark:border-white/10 dark:bg-slate-950/40 dark:text-white"
+              menuWidthClassName="w-full"
+            />
             {inviteError ? (
               <p className="text-sm text-rose-600 dark:text-rose-300">{inviteError}</p>
             ) : (

@@ -71,14 +71,6 @@ interface TemplatePreview {
     edges: Edge[];
 }
 
-interface ExecutionMetric {
-    id: string;
-    runId: string;
-    executedAt: string;
-    status: "running" | "success" | "failure";
-    failureReason?: string | null;
-}
-
 interface DashboardMetricsSummary {
     totalExecutions: number;
     successfulExecutions: number;
@@ -563,73 +555,39 @@ export default function DominofyDashboard() {
             setUser({ name: user.name, email: user.email });
             setWorkflowCount(wfCount);
 
-            const allWorkflowResponse = await WorkflowsApi.getAllUserWorkflows(
+            const performanceResponse = await WorkflowsApi.getWorkspacePerformanceMetrics(
                 currentToken ?? "",
                 router,
-                Math.max(wfCount, 1),
-                0,
-                requestedWorkspaceId,
+                {
+                    workspaceId: requestedWorkspaceId,
+                    workflowLimit: 1,
+                    workflowOffset: 0,
+                    errorLimit: 1,
+                    errorOffset: 0,
+                },
             );
 
-            if (allWorkflowResponse?.ok) {
-                const { workflows: allWorkflows } = await allWorkflowResponse.json() as {
-                    workflows: Workflow[];
-                    count: number;
-                    user: User;
+            if (performanceResponse?.ok) {
+                const { summary } = await performanceResponse.json() as {
+                    summary: {
+                        totalExecutions: number;
+                        successfulExecutions: number;
+                        failedExecutions: number;
+                        runningExecutions: number;
+                        recentExecutions: number;
+                        last7DayErrors: number;
+                        totalWorkflows: number;
+                    };
                 };
 
-                const deployedWorkflows = allWorkflows.filter((workflow) => workflow.isPublished);
-                const recentCutoff = Date.now() - (24 * 60 * 60 * 1000);
-                const last7DaysCutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
-
-                const metricResponses = await Promise.allSettled(
-                    deployedWorkflows.map(async (workflow) => {
-                        const metricsResponse = await WorkflowsApi.getExecutionMetrics(
-                            workflow.id,
-                            currentToken ?? "",
-                            router,
-                            200,
-                            0,
-                        );
-
-                        if (!metricsResponse?.ok) {
-                            return [] as ExecutionMetric[];
-                        }
-
-                        const payload = await metricsResponse.json() as {
-                            count: number;
-                            metrics: ExecutionMetric[];
-                        };
-
-                        return payload.metrics ?? [];
-                    }),
-                );
-
-                const allMetrics = metricResponses.flatMap((result) =>
-                    result.status === "fulfilled" ? result.value : [],
-                );
-
-                const successfulExecutions = allMetrics.filter((metric) => metric.status === "success").length;
-                const failedExecutions = allMetrics.filter((metric) => metric.status === "failure").length;
-                const runningExecutions = allMetrics.filter((metric) => metric.status === "running").length;
-                const recentExecutions = allMetrics.filter((metric) => {
-                    const executedAt = new Date(metric.executedAt).getTime();
-                    return Number.isFinite(executedAt) && executedAt >= recentCutoff;
-                }).length;
-                const last7DayErrors = allMetrics.filter((metric) => {
-                    if (metric.status !== "failure") return false;
-                    const executedAt = new Date(metric.executedAt).getTime();
-                    return Number.isFinite(executedAt) && executedAt >= last7DaysCutoff;
-                }).length;
-
                 setDashboardMetrics({
-                    totalExecutions: allMetrics.length,
-                    successfulExecutions,
-                    failedExecutions,
-                    runningExecutions,
-                    recentExecutions,
-                    last7DayErrors,
-                    deployedWorkflowCount: deployedWorkflows.length,
+                    totalExecutions: summary.totalExecutions ?? 0,
+                    successfulExecutions: summary.successfulExecutions ?? 0,
+                    failedExecutions: summary.failedExecutions ?? 0,
+                    runningExecutions: summary.runningExecutions ?? 0,
+                    recentExecutions: summary.recentExecutions ?? 0,
+                    last7DayErrors: summary.last7DayErrors ?? 0,
+                    deployedWorkflowCount: summary.totalWorkflows ?? 0,
                 });
             } else {
                 setDashboardMetrics({
@@ -658,7 +616,6 @@ export default function DominofyDashboard() {
     useEffect(() => {
         setPageCache({});
         setPage(1);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [router.query.workspaceId]);
 
     useEffect(() => {
@@ -808,7 +765,17 @@ export default function DominofyDashboard() {
                                             </p>
                                             <p className="mt-1 break-words text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">Active inside {workspaceName}</p>
                                         </div>
-                                        <div className="rounded-[24px] border border-white/70 bg-white/80 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                router.push(
+                                                    workspaceSummary?.id
+                                                        ? `/performance?workspaceId=${workspaceSummary.id}&tab=execution`
+                                                        : "/performance?tab=execution"
+                                                )
+                                            }
+                                            className="rounded-[24px] border border-white/70 bg-white/80 p-3 text-left backdrop-blur-sm transition hover:border-emerald-200 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:border-emerald-900/40 dark:hover:bg-white/[0.07] sm:p-4"
+                                        >
                                             <div className="flex min-w-0 items-start gap-3 text-slate-500 dark:text-slate-300">
                                                 <FiCheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                                                 <span className="min-w-0 break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.06em] sm:text-[10px] sm:leading-4 sm:tracking-[0.1em]">Success rate</span>
@@ -817,7 +784,7 @@ export default function DominofyDashboard() {
                                             <p className="mt-1 break-words text-[13px] leading-5 text-slate-500 dark:text-slate-400 sm:text-sm">
                                                 {dashboardMetrics.totalExecutions} tracked execution{dashboardMetrics.totalExecutions === 1 ? "" : "s"}
                                             </p>
-                                        </div>
+                                        </button>
                                         <div className="rounded-[24px] border border-white/70 bg-white/80 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 sm:p-4">
                                             <div className="flex min-w-0 items-start gap-3 text-slate-500 dark:text-slate-300">
                                                 <FiAward className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
@@ -833,8 +800,8 @@ export default function DominofyDashboard() {
                                             onClick={() =>
                                                 router.push(
                                                     workspaceSummary?.id
-                                                        ? `/performance?workspaceId=${workspaceSummary.id}`
-                                                        : "/performance"
+                                                        ? `/performance?workspaceId=${workspaceSummary.id}&tab=errors`
+                                                        : "/performance?tab=errors"
                                                 )
                                             }
                                             className="rounded-[24px] border border-white/70 bg-white/80 p-3 text-left backdrop-blur-sm transition hover:border-rose-200 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:border-rose-900/40 dark:hover:bg-white/[0.07] sm:p-4"

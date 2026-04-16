@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
   FiActivity,
   FiAlertCircle,
+  FiArrowRight,
   FiBarChart2,
   FiCheckCircle,
   FiClock,
@@ -10,26 +11,12 @@ import {
   FiGitBranch,
   FiInfo,
   FiRefreshCw,
+  FiSearch,
 } from "react-icons/fi";
 import { WorkspaceApi, WorkspaceSummary } from "../apis/workspace.apis";
 import { WorkflowsApi } from "../apis/workflow.apis";
 import { TokenManager } from "../utils/auth";
 import { getActiveWorkspaceIdFromStorage, setActiveWorkspaceIdInStorage } from "../utils/workspace";
-
-interface WorkflowListItem {
-  id: string;
-  name: string;
-  isPublished: boolean;
-  project?: {
-    id: string;
-    name: string;
-  };
-}
-
-interface DeployedWorkflowSnapshot {
-  id: string;
-  version: number;
-}
 
 interface ExecutionMetric {
   id: string;
@@ -46,6 +33,43 @@ interface MetricRecord extends ExecutionMetric {
   projectName: string | null;
   currentDeployedWorkflowVersion: number | null;
 }
+
+interface WorkflowSummaryRecord {
+  workflowId: string;
+  workflowName: string;
+  projectName: string | null;
+  currentDeployedWorkflowVersion: number | null;
+  totalExecutions: number;
+  successfulExecutions: number;
+  failedExecutions: number;
+  latestExecutionAt: string | null;
+  recentExecutions: Array<{
+    id: string;
+    runId: string;
+    status: ExecutionMetric["status"];
+    executedAt: string;
+  }>;
+}
+
+interface WorkspacePerformanceSummary {
+  totalExecutions: number;
+  successfulExecutions: number;
+  failedExecutions: number;
+  affectedWorkflowCount: number;
+  latestExecutionAt: string | null;
+  totalWorkflows: number;
+}
+
+interface PaginationPayload<T> {
+  items: T[];
+  count: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+const WORKFLOW_PAGE_SIZE = 12;
+const ERROR_PAGE_SIZE = 25;
 
 function MetricCard({
   label,
@@ -85,37 +109,85 @@ function MetricCard({
 
 export default function ErrorsPage() {
   const router = useRouter();
+  const requestedWorkspaceIdFromQuery =
+    typeof router.query.workspaceId === "string" ? router.query.workspaceId : null;
+  const routerRef = useRef(router);
   const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary | null>(null);
-  const [metrics, setMetrics] = useState<MetricRecord[]>([]);
+  const [summary, setSummary] = useState<WorkspacePerformanceSummary>({
+    totalExecutions: 0,
+    successfulExecutions: 0,
+    failedExecutions: 0,
+    affectedWorkflowCount: 0,
+    latestExecutionAt: null,
+    totalWorkflows: 0,
+  });
+  const [workflowSummaries, setWorkflowSummaries] = useState<WorkflowSummaryRecord[]>([]);
+  const [errors, setErrors] = useState<MetricRecord[]>([]);
+  const [workflowPagination, setWorkflowPagination] = useState<PaginationPayload<WorkflowSummaryRecord>>({
+    items: [],
+    count: 0,
+    limit: WORKFLOW_PAGE_SIZE,
+    offset: 0,
+    hasMore: false,
+  });
+  const [errorPagination, setErrorPagination] = useState<PaginationPayload<MetricRecord>>({
+    items: [],
+    count: 0,
+    limit: ERROR_PAGE_SIZE,
+    offset: 0,
+    hasMore: false,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeSection, setActiveSection] = useState<'execution' | 'errors'>('execution');
+  const [searchQuery, setSearchQuery] = useState('');
+  const hasInitializedSearch = useRef(false);
+  const [workflowPage, setWorkflowPage] = useState(1);
+  const [errorPage, setErrorPage] = useState(1);
+  const [isRouteStateReady, setIsRouteStateReady] = useState(false);
 
-  const fetchPerformance = useCallback(async (isManualRefresh = false) => {
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
+
+  const fetchPerformance = useCallback(async (isManualRefresh = false, query = '') => {
     if (isManualRefresh) setIsRefreshing(true);
     else setIsLoading(true);
 
     try {
       const token = await TokenManager.getValidAccessToken();
       if (!token) {
-        setMetrics([]);
+        setSummary({
+          totalExecutions: 0,
+          successfulExecutions: 0,
+          failedExecutions: 0,
+          affectedWorkflowCount: 0,
+          latestExecutionAt: null,
+          totalWorkflows: 0,
+        });
+        setWorkflowSummaries([]);
+        setErrors([]);
+        setWorkflowPagination((current) => ({ ...current, items: [], count: 0, hasMore: false }));
+        setErrorPagination((current) => ({ ...current, items: [], count: 0, hasMore: false }));
         return;
       }
 
       const requestedWorkspaceId =
-        (typeof router.query.workspaceId === "string" ? router.query.workspaceId : null) ||
+        requestedWorkspaceIdFromQuery ||
         getActiveWorkspaceIdFromStorage() ||
         undefined;
 
+      let activeWorkspaceId = requestedWorkspaceId;
       const workspaceResponse = await WorkspaceApi.getCurrentWorkspaceSummary(
         token,
-        router,
+        routerRef.current,
         requestedWorkspaceId,
       );
 
-      let activeWorkspaceId = requestedWorkspaceId;
-      if (workspaceResponse?.ok) {
-        const workspace = await workspaceResponse.json() as WorkspaceSummary;
+      const workspace = workspaceResponse?.ok
+        ? await workspaceResponse.json() as WorkspaceSummary
+        : null;
+      if (workspace) {
         setWorkspaceSummary(workspace);
         setActiveWorkspaceIdInStorage(workspace.id);
         activeWorkspaceId = workspace.id;
@@ -123,164 +195,160 @@ export default function ErrorsPage() {
         setWorkspaceSummary(null);
       }
 
-      const workflowsResponse = await WorkflowsApi.getAllUserWorkflows(
+      const performanceRequest = {
+        workspaceId: activeWorkspaceId,
+        query: query || undefined,
+        workflowLimit: WORKFLOW_PAGE_SIZE,
+        workflowOffset: (workflowPage - 1) * WORKFLOW_PAGE_SIZE,
+        errorLimit: ERROR_PAGE_SIZE,
+        errorOffset: (errorPage - 1) * ERROR_PAGE_SIZE,
+      };
+      const performanceResponse = await WorkflowsApi.getWorkspacePerformanceMetrics(
         token,
-        router,
-        200,
-        0,
-        activeWorkspaceId,
+        routerRef.current,
+        performanceRequest,
       );
-
-      if (!workflowsResponse?.ok) {
-        setMetrics([]);
+      if (!performanceResponse?.ok) {
+        setWorkflowSummaries([]);
+        setErrors([]);
         return;
       }
 
-      const { workflows } = await workflowsResponse.json() as {
-        workflows: WorkflowListItem[];
-        count: number;
+      const payload = await performanceResponse.json() as {
+        summary: WorkspacePerformanceSummary;
+        workflows: PaginationPayload<{
+          workflowId: string;
+          workflowName: string;
+          projectName: string | null;
+          currentDeployedVersion: number | null;
+          totalExecutions: number;
+          successfulExecutions: number;
+          failedExecutions: number;
+          latestExecutionAt: string | null;
+          recentExecutions: Array<{
+            id: string;
+            runId: string;
+            status: ExecutionMetric["status"];
+            executedAt: string;
+          }>;
+        }>;
+        errors: PaginationPayload<{
+          id: string;
+          runId: string;
+          executedAt: string;
+          status: "running" | "success" | "failure";
+          failureReason?: string | null;
+          deployedWorkflowVersion?: number | null;
+          workflowId: string;
+          workflowName: string;
+          projectName: string | null;
+          currentDeployedVersion: number | null;
+        }>;
       };
 
-      const deployedWorkflows = (workflows ?? []).filter((workflow) => workflow.isPublished);
-
-      const metricResults = await Promise.allSettled(
-        deployedWorkflows.map(async (workflow) => {
-          const [deploymentResponse, metricsResponse] = await Promise.all([
-            WorkflowsApi.getDeployedWorkflowById(workflow.id, token, router),
-            WorkflowsApi.getExecutionMetrics(
-              workflow.id,
-              token,
-              router,
-              200,
-              0,
-              undefined,
-              { allVersions: true },
-            ),
-          ]);
-
-          const currentDeployment = deploymentResponse?.ok
-            ? await deploymentResponse.json() as DeployedWorkflowSnapshot
-            : null;
-
-          if (!metricsResponse?.ok) return [] as MetricRecord[];
-
-          const payload = await metricsResponse.json() as {
-            count: number;
-            metrics: ExecutionMetric[];
-          };
-
-          return (payload.metrics ?? [])
-            .map((metric) => ({
-              ...metric,
-              workflowId: workflow.id,
-              workflowName: workflow.name,
-              projectName: workflow.project?.name ?? null,
-              currentDeployedWorkflowVersion: currentDeployment?.version ?? null,
-            }));
-        }),
+      setSummary(payload.summary);
+      setWorkflowSummaries(
+        (payload.workflows.items ?? []).map((workflow) => ({
+          workflowId: workflow.workflowId,
+          workflowName: workflow.workflowName,
+          projectName: workflow.projectName,
+          currentDeployedWorkflowVersion: workflow.currentDeployedVersion,
+          totalExecutions: workflow.totalExecutions,
+          successfulExecutions: workflow.successfulExecutions,
+          failedExecutions: workflow.failedExecutions,
+          latestExecutionAt: workflow.latestExecutionAt,
+          recentExecutions: workflow.recentExecutions ?? [],
+        })),
       );
-
-      const flattenedErrors = metricResults.flatMap((result) =>
-        result.status === "fulfilled" ? result.value : [],
+      setErrors(
+        (payload.errors.items ?? []).map((entry) => ({
+          id: entry.id,
+          runId: entry.runId,
+          executedAt: entry.executedAt,
+          status: entry.status,
+          failureReason: entry.failureReason ?? null,
+          deployedWorkflowVersion: entry.deployedWorkflowVersion ?? undefined,
+          workflowId: entry.workflowId,
+          workflowName: entry.workflowName,
+          projectName: entry.projectName,
+          currentDeployedWorkflowVersion: entry.currentDeployedVersion,
+        })),
       );
-
-      flattenedErrors.sort((left, right) => {
-        const leftTs = new Date(left.executedAt).getTime();
-        const rightTs = new Date(right.executedAt).getTime();
-        return rightTs - leftTs;
+      setWorkflowPagination({
+        items: [],
+        count: payload.workflows.count,
+        limit: payload.workflows.limit,
+        offset: payload.workflows.offset,
+        hasMore: payload.workflows.hasMore,
       });
-
-      setMetrics(flattenedErrors);
+      setErrorPagination({
+        items: [],
+        count: payload.errors.count,
+        limit: payload.errors.limit,
+        offset: payload.errors.offset,
+        hasMore: payload.errors.hasMore,
+      });
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [router]);
+  }, [errorPage, requestedWorkspaceIdFromQuery, workflowPage]);
 
   useEffect(() => {
+    if (!router.isReady || !isRouteStateReady) return;
     fetchPerformance();
-  }, [fetchPerformance]);
+  }, [fetchPerformance, isRouteStateReady, router.isReady]);
 
-  const errors = useMemo(
-    () => metrics.filter((metric) => metric.status === "failure"),
-    [metrics],
-  );
-
-  const successfulExecutions = useMemo(
-    () => metrics.filter((metric) => metric.status === "success").length,
-    [metrics],
-  );
-
-  const affectedWorkflowCount = useMemo(
-    () => new Set(metrics.map((metric) => metric.workflowId)).size,
-    [metrics],
-  );
-
-  const latestExecutionAt = metrics[0]?.executedAt ?? null;
-  const successRate = metrics.length > 0
-    ? Math.round((successfulExecutions / metrics.length) * 100)
-    : 0;
-  const workflowSummaries = useMemo(() => {
-    const grouped = new Map<string, {
-      workflowId: string;
-      workflowName: string;
-      projectName: string | null;
-      totalExecutions: number;
-      successfulExecutions: number;
-      failedExecutions: number;
-      latestExecutionAt: string | null;
-      recentExecutions: Array<{
-        id: string;
-        runId: string;
-        status: ExecutionMetric["status"];
-        executedAt: string;
-      }>;
-    }>();
-
-    for (const metric of metrics) {
-      const current = grouped.get(metric.workflowId) ?? {
-        workflowId: metric.workflowId,
-        workflowName: metric.workflowName,
-        projectName: metric.projectName,
-        totalExecutions: 0,
-        successfulExecutions: 0,
-        failedExecutions: 0,
-        latestExecutionAt: null,
-        recentExecutions: [],
-      };
-
-      current.totalExecutions += 1;
-      if (metric.status === "success") current.successfulExecutions += 1;
-      if (metric.status === "failure") current.failedExecutions += 1;
-
-      if (
-        !current.latestExecutionAt ||
-        new Date(metric.executedAt).getTime() > new Date(current.latestExecutionAt).getTime()
-      ) {
-        current.latestExecutionAt = metric.executedAt;
-      }
-
-      current.recentExecutions.push({
-        id: metric.id,
-        runId: metric.runId,
-        status: metric.status,
-        executedAt: metric.executedAt,
-      });
-
-      grouped.set(metric.workflowId, current);
+  useEffect(() => {
+    if (!router.isReady || !isRouteStateReady) return;
+    if (!hasInitializedSearch.current) {
+      hasInitializedSearch.current = true;
+      return;
     }
+    const trimmed = searchQuery.trim();
+    const timer = setTimeout(() => {
+      fetchPerformance(false, trimmed);
+    }, 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRouteStateReady, router.isReady, searchQuery]);
 
-    return Array.from(grouped.values()).sort((left, right) => {
-      const leftTs = left.latestExecutionAt ? new Date(left.latestExecutionAt).getTime() : 0;
-      const rightTs = right.latestExecutionAt ? new Date(right.latestExecutionAt).getTime() : 0;
-      return rightTs - leftTs;
-    }).map((workflow) => ({
-      ...workflow,
-      recentExecutions: workflow.recentExecutions
-        .sort((left, right) => new Date(left.executedAt).getTime() - new Date(right.executedAt).getTime())
-        .slice(-8),
-    }));
-  }, [metrics]);
+  useEffect(() => {
+    if (!router.isReady) return;
+    const tab = router.query.tab;
+    if (tab === 'errors') setActiveSection('errors');
+    else if (tab === 'execution') setActiveSection('execution');
+    const search = typeof router.query.search === "string" ? router.query.search : "";
+    const workflowPageValue =
+      typeof router.query.workflowPage === "string" ? Number(router.query.workflowPage) : 1;
+    const errorPageValue =
+      typeof router.query.errorPage === "string" ? Number(router.query.errorPage) : 1;
+    setSearchQuery(search);
+    setWorkflowPage(Number.isFinite(workflowPageValue) && workflowPageValue > 0 ? workflowPageValue : 1);
+    setErrorPage(Number.isFinite(errorPageValue) && errorPageValue > 0 ? errorPageValue : 1);
+    setIsRouteStateReady(true);
+  }, [router.isReady, router.query.errorPage, router.query.search, router.query.tab, router.query.workflowPage]);
+
+  const successRate = summary.totalExecutions > 0
+    ? Math.round((summary.successfulExecutions / summary.totalExecutions) * 100)
+    : 0;
+  const workflowTotalPages = Math.max(1, Math.ceil(workflowPagination.count / WORKFLOW_PAGE_SIZE));
+  const errorTotalPages = Math.max(1, Math.ceil(errorPagination.count / ERROR_PAGE_SIZE));
+  const buildPerformanceReturnTo = useCallback((tab: "execution" | "errors" = activeSection) => {
+    const params = new URLSearchParams();
+    const workspaceId =
+      (typeof router.query.workspaceId === "string" ? router.query.workspaceId : null) ||
+      workspaceSummary?.id ||
+      getActiveWorkspaceIdFromStorage();
+
+    if (workspaceId) params.set("workspaceId", workspaceId);
+    params.set("tab", tab);
+    if (searchQuery.trim()) params.set("search", searchQuery.trim());
+    params.set("workflowPage", String(workflowPage));
+    params.set("errorPage", String(errorPage));
+
+    return `/performance?${params.toString()}`;
+  }, [activeSection, errorPage, router.query.workspaceId, searchQuery, workflowPage, workspaceSummary?.id]);
 
   const formatDateTime = (value: string) => {
     const date = new Date(value);
@@ -313,7 +381,7 @@ export default function ErrorsPage() {
             <div className="inline-flex rounded-2xl border border-slate-200/80 bg-white/80 p-1 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
               <button
                 type="button"
-                onClick={() => setActiveSection("execution")}
+                onClick={() => { setActiveSection("execution"); setSearchQuery(''); setWorkflowPage(1); setErrorPage(1); }}
                 className={`inline-flex min-h-[44px] items-center gap-2 rounded-[14px] px-4 text-sm font-medium transition-all ${
                   activeSection === "execution"
                     ? "bg-slate-950 text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-950"
@@ -325,7 +393,7 @@ export default function ErrorsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveSection("errors")}
+                onClick={() => { setActiveSection("errors"); setSearchQuery(''); setWorkflowPage(1); setErrorPage(1); }}
                 className={`inline-flex min-h-[44px] items-center gap-2 rounded-[14px] px-4 text-sm font-medium transition-all ${
                   activeSection === "errors"
                     ? "bg-slate-950 text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-950"
@@ -353,22 +421,22 @@ export default function ErrorsPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard
             label="Executions"
-            value={metrics.length}
-            meta={`${affectedWorkflowCount} workflow${affectedWorkflowCount === 1 ? "" : "s"} with deployed activity.`}
+            value={summary.totalExecutions}
+            meta={`${summary.affectedWorkflowCount} workflow${summary.affectedWorkflowCount === 1 ? "" : "s"} with deployed activity.`}
             icon={<FiActivity className="h-5 w-5 text-sky-700 dark:text-sky-100" />}
             accentClassName="bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-100"
           />
           <MetricCard
             label="Success rate"
             value={`${successRate}%`}
-            meta={`${successfulExecutions} successful execution${successfulExecutions === 1 ? "" : "s"} recorded.`}
+            meta={`${summary.successfulExecutions} successful execution${summary.successfulExecutions === 1 ? "" : "s"} recorded.`}
             icon={<FiCheckCircle className="h-5 w-5 text-emerald-700 dark:text-emerald-100" />}
             accentClassName="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100"
           />
           <MetricCard
             label="Failures"
-            value={errors.length}
-            meta={`${errors.length === 0 ? "No current failures" : "Failed executions available for review."}`}
+            value={summary.failedExecutions}
+            meta={`${summary.failedExecutions === 0 ? "No current failures" : "Failed executions available for review."}`}
             icon={<FiAlertCircle className="h-5 w-5 text-rose-700 dark:text-rose-100" />}
             accentClassName="bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-100"
           />
@@ -394,11 +462,11 @@ export default function ErrorsPage() {
             <div className="mt-5 space-y-3 text-sm text-slate-200/90">
               <p>
                 {activeSection === "execution"
-                  ? `${workflowSummaries.length} workflow${workflowSummaries.length === 1 ? "" : "s"} with execution history are being summarized below.`
-                  : `${errors.length} failed execution${errors.length === 1 ? "" : "s"} are available for inspection below.`}
+                  ? `${summary.totalWorkflows} workflow${summary.totalWorkflows === 1 ? "" : "s"} are being summarized below.`
+                  : `${errorPagination.count} failed execution${errorPagination.count === 1 ? "" : "s"} are available for inspection below.`}
               </p>
               <p>
-                Latest execution: {latestExecutionAt ? formatDateTime(latestExecutionAt) : "No recent executions"}
+                Latest execution: {summary.latestExecutionAt ? formatDateTime(summary.latestExecutionAt) : "No recent executions"}
               </p>
             </div>
           </div>
@@ -407,8 +475,8 @@ export default function ErrorsPage() {
 
       <section className="mt-3 min-h-0 flex-1 overflow-hidden">
         {activeSection === "execution" ? (
-        <div className="h-full overflow-hidden rounded-[32px] border border-white/70 bg-white/80 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70">
-          <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:px-6">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/70 bg-white/80 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70">
+          <div className="flex flex-col gap-3 border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                 Workflow overview
@@ -417,8 +485,24 @@ export default function ErrorsPage() {
                 Executions by workflow
               </h2>
             </div>
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-              {workflowSummaries.length} workflow{workflowSummaries.length === 1 ? "" : "s"}
+            <div className="flex items-center gap-3">
+              <label className="flex min-h-[38px] items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 shadow-sm focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 dark:border-white/10 dark:bg-slate-950/45 dark:focus-within:border-sky-400/60 dark:focus-within:ring-sky-400/10">
+                <FiSearch className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search workflows…"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setWorkflowPage(1);
+                    setErrorPage(1);
+                  }}
+                  className="w-40 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                />
+              </label>
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                {workflowPagination.count} workflow{workflowPagination.count === 1 ? "" : "s"}
+              </span>
             </div>
           </div>
 
@@ -431,137 +515,201 @@ export default function ErrorsPage() {
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-300">
                 <FiActivity className="h-6 w-6" />
               </div>
-              <h2 className="text-lg font-semibold text-slate-950 dark:text-white">No execution data</h2>
+              <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
+                {searchQuery.trim() ? "No matching workflows" : "No execution data"}
+              </h2>
               <p className="max-w-lg text-sm text-slate-500 dark:text-slate-400">
-                Deployed workflow runs for the active workspace will appear here once they start executing.
+                {searchQuery.trim()
+                  ? `No workflows match "${searchQuery}". Try a different name.`
+                  : "Deployed workflow runs for the active workspace will appear here once they start executing."}
               </p>
             </div>
           ) : (
-            <div className="h-full overflow-auto divide-y divide-slate-100 dark:divide-white/10">
-              {workflowSummaries.map((workflow) => (
-                <div
-                  key={workflow.workflowId}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() =>
-                    router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}`)
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}`);
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="flex-1 overflow-auto divide-y divide-slate-100 dark:divide-white/10">
+                {workflowSummaries.map((workflow) => (
+                  <div
+                    key={workflow.workflowId}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() =>
+                      router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`)
                     }
-                  }}
-                  className="flex cursor-pointer flex-col gap-4 px-5 py-5 text-left transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03] sm:px-6"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
-                        <span>{workflow.workflowName}</span>
-                        {workflow.projectName ? <span className="text-slate-400 dark:text-slate-500">/ {workflow.projectName}</span> : null}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`);
+                      }
+                    }}
+                    className="flex cursor-pointer flex-col gap-4 px-5 py-5 text-left transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03] sm:px-6"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
+                          <span>{workflow.workflowName}</span>
+                          {workflow.projectName ? <span className="text-slate-400 dark:text-slate-500">/ {workflow.projectName}</span> : null}
+                        </div>
+                        <p className="text-sm leading-6 text-slate-700 dark:text-slate-300">
+                          {workflow.totalExecutions} total execution{workflow.totalExecutions === 1 ? "" : "s"} tracked for this workflow.
+                        </p>
                       </div>
-                      <p className="text-sm leading-6 text-slate-700 dark:text-slate-300">
-                        {workflow.totalExecutions} total execution{workflow.totalExecutions === 1 ? "" : "s"} tracked for this workflow.
-                      </p>
+
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          event.preventDefault();
+                          router.push(
+                            `/dominofy?workflowId=${encodeURIComponent(workflow.workflowId)}&view=deployed&tab=errors`
+                          );
+                        }}
+                        onMouseDown={(event) => {
+                          event.stopPropagation();
+                        }}
+                        className="inline-flex items-center gap-1 self-start text-sm font-medium text-sky-700 transition hover:text-sky-600 dark:text-sky-300 dark:hover:text-sky-200"
+                      >
+                        Open workflow
+                        <FiExternalLink />
+                      </button>
                     </div>
 
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                      <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?status=all&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`); }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="inline-flex items-center justify-between gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200 dark:hover:border-white/20 xl:min-w-[110px]"
+                        >
+                          <span className="uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Total</span>
+                          <span className="text-sm text-slate-950 dark:text-white">{workflow.totalExecutions}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?status=success&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`); }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="inline-flex items-center justify-between gap-2 rounded-full border border-emerald-200/80 bg-emerald-50/80 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:border-emerald-500/40 xl:min-w-[152px]"
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <FiCheckCircle className="h-3.5 w-3.5" />
+                            <span className="uppercase tracking-[0.12em]">Successful</span>
+                          </span>
+                          <span className="text-sm">{workflow.successfulExecutions}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?status=failure&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`); }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="inline-flex items-center justify-between gap-2 rounded-full border border-rose-200/80 bg-rose-50/80 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:border-rose-500/40 xl:min-w-[128px]"
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <FiAlertCircle className="h-3.5 w-3.5" />
+                            <span className="uppercase tracking-[0.12em]">Failed</span>
+                          </span>
+                          <span className="text-sm">{workflow.failedExecutions}</span>
+                        </button>
+                      </div>
+
+                      <div className="flex flex-1 flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white xl:shrink-0">
+                          Recent executions
+                          <FiInfo className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                        </div>
+                        <div className="flex flex-wrap-reverse items-center justify-end gap-2">
+                        {Array.from({ length: 8 }).map((_, index) => {
+                          const execution = workflow.recentExecutions[index];
+
+                          if (!execution) {
+                            return (
+                              <div
+                                key={`empty-${workflow.workflowId}-${index}`}
+                                className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-slate-200 bg-white text-xs font-semibold text-slate-300 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-600"
+                              />
+                            );
+                          }
+
+                          const tone =
+                            execution.status === "success"
+                              ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-300"
+                              : execution.status === "failure"
+                                ? "border-rose-500 bg-rose-50 text-rose-700 dark:border-rose-400 dark:bg-rose-500/10 dark:text-rose-300"
+                                : "border-amber-500 bg-amber-50 text-amber-700 dark:border-amber-400 dark:bg-amber-500/10 dark:text-amber-300";
+
+                          return (
+                            <button
+                              type="button"
+                              key={execution.id}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                event.preventDefault();
+                                router.push(`/performance/${encodeURIComponent(execution.id)}?from=execution&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`);
+                              }}
+                              onMouseDown={(event) => {
+                                event.stopPropagation();
+                              }}
+                              title={`${execution.status} · ${formatDateTime(execution.executedAt)}`}
+                              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-[11px] font-semibold transition hover:scale-[1.04] ${tone}`}
+                            >
+                              {workflow.totalExecutions - workflow.recentExecutions.length + index + 1}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            event.preventDefault();
+                            router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`);
+                          }}
+                          onMouseDown={(event) => {
+                            event.stopPropagation();
+                          }}
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white/70 text-slate-500 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400 dark:hover:border-sky-700 dark:hover:text-sky-200"
+                        >
+                          <FiArrowRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      <FiClock />
+                      Latest execution: {workflow.latestExecutionAt ? formatDateTime(workflow.latestExecutionAt) : "No executions yet"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {workflowPagination.count > WORKFLOW_PAGE_SIZE ? (
+                <div className="flex items-center justify-between border-t border-slate-200/80 px-5 py-3 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400 sm:px-6">
+                  <span>
+                    Page {workflowPage} of {workflowTotalPages}
+                  </span>
+                  <div className="inline-flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        event.preventDefault();
-                        router.push(
-                          `/dominofy?workflowId=${encodeURIComponent(workflow.workflowId)}&view=deployed&tab=errors`
-                        );
-                      }}
-                      onMouseDown={(event) => {
-                        event.stopPropagation();
-                      }}
-                      className="inline-flex items-center gap-1 self-start text-sm font-medium text-sky-700 transition hover:text-sky-600 dark:text-sky-300 dark:hover:text-sky-200"
+                      onClick={() => setWorkflowPage((page) => Math.max(1, page - 1))}
+                      disabled={workflowPage === 1}
+                      className="rounded-full border border-slate-200/80 px-3 py-1.5 text-slate-700 transition hover:border-slate-400 disabled:opacity-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-white/20"
                     >
-                      Open workflow
-                      <FiExternalLink />
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkflowPage((page) => Math.min(workflowTotalPages, page + 1))}
+                      disabled={!workflowPagination.hasMore}
+                      className="rounded-full border border-slate-200/80 px-3 py-1.5 text-slate-700 transition hover:border-slate-400 disabled:opacity-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-white/20"
+                    >
+                      Next
                     </button>
                   </div>
-
-                  <div className="flex flex-col gap-3 rounded-[22px] border border-slate-200/80 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03] xl:flex-row xl:items-center xl:justify-between">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                        <span className="uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Total</span>
-                        <span className="text-sm text-slate-950 dark:text-white">{workflow.totalExecutions}</span>
-                      </div>
-                      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50/80 px-3 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
-                        <FiCheckCircle className="h-3.5 w-3.5" />
-                        <span className="uppercase tracking-[0.12em]">Successful</span>
-                        <span className="text-sm">{workflow.successfulExecutions}</span>
-                      </div>
-                      <div className="inline-flex items-center gap-2 rounded-full border border-rose-200/80 bg-rose-50/80 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
-                        <FiAlertCircle className="h-3.5 w-3.5" />
-                        <span className="uppercase tracking-[0.12em]">Failed</span>
-                        <span className="text-sm">{workflow.failedExecutions}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 xl:justify-end">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                        Recent executions
-                        <FiInfo className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                      </div>
-                      <div className="flex flex-wrap-reverse items-center justify-end gap-2">
-                      {Array.from({ length: 8 }).map((_, index) => {
-                        const execution = workflow.recentExecutions[index];
-
-                        if (!execution) {
-                          return (
-                            <div
-                              key={`empty-${workflow.workflowId}-${index}`}
-                              className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-slate-200 bg-white text-xs font-semibold text-slate-300 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-600"
-                            />
-                          );
-                        }
-
-                        const tone =
-                          execution.status === "success"
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-300"
-                            : execution.status === "failure"
-                              ? "border-rose-500 bg-rose-50 text-rose-700 dark:border-rose-400 dark:bg-rose-500/10 dark:text-rose-300"
-                              : "border-amber-500 bg-amber-50 text-amber-700 dark:border-amber-400 dark:bg-amber-500/10 dark:text-amber-300";
-
-                        return (
-                          <button
-                            type="button"
-                            key={execution.id}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              event.preventDefault();
-                              router.push(`/performance/${encodeURIComponent(execution.id)}`);
-                            }}
-                            onMouseDown={(event) => {
-                              event.stopPropagation();
-                            }}
-                            title={`${execution.status} · ${formatDateTime(execution.executedAt)}`}
-                            className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-[11px] font-semibold transition hover:scale-[1.04] ${tone}`}
-                          >
-                            {workflow.totalExecutions - workflow.recentExecutions.length + index + 1}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    <FiClock />
-                    Latest execution: {workflow.latestExecutionAt ? formatDateTime(workflow.latestExecutionAt) : "Unknown"}
-                  </div>
                 </div>
-              ))}
+              ) : null}
             </div>
           )}
         </div>
         ) : (
-        <div className="h-full overflow-hidden rounded-[32px] border border-white/70 bg-white/80 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70">
-          <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:px-6">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/70 bg-white/80 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/70">
+          <div className="flex flex-col gap-3 border-b border-slate-200/80 px-5 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                 Errors
@@ -570,29 +718,62 @@ export default function ErrorsPage() {
                 Failed executions
               </h2>
             </div>
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-              {errors.length} failure{errors.length === 1 ? "" : "s"} · {successfulExecutions} successful
+            <div className="flex items-center gap-3">
+              <label className="flex min-h-[38px] items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 shadow-sm focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 dark:border-white/10 dark:bg-slate-950/45 dark:focus-within:border-sky-400/60 dark:focus-within:ring-sky-400/10">
+                <FiSearch className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search workflows…"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setWorkflowPage(1);
+                    setErrorPage(1);
+                  }}
+                  className="w-40 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                />
+              </label>
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                {errorPagination.count} failure{errorPagination.count === 1 ? "" : "s"} · {summary.successfulExecutions} successful
+              </span>
             </div>
           </div>
 
           {errors.length === 0 ? (
             <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 px-5 py-10 text-center sm:px-6">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-300">
-                <FiCheckCircle className="h-6 w-6" />
+                {searchQuery.trim() ? <FiSearch className="h-6 w-6" /> : <FiCheckCircle className="h-6 w-6" />}
               </div>
-              <h2 className="text-lg font-semibold text-slate-950 dark:text-white">No failures right now</h2>
+              <h2 className="text-lg font-semibold text-slate-950 dark:text-white">
+                {searchQuery.trim() ? "No matching errors" : "No failures right now"}
+              </h2>
               <p className="max-w-lg text-sm text-slate-500 dark:text-slate-400">
-                Failed deployed executions for the active workspace will appear here once they happen.
+                {searchQuery.trim()
+                  ? `No failed executions match "${searchQuery}". Try a different name.`
+                  : "Failed deployed executions for the active workspace will appear here once they happen."}
               </p>
             </div>
           ) : (
-            <div className="h-full overflow-auto divide-y divide-slate-100 dark:divide-white/10">
-              {errors.map((error) => (
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="flex-1 overflow-auto divide-y divide-slate-100 dark:divide-white/10">
+              {errors.map((error) => {
+                const isHistorical =
+                  error.currentDeployedWorkflowVersion != null &&
+                  error.deployedWorkflowVersion !== error.currentDeployedWorkflowVersion;
+                return (
                 <div
                   key={`error-${error.id}`}
-                  className={`flex w-full flex-col gap-4 px-5 py-5 text-left transition sm:px-6 ${
-                    error.currentDeployedWorkflowVersion != null &&
-                    error.deployedWorkflowVersion !== error.currentDeployedWorkflowVersion
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/performance/${encodeURIComponent(error.id)}?from=errors&returnTo=${encodeURIComponent(buildPerformanceReturnTo("errors"))}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      router.push(`/performance/${encodeURIComponent(error.id)}?from=errors&returnTo=${encodeURIComponent(buildPerformanceReturnTo("errors"))}`);
+                    }
+                  }}
+                  className={`flex w-full cursor-pointer flex-col gap-4 px-5 py-5 text-left transition sm:px-6 ${
+                    isHistorical
                       ? "opacity-45"
                       : "hover:bg-slate-50/80 dark:hover:bg-white/[0.03]"
                   }`}
@@ -647,7 +828,34 @@ export default function ErrorsPage() {
                     )}
                   </div>
                 </div>
-              ))}
+              );
+              })}
+              </div>
+              {errorPagination.count > ERROR_PAGE_SIZE ? (
+                <div className="flex items-center justify-between border-t border-slate-200/80 px-5 py-3 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400 sm:px-6">
+                  <span>
+                    Page {errorPage} of {errorTotalPages}
+                  </span>
+                  <div className="inline-flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setErrorPage((page) => Math.max(1, page - 1))}
+                      disabled={errorPage === 1}
+                      className="rounded-full border border-slate-200/80 px-3 py-1.5 text-slate-700 transition hover:border-slate-400 disabled:opacity-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-white/20"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setErrorPage((page) => Math.min(errorTotalPages, page + 1))}
+                      disabled={!errorPagination.hasMore}
+                      className="rounded-full border border-slate-200/80 px-3 py-1.5 text-slate-700 transition hover:border-slate-400 disabled:opacity-50 dark:border-white/10 dark:text-slate-200 dark:hover:border-white/20"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
