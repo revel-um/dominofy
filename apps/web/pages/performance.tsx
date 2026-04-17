@@ -811,11 +811,13 @@ export default function ErrorsPage() {
                     error.deployedWorkflowVersion === error.currentDeployedWorkflowVersion ? (
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={(e) => {
+                          e.stopPropagation();
                           router.push(
                             `/dominofy?workflowId=${encodeURIComponent(error.workflowId)}&view=deployed&tab=errors`
-                          )
-                        }
+                          );
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
                         className="inline-flex items-center gap-1 text-sky-700 transition hover:text-sky-600 dark:text-sky-300 dark:hover:text-sky-200"
                       >
                         Open workflow

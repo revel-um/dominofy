@@ -625,6 +625,10 @@ export default function DominofyDashboard() {
     }, [page, limit, query, status, session, booting, lastActiveWorkflowId, router.query.workspaceId]);
 
     const createProject = async (name: string, description?: string) => {
+        if (workspaceSummary?.role === "viewer") {
+            toast.error("Viewer access cannot create projects.");
+            return;
+        }
         const token = await TokenManager.getValidAccessToken();
         if (!token && status === "unauthenticated") return router.push("/auth");
         if (!token && status === "authenticated") {
@@ -706,6 +710,7 @@ export default function DominofyDashboard() {
         : "Pick a project to jump into your latest automation";
     const workspaceName = workspaceSummary?.name || "Workspace";
     const workspaceRole = workspaceSummary?.role ?? "member";
+    const canEditWorkspace = workspaceRole !== "viewer";
     const successRateValue = dashboardMetrics.totalExecutions > 0
         ? (dashboardMetrics.successfulExecutions / dashboardMetrics.totalExecutions) * 100
         : 0;
@@ -873,8 +878,9 @@ export default function DominofyDashboard() {
                                     ) : (
                                         <button
                                             type="button"
-                                            onClick={() => setIsModalOpen(true)}
-                                            className="group flex h-full w-full items-center justify-center p-6 text-center transition"
+                                            onClick={() => canEditWorkspace && setIsModalOpen(true)}
+                                            disabled={!canEditWorkspace}
+                                            className="group flex h-full w-full items-center justify-center p-6 text-center transition disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                             <div className="flex w-full max-w-md flex-col items-center justify-center px-8 py-10">
                                                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-100 text-sky-700 transition group-hover:bg-sky-200 dark:bg-sky-500/15 dark:text-sky-200 dark:group-hover:bg-sky-500/20">
@@ -968,8 +974,9 @@ export default function DominofyDashboard() {
                                     </p>
                                 </div>
                                 <button
-                                    className="aspect-square flex h-11 w-11 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
-                                    onClick={() => setIsModalOpen(true)}
+                                    className="aspect-square flex h-11 w-11 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+                                    onClick={() => canEditWorkspace && setIsModalOpen(true)}
+                                    disabled={!canEditWorkspace}
                                     aria-label="Create project"
                                 >
                                     <FiPlus className="h-4 w-4" />
@@ -1082,6 +1089,7 @@ export default function DominofyDashboard() {
                 open={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSubmit={createProject}
+                disabled={!canEditWorkspace}
             />
         </div>
     );

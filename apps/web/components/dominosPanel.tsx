@@ -25,6 +25,7 @@ interface DominosPanelProps {
   onOpenWorkflowInTab?: (wf: any) => void;
   onWorkflowRenamed?: (id: string, name: string) => void;
   onWorkflowDeleted?: (id: string) => void;
+  canEdit?: boolean;
 }
 
 interface Workflow {
@@ -93,6 +94,7 @@ export default function DominosPanel({
   onOpenWorkflowInTab,
   onWorkflowRenamed,
   onWorkflowDeleted,
+  canEdit = true,
 }: DominosPanelProps) {
   const [width, setWidth] = useState(MIN_WIDTH);
   const [searchTerm, setSearchTerm] = useState('');
@@ -192,6 +194,7 @@ export default function DominosPanel({
   };
 
   const startCreatingWorkflow = () => {
+    if (!canEdit) return;
     setIsCreatingWorkflow(true);
     setNewWorkflowName('');
   };
@@ -202,6 +205,7 @@ export default function DominosPanel({
   };
 
   const createWorkflow = async () => {
+    if (!canEdit) return;
     if (!newWorkflowName.trim()) {
       cancelCreatingWorkflow();
       return;
@@ -246,7 +250,7 @@ export default function DominosPanel({
   };
 
   const handleRenameSubmit = async () => {
-    if (!workflowToRename) return;
+    if (!canEdit || !workflowToRename) return;
     const trimmed = renameValue.trim();
     if (!trimmed || trimmed === workflowToRename.name) {
       setWorkflowToRename(null);
@@ -274,7 +278,7 @@ export default function DominosPanel({
   };
 
   const handleDeleteConfirm = async () => {
-    if (!workflowToDelete) return;
+    if (!canEdit || !workflowToDelete) return;
     const token = localStorage.getItem('token');
     if (!token) {
       router.push('/auth');
@@ -385,12 +389,17 @@ export default function DominosPanel({
                         items.map((item) => (
                           <div
                             key={`${category}-${item.id}`}
-                            draggable
+                            draggable={canEdit}
                             onDragStart={(e) => {
+                              if (!canEdit) return;
                               e.dataTransfer.setData('application/reactflow', item.id);
                               e.dataTransfer.effectAllowed = 'move';
                             }}
-                            className="w-full box-border flex items-center gap-3 p-2 mb-1 cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition pl-8 pr-4 relative"
+                            className={`w-full box-border flex items-center gap-3 p-2 mb-1 transition pl-8 pr-4 relative ${
+                              canEdit
+                                ? 'cursor-move hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface'
+                                : 'cursor-default opacity-60'
+                            }`}
                           >
                             {/* Vertical indentation line */}
                             <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-400 dark:bg-gray-600 opacity-50" />
@@ -417,8 +426,9 @@ export default function DominosPanel({
                     e.stopPropagation();
                     startCreatingWorkflow();
                   }}
-                  className="p-1 rounded hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors"
-                  title="Add new workflow"
+                  disabled={!canEdit}
+                  className="p-1 rounded hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                  title={canEdit ? 'Add new workflow' : 'Viewers cannot create workflows'}
                 >
                   <Plus className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
                 </button>
@@ -481,44 +491,46 @@ export default function DominosPanel({
                           {new Date(workflow.updatedAt).toLocaleDateString()}
                         </span>
                       </div>
-                      <div className="relative ml-auto">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId(prev => (prev === workflow.id ? null : workflow.id));
-                          }}
-                          className="p-1 rounded hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors"
-                          aria-label="Workflow options"
-                        >
-                          <FiMoreHorizontal className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
-                        </button>
-                        {openMenuId === workflow.id && (
-                          <div
-                            className="absolute right-0 mt-2 w-32 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl z-30"
-                            onClick={(e) => e.stopPropagation()}
+                      {canEdit && (
+                        <div className="relative ml-auto">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(prev => (prev === workflow.id ? null : workflow.id));
+                            }}
+                            className="p-1 rounded hover:bg-dominofy-light-surface dark:hover:bg-dominofy-dark-surface transition-colors"
+                            aria-label="Workflow options"
                           >
-                            <button
-                              onClick={() => {
-                                setWorkflowToRename(workflow);
-                                setRenameValue(workflow.name);
-                                setOpenMenuId(null);
-                              }}
-                              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800 rounded-t-md"
+                            <FiMoreHorizontal className="w-4 h-4 text-dominofy-light-text dark:text-dominofy-dark-text" />
+                          </button>
+                          {openMenuId === workflow.id && (
+                            <div
+                              className="absolute right-0 mt-2 w-32 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl z-30"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => {
-                                setWorkflowToDelete(workflow);
-                                setOpenMenuId(null);
-                              }}
-                              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-b-md"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                              <button
+                                onClick={() => {
+                                  setWorkflowToRename(workflow);
+                                  setRenameValue(workflow.name);
+                                  setOpenMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800 rounded-t-md"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setWorkflowToDelete(workflow);
+                                  setOpenMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-b-md"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
                 )}

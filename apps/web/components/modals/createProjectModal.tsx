@@ -13,14 +13,16 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSubmit: (name: string, description?: string) => void;
+  disabled?: boolean;
 }
 
-export default function CreateProjectModal({ open, onClose, onSubmit }: Props) {
+export default function CreateProjectModal({ open, onClose, onSubmit, disabled = false }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = () => {
+    if (disabled) return;
     if (!name.trim()) {
       setError("Name is required");
       return;
@@ -137,7 +139,8 @@ export default function CreateProjectModal({ open, onClose, onSubmit }: Props) {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  className="rounded-lg bg-blue-600 dark:bg-blue-500 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                  disabled={disabled}
+                  className="rounded-lg bg-blue-600 dark:bg-blue-500 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Create
                 </button>

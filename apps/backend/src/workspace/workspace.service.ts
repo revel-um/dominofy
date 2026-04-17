@@ -30,6 +30,14 @@ const DEFAULT_WRITE_ROLES = [
   WorkspaceRole.MEMBER,
 ];
 
+export const WORKSPACE_READ_ROLES = Object.values(WorkspaceRole);
+export const WORKSPACE_WRITE_ROLES = DEFAULT_WRITE_ROLES;
+export const WORKSPACE_ADMIN_ROLES = [
+  WorkspaceRole.OWNER,
+  WorkspaceRole.ADMIN,
+];
+export const WORKSPACE_DELETE_ROLES = WORKSPACE_ADMIN_ROLES;
+
 @Injectable()
 export class WorkspaceService {
   constructor(
@@ -196,7 +204,7 @@ export class WorkspaceService {
   async assertWorkspaceAccess(
     userId: string,
     workspaceId: string,
-    allowedRoles: WorkspaceRole[] = Object.values(WorkspaceRole),
+    allowedRoles: WorkspaceRole[] = WORKSPACE_READ_ROLES,
     manager?: EntityManager,
   ) {
     const membershipRepo = manager
@@ -217,6 +225,58 @@ export class WorkspaceService {
     }
 
     return membership;
+  }
+
+  async assertWorkspaceReadAccess(
+    userId: string,
+    workspaceId: string,
+    manager?: EntityManager,
+  ) {
+    return this.assertWorkspaceAccess(
+      userId,
+      workspaceId,
+      WORKSPACE_READ_ROLES,
+      manager,
+    );
+  }
+
+  async assertWorkspaceWriteAccess(
+    userId: string,
+    workspaceId: string,
+    manager?: EntityManager,
+  ) {
+    return this.assertWorkspaceAccess(
+      userId,
+      workspaceId,
+      WORKSPACE_WRITE_ROLES,
+      manager,
+    );
+  }
+
+  async assertWorkspaceAdminAccess(
+    userId: string,
+    workspaceId: string,
+    manager?: EntityManager,
+  ) {
+    return this.assertWorkspaceAccess(
+      userId,
+      workspaceId,
+      WORKSPACE_ADMIN_ROLES,
+      manager,
+    );
+  }
+
+  async assertWorkspaceDeleteAccess(
+    userId: string,
+    workspaceId: string,
+    manager?: EntityManager,
+  ) {
+    return this.assertWorkspaceAccess(
+      userId,
+      workspaceId,
+      WORKSPACE_DELETE_ROLES,
+      manager,
+    );
   }
 
   async getCurrentWorkspaceSummary(userId: string, workspaceId?: string) {
@@ -287,10 +347,7 @@ export class WorkspaceService {
   }
 
   async inviteMember(userId: string, workspaceId: string, dto: InviteWorkspaceMemberDto) {
-    await this.assertWorkspaceAccess(userId, workspaceId, [
-      WorkspaceRole.OWNER,
-      WorkspaceRole.ADMIN,
-    ]);
+    await this.assertWorkspaceAdminAccess(userId, workspaceId);
 
     const normalizedEmail = dto.email.trim().toLowerCase();
     const role = dto.role ?? WorkspaceRole.MEMBER;
@@ -386,6 +443,25 @@ export class WorkspaceService {
       role: savedMembership.role,
       joinedAt: savedMembership.createdAt,
       acceptanceStatus: savedMembership.acceptanceStatus,
+    };
+  }
+
+  async deleteWorkspace(userId: string, workspaceId: string) {
+    await this.assertWorkspaceDeleteAccess(userId, workspaceId);
+
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId } as any,
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    await this.workspaceRepository.remove(workspace);
+
+    return {
+      deleted: true,
+      id: workspaceId,
     };
   }
 

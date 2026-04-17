@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { Request } from 'express';
 import { WorkspaceService } from './workspace.service';
 import { AcceptWorkspaceInviteDto, CreateWorkspaceDto, InviteWorkspaceMemberDto } from './workspace.dto';
@@ -55,6 +55,15 @@ export class WorkspaceController {
   ) {
     const userId = (req as any).user.id as string;
     return this.workspaceService.inviteMember(userId, workspaceId, dto);
+  }
+
+  @Delete(':workspaceId')
+  async deleteWorkspace(
+    @Param('workspaceId') workspaceId: string,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).user.id as string;
+    return this.workspaceService.deleteWorkspace(userId, workspaceId);
   }
 
   @Get('invitations/:token')

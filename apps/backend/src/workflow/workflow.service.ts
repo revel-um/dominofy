@@ -724,6 +724,21 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     }
   }
 
+  async deleteWorkflow(id: string, userId: string) {
+    const workflow = await this.findOneAndVerify(id, userId, [
+      WorkspaceRole.OWNER,
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.MEMBER,
+    ]);
+
+    await this.workflowRepository.remove(workflow);
+
+    return {
+      deleted: true,
+      id,
+    };
+  }
+
   async handleTrigger(
     workflowId: string,
     functionName: string,

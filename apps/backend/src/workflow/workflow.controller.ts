@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   NotFoundException,
@@ -275,6 +276,15 @@ export class WorkflowController extends BaseController<
   ) {
     const userId = (req as any).user.id;
     return await this.workflowService.renameWorkflow(id, name, userId);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Req() req?: Request): Promise<void> {
+    if (!req) {
+      throw new Error('Request is required');
+    }
+    const userId = (req as any).user.id;
+    await this.workflowService.deleteWorkflow(id, userId);
   }
 
   @Post(':id/deploy')

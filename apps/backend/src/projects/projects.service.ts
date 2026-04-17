@@ -233,6 +233,21 @@ export class ProjectsService extends BaseService<Project> {
     return await this.projectRepository.save(project);
   }
 
+  async deleteProject(projectId: string, userId: string) {
+    const project = await this.findProjectForUser(projectId, userId, [
+      WorkspaceRole.OWNER,
+      WorkspaceRole.ADMIN,
+      WorkspaceRole.MEMBER,
+    ]);
+
+    await this.projectRepository.remove(project);
+
+    return {
+      deleted: true,
+      id: projectId,
+    };
+  }
+
   private async getReadableWorkspaceIds(userId: string, workspaceId?: string) {
     if (workspaceId) {
       await this.workspaceService.assertWorkspaceAccess(userId, workspaceId);

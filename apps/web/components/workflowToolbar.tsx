@@ -105,6 +105,7 @@ interface WorkflowToolbarProps {
   onWorkflowDeployed?: () => void;
   viewMode?: 'dev' | 'deployed';
   onToggleVersionView?: () => void;
+  canEdit?: boolean;
 }
 
 const TOOLBAR_HEIGHT = 56;
@@ -122,6 +123,7 @@ export default function WorkflowToolbar({
   onWorkflowDeployed,
   viewMode = 'dev',
   onToggleVersionView,
+  canEdit = true,
 }: WorkflowToolbarProps) {
   const router = useRouter();
   const { setConnectionErrors, setValidationErrors } = useDomino();
@@ -267,6 +269,7 @@ export default function WorkflowToolbar({
 
   /* ───────── actions ───────── */
   const onSave = useCallback(async () => {
+    if (!canEdit) return false;
     if (!workflow.id) {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 1200);
@@ -290,9 +293,10 @@ export default function WorkflowToolbar({
       setTimeout(() => setSaveStatus('idle'), 1200);
     }
     return true;
-  }, [workflow.id, getNodes, getEdges, router, onWorkflowSaved]);
+  }, [canEdit, workflow.id, getNodes, getEdges, router, onWorkflowSaved]);
 
   const onRun = useCallback(async () => {
+    if (!canEdit) return false;
     if (!isWorkflowValid() || !workflow.id) return false;
 
     const nodesSnapshot = getNodes();
@@ -314,7 +318,7 @@ export default function WorkflowToolbar({
     }
 
     return executeRun(exported, nodesSnapshot, edgesSnapshot);
-  }, [isWorkflowValid, workflow.id, getNodes, getEdges, getMockableTrigger, executeRun]);
+  }, [canEdit, isWorkflowValid, workflow.id, getNodes, getEdges, getMockableTrigger, executeRun]);
 
   const runWithMockInput = useCallback(async (mockInput: Record<string, any>) => {
     if (!pendingRunState) return;
@@ -331,6 +335,7 @@ export default function WorkflowToolbar({
   }, [pendingRunState, executeRun]);
 
   const onDeploy = useCallback(async () => {
+    if (!canEdit) return false;
     if (!isWorkflowValid() || !workflow.id) return false;
 
     const nodesSnapshot = getNodes();
@@ -379,10 +384,11 @@ export default function WorkflowToolbar({
     } finally {
       setTimeout(() => setDeployStatus('idle'), 1200);
     }
-  }, [isWorkflowValid, workflow.id, getNodes, getEdges, router, setWorkflow, onWorkflowSaved, onProblemsChange, openLogsPanel, onWorkflowDeployed]);
+  }, [canEdit, isWorkflowValid, workflow.id, getNodes, getEdges, router, setWorkflow, onWorkflowSaved, onProblemsChange, openLogsPanel, onWorkflowDeployed]);
 
   /* ────── name editing ────── */
   const openNameModal = () => {
+    if (!canEdit) return;
     const currentName = workflow.project?.name || project?.name || '';
     originalNameRef.current = currentName;
     setRenameValue(currentName);
@@ -399,6 +405,10 @@ export default function WorkflowToolbar({
   };
 
   const onSaveName = async () => {
+    if (!canEdit) {
+      setShowNameModal(false);
+      return;
+    }
     const newName = renameValue.trim();
     if (!newName || newName === originalNameRef.current) {
       setShowNameModal(false);
@@ -466,19 +476,21 @@ export default function WorkflowToolbar({
           <h2 className="text-lg font-medium text-white truncate max-w-[26vw]">
             {workflow.project?.name || project?.name || 'Untitled Project'}
           </h2>
-          <button
-            onClick={openNameModal}
-            className="p-1.5 rounded-md hover:bg-[var(--secondary-hover)]
-                       text-[var(--text-secondary)] hover:text-white transition-colors"
-            title="Rename project"
-          >
-            <FiEdit2 className="w-4 h-4" />
-          </button>
+          {canEdit && (
+            <button
+              onClick={openNameModal}
+              className="p-1.5 rounded-md hover:bg-[var(--secondary-hover)]
+                         text-[var(--text-secondary)] hover:text-white transition-colors"
+              title="Rename project"
+            >
+              <FiEdit2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Right group */}
         <div className="flex items-center gap-2 pr-4">
-          {viewMode !== 'deployed' && (
+          {canEdit && viewMode !== 'deployed' && (
             <button
               onClick={onSave}
               disabled={saveStatus === 'loading'}
@@ -502,7 +514,7 @@ export default function WorkflowToolbar({
             </button>
           )}
 
-          {viewMode !== 'deployed' && (
+          {canEdit && viewMode !== 'deployed' && (
             <>
               {/* DEPLOY */}
               <button

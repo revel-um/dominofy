@@ -95,8 +95,22 @@ export class VaultController extends BaseController<
    * Get one vault (with its users)
    */
   @Get(':id')
-  async findOneWithUsers(@Param('id') id: string) {
-    return this.service.findOneWithUsers(id);
+  async findOneWithUsers(@Param('id') id: string, @Req() req: Request) {
+    const userId = (req as any).user.id as string;
+    return this.service.findOneForUser(id, userId);
+  }
+
+  @Post(':id')
+  async update(
+    @Param('id') id: string,
+    @Body() dto: Partial<CreateVaultDto>,
+    @Req() req?: Request,
+  ): Promise<Vault> {
+    if (!req) {
+      throw new Error('Request is required');
+    }
+    const userId = (req as any).user.id as string;
+    return this.service.updateForUser(id, dto, userId);
   }
 
   /**
@@ -106,8 +120,10 @@ export class VaultController extends BaseController<
   async addUsers(
     @Param('id') id: string,
     @Body('userIds') userIds: string[],
+    @Req() req: Request,
   ): Promise<void> {
-    await this.service.addUsers(id, userIds);
+    const userId = (req as any).user.id as string;
+    await this.service.addUsers(id, userIds, userId);
   }
 
   /**
@@ -117,16 +133,19 @@ export class VaultController extends BaseController<
   async removeUsers(
     @Param('id') id: string,
     @Body('userIds') userIds: string[],
+    @Req() req: Request,
   ): Promise<void> {
-    await this.service.removeUsers(id, userIds);
+    const userId = (req as any).user.id as string;
+    await this.service.removeUsers(id, userIds, userId);
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    const vault = await this.service.findOne(id);
-    if (!vault) {
-      throw new BadRequestException('Vault not found');
+  async remove(@Param('id') id: string, @Req() req?: Request): Promise<void> {
+    if (!req) {
+      throw new Error('Request is required');
     }
+    const userId = (req as any).user.id as string;
+    const vault = await this.service.findOneForUser(id, userId);
 
     if (vault.type === VaultType.EMAIL) {
       const provider = (vault.connection as any)?.provider;
@@ -138,6 +157,6 @@ export class VaultController extends BaseController<
       }
     }
 
-    return this.service.remove(id);
+    await this.service.removeForUser(id, userId);
   }
 }

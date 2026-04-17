@@ -178,8 +178,9 @@ export default function PerformanceWorkflowExecutionsPage() {
   }, [workflowId, page, router, statusFilter, rangeFilter, appliedCustomRange, appliedCustomStartTime, appliedCustomEndTime]);
 
   useEffect(() => {
+    if (!filterInitialized) return;
     fetchExecutions();
-  }, [fetchExecutions]);
+  }, [fetchExecutions, filterInitialized]);
 
   useEffect(() => {
     setPage(1);

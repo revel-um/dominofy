@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, Post, Body, Put } from '@nestjs/common';
+import { Controller, Delete, Get, Query, Req, Post, Body, Put } from '@nestjs/common';
 import { BaseController } from 'src/common/base.controller';
 import { Project } from './projects.entity';
 import { CreateProjectDto } from './projects.dto';
@@ -71,6 +71,15 @@ export class ProjectsController extends BaseController<
     async updateProject(@Param('id') projectId: string, @Body() dto: Partial<CreateProjectDto>, @Req() req: Request) {
         const userId = (req as any).user.id as string;
         return this.projectsService.updateProject(projectId, dto, userId);
+    }
+
+    @Delete(':id')
+    async remove(@Param('id') projectId: string, @Req() req?: Request): Promise<void> {
+        if (!req) {
+            throw new Error('Request is required');
+        }
+        const userId = (req as any).user.id as string;
+        await this.projectsService.deleteProject(projectId, userId);
     }
 
     protected async beforeCreate(dto: CreateProjectDto, req: Request) {      

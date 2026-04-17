@@ -20,6 +20,7 @@ import { buildPipeline } from "../../../../shared/helpers/buildPipeline";
 import { useRouter } from "next/router";
 import { ProjectsApi } from "../../apis/projects.apis";
 import { WorkflowsApi } from "../../apis/workflow.apis";
+import { WorkspaceApi, type WorkspaceSummary } from "../../apis/workspace.apis";
 import { importWorkflow } from "../../helpers/workflowManager";
 import { NodeErrorMap } from "../../helpers/errorDetector";
 import { SSEProvider } from "@/contexts/sseContext";
@@ -99,6 +100,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [viewMode, setViewMode] = useState<'dev' | 'deployed'>('dev');
   const [deployedSnapshot, setDeployedSnapshot] = useState<DeployedWorkflowSnapshot | null>(null);
   const [project, setProject] = useState<any>(null);
+  const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary | null>(null);
   const [projectWorkflows, setProjectWorkflows] = useState<any[]>([]);
   const [nodes, _setNodes, _onNodesChange] = useNodesState<Node>([]);
   const [edges, _setEdges, _onEdgesChange] = useEdgesState<Edge>([]);
@@ -311,6 +313,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [_setNodes, _setEdges, updatePipeline]);
 
   const selectedNode = nodes.find(n => n.selected);
+  const workspaceRole = workspaceSummary?.role ?? 'member';
+  const canEditWorkspace = workspaceRole !== 'viewer';
   const isProjectContext = Boolean(
     (router.query.projectId as string | undefined) ||
     project?.id ||
@@ -1064,6 +1068,10 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   );
 
   const createWorkflowInline = useCallback(async (workflowName = EMPTY_WORKFLOW_NAME) => {
+    if (!canEditWorkspace) {
+      toast.error('Viewer access cannot create workflows.');
+      return;
+    }
     const trimmed = workflowName.trim();
     if (!trimmed || isSubmittingWorkflowCreate) return;
 
@@ -1108,6 +1116,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       setIsSubmittingWorkflowCreate(false);
     }
   }, [
+    canEditWorkspace,
     isSubmittingWorkflowCreate,
     router,
     project?.id,
@@ -1213,6 +1222,17 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                 const data = await response.json();
                 setProject(data.project);
                 setProjectWorkflows(data.workflows || []);
+                const resolvedWorkspaceId = data?.project?.workspace?.id;
+                if (resolvedWorkspaceId) {
+                  const workspaceResponse = await WorkspaceApi.getCurrentWorkspaceSummary(
+                    token,
+                    router,
+                    resolvedWorkspaceId,
+                  );
+                  if (workspaceResponse?.ok) {
+                    setWorkspaceSummary(await workspaceResponse.json());
+                  }
+                }
               }
             }
           } catch (err) {
@@ -1235,6 +1255,17 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               const data = await response.json();
               setProject(data.project);
               setProjectWorkflows(data.workflows || []);
+              const resolvedWorkspaceId = data?.project?.workspace?.id;
+              if (resolvedWorkspaceId) {
+                const workspaceResponse = await WorkspaceApi.getCurrentWorkspaceSummary(
+                  token,
+                  router,
+                  resolvedWorkspaceId,
+                );
+                if (workspaceResponse?.ok) {
+                  setWorkspaceSummary(await workspaceResponse.json());
+                }
+              }
             }
           }
         } catch (err) {
@@ -1357,6 +1388,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               onWorkflowDeployed={() => setDeployedSnapshot(null)}
               viewMode={viewMode}
               onToggleVersionView={handleToggleVersionView}
+              canEdit={canEditWorkspace && viewMode !== 'deployed'}
             />
           )}
 
@@ -1368,6 +1400,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               onOpenWorkflowInTab={openWorkflowInTab}
               onWorkflowRenamed={handleWorkflowRenamed}
               onWorkflowDeleted={handleWorkflowDeleted}
+              canEdit={canEditWorkspace}
               // ⭐ OPTIONAL: later you can pass something like:
               // onOpenWorkflowInTab={(wf) => {
               //   setTabs(prev => prev.some(t => t.id === wf.id)
@@ -1408,7 +1441,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                         <button
                           type="button"
                           onClick={() => void createWorkflowInline()}
-                          disabled={isSubmittingWorkflowCreate}
+                          disabled={isSubmittingWorkflowCreate || !canEditWorkspace}
                           className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
                         >
                           <FiPlus className="h-4 w-4" />
@@ -1431,7 +1464,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                           setEdges={setEdges}                 // wrapped setter (records history)
                           onEdgesChange={onEdgesChange}       // wrapped handler (records history)
                           workflowId={viewMode === 'deployed' ? deployedSnapshot?.id ?? workflowId : workflowId}
-                          readonly={viewMode === 'deployed'}
+                          readonly={viewMode === 'deployed' || !canEditWorkspace}
                           onUndo={undo}
                           onRedo={redo}
                           canUndo={canUndo}
@@ -1467,7 +1500,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                 </div>
 
                 {/* details drawer now starts below toolbar */}
-                {!showCreateWorkflowEmptyState && viewMode === 'dev' && (
+                {!showCreateWorkflowEmptyState && viewMode === 'dev' && canEditWorkspace && (
                   <DetailsPanel
                     selectedNode={selectedNode}
                     getNodes={() => nodes}

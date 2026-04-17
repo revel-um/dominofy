@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 
@@ -7,7 +7,13 @@ import { User } from 'src/user/user.entity';
 import { CreateVaultDto } from './vault.dto';
 import { Vault, VaultType } from './vault.entity';
 import { encrypt } from 'src/helper/encryption';
-import { WorkspaceService } from 'src/workspace/workspace.service';
+import {
+    WorkspaceService,
+    WORKSPACE_ADMIN_ROLES,
+    WORKSPACE_READ_ROLES,
+    WORKSPACE_WRITE_ROLES,
+} from 'src/workspace/workspace.service';
+import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 
 @Injectable()
 export class VaultService extends BaseService<Vault> {
@@ -55,7 +61,7 @@ export class VaultService extends BaseService<Vault> {
             const resolvedWorkspaceId = await this.workspaceService.resolveWorkspaceIdForUser(
                 resolvedOwnerUserId,
                 workspaceId,
-                undefined,
+                WORKSPACE_WRITE_ROLES,
                 manager,
             );
 
@@ -127,7 +133,8 @@ export class VaultService extends BaseService<Vault> {
     /* ─────────────────────────────
      * Attach / detach users
      * ────────────────────────────*/
-    async addUsers(id: string, userIds: string[]) {
+    async addUsers(id: string, userIds: string[], actingUserId: string) {
+        await this.findOneForUser(id, actingUserId, WORKSPACE_ADMIN_ROLES);
         await this.vaultRepository
             .createQueryBuilder()
             .relation(Vault, 'users')
@@ -135,7 +142,8 @@ export class VaultService extends BaseService<Vault> {
             .add(userIds);
     }
 
-    async removeUsers(id: string, userIds: string[]) {
+    async removeUsers(id: string, userIds: string[], actingUserId: string) {
+        await this.findOneForUser(id, actingUserId, WORKSPACE_ADMIN_ROLES);
         await this.vaultRepository
             .createQueryBuilder()
             .relation(Vault, 'users')
@@ -148,6 +156,49 @@ export class VaultService extends BaseService<Vault> {
             where: { id },
             relations: ['users'],
         });
+    }
+
+    async findOneForUser(
+        id: string,
+        userId: string,
+        allowedRoles: WorkspaceRole[] = WORKSPACE_READ_ROLES,
+    ): Promise<Vault> {
+        const vault = await this.vaultRepository
+            .createQueryBuilder('vault')
+            .leftJoinAndSelect('vault.users', 'users')
+            .leftJoinAndSelect('vault.workspace', 'workspace')
+            .leftJoin('workspace.memberships', 'membership')
+            .where('vault.id = :id', { id })
+            .andWhere('membership.userId = :userId', { userId })
+            .andWhere('membership.role IN (:...allowedRoles)', { allowedRoles })
+            .getOne();
+
+        if (!vault) {
+            throw new NotFoundException('Vault not found');
+        }
+
+        return vault;
+    }
+
+    async updateForUser(
+        id: string,
+        data: Partial<CreateVaultDto>,
+        userId: string,
+    ): Promise<Vault> {
+        const vault = await this.findOneForUser(id, userId, WORKSPACE_WRITE_ROLES);
+
+        vault.name = data.name ?? vault.name;
+        vault.type = data.type ?? vault.type;
+
+        if (data.lookupIds !== undefined) {
+            vault.lookupIds = this.sanitizeLookupIds(data.lookupIds);
+        }
+
+        if (data.connection !== undefined) {
+            vault.connection = data.connection;
+        }
+
+        return this.vaultRepository.save(vault);
     }
 
     async updateConnection(
@@ -227,6 +278,11 @@ export class VaultService extends BaseService<Vault> {
 
     async touchUpdatedAt(id: string, updatedAt: Date = new Date()): Promise<void> {
         await this.vaultRepository.update(id, { updatedAt } as any);
+    }
+
+    async removeForUser(id: string, userId: string) {
+        const vault = await this.findOneForUser(id, userId, WORKSPACE_WRITE_ROLES);
+        await this.vaultRepository.remove(vault);
     }
 
     async findOldestGmailVaults(
