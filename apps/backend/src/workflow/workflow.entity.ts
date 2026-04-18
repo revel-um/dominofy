@@ -11,7 +11,6 @@ import { Project } from 'src/projects/projects.entity';
 import { User } from 'src/user/user.entity';
 import { WorkflowLog } from 'src/workflow-logger/workflow-logger.entity';
 import { DeployedWorkflow } from './deployed-workflow.entity';
-import { Execution } from './execution.entity';
 
 /* ----------------------------------------------- */
 /* b-tree indexes that TypeORM can declare itself  */
@@ -40,9 +39,6 @@ export class Workflow extends BaseEntity {
 
   @OneToMany(() => DeployedWorkflow, (deployment) => deployment.workflow)
   deployments: DeployedWorkflow[];
-
-  @OneToMany(() => Execution, (execution) => execution.workflow)
-  executions: Execution[];
 
   /**
    * JSONB column that stores the visual graph.

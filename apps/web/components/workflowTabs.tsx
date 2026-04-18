@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 export type WorkflowTabMeta = {
   id: string;
   name: string;
+  mode?: 'dev' | 'deployed';
 };
 
 type WorkflowTabsProps = {

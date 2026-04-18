@@ -3,7 +3,6 @@ import { useRouter } from "next/router";
 import {
   FiActivity,
   FiAlertCircle,
-  FiArrowRight,
   FiBarChart2,
   FiCheckCircle,
   FiClock,
@@ -17,6 +16,7 @@ import { WorkspaceApi, WorkspaceSummary } from "../apis/workspace.apis";
 import { WorkflowsApi } from "../apis/workflow.apis";
 import { TokenManager } from "../utils/auth";
 import { getActiveWorkspaceIdFromStorage, setActiveWorkspaceIdInStorage } from "../utils/workspace";
+import WorkflowExecutionSummaryCard from "../components/workflowExecutionSummaryCard";
 
 interface ExecutionMetric {
   id: string;
@@ -541,141 +541,38 @@ export default function ErrorsPage() {
                         router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`);
                       }
                     }}
-                    className="flex cursor-pointer flex-col gap-4 px-5 py-5 text-left transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03] sm:px-6"
+                    className="cursor-pointer px-5 py-5 text-left transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03] sm:px-6"
                   >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
-                          <span>{workflow.workflowName}</span>
-                          {workflow.projectName ? <span className="text-slate-400 dark:text-slate-500">/ {workflow.projectName}</span> : null}
-                        </div>
-                        <p className="text-sm leading-6 text-slate-700 dark:text-slate-300">
-                          {workflow.totalExecutions} total execution{workflow.totalExecutions === 1 ? "" : "s"} tracked for this workflow.
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          event.preventDefault();
-                          router.push(
-                            `/dominofy?workflowId=${encodeURIComponent(workflow.workflowId)}&view=deployed&tab=errors`
-                          );
-                        }}
-                        onMouseDown={(event) => {
-                          event.stopPropagation();
-                        }}
-                        className="inline-flex items-center gap-1 self-start text-sm font-medium text-sky-700 transition hover:text-sky-600 dark:text-sky-300 dark:hover:text-sky-200"
-                      >
-                        Open workflow
-                        <FiExternalLink />
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-                      <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?status=all&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`); }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          className="inline-flex items-center justify-between gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200 dark:hover:border-white/20 xl:min-w-[110px]"
-                        >
-                          <span className="uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Total</span>
-                          <span className="text-sm text-slate-950 dark:text-white">{workflow.totalExecutions}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?status=success&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`); }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          className="inline-flex items-center justify-between gap-2 rounded-full border border-emerald-200/80 bg-emerald-50/80 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 hover:bg-emerald-100 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:border-emerald-500/40 xl:min-w-[152px]"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <FiCheckCircle className="h-3.5 w-3.5" />
-                            <span className="uppercase tracking-[0.12em]">Successful</span>
-                          </span>
-                          <span className="text-sm">{workflow.successfulExecutions}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?status=failure&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`); }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          className="inline-flex items-center justify-between gap-2 rounded-full border border-rose-200/80 bg-rose-50/80 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:border-rose-500/40 xl:min-w-[128px]"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <FiAlertCircle className="h-3.5 w-3.5" />
-                            <span className="uppercase tracking-[0.12em]">Failed</span>
-                          </span>
-                          <span className="text-sm">{workflow.failedExecutions}</span>
-                        </button>
-                      </div>
-
-                      <div className="flex flex-1 flex-col gap-3 xl:flex-row xl:items-center xl:justify-end">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white xl:shrink-0">
-                          Recent executions
-                          <FiInfo className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                        </div>
-                        <div className="flex flex-wrap-reverse items-center justify-end gap-2">
-                        {Array.from({ length: 8 }).map((_, index) => {
-                          const execution = workflow.recentExecutions[index];
-
-                          if (!execution) {
-                            return (
-                              <div
-                                key={`empty-${workflow.workflowId}-${index}`}
-                                className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-slate-200 bg-white text-xs font-semibold text-slate-300 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-600"
-                              />
-                            );
-                          }
-
-                          const tone =
-                            execution.status === "success"
-                              ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-300"
-                              : execution.status === "failure"
-                                ? "border-rose-500 bg-rose-50 text-rose-700 dark:border-rose-400 dark:bg-rose-500/10 dark:text-rose-300"
-                                : "border-amber-500 bg-amber-50 text-amber-700 dark:border-amber-400 dark:bg-amber-500/10 dark:text-amber-300";
-
-                          return (
-                            <button
-                              type="button"
-                              key={execution.id}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                event.preventDefault();
-                                router.push(`/performance/${encodeURIComponent(execution.id)}?from=execution&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`);
-                              }}
-                              onMouseDown={(event) => {
-                                event.stopPropagation();
-                              }}
-                              title={`${execution.status} · ${formatDateTime(execution.executedAt)}`}
-                              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-[11px] font-semibold transition hover:scale-[1.04] ${tone}`}
-                            >
-                              {workflow.totalExecutions - workflow.recentExecutions.length + index + 1}
-                            </button>
-                          );
-                        })}
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            event.preventDefault();
-                            router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`);
-                          }}
-                          onMouseDown={(event) => {
-                            event.stopPropagation();
-                          }}
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white/70 text-slate-500 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400 dark:hover:border-sky-700 dark:hover:text-sky-200"
-                        >
-                          <FiArrowRight className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      <FiClock />
-                      Latest execution: {workflow.latestExecutionAt ? formatDateTime(workflow.latestExecutionAt) : "No executions yet"}
-                    </div>
+                    <WorkflowExecutionSummaryCard
+                      workflowName={workflow.workflowName}
+                      projectName={workflow.projectName}
+                      totalExecutions={workflow.totalExecutions}
+                      successfulExecutions={workflow.successfulExecutions}
+                      failedExecutions={workflow.failedExecutions}
+                      latestExecutionAt={workflow.latestExecutionAt}
+                      recentExecutions={workflow.recentExecutions}
+                      formatDateTime={formatDateTime}
+                      onOpenWorkflow={() =>
+                        router.push(
+                          `/dominofy?workflowId=${encodeURIComponent(workflow.workflowId)}&view=deployed&tab=executions`
+                        )
+                      }
+                      onOpenAllExecutions={() =>
+                        router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?status=all&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`)
+                      }
+                      onOpenSuccessfulExecutions={() =>
+                        router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?status=success&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`)
+                      }
+                      onOpenFailedExecutions={() =>
+                        router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?status=failure&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`)
+                      }
+                      onOpenExecution={(executionId) =>
+                        router.push(`/performance/${encodeURIComponent(executionId)}?from=execution&returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`)
+                      }
+                      onOpenExecutionHistory={() =>
+                        router.push(`/performance/workflow/${encodeURIComponent(workflow.workflowId)}?returnTo=${encodeURIComponent(buildPerformanceReturnTo("execution"))}`)
+                      }
+                    />
                   </div>
                 ))}
               </div>

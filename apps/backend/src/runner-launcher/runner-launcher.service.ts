@@ -19,7 +19,7 @@ export class RunnerLauncherService {
     pipeline: PipelineStep[],
     maxConc = 20,
     visualJson: any,
-    options: { executionId: string; deployedWorkflowId?: string },
+    options: { executionId?: string; deployedWorkflowId?: string },
   ): Runner {
     const runner = new Runner(pipeline, maxConc, visualJson);
 
@@ -29,7 +29,7 @@ export class RunnerLauncherService {
     /* SUCCESS listener */
     runner.on('done', (res: any) => {
       const type = res.id.split('-')[0];                 // e.g. 'print'
-      if (type === 'print' || type === 'response') {
+      if ((type === 'print' || type === 'response') && options.executionId) {
         this.logger.logLine({
           executionId: options.executionId,
           workflowId,
@@ -47,17 +47,19 @@ export class RunnerLauncherService {
     /* FAILURE listener */
     runner.on('error', ({ nodeId, error }) => {
       const type = nodeId.split('-')[0];
-      this.logger.logLine({
-        executionId: options.executionId,
-        workflowId,
-        deployedWorkflowId: options.deployedWorkflowId,
-        type,
-        runId,
-        dominoId: nodeId,
-        status: WorkflowLogStatus.FAILURE,
-        error: { message: error?.message, stack: error?.stack },
-        seq: seq++,                                      // NEW
-      });
+      if (options.executionId) {
+        this.logger.logLine({
+          executionId: options.executionId,
+          workflowId,
+          deployedWorkflowId: options.deployedWorkflowId,
+          type,
+          runId,
+          dominoId: nodeId,
+          status: WorkflowLogStatus.FAILURE,
+          error: { message: error?.message, stack: error?.stack },
+          seq: seq++,                                      // NEW
+        });
+      }
     });
 
     return runner;

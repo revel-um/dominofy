@@ -23,7 +23,7 @@ import { WorkflowsApi } from "../../apis/workflow.apis";
 import { WorkspaceApi, type WorkspaceSummary } from "../../apis/workspace.apis";
 import { importWorkflow } from "../../helpers/workflowManager";
 import { NodeErrorMap } from "../../helpers/errorDetector";
-import { SSEProvider } from "@/contexts/sseContext";
+import { SSEProvider, useSSE } from "@/contexts/sseContext";
 // import AIChatButton from "@/components/aiPrompt";
 import WorkflowToolbar from "@/components/workflowToolbar";
 import { FiArrowLeft, FiGitBranch, FiPlus } from 'react-icons/fi';
@@ -82,6 +82,74 @@ interface DeployedWorkflowSnapshot {
   isDeployed: boolean;
 }
 
+function CsvWriterRunBridge({
+  workflowId,
+  setNodes,
+}: {
+  workflowId?: string;
+  setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
+}) {
+  const { events, activeWorkflowId } = useSSE();
+  const processedEventCountRef = useRef(0);
+
+  useEffect(() => {
+    if (events.length < processedEventCountRef.current) {
+      processedEventCountRef.current = 0;
+    }
+
+    if (!workflowId || activeWorkflowId !== workflowId) {
+      processedEventCountRef.current = events.length;
+      return;
+    }
+
+    const nextEvents = events.slice(processedEventCountRef.current) as any[];
+    processedEventCountRef.current = events.length;
+
+    const csvWriterEvents = nextEvents.filter(
+      (event) => event?.id && event?.output,
+    );
+
+    if (csvWriterEvents.length === 0) {
+      return;
+    }
+
+    setNodes((prev) =>
+      prev.map((node) => {
+        if (node.type !== 'csvwriter') {
+          return node;
+        }
+
+        const matchingEvent = csvWriterEvents.find((event) => event.id === node.id);
+        if (!matchingEvent) {
+          return node;
+        }
+
+        const previousRuntime = (node.data as any)?.csvWriterRuntime;
+        if (
+          previousRuntime?.runId === matchingEvent.runId &&
+          JSON.stringify(previousRuntime?.output) === JSON.stringify(matchingEvent.output)
+        ) {
+          return node;
+        }
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            csvWriterRuntime: {
+              runId: matchingEvent.runId,
+              output: matchingEvent.output,
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        };
+      }),
+    );
+  }, [activeWorkflowId, events, setNodes, workflowId]);
+
+  return null;
+}
+
 const getSafeWorkflowGraph = (graph: any): { nodes: Node[]; edges: Edge[] } => {
   if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
     return { nodes: [], edges: [] };
@@ -115,11 +183,15 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [loading, setLoading] = useState(true);
   const [canvasLoading, setCanvasLoading] = useState(false);
   const [logsMinimized, setLogsMinimized] = useState(true);
-  const [initialLogsTab, setInitialLogsTab] = useState<'logs' | 'problems' | 'errors'>('logs');
-  const openLogsPanel = () => setLogsMinimized(false);
+  const [initialLogsTab, setInitialLogsTab] = useState<'logs' | 'problems' | 'errors' | 'executions'>('logs');
+  const openLogsPanel = useCallback((tab: 'logs' | 'problems' | 'errors' | 'executions' = 'logs') => {
+    setInitialLogsTab(tab);
+    setLogsMinimized(false);
+  }, []);
   const [workflowProblems, setWorkflowProblems] = useState<WorkflowProblem[]>([]);
   const [isSubmittingWorkflowCreate, setIsSubmittingWorkflowCreate] = useState(false);
   const didConsumeInitialViewRef = useRef(false);
+  const routeViewSignatureRef = useRef<string | null>(null);
 
   // @ts-ignore - TODO: Implement logging functionality
   const addLog = useCallback((message: string, type: 'log' | 'info' | 'warn' | 'error' | 'success' = 'log', source?: string) => {
@@ -201,16 +273,6 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   useEffect(() => {
     setWorkflowProblems([]);
   }, [workflowId]);
-
-  useEffect(() => {
-    setViewMode('dev');
-    setDeployedSnapshot(null);
-    setPanelWidth(0);
-    setInitialLogsTab(
-      requestedLogsTab === 'errors' ? 'errors' : requestedLogsTab === 'problems' ? 'problems' : 'logs'
-    );
-    didConsumeInitialViewRef.current = false;
-  }, [workflow?.id]);
 
   useEffect(() => {
     if (viewMode === 'deployed') {
@@ -334,7 +396,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       if (!stored) return { tabs: [], activeTabId: null };
       const parsed = JSON.parse(stored) as { tabs?: WorkflowTabMeta[]; activeTabId?: string | null };
       return {
-        tabs: parsed.tabs ?? [],
+        tabs: (parsed.tabs ?? []).map((tab) => ({ ...tab, mode: tab.mode ?? 'dev' })),
         activeTabId: parsed.activeTabId ?? null,
       };
     } catch {
@@ -346,6 +408,38 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   const [tabs, setTabs] = useState<WorkflowTabMeta[]>(initialTabState.tabs);
   const [activeTabId, setActiveTabId] = useState<string | null>(initialTabState.activeTabId);
   const openWorkflowIds = useMemo(() => tabs.map((tab) => tab.id), [tabs]);
+  const getTabMode = useCallback((tabId: string | null | undefined) => {
+    if (!tabId) return 'dev' as const;
+    return tabs.find((tab) => tab.id === tabId)?.mode ?? 'dev';
+  }, [tabs]);
+  const setTabMode = useCallback((tabId: string | null | undefined, mode: 'dev' | 'deployed') => {
+    if (!tabId) return;
+    setTabs((prev) => prev.map((tab) => (
+      tab.id === tabId ? { ...tab, mode } : tab
+    )));
+  }, []);
+
+  useEffect(() => {
+    setDeployedSnapshot(null);
+    setPanelWidth(0);
+    setInitialLogsTab(
+      requestedLogsTab === 'errors'
+        ? 'errors'
+        : requestedLogsTab === 'problems'
+          ? 'problems'
+          : requestedLogsTab === 'executions'
+            ? 'executions'
+          : 'logs'
+    );
+  }, [workflow?.id, requestedLogsTab]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const signature = `${requestedWorkflowId ?? ''}|${requestedView ?? ''}|${requestedLogsTab ?? ''}`;
+    if (routeViewSignatureRef.current === signature) return;
+    routeViewSignatureRef.current = signature;
+    didConsumeInitialViewRef.current = false;
+  }, [router.isReady, requestedWorkflowId, requestedView, requestedLogsTab]);
 
   // Ensure current `workflow` is in the tabs list and set default active tab
   useEffect(() => {
@@ -354,19 +448,22 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     setTabs((prev) => {
       // First time: no tabs yet → start with current workflow
       if (prev.length === 0) {
-        return [{ id: workflow.id, name: workflow.name }];
+        return [{ id: workflow.id, name: workflow.name, mode: 'dev' }];
       }
 
       // Update name if tab already exists
-      const exists = prev.some((t) => t.id === workflow.id);
-      if (exists) {
+      const existingTab = prev.find((t) => t.id === workflow.id);
+      if (existingTab) {
+        if (existingTab.name === workflow.name) {
+          return prev;
+        }
         return prev.map((t) =>
           t.id === workflow.id ? { ...t, name: workflow.name } : t
         );
       }
 
       // Otherwise, append as a new tab (e.g. opened from sidebar)
-      return [...prev, { id: workflow.id, name: workflow.name }];
+      return [...prev, { id: workflow.id, name: workflow.name, mode: 'dev' }];
     });
 
     // If nothing active yet, make current workflow active
@@ -565,15 +662,17 @@ export default function DominofyLayout({ currWorkflow }: Props) {
       list.map((n, idx) => {
         const existingSetNodes = (n.data as any)?.setNodes;
         const existingUpdate = (n.data as any)?.updatePipeline;
+        const existingCanvasViewMode = (n.data as any)?.canvasViewMode;
         const existingRenderKey =
           typeof (n.data as any)?.renderKey === 'number' ? (n.data as any).renderKey : 0;
 
         const needsHelpers =
           existingSetNodes !== nodeSetterRef.current || existingUpdate !== updatePipeline;
+        const needsCanvasViewMode = existingCanvasViewMode !== viewMode;
         const needsRenderKey = typeof (n.data as any)?.renderKey !== 'number';
         const needsSelected = typeof n.selected !== 'boolean';
 
-        if (!needsHelpers && !needsRenderKey && !needsSelected) {
+        if (!needsHelpers && !needsCanvasViewMode && !needsRenderKey && !needsSelected) {
           return n;
         }
 
@@ -583,12 +682,13 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             ...n.data,
             setNodes: nodeSetterRef.current,
             updatePipeline,
+            canvasViewMode: viewMode,
             renderKey: needsRenderKey ? existingRenderKey : existingRenderKey,
           },
           selected: needsSelected ? idx === 0 : n.selected,
         };
       }),
-    [updatePipeline]
+    [updatePipeline, viewMode]
   );
 
   const wrapNodesUpdater = useCallback(
@@ -668,9 +768,14 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     ]
   );
 
+  const runNodeUpdateRef = useRef(runNodeUpdate);
+  useEffect(() => {
+    runNodeUpdateRef.current = runNodeUpdate;
+  }, [runNodeUpdate]);
+
   const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node[]>>>(
-    updater => runNodeUpdate(updater),
-    [runNodeUpdate]
+    updater => runNodeUpdateRef.current(updater),
+    []
   );
   useEffect(() => {
     nodeSetterRef.current = setNodes;
@@ -944,11 +1049,13 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     _setNodes([]);
     _setEdges([]);
 
+    setViewMode(getTabMode(id));
+    setDeployedSnapshot(null);
     setWorkflow(nextWorkflow);
     setWorkflowId(nextWorkflow.id);
     updateCanvasMode(getStoredCanvasMode(nextWorkflow.id), nextWorkflow.id);
     setHasUnsavedChanges(false);
-  }, [workflow?.id, findWorkflowById, autoSaveWorkflow, fetchWorkflowById, hasUnsavedChanges, _setNodes, _setEdges, getStoredCanvasMode, updateCanvasMode]);
+  }, [workflow?.id, findWorkflowById, autoSaveWorkflow, fetchWorkflowById, hasUnsavedChanges, _setNodes, _setEdges, getStoredCanvasMode, updateCanvasMode, getTabMode]);
 
 
   // Open a workflow and ensure its tab is selected
@@ -980,7 +1087,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             t.id === normalizedWorkflow.id ? { ...t, name: normalizedWorkflow.name } : t
           );
         }
-        return [...prev, { id: normalizedWorkflow.id, name: normalizedWorkflow.name }];
+        return [...prev, { id: normalizedWorkflow.id, name: normalizedWorkflow.name, mode: 'dev' }];
       });
 
       setProjectWorkflows(prev => {
@@ -1010,6 +1117,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         _setEdges([]);
 
         setCanvasLoading(true);
+        setViewMode(getTabMode(normalizedWorkflow.id));
+        setDeployedSnapshot(null);
         setWorkflow(normalizedWorkflow as Props['currWorkflow']);
         setWorkflowId(normalizedWorkflow.id);
         updateCanvasMode(getStoredCanvasMode(normalizedWorkflow.id), normalizedWorkflow.id);
@@ -1018,7 +1127,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
         setCanvasLoading(false);
       }
     },
-    [workflow?.id, updateCanvasMode, getStoredCanvasMode]
+    [workflow?.id, updateCanvasMode, getStoredCanvasMode, getTabMode]
   );
 
   const handleWorkflowRenamed = useCallback(
@@ -1174,6 +1283,17 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     const hydrateContent = async () => {
       if (workflow) {
         updateCanvasMode(getStoredCanvasMode(workflow.id), workflow.id);
+        if (viewMode === 'deployed' && !deployedSnapshot) {
+          const snapshot = await fetchDeployedSnapshot(workflow.id);
+          if (!snapshot) {
+            setCanvasLoading(false);
+            setTabMode(workflow.id, 'dev');
+            setViewMode('dev');
+            return;
+          }
+          setDeployedSnapshot(snapshot);
+          return;
+        }
         const serverGraph = getSafeWorkflowGraph(
           viewMode === 'deployed' && deployedSnapshot
             ? deployedSnapshot.visualJson
@@ -1278,13 +1398,14 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     };
     hydrateContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflow, viewMode, deployedSnapshot]);
+  }, [workflow, viewMode, deployedSnapshot, fetchDeployedSnapshot, getStoredCanvasMode, loadWorkflowGraph, router, setTabMode, updateCanvasMode]);
 
   const handleToggleVersionView = useCallback(async () => {
     if (!workflow?.id || !workflow.isPublished) return;
 
     if (viewMode === 'deployed') {
       setCanvasLoading(true);
+      setTabMode(workflow.id, 'dev');
       setViewMode('dev');
       return;
     }
@@ -1305,8 +1426,9 @@ export default function DominofyLayout({ currWorkflow }: Props) {
     _setNodes((prev) => prev.map((node) => ({ ...node, selected: false })));
     _setEdges((prev) => prev.map((edge) => ({ ...edge, selected: false })));
     setPanelWidth(0);
+    setTabMode(workflow.id, 'deployed');
     setViewMode('deployed');
-  }, [workflow, viewMode, deployedSnapshot, fetchDeployedSnapshot, autoSaveWorkflow, hasUnsavedChanges, _setNodes, _setEdges]);
+  }, [workflow, viewMode, deployedSnapshot, fetchDeployedSnapshot, autoSaveWorkflow, hasUnsavedChanges, _setNodes, _setEdges, setTabMode]);
 
   useEffect(() => {
     if (!router.isReady || !workflow?.id) return;
@@ -1326,10 +1448,49 @@ export default function DominofyLayout({ currWorkflow }: Props) {
   }, [router.isReady, workflow, requestedView, requestedLogsTab, viewMode, handleToggleVersionView]);
 
   useEffect(() => {
-    if (requestedLogsTab === 'errors') {
+    if (requestedLogsTab === 'errors' || requestedLogsTab === 'executions') {
       setLogsMinimized(false);
     }
   }, [requestedLogsTab]);
+
+  useEffect(() => {
+    router.beforePopState((state) => {
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const nextPath = typeof state.as === 'string' ? state.as.split('?')[0] : '';
+
+      if (currentPath.startsWith('/performance') && nextPath.startsWith('/dominofy/')) {
+        return true;
+      }
+
+      if (currentPath.startsWith('/dominofy/')) {
+        void router.replace('/dashboard');
+        return false;
+      }
+
+      return true;
+    });
+
+    return () => {
+      router.beforePopState(() => true);
+    };
+  }, [router]);
+
+  useEffect(() => {
+    _setNodes((prev) =>
+      prev.map((node) => {
+        if ((node.data as any)?.canvasViewMode === viewMode) {
+          return node;
+        }
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            canvasViewMode: viewMode,
+          },
+        };
+      }),
+    );
+  }, [_setNodes, viewMode]);
 
   const handleCommentsChange = useCallback(async (newComments: CanvasComment[]) => {
     setComments(newComments);
@@ -1348,6 +1509,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
 
   return (
     <SSEProvider>
+      <CsvWriterRunBridge workflowId={workflowId} setNodes={_setNodes} />
       <DominoContext.Provider value={contextValue}>
         {/* top-level padding so content sits below the fixed toolbar */}
         <div className="w-screen h-screen flex flex-col pt-14 bg-dominofy-light-background dark:bg-dominofy-dark-background text-dominofy-light-text dark:text-dominofy-dark-text">
@@ -1360,7 +1522,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
             >
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => router.back()}
+                  onClick={() => router.push('/dashboard')}
                   className="p-1.5 rounded-md hover:bg-[var(--secondary-hover)] text-[var(--text-secondary)] hover:text-white transition-colors"
                   title="Go back"
                 >
@@ -1463,7 +1625,7 @@ export default function DominofyLayout({ currWorkflow }: Props) {
                           edges={edges}
                           setEdges={setEdges}                 // wrapped setter (records history)
                           onEdgesChange={onEdgesChange}       // wrapped handler (records history)
-                          workflowId={viewMode === 'deployed' ? deployedSnapshot?.id ?? workflowId : workflowId}
+                          workflowId={workflowId}
                           readonly={viewMode === 'deployed' || !canEditWorkspace}
                           onUndo={undo}
                           onRedo={redo}
@@ -1517,8 +1679,8 @@ export default function DominofyLayout({ currWorkflow }: Props) {
               {/* Logs panel … */}
               {!showCreateWorkflowEmptyState && workflowId && (
                 <LogsPanel
-                  workflowId={viewMode === 'deployed' ? deployedSnapshot?.id ?? workflowId! : workflowId!}
-                  openWorkflowIds={viewMode === 'deployed' ? (deployedSnapshot?.id ? [deployedSnapshot.id] : []) : openWorkflowIds}
+                  workflowId={workflowId!}
+                  openWorkflowIds={openWorkflowIds}
                   problems={combinedProblems}
                   isDeployedView={viewMode === 'deployed'}
                   deployedWorkflowVersion={viewMode === 'deployed' ? deployedSnapshot?.version : undefined}

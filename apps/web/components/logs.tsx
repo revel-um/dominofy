@@ -2,13 +2,14 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { FiX, FiFile, FiLoader } from 'react-icons/fi';
+import { FiX, FiFile, FiLoader, FiActivity, FiClock } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import { LogsApi } from '@/apis/logs.apis';
 import { WorkflowsApi } from '@/apis/workflow.apis';
 import { EventSourcePolyfill } from 'event-source-polyfill';
 import { config } from '@/config/config';
 import { useSSE } from '@/contexts/sseContext';
+import WorkflowExecutionSummaryCard from './workflowExecutionSummaryCard';
 
 export interface WorkflowLog {
   id: string;
@@ -41,7 +42,7 @@ interface LogsPanelProps {
   problems?: WorkflowProblem[];
   isDeployedView?: boolean;
   deployedWorkflowVersion?: number;
-  initialTab?: 'logs' | 'problems' | 'errors';
+  initialTab?: 'logs' | 'problems' | 'errors' | 'executions';
   className?: string;
   maxHeight?: string;
   defaultHeight?: string;
@@ -52,6 +53,15 @@ interface LogsPanelProps {
 }
 
 interface ExecutionMetricError {
+  id: string;
+  runId: string;
+  executedAt: string;
+  deployedWorkflowVersion?: number;
+  status: 'running' | 'success' | 'failure';
+  failureReason?: string | null;
+}
+
+interface ExecutionMetric {
   id: string;
   runId: string;
   executedAt: string;
@@ -313,8 +323,9 @@ export const LogsPanel = React.memo(function LogsPanel({
   const isMinimized = typeof controlledMinimized === 'boolean' ? controlledMinimized : internalMinimized;
   const setIsMinimized = controlledSetMinimized || setInternalMinimized;
   const [isDragging, setIsDragging] = useState(false);
-  const [activeTab, setActiveTab] = useState<'logs' | 'problems' | 'errors'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'logs' | 'problems' | 'errors' | 'executions'>(initialTab);
   const [executionErrors, setExecutionErrors] = useState<ExecutionMetricError[]>([]);
+  const [executions, setExecutions] = useState<ExecutionMetric[]>([]);
   const previousProblemsCountRef = useRef(0);
 
   // filters & polling
@@ -362,12 +373,51 @@ export const LogsPanel = React.memo(function LogsPanel({
   }, [problems.length, activeTab]);
 
   useEffect(() => {
-    if (initialTab === 'errors' && !isDeployedView) {
+    if ((initialTab === 'errors' || initialTab === 'executions') && !isDeployedView) {
       setActiveTab('logs');
+      return;
+    }
+    if ((initialTab === 'logs' || initialTab === 'problems') && isDeployedView) {
+      setActiveTab('executions');
       return;
     }
     setActiveTab(initialTab);
   }, [initialTab, isDeployedView]);
+
+  useEffect(() => {
+    if (isDeployedView && (activeTab === 'logs' || activeTab === 'problems')) {
+      setActiveTab('executions');
+      return;
+    }
+    if (!isDeployedView && (activeTab === 'executions' || activeTab === 'errors')) {
+      setActiveTab('logs');
+    }
+  }, [isDeployedView, activeTab]);
+
+  const buildExecutionReturnTo = useCallback(() => {
+    const [pathname, queryString = ''] = router.asPath.split('?');
+    const params = new URLSearchParams(queryString);
+    params.set('tab', 'executions');
+    if (isDeployedView) {
+      params.set('view', 'deployed');
+    } else {
+      params.delete('view');
+    }
+    if (workflowId) {
+      params.set('workflowId', workflowId);
+    }
+    const nextQuery = params.toString();
+    return nextQuery ? `${pathname}?${nextQuery}` : pathname;
+  }, [isDeployedView, router.asPath, workflowId]);
+
+  const formatDateTime = useCallback((value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Unknown time';
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(date);
+  }, []);
 
   const fetchExecutionErrors = useCallback(async () => {
     if (!isDeployedView || !workflowId) {
@@ -400,6 +450,51 @@ export const LogsPanel = React.memo(function LogsPanel({
 
     setExecutionErrors(failedMetrics);
   }, [deployedWorkflowVersion, isDeployedView, workflowId, router]);
+
+  const fetchExecutions = useCallback(async () => {
+    if (!isDeployedView || !workflowId) {
+      setExecutions([]);
+      return;
+    }
+
+    const token = localStorage.getItem('token') || '';
+    const response = await WorkflowsApi.getExecutionMetrics(
+      workflowId,
+      token,
+      router,
+      50,
+      0,
+      deployedWorkflowVersion,
+      {
+        allVersions: true,
+      },
+    );
+
+    if (!response?.ok) {
+      setExecutions([]);
+      return;
+    }
+
+    const payload = await response.json() as { count: number; metrics: ExecutionMetric[] };
+    setExecutions(
+      (payload.metrics ?? []).sort((left, right) => {
+        const leftTs = new Date(left.executedAt).getTime();
+        const rightTs = new Date(right.executedAt).getTime();
+        return rightTs - leftTs;
+      }),
+    );
+  }, [deployedWorkflowVersion, isDeployedView, workflowId, router]);
+
+  useEffect(() => {
+    setLogs([]);
+    setExecutionErrors([]);
+    setExecutions([]);
+
+    if (isDeployedView) {
+      void fetchExecutionErrors();
+      void fetchExecutions();
+    }
+  }, [workflowId, isDeployedView, fetchExecutionErrors, fetchExecutions]);
 
   const liveLogsRef = useRef<Record<string, Record<string, RunLogAggregate>>>({});
   const pendingRunsRef = useRef<Record<string, Map<string, Date>>>({});
@@ -500,14 +595,8 @@ export const LogsPanel = React.memo(function LogsPanel({
         upsertRunAggregate(grouped, runId, l, ts);
       });
 
-    if (isLive) {
-      liveLogsRef.current[workflowId] = grouped;
-      setLogs(buildWorkflowLogs(grouped, getPendingRuns(workflowId)));
-      return;
-    }
-
     setLogs(buildWorkflowLogs(grouped));
-  }, [workflowId, router, offset, limit, minutesFilter, rangeStart, rangeEnd, dateSelected, isLive, getPendingRuns]);
+  }, [workflowId, router, offset, limit, minutesFilter, rangeStart, rangeEnd, dateSelected]);
 
   // subscribe to workflow log streams for all open tabs when live + panel open
   useEffect(() => {
@@ -692,17 +781,20 @@ export const LogsPanel = React.memo(function LogsPanel({
     setLogs(buildWorkflowLogs(liveLogsRef.current[workflowId] ?? {}, getPendingRuns(workflowId)));
   }, [workflowId, isLive, getPendingRuns]);
 
-  // live mode still needs a backfill fetch for runs that happened while the panel
-  // was closed or before this client subscribed to the stream.
   useEffect(() => {
     if (!isLive || isMinimized) return;
-    fetchLogs();
-  }, [isLive, isMinimized, fetchLogs]);
+    setLogs(buildWorkflowLogs(liveLogsRef.current[workflowId] ?? {}, getPendingRuns(workflowId)));
+  }, [isLive, isMinimized, workflowId, getPendingRuns]);
 
   useEffect(() => {
     if (!isDeployedView || isMinimized) return;
     fetchExecutionErrors();
   }, [isDeployedView, isMinimized, fetchExecutionErrors]);
+
+  useEffect(() => {
+    if (isMinimized || activeTab !== 'executions') return;
+    fetchExecutions();
+  }, [activeTab, isMinimized, fetchExecutions]);
 
   // auto-scroll on logs update or panel open
   useEffect(() => {
@@ -858,45 +950,64 @@ export const LogsPanel = React.memo(function LogsPanel({
       >
         <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setActiveTab('logs')}
-              className={cn(
-                'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
-                activeTab === 'logs'
-                  ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                  : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
-              )}
-            >
-              Logs
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('problems')}
-              className={cn(
-                'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
-                activeTab === 'problems'
-                  ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                  : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
-              )}
-            >
-              Problems
-              {problems.length > 0 ? ` (${problems.length})` : ''}
-            </button>
+            {!isDeployedView ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('logs')}
+                  className={cn(
+                    'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
+                    activeTab === 'logs'
+                      ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                      : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+                  )}
+                >
+                  Logs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('problems')}
+                  className={cn(
+                    'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
+                    activeTab === 'problems'
+                      ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                      : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+                  )}
+                >
+                  Problems
+                  {problems.length > 0 ? ` (${problems.length})` : ''}
+                </button>
+              </>
+            ) : null}
             {isDeployedView ? (
-              <button
-                type="button"
-                onClick={() => setActiveTab('errors')}
-                className={cn(
-                  'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
-                  activeTab === 'errors'
-                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                    : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
-                )}
-              >
-                Errors
-                {executionErrors.length > 0 ? ` (${executionErrors.length})` : ''}
-              </button>
+              <React.Fragment>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('executions')}
+                  className={cn(
+                    'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
+                    activeTab === 'executions'
+                      ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                      : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+                  )}
+                >
+                  Executions
+                  {executions.length > 0 ? ` (${executions.length})` : ''}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('errors')}
+                  className={cn(
+                    'border-b-2 px-1 py-1 text-sm font-medium transition-colors',
+                    activeTab === 'errors'
+                      ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                      : 'border-transparent text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+                  )}
+                >
+                  Errors
+                  {executionErrors.length > 0 ? ` (${executionErrors.length})` : ''}
+                </button>
+              </React.Fragment>
             ) : null}
           </div>
         </div>
@@ -1039,7 +1150,57 @@ export const LogsPanel = React.memo(function LogsPanel({
             WebkitUserSelect: 'text',
           }}
         >
-          {activeTab === 'errors' ? (
+          {activeTab === 'executions' ? (
+            executions.length === 0 ? (
+              <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-sky-50 dark:bg-sky-900/20 shrink-0">
+                  <FiActivity className="h-6 w-6 text-sky-400" />
+                </div>
+                <h4 className="mb-1 text-gray-700 dark:text-gray-200 font-medium">No executions yet</h4>
+                <p className="max-w-md text-sm text-gray-500 dark:text-gray-400">
+                  Deployed workflow executions for this workflow will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="p-5 sm:p-6">
+                <WorkflowExecutionSummaryCard
+                  workflowName="Workflow"
+                  projectName="Executions"
+                  totalExecutions={executions.length}
+                  successfulExecutions={executions.filter((execution) => execution.status === 'success').length}
+                  failedExecutions={executions.filter((execution) => execution.status === 'failure').length}
+                  latestExecutionAt={executions[0]?.executedAt ?? null}
+                  recentExecutions={executions.slice(0, 8)}
+                  formatDateTime={formatDateTime}
+                  onOpenAllExecutions={() =>
+                    router.push(
+                      `/performance/workflow/${encodeURIComponent(workflowId)}?status=all&returnTo=${encodeURIComponent(buildExecutionReturnTo())}`
+                    )
+                  }
+                  onOpenSuccessfulExecutions={() =>
+                    router.push(
+                      `/performance/workflow/${encodeURIComponent(workflowId)}?status=success&returnTo=${encodeURIComponent(buildExecutionReturnTo())}`
+                    )
+                  }
+                  onOpenFailedExecutions={() =>
+                    router.push(
+                      `/performance/workflow/${encodeURIComponent(workflowId)}?status=failure&returnTo=${encodeURIComponent(buildExecutionReturnTo())}`
+                    )
+                  }
+                  onOpenExecution={(executionId) =>
+                    router.push(
+                      `/performance/${encodeURIComponent(executionId)}?returnTo=${encodeURIComponent(buildExecutionReturnTo())}`
+                    )
+                  }
+                  onOpenExecutionHistory={() =>
+                    router.push(
+                      `/performance/workflow/${encodeURIComponent(workflowId)}?returnTo=${encodeURIComponent(buildExecutionReturnTo())}`
+                    )
+                  }
+                />
+              </div>
+            )
+          ) : activeTab === 'errors' ? (
             executionErrors.length === 0 ? (
               <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20 shrink-0">

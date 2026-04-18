@@ -400,7 +400,8 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
 
     const summaryQb = executionRepository
       .createQueryBuilder('execution')
-      .innerJoin('execution.workflow', 'workflow')
+      .innerJoin('execution.deployedWorkflow', 'deployedWorkflow')
+      .innerJoin('deployedWorkflow.workflow', 'workflow')
       .innerJoin('workflow.project', 'project')
       .innerJoin('project.workspace', 'workspace')
       .where('execution.isDeployed = true');
@@ -429,7 +430,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
         `COALESCE(SUM(CASE WHEN execution.status = :failureStatus AND execution.executedAt >= :last7DaysCutoff THEN 1 ELSE 0 END), 0)`,
         'last7DayErrors',
       )
-      .addSelect('COUNT(DISTINCT execution.workflowId)', 'affectedWorkflowCount')
+      .addSelect('COUNT(DISTINCT workflow.id)', 'affectedWorkflowCount')
       .addSelect('MAX(execution.executedAt)', 'latestExecutionAt')
       .setParameters({
         successStatus: ExecutionStatus.SUCCESS,
@@ -451,7 +452,8 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
 
     const workflowAggregationSubQuery = executionRepository
       .createQueryBuilder('execution')
-      .select('execution.workflowId', 'workflowId')
+      .innerJoin('execution.deployedWorkflow', 'deployedWorkflow')
+      .select('deployedWorkflow.workflowId', 'workflowId')
       .addSelect('COUNT(execution.id)', 'totalExecutions')
       .addSelect(
         `COALESCE(SUM(CASE WHEN execution.status = '${ExecutionStatus.SUCCESS}' THEN 1 ELSE 0 END), 0)`,
@@ -463,7 +465,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
       )
       .addSelect('MAX(execution.executedAt)', 'latestExecutionAt')
       .where('execution.isDeployed = true')
-      .groupBy('execution.workflowId');
+      .groupBy('deployedWorkflow.workflowId');
 
     const versionSubQuery = this.deployedWorkflowRepository
       .createQueryBuilder('dw')
@@ -527,14 +529,15 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
                 e."runId",
                 e."executedAt",
                 e.status,
-                e."workflowId",
+                dw."workflowId",
                 ROW_NUMBER() OVER (
-                  PARTITION BY e."workflowId"
+                  PARTITION BY dw."workflowId"
                   ORDER BY e."executedAt" DESC
                 ) AS row_num
               FROM executions e
+              INNER JOIN deployed_workflows dw ON dw.id = e."deployedWorkflowId"
               WHERE e."isDeployed" = true
-                AND e."workflowId" = ANY($1::uuid[])
+                AND dw."workflowId" = ANY($1::uuid[])
             ) ranked
             WHERE row_num <= 8
             ORDER BY "workflowId" ASC, "executedAt" DESC
@@ -583,7 +586,8 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     const errorRowsQb = applyWorkflowFilters(
       executionRepository
         .createQueryBuilder('execution')
-        .innerJoin('execution.workflow', 'workflow')
+        .innerJoin('execution.deployedWorkflow', 'deployedWorkflow')
+        .innerJoin('deployedWorkflow.workflow', 'workflow')
         .innerJoin('workflow.project', 'project')
         .innerJoin('project.workspace', 'workspace')
         .leftJoin(
@@ -776,12 +780,38 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
       throw new BadRequestException('Request body required');
     }
 
-    const { results, executionError } = await this.executeDeployedWorkflowTarget(
-      target,
-      input,
-    );
+    let executionResult:
+      | Awaited<ReturnType<WorkflowService['executeDeployedWorkflowTarget']>>
+      | undefined;
+    let thrownError: unknown;
+
+    try {
+      executionResult = await this.executeDeployedWorkflowTarget(
+        target,
+        input,
+      );
+    } catch (error) {
+      thrownError = error;
+    }
+
+    if (thrownError) {
+      const errorMessage =
+        thrownError instanceof Error ? thrownError.message : String(thrownError);
+      return {
+        __httpStatus: 500,
+        success: false,
+        error: {
+          message: errorMessage,
+        },
+      };
+    }
+
+    const { results, executionError } = executionResult ?? {};
     if (!results) {
-      return undefined;
+      return {
+        success: true,
+        message: 'Workflow execution completed',
+      };
     }
 
     const { nodes, edges } = target.visualJson;
@@ -796,7 +826,7 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
       }
     }
 
-    if (responseNodeIds.length > 0 && executionError) {
+    if (executionError) {
       return {
         __httpStatus: 500,
         success: false,
@@ -804,7 +834,10 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
       };
     }
 
-    return undefined;
+    return {
+      success: true,
+      message: 'Workflow execution completed',
+    };
   }
 
   async executeDeployedWorkflowTarget(
@@ -821,8 +854,6 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
     const executedAt = new Date();
 
     const execution = await this.executionService.markStarted({
-      workflowId: target.workflowId,
-      isDeployed: true,
       deployedWorkflowId: target.deployedWorkflowId,
       deployedWorkflowVersion: target.deployedWorkflowVersion ?? 1,
       runId,
@@ -870,8 +901,6 @@ export class WorkflowService extends BaseService<Workflow> implements OnModuleIn
       : ExecutionStatus.SUCCESS;
 
     await this.executionService.markCompleted({
-      workflowId: target.workflowId,
-      isDeployed: true,
       deployedWorkflowId: target.deployedWorkflowId,
       deployedWorkflowVersion: target.deployedWorkflowVersion ?? 1,
       runId,

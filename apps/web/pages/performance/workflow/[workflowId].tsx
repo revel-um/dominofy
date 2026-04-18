@@ -237,7 +237,7 @@ export default function PerformanceWorkflowExecutionsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (returnTo) router.push(returnTo);
+                    if (returnTo) router.replace(returnTo);
                     else router.back();
                   }}
                   className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-200 dark:hover:border-sky-700 dark:hover:text-sky-200"

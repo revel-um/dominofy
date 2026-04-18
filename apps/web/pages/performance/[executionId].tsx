@@ -123,7 +123,7 @@ export default function PerformanceExecutionDetailPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (returnTo) router.push(returnTo);
+                    if (returnTo) router.replace(returnTo);
                     else if (from === "errors") router.push("/performance?tab=errors");
                     else if (from === "execution") router.push("/performance?tab=execution");
                     else router.back();

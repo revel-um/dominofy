@@ -7,15 +7,19 @@ import DominoDropdown from '../components/shared/dominoDropdown';
 import ExpandableTextarea from '@/components/shared/expandableTextarea';
 import { PinType } from '../types/pinTypes';
 import { useDomino } from '../contexts/dominoContext';
-import { FiFileText } from 'react-icons/fi';
+import { FiDownload, FiFileText } from 'react-icons/fi';
 import { DominoField } from '../types/dominoFieldTypes';
 import dominoCatalog from './dominos';
+import { TokenManager } from '../utils/auth';
+import { config as appConfig } from '@/config/config';
 
 type InputType = 'json' | 'text';
+type WriteMode = 'append' | 'replace';
 
 interface CSVWriterConfig {
   name: string;          // node display name
   fileName: string;
+  writeMode: WriteMode;
   includeHeader: boolean;
   considerFirstLineAsHeader: boolean; // for text input mode
   delimiter: string;
@@ -23,6 +27,18 @@ interface CSVWriterConfig {
   textInput: string;     // freeform box (always visible)
   data: any[];           // pipeline-fed JSON rows
   lastExport: Date | null;
+}
+
+interface CSVFileStatus {
+  filePath: string;
+  localExists: boolean;
+  gcsExists: boolean;
+  hasData: boolean;
+  rowCount: number;
+  size: number;
+  downloadUrl?: string;
+  gcsUrl?: string;
+  source: 'local' | 'gcs' | null;
 }
 
 // Helper: shallow-merge new field with any existing field to preserve connection metadata
@@ -53,6 +69,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
   const [config, setConfig] = useState<CSVWriterConfig>({
     name: 'CSV Writer',
     fileName: '',
+    writeMode: 'replace',
     includeHeader: true,
     considerFirstLineAsHeader: false,
     delimiter: ',',
@@ -63,20 +80,10 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
   });
 
   const didInitRef = useRef(false);
-  const lastFieldsHashRef = useRef<string | null>(null);
+  const shouldSyncRef = useRef(false);
 
   // 👉 subscribe to React Flow edges so this re-renders when connections change
   const edges = useEdges();
-
-  // Snapshot existing fields for preservation
-  const existingFieldsByHeading = useMemo(() => {
-    const arr: DominoField[] = data?.details?.fields ?? [];
-    const map = new Map<string, DominoField>();
-    arr.forEach((f) => {
-      if (f?.heading) map.set(f.heading, f);
-    });
-    return map;
-  }, [data?.details?.fields]);
 
   // Check if the File Name value_in_1 pin is connected
   const isFileNameConnected = useMemo(() => {
@@ -114,8 +121,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
     const isText = config.inputType === 'text';
     const isJSON = config.inputType === 'json';
 
-    // Construct the fresh definition first
-    const fresh: any[] = [
+    return [
       {
         type: 'text',
         heading: 'Name',
@@ -141,6 +147,17 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         heading: 'File Name',
         value: config.fileName,
         inPinId: 'value_in_1',
+        required: true,
+        shouldRender: true,
+      },
+      {
+        type: 'select',
+        heading: 'Write Mode',
+        value: config.writeMode,
+        options: [
+          { label: 'Replace', value: 'replace' },
+          { label: 'Append', value: 'append' },
+        ],
         required: true,
         shouldRender: true,
       },
@@ -183,17 +200,10 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         shouldRender: true, // always
       },
     ];
-
-    // Merge with any existing fields to preserve connection metadata
-    return fresh.map((nf) =>
-      mergeFieldPreservingConnections(nf, existingFieldsByHeading.get(nf.heading))
-    );
-  }, [config, existingFieldsByHeading]);
-
-  const computedFieldsHash = useMemo(() => JSON.stringify(computedFields), [computedFields]);
+  }, [config]);
 
   const exportFields = useMemo(() => {
-    const list: string[] = ['Name', 'Input Type', 'File Name', 'Input Box'];
+    const list: string[] = ['Name', 'Input Type', 'File Name', 'Write Mode', 'Input Box'];
     if (config.inputType === 'json') list.push('Include Header');
     if (config.inputType === 'text') {
       list.push('Delimiter');
@@ -214,6 +224,7 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         ...prev,
         name: getFieldValue('Name', 'CSV Writer'),
         fileName: getFieldValue('File Name', ''),
+        writeMode: (getFieldValue('Write Mode', 'replace') as WriteMode) || 'replace',
         includeHeader: !!getFieldValue('Include Header', true),
         considerFirstLineAsHeader: !!getFieldValue('Consider First Line As Header', false),
         delimiter: sanitizeDelimiter(getFieldValue('Delimiter', ',')),
@@ -225,35 +236,63 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.details?.fields]);
 
+  const exportFieldsHash = useMemo(() => JSON.stringify(exportFields), [exportFields]);
+
   /* Sync local -> graph only when changed (prevents update-depth loops) */
   useEffect(() => {
-    if (!didInitRef.current || !data.setNodes) return;
-    if (lastFieldsHashRef.current === computedFieldsHash) return;
+    if (!didInitRef.current || !shouldSyncRef.current || !data.setNodes) return;
+
+    shouldSyncRef.current = false;
 
     data.setNodes((nodes: any[]) =>
       nodes.map((n: any) =>
-        n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                details: {
-                  ...(n.data.details || {}),
-                  fields: computedFields,
+        n.id !== id
+          ? n
+          : (() => {
+              const existingFields: DominoField[] = n.data?.details?.fields ?? [];
+              const existingFieldsByHeading = new Map<string, DominoField>();
+              existingFields.forEach((field) => {
+                if (field?.heading) {
+                  existingFieldsByHeading.set(field.heading, field);
+                }
+              });
+
+              const mergedFields = computedFields.map((field) =>
+                mergeFieldPreservingConnections(field, existingFieldsByHeading.get(field.heading))
+              );
+
+              const currentFieldsHash = JSON.stringify(existingFields);
+              const mergedFieldsHash = JSON.stringify(mergedFields);
+              const currentExportFieldsHash = JSON.stringify(n.data?.exportFields ?? []);
+
+              if (
+                currentFieldsHash === mergedFieldsHash &&
+                currentExportFieldsHash === exportFieldsHash
+              ) {
+                return n;
+              }
+
+              return {
+                ...n,
+                data: {
+                  ...n.data,
+                  details: {
+                    ...(n.data.details || {}),
+                    fields: mergedFields,
+                  },
+                  exportFields,
                 },
-                exportFields,
-              },
-            }
-          : n
+              };
+            })()
       )
     );
-    lastFieldsHashRef.current = computedFieldsHash;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [computedFieldsHash, exportFields, data.setNodes, id]);
+  }, [computedFields, exportFields, exportFieldsHash, data.setNodes, id]);
 
   /* Field mutators */
   const patchConfig = useCallback(
     (patch: Partial<CSVWriterConfig>) => {
+      shouldSyncRef.current = true;
       setConfig((prev) => {
         const next = { ...prev, ...patch };
         clearValidationForDominoId(id);
@@ -282,6 +321,135 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
     const lines = config.textInput.replace(/\r\n/g, '\n').split('\n').length;
     return `${lines} line${lines !== 1 ? 's' : ''} from input box`;
   }, [hasPreview, config.inputType, config.data, config.textInput]);
+
+  const latestRun = (data as any)?.csvWriterRuntime;
+  const latestOutput = latestRun?.output ?? null;
+  const [fileStatus, setFileStatus] = useState<CSVFileStatus | null>(null);
+  const canvasViewMode = (data as any)?.canvasViewMode as 'dev' | 'deployed' | undefined;
+  const isDeployedView = canvasViewMode === 'deployed';
+
+  const effectiveFilePath = useMemo(
+    () => String(latestOutput?.filePath || config.fileName || '').trim(),
+    [config.fileName, latestOutput?.filePath],
+  );
+
+  const resolveDownloadUrl = useCallback((rawUrl: string) => {
+    if (!rawUrl) return '';
+    if (/^https?:\/\//i.test(rawUrl)) {
+      return rawUrl;
+    }
+    const backendBase = appConfig.backendBaseUrl?.replace(/\/$/, '') ?? '';
+    return `${backendBase}${rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`}`;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadFileStatus = async () => {
+      if (!effectiveFilePath) {
+        setFileStatus(null);
+        return;
+      }
+
+      try {
+        const token = await TokenManager.getValidAccessToken();
+        if (!token) {
+          setFileStatus(null);
+          return;
+        }
+
+        const backendBase = appConfig.backendBaseUrl?.replace(/\/$/, '') ?? '';
+        const response = await fetch(
+          `${backendBase}/workflow/csv/status?path=${encodeURIComponent(effectiveFilePath)}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
+        if (!response.ok) {
+          if (!cancelled) {
+            setFileStatus(null);
+          }
+          return;
+        }
+
+        const payload = (await response.json()) as CSVFileStatus;
+        if (!cancelled) {
+          setFileStatus(payload);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFileStatus(null);
+        }
+        console.error('Failed to fetch CSV file status:', error);
+      }
+    };
+
+    void loadFileStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveFilePath, latestRun?.runId]);
+
+  const effectiveOutput = useMemo(() => {
+    if (fileStatus?.hasData && fileStatus.downloadUrl) {
+      return {
+        ...latestOutput,
+        filePath: fileStatus.filePath,
+        fileName:
+          latestOutput?.fileName ||
+          fileStatus.filePath.split('/').pop() ||
+          'output.csv',
+        downloadUrl: fileStatus.downloadUrl,
+        gcsUrl: fileStatus.gcsUrl || latestOutput?.gcsUrl,
+        rowCount: fileStatus.rowCount,
+        size: fileStatus.size,
+        hasData: true,
+        source: fileStatus.source,
+      };
+    }
+    return latestOutput;
+  }, [fileStatus, latestOutput]);
+
+  const hasDownloadableCsv = Boolean(effectiveOutput?.hasData && effectiveOutput?.downloadUrl);
+  const canDownloadInCurrentView = isDeployedView && hasDownloadableCsv;
+
+  const handleDownloadCurrentCsv = useCallback(async () => {
+    const rawUrl = effectiveOutput?.downloadUrl;
+    if (!isDeployedView || !rawUrl || !effectiveOutput?.hasData) return;
+
+    const finalUrl = resolveDownloadUrl(rawUrl);
+    const isBackendDownload = finalUrl.includes('/workflow/csv/download');
+
+    if (!isBackendDownload) {
+      window.open(finalUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    try {
+      const token = await TokenManager.getValidAccessToken();
+      const response = await fetch(finalUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = effectiveOutput?.fileName || 'output.csv';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error('Failed to download CSV file:', error);
+    }
+  }, [effectiveOutput, isDeployedView, resolveDownloadUrl]);
 
   return (
     <div
@@ -362,9 +530,9 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
                     type="text"
                     value={config.fileName}
                     onChange={(e) => handleFieldChange('fileName', e.target.value)}
-                    placeholder="File name"
+                    placeholder="apps/backend/data.csv"
                     className="nodrag h-full min-h-12 w-full rounded-lg bg-transparent px-4 py-3 text-sm text-dominofy-light-text outline-none placeholder:text-inherit dark:text-dominofy-dark-text"
-                    title="File name (without extension)"
+                    title="File path or file name"
                   />
                 ) : (
                   <div className="flex min-h-12 items-center px-4 py-3 text-sm font-medium italic text-slate-500 dark:text-slate-400">
@@ -374,6 +542,26 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Write Mode
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              {config.writeMode === 'append' ? 'Append to file' : 'Replace file'}
+            </span>
+          </div>
+          <DominoDropdown
+            value={config.writeMode}
+            onChange={(nextValue) => handleFieldChange('writeMode', nextValue as WriteMode)}
+            options={[
+              { label: 'Replace current file', value: 'replace' },
+              { label: 'Append to current file', value: 'append' },
+            ]}
+          />
         </div>
 
         <div className="space-y-3">
@@ -521,6 +709,50 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
+              <FiDownload className="h-3.5 w-3.5" />
+              Download
+            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/50 dark:text-slate-400">
+              Current file
+            </span>
+          </div>
+          <div className="rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+              Download
+            </div>
+            <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+              {!isDeployedView
+                ? 'Download is available only in the deployed version'
+                : hasDownloadableCsv
+                ? 'Download the current CSV file'
+                : 'Download is disabled until the CSV contains data'}
+            </div>
+            {!isDeployedView && (
+              <div className="mt-2 text-xs text-foreground/55 dark:text-slate-400">
+                Switch to deployed view to download the current CSV file.
+              </div>
+            )}
+            {isDeployedView ? (
+              <button
+                type="button"
+                onClick={handleDownloadCurrentCsv}
+                disabled={!canDownloadInCurrentView}
+                className={`mt-3 inline-flex items-center gap-2 ${
+                  canDownloadInCurrentView
+                    ? 'shrink-0 rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-sky-600'
+                    : 'cursor-not-allowed rounded-md bg-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                <FiDownload className="h-3.5 w-3.5" />
+                Download Current CSV
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/70 dark:bg-white/10 dark:text-slate-300">
               <ShieldCheck className="h-3.5 w-3.5" />
               Output
             </div>
@@ -528,12 +760,24 @@ export default function CSVWriterDomino({ data, id, selected }: NodeProps) {
               CSV export
             </span>
           </div>
-          <div className="rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
-              Output
-            </div>
-            <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
-              Generates a CSV file from the selected input source
+          <div className="relative">
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1 rounded-xl border border-black/5 bg-black/[0.02] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50">
+                  Output
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-foreground/75 dark:text-slate-300">
+                  {effectiveOutput?.downloadUrl
+                    ? `Latest file: ${effectiveOutput.fileName || 'output.csv'}`
+                    : 'Generates a CSV file from the selected input source'}
+                </div>
+                <div className="mt-2 text-xs text-foreground/55 dark:text-slate-400">
+                  {effectiveOutput?.hasData
+                    ? `${effectiveOutput.rowCount ?? 0} row${effectiveOutput?.rowCount === 1 ? '' : 's'} available for download`
+                    : 'Run this domino with CSV rows to enable download'}
+                </div>
+              </div>
+              <DominoPin id="value_out" pinType={PinType.VALUE_OUT} inline offset={-16} />
             </div>
           </div>
         </div>

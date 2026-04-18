@@ -24,21 +24,15 @@ export class CreateExecutionsAndLinkLogs1768000000000 implements MigrationInterf
         "createdAt" TIMESTAMP NOT NULL DEFAULT now(),
         "updatedAt" TIMESTAMP NOT NULL DEFAULT now(),
         "isActive" boolean NOT NULL DEFAULT true,
-        "workflowId" uuid NOT NULL,
-        "deployedWorkflowId" uuid NULL,
+        "deployedWorkflowId" uuid NOT NULL,
         "runId" character varying NOT NULL,
         "executedAt" TIMESTAMP NOT NULL,
-        "isDeployed" boolean NOT NULL DEFAULT false,
+        "isDeployed" boolean NOT NULL DEFAULT true,
         "deployedWorkflowVersion" integer NULL,
         "status" "execution_status_enum" NOT NULL,
         "failureReason" text NULL,
         CONSTRAINT "PK_executions" PRIMARY KEY ("id"),
         CONSTRAINT "UQ_execution_runId" UNIQUE ("runId"),
-        CONSTRAINT "FK_execution_workflow"
-          FOREIGN KEY ("workflowId")
-          REFERENCES "workflows"("id")
-          ON DELETE CASCADE
-          ON UPDATE NO ACTION,
         CONSTRAINT "FK_execution_deployed_workflow"
           FOREIGN KEY ("deployedWorkflowId")
           REFERENCES "deployed_workflows"("id")
@@ -47,10 +41,6 @@ export class CreateExecutionsAndLinkLogs1768000000000 implements MigrationInterf
       )
     `);
 
-    await queryRunner.query(`
-      CREATE INDEX IF NOT EXISTS "idx_execution_workflow"
-        ON "executions" ("workflowId")
-    `);
     await queryRunner.query(`
       CREATE INDEX IF NOT EXISTS "idx_execution_deployed_workflow"
         ON "executions" ("deployedWorkflowId")
@@ -139,7 +129,6 @@ export class CreateExecutionsAndLinkLogs1768000000000 implements MigrationInterf
 
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_execution_is_deployed"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_execution_deployed_workflow"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "idx_execution_workflow"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "executions"`);
 
     await queryRunner.query(`

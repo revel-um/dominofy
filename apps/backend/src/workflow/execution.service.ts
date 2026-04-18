@@ -4,20 +4,16 @@ import { Between, DataSource, MoreThanOrEqual, LessThanOrEqual, Repository } fro
 import { Execution, ExecutionStatus } from './execution.entity';
 
 type StartExecutionParams = {
-  workflowId: string;
   runId: string;
   executedAt: Date;
-  isDeployed: boolean;
-  deployedWorkflowId?: string;
+  deployedWorkflowId: string;
   deployedWorkflowVersion?: number | null;
 };
 
 type CompleteExecutionParams = {
   runId: string;
-  workflowId: string;
   executedAt: Date;
-  isDeployed: boolean;
-  deployedWorkflowId?: string;
+  deployedWorkflowId: string;
   deployedWorkflowVersion?: number | null;
   status: ExecutionStatus.SUCCESS | ExecutionStatus.FAILURE;
   failureReason?: string | null;
@@ -35,13 +31,10 @@ export class ExecutionService {
     return this.dataSource.transaction(async (manager) => {
       return manager.getRepository(Execution).save(
         manager.getRepository(Execution).create({
-          workflow: { id: params.workflowId } as any,
-          deployedWorkflow: params.deployedWorkflowId
-            ? ({ id: params.deployedWorkflowId } as any)
-            : null,
+          deployedWorkflow: { id: params.deployedWorkflowId } as any,
           runId: params.runId,
           executedAt: params.executedAt,
-          isDeployed: params.isDeployed,
+          isDeployed: true,
           deployedWorkflowVersion: params.deployedWorkflowVersion ?? null,
           status: ExecutionStatus.RUNNING,
           failureReason: null,
@@ -58,13 +51,10 @@ export class ExecutionService {
       return repo.save(
         repo.create({
           id: existing?.id,
-          workflow: { id: params.workflowId } as any,
-          deployedWorkflow: params.deployedWorkflowId
-            ? ({ id: params.deployedWorkflowId } as any)
-            : null,
+          deployedWorkflow: { id: params.deployedWorkflowId } as any,
           runId: params.runId,
           executedAt: existing?.executedAt ?? params.executedAt,
-          isDeployed: params.isDeployed,
+          isDeployed: true,
           deployedWorkflowVersion:
             existing?.deployedWorkflowVersion ?? params.deployedWorkflowVersion ?? null,
           status: params.status,
@@ -89,9 +79,11 @@ export class ExecutionService {
   ): Promise<[Execution[], number]> {
     const hasVersionFilter = Number.isFinite(deployedWorkflowVersion);
     const where: Record<string, any> = {
-      workflow: { id: workflowId },
+      deployedWorkflow: {
+        ...(deployedWorkflowId ? { id: deployedWorkflowId } : {}),
+        workflow: { id: workflowId },
+      },
       isDeployed: true,
-      ...(deployedWorkflowId ? { deployedWorkflow: { id: deployedWorkflowId } } : {}),
       ...(hasVersionFilter ? { deployedWorkflowVersion } : {}),
       ...(status ? { status } : {}),
     };
@@ -104,19 +96,26 @@ export class ExecutionService {
       where.executedAt = LessThanOrEqual(endDate);
     }
 
-    return this.executionRepository.findAndCount({
+    const [executions, count] = await this.executionRepository.findAndCount({
       where,
       order: { executedAt: 'DESC' },
       take: limit,
       skip: offset,
-      relations: ['workflow', 'deployedWorkflow'],
+      relations: ['deployedWorkflow', 'deployedWorkflow.workflow'],
     });
+
+    for (const execution of executions) {
+      (execution as any).workflow = (execution.deployedWorkflow as any)?.workflow ?? null;
+    }
+
+    return [executions, count];
   }
 
   async findBulkByWorkflowIds(workflowIds: string[], limit = 200): Promise<(Execution & { workflowId: string })[]> {
     if (workflowIds.length === 0) return [];
     const results = await this.executionRepository
       .createQueryBuilder('execution')
+      .innerJoin('execution.deployedWorkflow', 'deployedWorkflow')
       .select([
         'execution.id',
         'execution.runId',
@@ -124,9 +123,9 @@ export class ExecutionService {
         'execution.status',
         'execution.failureReason',
         'execution.deployedWorkflowVersion',
-        'execution.workflowId',
+        'deployedWorkflow.workflowId',
       ])
-      .where('execution.workflowId IN (:...workflowIds)', { workflowIds })
+      .where('deployedWorkflow.workflowId IN (:...workflowIds)', { workflowIds })
       .andWhere('execution.isDeployed = true')
       .orderBy('execution.executedAt', 'DESC')
       .limit(limit)
@@ -137,7 +136,7 @@ export class ExecutionService {
         execution_status: string;
         execution_failureReason: string | null;
         execution_deployedWorkflowVersion: number | null;
-        execution_workflowId: string;
+        deployedWorkflow_workflowId: string;
       }>();
 
     return results.map((r) => ({
@@ -147,18 +146,18 @@ export class ExecutionService {
       status: r.execution_status as any,
       failureReason: r.execution_failureReason,
       deployedWorkflowVersion: r.execution_deployedWorkflowVersion,
-      workflowId: r.execution_workflowId,
+      workflowId: r.deployedWorkflow_workflowId,
     } as Execution & { workflowId: string }));
   }
 
   async findOneForUser(executionId: string, userId: string): Promise<Execution> {
     const execution = await this.executionRepository
       .createQueryBuilder('execution')
-      .leftJoinAndSelect('execution.workflow', 'workflow')
+      .leftJoinAndSelect('execution.deployedWorkflow', 'deployedWorkflow')
+      .leftJoinAndSelect('deployedWorkflow.workflow', 'workflow')
       .leftJoinAndSelect('workflow.project', 'project')
       .leftJoin('project.workspace', 'workspace')
       .leftJoin('workspace.memberships', 'membership')
-      .leftJoinAndSelect('execution.deployedWorkflow', 'deployedWorkflow')
       .where('execution.id = :executionId', { executionId })
       .andWhere('membership.userId = :userId', { userId })
       .getOne();
@@ -167,6 +166,7 @@ export class ExecutionService {
       throw new NotFoundException(`Execution with id ${executionId} not found`);
     }
 
+    (execution as any).workflow = (execution.deployedWorkflow as any)?.workflow ?? null;
     return execution;
   }
 }

@@ -25,6 +25,8 @@ import { WorkspaceRole } from 'src/workspace/workspace-membership.entity';
 import { plainToInstance } from 'class-transformer';
 import { ExecutionService } from './execution.service';
 import { ExecutionStatus } from './execution.entity';
+import * as path from 'path';
+import { getGcsService } from 'src/gcs/gcs-factory';
 
 @Controller('workflow')
 export class WorkflowController extends BaseController<
@@ -40,6 +42,28 @@ export class WorkflowController extends BaseController<
     private readonly executionService: ExecutionService,
   ) {
     super(workflowService, CreateWorkflowDto);
+  }
+
+  private ensureCsvExtension(rawPath: string): string {
+    const trimmed = String(rawPath || '').trim();
+    if (!trimmed) {
+      throw new NotFoundException('CSV path is required');
+    }
+    return trimmed.toLowerCase().endsWith('.csv') ? trimmed : `${trimmed}.csv`;
+  }
+
+  private buildStorageKey(filePath: string): string {
+    const normalizedPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+    return `csv-exports/${normalizedPath}`;
+  }
+
+  private countApproximateRows(csvContent: string): number {
+    const lines = csvContent
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    return lines.length;
   }
 
   protected async beforeCreate(dto: CreateWorkflowDto, req: Request) {
@@ -183,6 +207,76 @@ export class WorkflowController extends BaseController<
     return this.executionService.findOneForUser(executionId, userId);
   }
 
+  @Get('csv/download')
+  async downloadGeneratedCsv(
+    @Query('path') rawPath: string,
+    @Res() res: ExpressResponse,
+  ) {
+    const finalPath = this.ensureCsvExtension(rawPath);
+    const storageKey = this.buildStorageKey(finalPath);
+
+    let gcsService: any;
+    try {
+      gcsService = getGcsService();
+    } catch {
+      throw new NotFoundException('CSV file not found');
+    }
+
+    const download = await gcsService.download(storageKey).catch(() => null);
+    if (!download?.buffer) {
+      throw new NotFoundException('CSV file not found');
+    }
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${path.basename(finalPath).replace(/"/g, '')}"`,
+    );
+
+    res.send(download.buffer);
+  }
+
+  @Get('csv/status')
+  async getGeneratedCsvStatus(@Query('path') rawPath: string) {
+    const finalPath = this.ensureCsvExtension(rawPath);
+    const storageKey = this.buildStorageKey(finalPath);
+
+    let gcsExists = false;
+    let gcsUrl: string | undefined;
+    let gcsRowCount = 0;
+    let gcsSize = 0;
+    try {
+      const gcsService = getGcsService();
+      const asset = await gcsService.findAssetByKey(storageKey).catch(() => null);
+      if (asset?.isActive !== false) {
+        const download = await gcsService.download(storageKey).catch(() => null);
+        if (download?.buffer) {
+          gcsExists = true;
+          gcsSize = download.size ?? download.buffer.length;
+          gcsRowCount = Number(asset?.metadata?.rowCount ?? this.countApproximateRows(download.buffer.toString('utf8')));
+          gcsUrl = await gcsService.getReadUrl(storageKey).catch(() => asset?.gcsUrl || asset?.publicUrl);
+        }
+      }
+    } catch {
+      // GCS is optional in local setups.
+    }
+
+    const hasData =
+      (gcsExists && gcsSize > 0);
+
+    return {
+      filePath: finalPath,
+      localExists: false,
+      gcsExists,
+      hasData,
+      rowCount: gcsRowCount,
+      size: gcsSize,
+      downloadUrl: gcsUrl,
+      gcsUrl,
+      source: gcsExists ? 'gcs' : null,
+    };
+  }
+
   @Post(':id')
   async saveWorkflow(
     @Param('id') id: string,
@@ -245,7 +339,7 @@ export class WorkflowController extends BaseController<
     }
     return response ?? {
       success: true,
-      message: 'Workflow execution request accepted',
+      message: 'Workflow execution completed',
     };
   }
 
@@ -313,7 +407,7 @@ export class WorkflowController extends BaseController<
     }
     return response ?? {
       success: true,
-      message: 'Workflow execution request accepted',
+      message: 'Workflow execution completed',
     };
   }
 

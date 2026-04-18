@@ -7,9 +7,6 @@ import { buildPipeline } from '../../../shared/helpers/buildPipeline';
 
 import { WorkflowService } from './workflow/workflow.service';
 import { WorkflowLoggerService } from 'src/workflow-logger/workflow-logger.service';
-import { WorkflowLogStatus } from 'src/workflow-logger/workflow-log-status.enum';
-import { ExecutionService } from 'src/workflow/execution.service';
-import { ExecutionStatus } from 'src/workflow/execution.entity';
 
 import {
   execPool,
@@ -35,7 +32,6 @@ export class AppService {
     private readonly workflowService: WorkflowService,
     private readonly workflowLogger: WorkflowLoggerService,
     private readonly runnerLauncherService: RunnerLauncherService,
-    private readonly executionService: ExecutionService,
   ) { }
 
   async createRunSession(
@@ -67,23 +63,6 @@ export class AppService {
 
     return new Observable(subscriber => {
       const runId = uuidv4();
-      const executedAt = new Date();
-      let executionId: string | null = null;
-      let failureReason: string | null = null;
-      const logRunFailure = async (message: string, stack?: string) => {
-        if (!executionId) return;
-        failureReason = failureReason ?? message;
-        await this.workflowLogger.logLine({
-          executionId,
-          workflowId,
-          type: 'workflow',
-          runId,
-          dominoId: '__workflow__',
-          status: WorkflowLogStatus.FAILURE,
-          error: { message, stack },
-        });
-        await this.workflowLogger.flushNow();
-      };
 
       const isBlocking = isWorkflowBlocking(pipeline);
 
@@ -91,31 +70,7 @@ export class AppService {
       const send = (payload: any) =>
         subscriber.next(JSON.stringify({ ...payload, runId }));
 
-      const bootExecution = async () => {
-        const execution = await this.executionService.markStarted({
-          workflowId,
-          runId,
-          executedAt,
-          isDeployed: false,
-        });
-        executionId = execution.id;
-      };
-
-      const finalizeExecution = async (
-        status: ExecutionStatus.SUCCESS | ExecutionStatus.FAILURE,
-      ) => {
-        await this.executionService.markCompleted({
-          workflowId,
-          runId,
-          executedAt,
-          isDeployed: false,
-          status,
-          failureReason,
-        });
-      };
-
       if (isBlocking) {
-        let seq = 0;
         if (execPool.queueSize >= MAX_QUEUE_LEN) {
           subscriber.error(
             new HttpException('Server busy – retry soon', HttpStatus.TOO_MANY_REQUESTS)
@@ -123,66 +78,28 @@ export class AppService {
           return;
         }
 
-        bootExecution().then(() => {
-          execPool.run({ workflowId, runId, visualJson: pipeline, mockInput }).catch(async err => {
-            const message = err instanceof Error ? err.message : String(err);
-            await logRunFailure(message, err instanceof Error ? err.stack : undefined);
-            await this.workflowLogger.flushNow();
-            await finalizeExecution(ExecutionStatus.FAILURE);
-            send({ type: 'RUN_ERROR', error: { message } });
-            subscriber.complete();
-          });
-        }).catch((err) => {
-          subscriber.error(err);
+        execPool.run({ workflowId, runId, visualJson: pipeline, mockInput }).catch(async err => {
+          const message = err instanceof Error ? err.message : String(err);
+          await this.workflowLogger.flushNow();
+          send({ type: 'RUN_ERROR', error: { message } });
+          subscriber.complete();
         });
 
         const sub = fromEvent(progressEmitter, runId).subscribe(async (msg: any) => {
           switch (msg.type) {
             case 'NODE_DONE': {
               const { domino } = msg;
-              const type = domino.id.split('-')[0];
-              if (type === 'print' && executionId) {
-                this.workflowLogger.logLine({
-                  executionId,
-                  workflowId,
-                  type,
-                  runId,
-                  dominoId: domino.id,
-                  status: WorkflowLogStatus.SUCCESS,
-                  output: domino.output,
-                  seq: seq++,
-                });
-              }
               // include runId on SSE
               send(domino);
               break;
             }
             case 'NODE_ERROR': {
               const { nodeId, message } = msg;
-              const type = nodeId.split('-')[0];
-              failureReason = failureReason ?? message;
-              if (executionId) {
-                this.workflowLogger.logLine({
-                  executionId,
-                  workflowId,
-                  type,
-                  runId,
-                  dominoId: nodeId,
-                  status: WorkflowLogStatus.FAILURE,
-                  error: { message },
-                  seq: seq++,
-                });
-              }
               send({ nodeId, error: { message } });
               break;
             }
             case 'DONE':
               this.workflowLogger.flushNow()
-                .then(() =>
-                  finalizeExecution(
-                    failureReason ? ExecutionStatus.FAILURE : ExecutionStatus.SUCCESS,
-                  ),
-                )
                 .catch(err => subscriber.error(err))
                 .finally(() => subscriber.complete());
               break;
@@ -196,14 +113,14 @@ export class AppService {
 
       let runner: ReturnType<RunnerLauncherService['createRunner']> | null = null;
 
-      bootExecution().then(() => {
+      Promise.resolve().then(() => {
         runner = this.runnerLauncherService.createRunner(
           workflowId,
           runId,
           pipeline,
           20,
           wf.visualJson,
-          { executionId: executionId! }
+          {}
         );
 
         runner.on('done', (res) => {
@@ -212,24 +129,16 @@ export class AppService {
 
         runner.on('error', ({ nodeId, error }) => {
           const message = error instanceof Error ? error.message : String(error);
-          failureReason = failureReason ?? message;
           send({ nodeId, error });
         });
 
         runner.on('terminate', () => {
           this.workflowLogger.flushNow()
-            .then(() =>
-              finalizeExecution(
-                failureReason ? ExecutionStatus.FAILURE : ExecutionStatus.SUCCESS,
-              ),
-            )
             .catch(err => subscriber.error(err))
             .finally(() => subscriber.complete());
         });
         runner.run(runId, mockInput, { workflowId }).catch(async err => {
           const message = err instanceof Error ? err.message : String(err);
-          await logRunFailure(message, err instanceof Error ? err.stack : undefined);
-          await finalizeExecution(ExecutionStatus.FAILURE);
           send({ type: 'RUN_ERROR', error: { message } });
           subscriber.complete();
         });

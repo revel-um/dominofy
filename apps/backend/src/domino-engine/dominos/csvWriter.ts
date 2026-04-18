@@ -1,10 +1,16 @@
 import { PipelineStep } from "../../types/pipelineStepType";
 import { DominoExecutable, ExecuteContext, DominoResult } from "../domino-engine.type";
-import { v4 as uuidv4 } from 'uuid';
 import { CreateAssetDto } from '../../gcs/gcs.dto';
 import { getGcsService } from '../../gcs/gcs-factory';
-import * as path from 'path';
-import * as fs from 'fs';
+
+const CSV_BATCH_ROW_THRESHOLD = 5000;
+const CSV_BATCH_SIZE = 1000;
+
+type CSVBuildResult = {
+  chunks: string[];
+  rowCount: number;
+  batchProcessed: boolean;
+};
 
 export class CsvWriterDomino implements DominoExecutable {
   id: string;
@@ -12,6 +18,7 @@ export class CsvWriterDomino implements DominoExecutable {
 
   private name: string;
   private fileName: string;
+  private writeMode: 'append' | 'replace';
   private includeHeader: boolean;
   private considerFirstLineAsHeader: boolean;
   private delimiter: string;
@@ -28,6 +35,7 @@ export class CsvWriterDomino implements DominoExecutable {
     // Map frontend field names to backend properties
     this.name = this.getFieldValue('Name', 'CSV Writer');
     this.fileName = this.getFieldValue('File Name', 'output.csv');
+    this.writeMode = this.getFieldValue('Write Mode', 'replace') as 'append' | 'replace';
     this.includeHeader = this.getFieldValue('Include Header', true);
     this.considerFirstLineAsHeader = this.getFieldValue('Consider First Line As Header', false);
     this.delimiter = this.sanitizeDelimiter(this.getFieldValue('Delimiter', ','));
@@ -42,6 +50,37 @@ export class CsvWriterDomino implements DominoExecutable {
 
   private sanitizeDelimiter(delimiter: string): string {
     return delimiter === '\\t' ? '\t' : delimiter;
+  }
+
+  private ensureCsvExtension(rawPath: string): string {
+    const trimmed = String(rawPath || '').trim();
+    const normalized = trimmed || 'output.csv';
+    return normalized.toLowerCase().endsWith('.csv') ? normalized : `${normalized}.csv`;
+  }
+
+  private buildStorageKey(filePath: string): string {
+    const normalizedPath = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+    return `csv-exports/${normalizedPath}`;
+  }
+
+  private countApproximateRows(csvContent: string, includeHeader: boolean): number {
+    const lines = csvContent
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) {
+      return 0;
+    }
+
+    return Math.max(lines.length - (includeHeader ? 1 : 0), 0);
+  }
+
+  private joinCsvContent(existingContent: string, nextContent: string): string {
+    if (!existingContent) return nextContent;
+    if (!nextContent) return existingContent;
+    return `${existingContent.replace(/\s+$/, '')}\n${nextContent.replace(/^\s+/, '')}`;
   }
 
   private parseTextInput(textInput: string, delimiter: string, considerFirstLineAsHeader: boolean = false): any[] {
@@ -90,68 +129,101 @@ export class CsvWriterDomino implements DominoExecutable {
     return stringValue;
   }
 
-  private generateCSVFromArray(data: any[], delimiter: string, includeHeader: boolean): { content: string, rowCount: number } {
-    if (!data.length) return { content: '', rowCount: 0 };
+  private buildCSVFromArray(data: any[], delimiter: string, includeHeader: boolean): CSVBuildResult {
+    if (!data.length) return { chunks: [], rowCount: 0, batchProcessed: false };
 
-    let csvContent = '';
-    let rowCount = 0;
-    
     const firstItem = data[0];
-    
+    const chunks: string[] = [];
+    const batchProcessed = data.length > CSV_BATCH_ROW_THRESHOLD;
+    let rowCount = 0;
+
     if (typeof firstItem === 'object' && firstItem !== null) {
-      // Array of objects
       const headers = Object.keys(firstItem);
-      
+
       if (includeHeader) {
-        csvContent += headers.map(header => this.escapeCSVValue(header, delimiter)).join(delimiter) + '\n';
+        chunks.push(headers.map(header => this.escapeCSVValue(header, delimiter)).join(delimiter) + '\n');
       }
-      
-      for (const item of data) {
-        const row = headers.map(header => this.escapeCSVValue(item[header], delimiter));
-        csvContent += row.join(delimiter) + '\n';
-        rowCount++;
+
+      if (!batchProcessed) {
+        let csvContent = '';
+        for (const item of data) {
+          const row = headers.map(header => this.escapeCSVValue(item[header], delimiter));
+          csvContent += row.join(delimiter) + '\n';
+          rowCount++;
+        }
+        if (csvContent) chunks.push(csvContent);
+        return { chunks, rowCount, batchProcessed };
       }
-    } else {
-      // Array of primitives
-      if (includeHeader) {
-        csvContent += 'value\n';
+
+      for (let index = 0; index < data.length; index += CSV_BATCH_SIZE) {
+        const batch = data.slice(index, index + CSV_BATCH_SIZE);
+        let batchContent = '';
+        for (const item of batch) {
+          const row = headers.map(header => this.escapeCSVValue(item[header], delimiter));
+          batchContent += row.join(delimiter) + '\n';
+          rowCount++;
+        }
+        if (batchContent) chunks.push(batchContent);
       }
-      
+
+      return { chunks, rowCount, batchProcessed };
+    }
+
+    if (includeHeader) {
+      chunks.push('value\n');
+    }
+
+    if (!batchProcessed) {
+      let csvContent = '';
       for (const item of data) {
         csvContent += this.escapeCSVValue(item, delimiter) + '\n';
         rowCount++;
       }
+      if (csvContent) chunks.push(csvContent);
+      return { chunks, rowCount, batchProcessed };
     }
-    
-    return { content: csvContent, rowCount };
+
+    for (let index = 0; index < data.length; index += CSV_BATCH_SIZE) {
+      const batch = data.slice(index, index + CSV_BATCH_SIZE);
+      let batchContent = '';
+      for (const item of batch) {
+        batchContent += this.escapeCSVValue(item, delimiter) + '\n';
+        rowCount++;
+      }
+      if (batchContent) chunks.push(batchContent);
+    }
+
+    return { chunks, rowCount, batchProcessed };
   }
 
-  private generateCSVFromSingleValue(data: any, delimiter: string, includeHeader: boolean): { content: string, rowCount: number } {
+  private buildCSVFromSingleValue(data: any, delimiter: string, includeHeader: boolean): CSVBuildResult {
     let csvContent = '';
     let rowCount = 0;
-    
+
     if (typeof data === 'object' && data !== null) {
-      // Single object
       const headers = Object.keys(data);
-      
+
       if (includeHeader) {
         csvContent += headers.map(header => this.escapeCSVValue(header, delimiter)).join(delimiter) + '\n';
       }
-      
+
       const row = headers.map(header => this.escapeCSVValue(data[header], delimiter));
       csvContent += row.join(delimiter) + '\n';
       rowCount = 1;
     } else {
-      // Single primitive
       if (includeHeader) {
         csvContent += 'value\n';
       }
-      
+
       csvContent += this.escapeCSVValue(data, delimiter) + '\n';
       rowCount = 1;
     }
-    
-    return { content: csvContent, rowCount };
+
+    return { chunks: csvContent ? [csvContent] : [], rowCount, batchProcessed: false };
+  }
+
+  private joinCSVChunks(chunks: string[]): string {
+    return chunks.join('');
   }
 
   async execute(ctx: ExecuteContext): Promise<DominoResult> {
@@ -160,35 +232,40 @@ export class CsvWriterDomino implements DominoExecutable {
     // Accept dynamic parameters from input pins if provided
     const name = ctx.input.Name ?? this.name;
     const fileName = ctx.input['File Name'] ?? this.fileName;
+    const writeMode = (ctx.input['Write Mode'] ?? this.writeMode) as 'append' | 'replace';
     const includeHeader = ctx.input['Include Header'] ?? this.includeHeader;
     const considerFirstLineAsHeader = ctx.input['Consider First Line As Header'] ?? this.considerFirstLineAsHeader;
     const delimiter = this.sanitizeDelimiter(ctx.input.Delimiter ?? this.delimiter);
     const inputType = ctx.input['Input Type'] ?? this.inputType;
     const inputData = ctx.input['Input Box'] ?? this.textInput;
 
-    let csvContent = '';
     let rowCount = 0;
     let dataSource = '';
+    let csvChunks: string[] = [];
+    let batchProcessed = false;
 
     try {
       if (inputType === 'text' && inputData.trim()) {
         // Use text input from the Input Box
         const parsedData = this.parseTextInput(inputData, delimiter, considerFirstLineAsHeader);
-        const result = this.generateCSVFromArray(parsedData, delimiter, includeHeader);
-        csvContent = result.content;
+        const result = this.buildCSVFromArray(parsedData, delimiter, includeHeader);
+        csvChunks = result.chunks;
         rowCount = result.rowCount;
+        batchProcessed = result.batchProcessed;
         dataSource = 'text input';
       } else if (inputType === 'json') {
         // Use JSON data from connected input
         if (Array.isArray(inputData) && inputData.length > 0) {
-          const result = this.generateCSVFromArray(inputData, delimiter, includeHeader);
-          csvContent = result.content;
+          const result = this.buildCSVFromArray(inputData, delimiter, includeHeader);
+          csvChunks = result.chunks;
           rowCount = result.rowCount;
+          batchProcessed = result.batchProcessed;
           dataSource = 'json array input';
         } else if (inputData !== undefined && inputData !== null) {
-          const result = this.generateCSVFromSingleValue(inputData, delimiter, includeHeader);
-          csvContent = result.content;
+          const result = this.buildCSVFromSingleValue(inputData, delimiter, includeHeader);
+          csvChunks = result.chunks;
           rowCount = result.rowCount;
+          batchProcessed = result.batchProcessed;
           dataSource = 'json single input';
         } else {
           throw new Error('No input data provided for JSON mode');
@@ -198,102 +275,127 @@ export class CsvWriterDomino implements DominoExecutable {
       }
 
       // Ensure we have a valid filename with .csv extension
-      let finalFileName = fileName;
-      if (!finalFileName.endsWith('.csv')) {
-        finalFileName += '.csv';
-      }
+      const finalFileName = this.ensureCsvExtension(fileName);
+      const storageKey = this.buildStorageKey(finalFileName);
 
-      // Try to get GCS service from singleton factory
-      let gcsService: any = null;
+      let gcsService: any;
       try {
         gcsService = getGcsService();
-      } catch (error) {
-        console.warn('[CsvWriter] GCS service not available, falling back to local filesystem');
+      } catch {
+        throw new Error('Cloud storage is not available for CSV Writer');
       }
-      
-      // If GCS service is available, upload to GCS
-      if (gcsService && csvContent.length > 0) {
-        try {
-          // Generate unique key for GCS
-          const key = `csv-exports/${uuidv4()}-${finalFileName}`;
-          const buffer = Buffer.from(csvContent, 'utf8');
-          
-          // Upload to GCS
-          const uploadResult = await gcsService.upload(key, buffer, 'text/csv');
-          const gcsUrl = await gcsService.getReadUrl(key);
+      try {
+        let existingContent = '';
+        let existingRowCount = 0;
+        const existingAsset = await gcsService.findAssetByKey(storageKey).catch(() => null);
 
-          // Create asset record in database
-          const createAssetDto: CreateAssetDto = {
-            fileName: finalFileName,
-            originalName: finalFileName,
-            key,
-            bucketName: process.env.GCS_BUCKET || 'dominofy-local',
-            contentType: 'text/csv',
-            size: csvContent.length,
-            etag: uploadResult.etag,
-            md5Hash: uploadResult.md5Hash,
-            gcsUrl,
-            publicUrl: gcsUrl,
-            systemUpload: true,
-            workflowId: this.workflowId,
-            description: `CSV export generated by ${name}`,
-            isPublic: false,
-            metadata: {
-              dataSource,
-              inputType,
-              rowCount,
-              generatedBy: 'csvWriter',
-              generatedAt: new Date().toISOString(),
-            },
-          };
-
-          const asset = await gcsService.createAsset(createAssetDto);
-
-          return {
-            id: this.id,
-            output: {
-              fileName: finalFileName,
-              key,
-              gcsUrl,
-              assetId: asset.id,
-              rowCount,
-              size: csvContent.length,
-              dataSource,
-              inputType,
-              success: true,
-              uploadedToGcs: true
-            },
-            startedAt,
-            finishedAt: Date.now(),
-          };
-        } catch (gcsError) {
-          console.error(`[CsvWriter] GCS upload failed: ${gcsError.message}`);
-          // Fall back to local file system if GCS fails
+        if (writeMode === 'append') {
+          const existingDownload = await gcsService.download(storageKey).catch(() => null);
+          if (existingDownload?.buffer) {
+            existingContent = existingDownload.buffer.toString('utf8');
+          }
+          existingRowCount = Number(existingAsset?.metadata?.rowCount ?? 0);
         }
-      }
 
-      // Fallback: write to local filesystem
-      const outputDir = path.dirname(finalFileName);
-      if (outputDir !== '.' && !fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
-      }
+        const shouldIncludeHeader = writeMode === 'append'
+          ? !existingContent.trim() && includeHeader
+          : includeHeader;
 
-      fs.writeFileSync(finalFileName, csvContent, 'utf8');
+        if (shouldIncludeHeader !== includeHeader) {
+          if (inputType === 'text' && inputData.trim()) {
+            const parsedData = this.parseTextInput(inputData, delimiter, considerFirstLineAsHeader);
+            const regenerated = this.buildCSVFromArray(parsedData, delimiter, shouldIncludeHeader);
+            csvChunks = regenerated.chunks;
+            rowCount = regenerated.rowCount;
+            batchProcessed = regenerated.batchProcessed;
+          } else if (inputType === 'json') {
+            if (Array.isArray(inputData) && inputData.length > 0) {
+              const regenerated = this.buildCSVFromArray(inputData, delimiter, shouldIncludeHeader);
+              csvChunks = regenerated.chunks;
+              rowCount = regenerated.rowCount;
+              batchProcessed = regenerated.batchProcessed;
+            } else if (inputData !== undefined && inputData !== null) {
+              const regenerated = this.buildCSVFromSingleValue(inputData, delimiter, shouldIncludeHeader);
+              csvChunks = regenerated.chunks;
+              rowCount = regenerated.rowCount;
+              batchProcessed = regenerated.batchProcessed;
+            }
+          }
+        }
 
-      return {
-        id: this.id,
-        output: {
+        const nextCsvContent = this.joinCSVChunks(csvChunks);
+        const mergedCsvContent =
+          writeMode === 'append'
+            ? this.joinCsvContent(existingContent, nextCsvContent)
+            : nextCsvContent;
+        const finalRowCount =
+          writeMode === 'append'
+            ? existingRowCount + rowCount
+            : rowCount;
+        const hasData = finalRowCount > 0;
+        const buffer = Buffer.from(mergedCsvContent, 'utf8');
+
+        const uploadResult = await gcsService.upload(storageKey, buffer, 'text/csv');
+        const gcsUrl = await gcsService.getReadUrl(storageKey);
+
+        const createAssetDto: CreateAssetDto = {
           fileName: finalFileName,
-          rowCount,
-          size: csvContent.length,
-          dataSource,
-          inputType,
-          success: true,
-          uploadedToGcs: false
-        },
-        startedAt,
-        finishedAt: Date.now(),
-      };
+          originalName: finalFileName,
+          key: storageKey,
+          bucketName: process.env.GCS_BUCKET || 'dominofy-local',
+          contentType: 'text/csv',
+          size: buffer.length,
+          etag: uploadResult.etag,
+          md5Hash: uploadResult.md5Hash,
+          gcsUrl,
+          publicUrl: gcsUrl,
+          systemUpload: true,
+          workflowId: this.workflowId,
+          description: `CSV export generated by ${name}`,
+          isPublic: false,
+          metadata: {
+            dataSource,
+            inputType,
+            rowCount: finalRowCount,
+            generatedBy: 'csvWriter',
+            generatedAt: new Date().toISOString(),
+            writeMode,
+            fileName: finalFileName,
+            batchProcessed,
+            batchThreshold: CSV_BATCH_ROW_THRESHOLD,
+          },
+        };
+
+        const asset = await gcsService.createAsset(createAssetDto).catch(() => null);
+
+        return {
+          id: this.id,
+          output: {
+            value_out: gcsUrl,
+            fileName: finalFileName,
+            filePath: finalFileName,
+            key: storageKey,
+            downloadUrl: gcsUrl,
+            gcsUrl,
+            assetId: asset?.id,
+            rowCount: finalRowCount,
+            size: buffer.length,
+            dataSource,
+            inputType,
+            writeMode,
+            batchProcessed,
+            hasData,
+            success: true,
+            uploadedToGcs: true
+          },
+          isMultiOutPinDomino: true,
+          startedAt,
+          finishedAt: Date.now(),
+        };
+      } catch (gcsError) {
+        console.error(`[CsvWriter] GCS upload failed: ${gcsError.message}`);
+        throw new Error(`Cloud storage upload failed: ${gcsError.message}`);
+      }
     } catch (error) {
       throw new Error(`CSV Writer (${name}): ${error.message}`);
     }

@@ -99,7 +99,7 @@ interface WorkflowToolbarProps {
   };
   getNodes: () => Node[];
   getEdges: () => Edge[];
-  openLogsPanel?: () => void;
+  openLogsPanel?: (tab?: 'logs' | 'problems' | 'errors') => void;
   onWorkflowSaved?: (nodes: Node[], edges: Edge[]) => void;
   onProblemsChange?: (problems: WorkflowProblem[]) => void;
   onWorkflowDeployed?: () => void;
@@ -336,13 +336,18 @@ export default function WorkflowToolbar({
 
   const onDeploy = useCallback(async () => {
     if (!canEdit) return false;
-    if (!isWorkflowValid() || !workflow.id) return false;
+    const workflowIsValid = isWorkflowValid();
+    if (!workflowIsValid) {
+      openLogsPanel?.('problems');
+      return false;
+    }
+    if (!workflow.id) return false;
 
     const nodesSnapshot = getNodes();
     const edgesSnapshot = getEdges();
 
     if (!hasTriggerNode(nodesSnapshot)) {
-      openLogsPanel?.();
+      openLogsPanel?.('problems');
       onProblemsChange?.([
         {
           id: 'workflow-missing-trigger',
@@ -361,12 +366,14 @@ export default function WorkflowToolbar({
     try {
       const saveResp = await WorkflowsApi.saveWorkflow(workflow.id, exported, token, router);
       if (!saveResp?.ok) {
+        openLogsPanel?.('logs');
         setDeployStatus('error');
         return false;
       }
 
       const deployResp = await WorkflowsApi.deployWorkflow(workflow.id, token, router);
       if (!deployResp?.ok) {
+        openLogsPanel?.('logs');
         setDeployStatus('error');
         return false;
       }
@@ -379,6 +386,7 @@ export default function WorkflowToolbar({
       setDeployStatus('success');
       return true;
     } catch {
+      openLogsPanel?.('logs');
       setDeployStatus('error');
       return false;
     } finally {
@@ -457,7 +465,7 @@ export default function WorkflowToolbar({
         {/* Brand + Back */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push('/dashboard')}
             className="p-1.5 rounded-md hover:bg-[var(--secondary-hover)] text-[var(--text-secondary)] hover:text-white transition-colors"
             title="Go back"
           >
