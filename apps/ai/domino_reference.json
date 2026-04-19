@@ -3,7 +3,7 @@
     "id": "aggregator",
     "label": "Aggregator",
     "category": "Data Transformation",
-    "description": "Accumulates iterator output using math operations or collection builders.",
+    "description": "Collects values over time, usually from an Iterator or repeated execution path, and combines them into one final result such as a total, minimum, maximum, array, or object map.",
     "icon": "Layers",
     "color": "emerald",
     "features": [
@@ -98,7 +98,7 @@
     "id": "apicall",
     "label": "API Call",
     "category": "HTTP",
-    "description": "Send an HTTP request with axios and forward the JSON response to downstream nodes.",
+    "description": "Calls an external HTTP API, lets you configure the URL, method, headers, and body, and then passes the parsed response to the next domino so the workflow can continue with live data.",
     "icon": "Globe",
     "color": "teal",
     "features": [
@@ -172,7 +172,7 @@
     "id": "apitrigger",
     "label": "API Trigger",
     "category": "Trigger",
-    "description": "Expose the workflow as an HTTP endpoint that can accept optional body/file uploads.",
+    "description": "Turns the workflow into a callable HTTP endpoint so external systems can trigger it with a request, optionally sending JSON data or uploaded files into the workflow.",
     "icon": "Zap",
     "color": "purple",
     "features": [
@@ -221,7 +221,7 @@
     "id": "arithmetic",
     "label": "Arithmetic",
     "category": "Logic",
-    "description": "Evaluate a sequence of numeric inputs and operators ( + - * / % ^ ).",
+    "description": "Performs chained math operations across one or more numeric inputs, making it useful for totals, scores, percentages, formulas, and other calculated values inside a workflow.",
     "icon": "Calculator",
     "color": "indigo",
     "features": [
@@ -295,7 +295,7 @@
     "id": "condition",
     "label": "Condition",
     "category": "Logic",
-    "description": "Compare two values and branch execution on true/false results.",
+    "description": "Checks whether two values match a chosen condition and then routes execution down the true or false branch, making it the main domino for if/else style workflow logic.",
     "icon": "FileQuestion",
     "color": "blue",
     "features": [
@@ -375,7 +375,7 @@
     "id": "connector",
     "label": "Connector",
     "category": "Flow Control",
-    "description": "Barrier that waits for multiple exec_in branches and merges their payloads before continuing.",
+    "description": "Waits until multiple incoming execution branches arrive, then merges their collected payloads and continues as a single downstream path so parallel logic can rejoin safely.",
     "icon": "Plug",
     "color": "slate",
     "features": [
@@ -408,7 +408,7 @@
     "id": "csvwriter",
     "label": "CSV Writer",
     "category": "Output",
-    "description": "Convert arrays/objects into a CSV file and optionally upload it to GCS.",
+    "description": "Takes structured data or text input, converts it into CSV format, and produces a file that can be downloaded, stored, or uploaded for reporting, exports, and handoffs.",
     "icon": "FileText",
     "color": "cyan",
     "features": [
@@ -510,7 +510,7 @@
     "id": "delay",
     "label": "Delay",
     "category": "Utility",
-    "description": "Pause execution for a configurable number of milliseconds before continuing.",
+    "description": "Temporarily pauses the workflow for a specified amount of time before allowing execution to continue, which is useful for throttling, retries, cooldowns, and timed waits.",
     "icon": "Clock",
     "color": "amber",
     "features": [
@@ -541,7 +541,7 @@
     "id": "filter",
     "label": "Filter",
     "category": "Data Transformation",
-    "description": "Filter arrays, primitives or objects using field/value comparisons.",
+    "description": "Removes items that do not meet your chosen condition, allowing the workflow to keep only the records, objects, or values that match the criteria you care about.",
     "icon": "Filter",
     "color": "rose",
     "features": [
@@ -642,7 +642,7 @@
     "id": "iterator",
     "label": "Iterator",
     "category": "Flow Control",
-    "description": "Loop over arrays or objects, emitting each item and an on-complete signal.",
+    "description": "Walks through a list or object one item at a time, emitting each value into the workflow and providing a completion signal once every item has been processed.",
     "icon": "Repeat",
     "color": "lime",
     "features": [
@@ -707,7 +707,7 @@
     "id": "mapper",
     "label": "Mapper",
     "category": "Data Transformation",
-    "description": "Rename object keys (top-level) in objects or arrays of objects.",
+    "description": "Changes top-level field names in an object or an array of objects so incoming data can be reshaped to match the format expected by later dominos or external systems.",
     "icon": "Shuffle",
     "color": "pink",
     "features": [
@@ -751,7 +751,7 @@
     "id": "print",
     "label": "Print",
     "category": "Utility",
-    "description": "Log or display a value for debugging. NOT for building strings to pass to other nodes.",
+    "description": "Displays or logs a value primarily for debugging and inspection, helping you see what is flowing through the workflow without changing the data structure itself.",
     "icon": "Printer",
     "color": "gray",
     "features": [
@@ -783,7 +783,7 @@
     "id": "readexcel",
     "label": "Read File",
     "category": "Input",
-    "description": "Load spreadsheets, PDFs, DOCX, JSON, and common text files from uploads, URLs, GCS, or raw base64 buffers (e.g. email attachments).",
+    "description": "Reads files from uploads, URLs, storage references, or raw attachment data and extracts their contents so the workflow can work with spreadsheets, documents, PDFs, JSON, and text-based files.",
     "icon": "FileSpreadsheet",
     "color": "blue",
     "features": [
@@ -815,7 +815,7 @@
     "id": "googleDrive",
     "label": "Google Drive",
     "category": "Storage",
-    "description": "Upload a file or run bulk actions in Google Drive.",
+    "description": "Connects the workflow to Google Drive so it can upload files, organise stored assets, and run batch file-management actions such as moving, tagging, renaming, or sharing.",
     "icon": "Cloud",
     "color": "blue",
     "features": [
@@ -959,7 +959,7 @@
     "id": "googleDriveDownload",
     "label": "Google Drive Download",
     "category": "Storage",
-    "description": "Download a file from Google Drive into the workflow.",
+    "description": "Fetches a file from Google Drive and brings it into the workflow as usable file data so later dominos can read, transform, upload, or send it elsewhere.",
     "icon": "Download",
     "color": "blue",
     "features": [
@@ -1003,7 +1003,7 @@
     "id": "slacktrigger",
     "label": "Slack Trigger",
     "category": "Trigger",
-    "description": "Start workflows from Slack channel messages using a connected Slack app.",
+    "description": "Starts the workflow automatically when a matching Slack message or event is received, allowing Slack conversations to act as the trigger for automation.",
     "icon": "Slack",
     "color": "sky",
     "features": [
@@ -1036,7 +1036,7 @@
     "id": "slackaction",
     "label": "Slack Action",
     "category": "Slack",
-    "description": "Post messages to Slack channels or threads using a stored connection.",
+    "description": "Sends messages into Slack channels or threads from within the workflow, making it useful for alerts, summaries, approvals, and automated team notifications.",
     "icon": "Slack",
     "color": "purple",
     "features": [
@@ -1081,7 +1081,7 @@
     "id": "emailtrigger",
     "label": "Email Trigger",
     "category": "Trigger",
-    "description": "Start workflows when a connected Gmail inbox receives a new email.",
+    "description": "Triggers the workflow whenever a connected Gmail inbox receives a new email, so incoming mail can kick off processing, routing, extraction, or follow-up actions automatically.",
     "icon": "Mail",
     "color": "emerald",
     "features": [
@@ -1160,7 +1160,7 @@
     "id": "emailsender",
     "label": "Email Action",
     "category": "Email",
-    "description": "Send emails through a connected Gmail account with optional HTML and reply metadata.",
+    "description": "Sends outbound email through a connected Gmail account with support for recipients, subject lines, plain text, HTML content, and reply-related metadata when needed.",
     "icon": "Mail",
     "color": "sky",
     "features": [
@@ -1222,7 +1222,7 @@
     "id": "switchcase",
     "label": "Switch",
     "category": "Logic",
-    "description": "Multi-branch switch that routes execution based on matching string cases.",
+    "description": "Routes execution to one of several branches based on a value you provide, making it useful when the workflow needs more than a simple true/false decision.",
     "icon": "ToggleLeft",
     "color": "indigo",
     "features": [
@@ -1270,7 +1270,7 @@
     "id": "llm",
     "label": "AI",
     "category": "AI",
-    "description": "Send a prompt to an AI language model (Gemini/Vertex) and receive a text response.",
+    "description": "Sends a prompt or instruction to an AI language model and returns the generated response, making it useful for summarisation, extraction, classification, drafting, and text generation tasks.",
     "icon": "BrainCircuit",
     "color": "purple",
     "features": [
@@ -1307,7 +1307,7 @@
     "id": "response",
     "label": "Response",
     "category": "Output",
-    "description": "ONLY use this domino when the workflow starts with an API Trigger (webhook). It sends the HTTP response back to the caller. Do NOT use it for email, scheduler, Slack, or any other trigger type — those workflows have no HTTP caller to respond to.",
+    "description": "Returns the HTTP response back to the original caller of an API Trigger workflow. This should only be used in webhook-style flows where an external client is waiting for a response.",
     "icon": "CheckCheck",
     "color": "emerald",
     "features": [
@@ -1340,7 +1340,7 @@
     "id": "SchedulerDomino",
     "label": "Scheduler",
     "category": "Trigger",
-    "description": "Trigger the workflow automatically on a recurring schedule (minute, hour, day, week, month).",
+    "description": "Starts the workflow automatically on a recurring schedule, such as every few minutes or at a fixed daily, weekly, or monthly time, without requiring any external trigger.",
     "icon": "CalendarClock",
     "color": "amber",
     "features": [
@@ -1430,7 +1430,7 @@
     "id": "storage",
     "label": "Database Write (save/insert — use this to store data)",
     "category": "Storage",
-    "description": "WRITE-ONLY: save, insert, update, upsert, or delete records. This is the ONLY domino that can persist data. Whenever the goal is to store or save something, use this — never storageRetrieve.",
+    "description": "Writes data into storage by creating, updating, upserting, or deleting records. Use this domino whenever the workflow needs to persist data, save results, or modify existing documents.",
     "icon": "Database",
     "color": "teal",
     "features": [
@@ -1494,7 +1494,7 @@
     "id": "storageRetrieve",
     "label": "Database Read (fetch only — cannot save)",
     "category": "Storage",
-    "description": "READ-ONLY: fetch/query existing records. This domino CANNOT save, insert, or write data. For saving data use the storage (Database Write) domino instead.",
+    "description": "Reads data that already exists in storage, either by fetching a specific record or querying a collection, and returns that data for downstream processing without modifying it.",
     "icon": "Database",
     "color": "teal",
     "features": [
@@ -1553,7 +1553,7 @@
     "id": "constructor",
     "label": "Constructor",
     "category": "Data Transformation",
-    "description": "Build an object from multiple key/value pairs. Each row defines the output key and accepts a typed or connected value.",
+    "description": "Creates a structured object by combining multiple named keys and values, which is useful when you need to assemble a clean payload for APIs, storage, AI prompts, or later workflow steps.",
     "icon": "Braces",
     "color": "blue",
     "features": [
@@ -1609,7 +1609,7 @@
     "id": "deconstructor",
     "label": "De-Construct",
     "category": "Data Transformation",
-    "description": "Extract one or more properties from an object or elements from an array. Use this — not Custom Code — whenever you need to pull fields out of a payload (e.g. extract 'hasAttachments' from an email, or 'messageId' from an email payload).",
+    "description": "Pulls specific fields out of an object or specific positions out of an array so you can isolate only the pieces of data that the next step in the workflow actually needs.",
     "icon": "Ungroup",
     "color": "orange",
     "features": [
@@ -1675,7 +1675,7 @@
     "id": "jointext",
     "label": "Join Text",
     "category": "Data Transformation",
-    "description": "Concatenate multiple text inputs into a single string. Use this — not Print — whenever you need to build a string to pass to another node (e.g. combining a static AI instruction with dynamic data).",
+    "description": "Joins multiple pieces of text into one final string, which is useful for building prompts, messages, file names, summaries, and other text content from dynamic workflow data.",
     "icon": "Combine",
     "color": "pink",
     "features": [
@@ -1720,7 +1720,7 @@
     "id": "sqlRunner",
     "label": "SQL Runner",
     "category": "Action",
-    "description": "Execute a raw SQL query against an external PostgreSQL database connection.",
+    "description": "Runs a raw SQL query against a connected PostgreSQL database so the workflow can read from or write to external relational data using direct SQL commands.",
     "icon": "ScanSearch",
     "color": "slate",
     "features": [
@@ -1763,7 +1763,7 @@
     "id": "codeRunner",
     "label": "Custom Code",
     "category": "Action",
-    "description": "Execute arbitrary JavaScript in a sandboxed VM (vm2) and return the function result.",
+    "description": "Executes custom JavaScript in a sandboxed runtime and returns the result, giving you a flexible escape hatch for advanced transformations or logic that is not covered by built-in dominos.",
     "icon": "Code2",
     "color": "indigo",
     "features": [
@@ -1820,7 +1820,7 @@
     "id": "shopify",
     "label": "Shopify",
     "category": "Shopify",
-    "description": "Interact with a Shopify store — get, list, create, update, or delete products, orders, and customers.",
+    "description": "Connects the workflow to Shopify so it can read, create, update, or delete store resources such as products, orders, and customers through the Shopify Admin API.",
     "icon": "SiShopify",
     "color": "green",
     "features": [
@@ -1900,7 +1900,7 @@
     "id": "note",
     "label": "Note",
     "category": "Utility",
-    "description": "Add a free-text annotation or comment to the canvas — does not affect workflow execution.",
+    "description": "Adds a visual note to the canvas for documentation, reminders, or collaboration context. It is purely informational and has no effect on workflow execution.",
     "icon": "FiFileText",
     "color": "yellow",
     "features": [

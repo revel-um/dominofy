@@ -28,6 +28,33 @@ export default function Dominofy() {
         }
 
         let workflowData = null;
+        const resolveWorkflowFromProject = async () => {
+          if (!projectId) return null;
+
+          const projectResponse = await ProjectsApi.getProjectDetailsWithWorkflows(
+            projectId as string,
+            token,
+            router
+          );
+
+          if (!projectResponse?.ok) {
+            const status = projectResponse?.status ?? 'unknown';
+            throw new Error(`Failed to load project (${status})`);
+          }
+
+          const data = await projectResponse.json();
+          const workflows = Array.isArray(data?.workflows) ? data.workflows : [];
+
+          if (!workflowId) {
+            return workflows[0] ?? null;
+          }
+
+          return (
+            workflows.find((candidate: { id: string }) => candidate.id === workflowId) ??
+            workflows[0] ??
+            null
+          );
+        };
 
         if (workflowId) {
           // If workflowId is provided, load that specific workflow
@@ -35,25 +62,26 @@ export default function Dominofy() {
           if (response?.ok) {
             workflowData = await response.json();
           } else if (response?.status === 404) {
-            router.push('/dashboard');
-            return;
+            workflowData = await resolveWorkflowFromProject();
+            if (!workflowData) {
+              router.push('/dashboard');
+              return;
+            }
           } else {
-            throw new Error('Failed to load workflow');
+            const status = response?.status ?? 'unknown';
+            console.error('Failed to load workflow directly', {
+              workflowId,
+              projectId,
+              status,
+            });
+            workflowData = await resolveWorkflowFromProject();
+            if (!workflowData) {
+              throw new Error(`Failed to load workflow (${status})`);
+            }
           }
         } else if (projectId) {
           // If only projectId is provided, get project details and use first workflow
-          const response = await ProjectsApi.getProjectDetailsWithWorkflows(projectId as string, token, router);
-          if (response?.ok) {
-            const data = await response.json();
-            const { workflows } = data;
-            if (workflows && workflows.length > 0) {
-              workflowData = workflows[0];
-            } else {
-              workflowData = null;
-            }
-          } else {
-            throw new Error('Failed to load project');
-          }
+          workflowData = await resolveWorkflowFromProject();
         } else {
           // No valid parameters provided
           router.push('/dashboard');
