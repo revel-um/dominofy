@@ -15,4 +15,4 @@ Development serves http://localhost:3000. Start the backend separately when runn
 - `pages/`: application pages and API routes, including authentication.
 - `public/`: static assets.
 
-The runtime startup hook requires NextAuth, Google, and GitHub credentials before Next.js starts. `NEXT_PUBLIC_*` values are browser-visible and are embedded during production builds. See the [architecture guide](../../docs/architecture.md) before adding new domino types.
+`NEXT_PUBLIC_*` values are browser-visible and are embedded during production builds. See the [architecture guide](../../docs/architecture.md) before adding new domino types.

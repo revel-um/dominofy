@@ -27,13 +27,13 @@ PostgreSQL stores application state. Workspace storage uses shared tenant tables
 
 ## AI workflow service
 
-`apps/ai` is a FastAPI service with generation and streaming endpoints. Its workflow generation path plans needed domino types, retrieves reference definitions, and generates structured workflow output through Gemini. It uses the domino reference catalog and includes context caching helpers. It is a separate process and is not launched by npm workspaces.
+`apps/ai` is a FastAPI service with generation and streaming endpoints. Its workflow generation path plans needed domino types, retrieves reference definitions, and generates structured workflow output through Gemini. It uses the domino reference catalog and includes context handling. It is a separate process and is not launched by npm workspaces.
 
 ## Credentials and URLs
 
-`runtime-secret-config` validates required Node credentials and loads ignored per-service JSON files. The AI service has its own runtime loader. Non-secret defaults and URL composition live in backend configuration modules. See the [setup guide](getting-started.md) for loading order and local ports.
+The backend loads `.env` through NestJS ConfigModule; Next.js loads web environment files. The AI service loads its own `.env`. See the [setup guide](getting-started.md) for service-specific configuration and local ports.
 
-Provider authentication has provider-specific scopes, callback routes, and webhook requirements. Signing in to Dominofy does not automatically configure every workflow integration.
+Provider authentication has provider-specific scopes, callback routes, and webhook requirements. Signing in does not automatically configure every workflow integration.
 
 ## Adding a domino
 
@@ -44,4 +44,4 @@ Provider authentication has provider-specific scopes, callback routes, and webho
 5. Update the AI reference definitions in `apps/ai/domino_reference.json` when AI generation should support the new type.
 6. Test input validation, output shape, failed provider calls, and workspace boundaries where relevant.
 
-Keep the catalog, editor representation, execution registry, and AI reference aligned. Read [PRODUCT.md](../PRODUCT.md) for the interface and product conventions.
+Keep the catalog, editor representation, execution registry, and AI reference aligned.

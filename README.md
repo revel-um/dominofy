@@ -33,7 +33,7 @@ Use the visual editor to assemble a workflow, or use the Gemini-powered AI servi
 
 - **Build visually:** compose connected nodes on a React Flow canvas and configure each step in context.
 - **Build with AI:** generate and revise workflow definitions with a separate Python service backed by Gemini and a domino reference catalog.
-- **Connect business tools:** combine CRM, messaging, developer, productivity, and Google Workspace integrations.
+- **Connect business tools:** combine messaging, HTTP APIs, and Google Workspace integrations.
 - **Control the flow:** use conditions, filters, iterators, switches, delays, mapping, code, and SQL steps.
 - **Inspect automations:** work with workflow revisions, execution logs, projects, and workspaces.
 - **Extend the platform:** add domino components and their matching backend handlers in a TypeScript monorepo.
@@ -44,11 +44,9 @@ The repository includes domino definitions and backend modules for these provide
 
 | Category | Providers and capabilities |
 | --- | --- |
-| Google Workspace | Gmail, Drive, Calendar, Sheets, Docs |
-| CRM | Salesforce, HubSpot |
-| Collaboration | Slack, Notion, Jira, Confluence |
-| Developer tools | GitHub, HTTP/API calls, webhooks |
-| Messaging | WhatsApp, SMTP email |
+| Google Workspace | Gmail, Drive, Calendar |
+| Collaboration | Slack |
+| APIs | HTTP calls and webhooks |
 | Data and logic | SQL, workspace storage, CSV/Excel, mapping, filtering, branching, code |
 | AI | LLM steps and AI-assisted workflow generation |
 
@@ -58,7 +56,7 @@ Browse the [domino catalog](apps/web/dominos/dominos.ts) and [execution registry
 
 These are example compositions to configure in the editor, rather than bundled one-click templates:
 
-- **Lead handoff:** receive a webhook, map its fields, create a CRM record, and notify a Slack channel.
+- **Lead handoff:** receive a webhook, map its fields, call a CRM API, and notify a Slack channel.
 - **Scheduled reporting:** run a scheduled query, filter the results, and send a summary by email.
 - **AI-assisted triage:** receive an input, process it with an LLM step, branch on the result, and call a downstream API.
 
@@ -79,13 +77,12 @@ cd dominofy
 npm ci
 ```
 
-Then follow the [local setup guide](docs/getting-started.md) to configure credentials, start infrastructure, and launch the services. Read the credential-loading step before running `npm run dev`: the startup hooks validate secrets before the app loads.
+Then follow the [local setup guide](docs/getting-started.md) to configure credentials, start infrastructure, and launch the services.
 
 | Service | Local address |
 | --- | --- |
 | Web application | http://localhost:3000 |
 | Backend API | http://localhost:3001/api/v1 |
-| Backend health | http://localhost:3001/health |
 | AI service, using the guide's port | http://localhost:8001/ping |
 
 ## Repository layout
@@ -96,9 +93,6 @@ apps/backend/                   NestJS API, integrations, and workflow engine
 apps/ai/                        FastAPI workflow generation service
 packages/ui/                    Shared UI package
 shared/                         Shared pipeline types and helpers
-runtime-secret-config/          Runtime credential loading and validation
-dominofy-salesforce-connector/  Salesforce connector package
-scripts/                        Development utilities
 ```
 
 ## Documentation
@@ -107,7 +101,6 @@ scripts/                        Development utilities
 - [System architecture and extension points](docs/architecture.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security reporting](SECURITY.md)
-- [Salesforce connector](dominofy-salesforce-connector/README.md)
 
 ## Contributing and support
 

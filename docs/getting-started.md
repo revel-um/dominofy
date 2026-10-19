@@ -1,116 +1,67 @@
 # Local development
 
-This guide describes running the source locally. It requires real OAuth credentials for the web startup checks; it is not a credential-free demo.
+Use Node.js 22, npm 10.9.2, Python 3.11, and Docker. Run commands from the repository root unless specified otherwise.
 
-## 1. Install prerequisites
-
-Use Node.js 22, npm 10.9.2 (the root package manager version), Python 3.11, PostgreSQL, and Redis. Run `npm ci` from the repository root. The AI service has separate Python dependencies.
-
-If you use Docker, these commands create development-only infrastructure. The PostgreSQL volume persists data between container restarts. Change the example password for anything beyond your local machine.
+## 1. Install dependencies and infrastructure
 
 ```bash
-docker run -d --name dominofy-postgres \
-  -p 127.0.0.1:5432:5432 \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=dominofy-local \
-  -e POSTGRES_DB=dominofy \
-  -v dominofy-postgres-data:/var/lib/postgresql/data \
-  postgres:16
-
-docker run -d --name dominofy-redis \
-  -p 127.0.0.1:6379:6379 redis:7
+npm ci
+docker compose up -d postgres redis gcs
 ```
 
-If these containers already exist, use `docker start dominofy-postgres dominofy-redis`.
+The included Compose configuration exposes PostgreSQL on **5433**, Redis on **6379**, and the storage emulator on **8000**. It uses development database credentials and a persistent PostgreSQL volume. Use isolated local data.
 
-## 2. Configure runtime credentials
+## 2. Configure the backend
 
-The Node startup scripts load `apps/backend/config.json` and `apps/web/config.json` **before** app-level dotenv loading. Set required credentials in your shell environment or create these ignored JSON files. An `.env` file alone will not satisfy the startup preflight checks.
+Create `apps/backend/.env` (ignored by Git):
 
-Create `apps/backend/config.json`:
-
-```json
-{
-  "secrets": {
-    "DATABASE_PASSWORD": "dominofy-local",
-    "JWT_SECRET": "replace-with-a-random-secret",
-    "DATABASE_HOST": "127.0.0.1",
-    "DATABASE_PORT": "5432",
-    "DATABASE_USER": "postgres",
-    "DATABASE_NAME": "dominofy",
-    "DATABASE_SCHEMA": "public",
-    "REDIS_HOST": "127.0.0.1",
-    "REDIS_PORT": "6379",
-    "APP_WEB_URL": "http://localhost:3000",
-    "PUBLIC_BACKEND_URL": "http://localhost:3001",
-    "AI_SERVICE_URL": "http://localhost:8001",
-    "USE_GCS_EMULATOR": "true",
-    "STORAGE_EMULATOR_HOST": "http://localhost:8000"
-  }
-}
+```dotenv
+DATABASE_HOST=127.0.0.1
+DATABASE_PORT=5433
+DATABASE_USER=dominofy
+DATABASE_PASSWORD=secret
+DATABASE_NAME=dominofy
+DATABASE_SCHEMA=public
+JWT_SECRET=replace-with-a-random-secret
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+GOOGLE_CLOUD_PROJECT=local-gcp
+GCS_BUCKET=dominofy-local
+STORAGE_EMULATOR_HOST=http://localhost:8000
+GCS_PUBLIC_BASE=http://localhost:8000
+FRONTEND_BASE_URL=http://localhost:3000
 ```
 
-Create `apps/web/config.json`:
+Generate a private random secret using `openssl rand -hex 32`. The backend uses TypeORM `synchronize: true`, so do not point it at an existing production database. Provider connections need additional credentials and provider-specific scopes and callbacks; inspect the relevant backend provider module before configuring them.
 
-```json
-{
-  "secrets": {
-    "NEXTAUTH_SECRET": "replace-with-another-random-secret",
-    "GOOGLE_CLIENT_ID": "your-google-oauth-client-id",
-    "GOOGLE_CLIENT_SECRET": "your-google-oauth-client-secret",
-    "GITHUB_CLIENT_ID": "your-github-oauth-client-id",
-    "GITHUB_CLIENT_SECRET": "your-github-oauth-client-secret",
-    "NEXTAUTH_URL": "http://localhost:3000",
-    "NEXT_PUBLIC_FRONTEND_BASE_URL": "http://localhost:3000",
-    "NEXT_PUBLIC_BACKEND_BASE_URL": "http://localhost:3001/api/v1",
-    "NEXT_PUBLIC_BACKEND_URL": "http://localhost:3001",
-    "BACKEND_URL": "http://localhost:3001"
-  }
-}
+## 3. Configure the web application
+
+Create `apps/web/.env.local` (ignored by Git):
+
+```dotenv
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=replace-with-a-different-random-secret
+GOOGLE_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
+GITHUB_CLIENT_ID=your-github-oauth-client-id
+GITHUB_CLIENT_SECRET=your-github-oauth-client-secret
+NEXT_PUBLIC_BACKEND_BASE_URL=http://localhost:3001/api/v1
+NEXT_PUBLIC_AI_BASE_URL=http://localhost:8001
 ```
 
-Generate a separate random value for each secret, for example with `openssl rand -hex 32`. Replace OAuth placeholders with your own applications. The web preflight currently requires both Google and GitHub credential pairs, regardless of which login option you plan to use.
+Use your own OAuth applications. Register login callbacks `http://localhost:3000/api/auth/callback/google` and `http://localhost:3000/api/auth/callback/github` with the corresponding providers. Login and workflow integration authentication are separate configurations. Never put private values into `NEXT_PUBLIC_*` variables.
 
-Register login callback URLs on your OAuth applications:
-
-- Google: `http://localhost:3000/api/auth/callback/google`
-- GitHub: `http://localhost:3000/api/auth/callback/github`
-
-Login OAuth and workflow integration OAuth are separate configurations. Provider integrations may need additional backend credentials, scopes, callback URLs, and publicly reachable webhook endpoints. See [backend URL configuration](../apps/backend/src/config/url.config.ts) and the relevant provider module. Do not reuse the project's built-in provider defaults for your deployment.
-
-Existing `config.json` values overwrite environment values during runtime loading. Keep the files private; they are ignored by Git. Never put private values in `NEXT_PUBLIC_*` variables, which are exposed to the browser.
-
-## 3. Start storage and the application
-
-In one terminal at the repository root:
-
-```bash
-npm run storage:dev
-```
-
-In another terminal at the repository root:
+## 4. Start the applications
 
 ```bash
 npm run dev
 ```
 
-Turborepo starts the Next.js web app and NestJS backend. It does not start Python, PostgreSQL, Redis, or the storage emulator.
+Turborepo starts the web and backend applications. Open http://localhost:3000. The backend API base is http://localhost:3001/api/v1. Python runs separately.
 
-The backend inspects the database on startup. For an empty database it uses TypeORM synchronization; databases with the core tables and migration history use migrations. Use a dedicated development database. Review this behavior in `apps/backend/src/app.module.ts` before pointing it at existing data.
+## 5. Start AI generation
 
-## 4. Start the AI service
-
-AI generation needs your own Google API key. Create `apps/ai/config.json`:
-
-```json
-{
-  "secrets": {
-    "GOOGLE_API_KEY": "your-google-api-key"
-  }
-}
-```
-
-In a separate terminal:
+Create `apps/ai/.env` with your own `GOOGLE_API_KEY`, then run in a separate terminal:
 
 ```bash
 cd apps/ai
@@ -120,45 +71,25 @@ python -m pip install -r requirements.txt
 python -m uvicorn main:app --reload --host 127.0.0.1 --port 8001
 ```
 
-Port **8001** deliberately avoids the storage emulator's default port **8000**. The backend `AI_SERVICE_URL` must match. Calling `python main.py` uses port 8000 instead, so use the command above for this setup.
+AI uses port **8001** to avoid the storage emulator on **8000**. The web setting `NEXT_PUBLIC_AI_BASE_URL` must match. Check availability with `curl http://localhost:8001/ping`; health alone does not verify generation credentials, quotas, or provider connections.
 
-## 5. Verify the services
+## Validation and troubleshooting
 
 ```bash
-curl http://localhost:3001/health
-curl http://localhost:8001/ping
+npm run test --workspace=backend -- --runInBand
+npm run build
 ```
 
-Open http://localhost:3000, sign in, and configure the connections needed for your workflow. A successful health response does not verify OAuth, external provider access, or AI generation; test those with your own accounts.
+The backend lint script auto-fixes files. The web lint script uses `next lint`; verify compatibility before treating it as a CI gate.
 
-## Useful commands
-
-Run from the repository root:
-
-| Command | Purpose |
+| Problem | Check |
 | --- | --- |
-| `npm run dev` | Start Node services in development mode |
-| `npm run build` | Build workspace applications |
-| `npm run test --workspace=backend -- --runInBand` | Run backend unit tests |
-| `npm run storage:dev` | Start the local storage emulator |
-| `npm run migration:run --workspace=backend` | Run backend database migrations; review database state first |
+| Database connection refused | Use port 5433 for local source development; Compose containers use postgres:5432. |
+| OAuth callback error | Match the exact callback scheme, hostname, port, and path. |
+| AI request reaches storage | Set NEXT_PUBLIC_AI_BASE_URL to http://localhost:8001 and restart the web app. |
+| Webhooks do not arrive | Providers generally require a publicly reachable HTTPS endpoint. |
+| Build or provider call fails | Check service logs, required credentials, provider permissions, and network access. |
 
-The backend lint script includes `--fix` and can modify files. The web lint script uses `next lint`; check compatibility with the installed Next.js version before relying on it as a CI gate.
+## Container applications
 
-## Troubleshooting
-
-| Symptom | Check |
-| --- | --- |
-| Missing required secrets at startup | Set shell variables or the service's `config.json`; app-level dotenv loading happens later. |
-| Database connection refused | Check PostgreSQL is running, port 5432 is available, and the database credentials match. |
-| Redis connection errors | Check Redis is reachable on the configured host and port. |
-| OAuth callback error | Match the exact scheme, hostname, port, and callback path in your provider app settings. |
-| AI or storage port conflict | Keep storage on 8000, AI on 8001, and update `AI_SERVICE_URL`. |
-| Webhooks do not fire locally | Most providers need a publicly reachable HTTPS endpoint and provider-side subscriptions. |
-| AI generation fails despite a healthy service | Check API key validity, model access, quotas, and service logs. |
-
-## Containers and deployment
-
-The root `docker-compose.yml` builds web, backend, and AI images. It does **not** provision PostgreSQL or Redis. Container database and Redis hosts must point to reachable infrastructure; `localhost` inside a container means that container. Configure the required secrets and storage separately before using Compose.
-
-`NEXT_PUBLIC_*` values are baked into the web bundle during image builds. Changing runtime variables alone will not update browser URLs. Use service-specific ports and hosts appropriate to your deployment rather than copying the local source-development settings unchanged.
+Compose also defines backend and frontend services. These use `apps/backend/.env` and `apps/web/.env` respectively; the frontend container does not consume the source-development `.env.local` through its Compose env_file setting. Inspect Dockerfiles and build-time public URLs before using the container application setup. The AI service is not included in this Compose file.

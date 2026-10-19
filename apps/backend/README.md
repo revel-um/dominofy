@@ -10,11 +10,10 @@ npm run build --workspace=backend
 npm run test --workspace=backend -- --runInBand
 ```
 
-The default API base is http://localhost:3001/api/v1; health is available at http://localhost:3001/health. The startup hook requires `DATABASE_PASSWORD` and `JWT_SECRET` before NestJS loads.
+The default API base is http://localhost:3001/api/v1. Configure database and authentication environment variables before starting.
 
 - `src/domino-engine/`: graph execution, registry, and domino handlers.
-- `src/config/`: environment defaults and provider callback URLs.
 - `src/migrations/`: TypeORM migrations.
 - Provider modules: OAuth, webhook, and integration-specific logic.
 
-Read [architecture](../../docs/architecture.md) and the [database bootstrap notes](../../docs/getting-started.md#3-start-storage-and-the-application) before changing persistence behavior. The lint script uses `--fix` and modifies files.
+Read [architecture](../../docs/architecture.md) and the [database setup notes](../../docs/getting-started.md#2-configure-the-backend) before changing persistence behavior. The lint script uses `--fix` and modifies files.
