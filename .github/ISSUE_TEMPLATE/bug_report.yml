@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a reproducible problem with Dominofy.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include credentials or private workflow data. Report vulnerabilities privately using SECURITY.md."
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include a minimal workflow and the affected integration, if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Commit, OS, browser, Node/Python versions, and local or container setup.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Remove tokens, account identifiers, and personal information.
