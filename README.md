@@ -29,6 +29,27 @@ Use the visual editor to assemble a workflow, or use the Gemini-powered AI servi
 
 **Project status:** actively evolving. Local setup requires PostgreSQL, Redis, and your own OAuth applications. AI features require a Google API key. Integration availability depends on provider permissions and configuration; this repository does not include hosted-service credentials or a production support guarantee.
 
+## Product preview
+
+Screenshots from the July 9, 2026 demo recording. The recorded build may show features beyond this repository's current implementation. Visible account email addresses have been hidden.
+
+![Dominofy workflow canvas showing connected email, text, AI, filter, and spreadsheet steps alongside the AI assistant](docs/images/workflow-canvas.jpg)
+
+*Connect dominos on a visual canvas and configure each step alongside the AI assistant.*
+
+<details>
+<summary><strong>Explore the template picker and AI prompt editor</strong></summary>
+
+![Workflow template picker with Candidate Tracker selected and a preview of its connected steps](docs/images/workflow-templates.jpg)
+
+*The recorded template picker previews a candidate-tracking workflow before creation.*
+
+![Prompt editor configuring requirements and structured output for an AI candidate-screening step](docs/images/ai-prompt-editor.jpg)
+
+*Define the instructions and output format used by an AI workflow step.*
+
+</details>
+
 ## Why Dominofy?
 
 - **Build visually:** compose connected nodes on a React Flow canvas and configure each step in context.
